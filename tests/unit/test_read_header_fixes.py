@@ -17,7 +17,7 @@ T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 QUERY = "weather football Ana talked"
 
 
-def _engine(read: dict[str, Any], **kw: Any) -> Engine:
+def _engine(read: dict[str, Any], rerank: dict[str, Any] | None = None, **kw: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
@@ -27,7 +27,7 @@ def _engine(read: dict[str, Any], **kw: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model={"embedding": {"provider": "hash", "settings": {}}, "rerank": rerank or {}},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
         **kw,
@@ -82,9 +82,9 @@ async def _resolved_provider(provider: object) -> object:
 
 @pytest.mark.parametrize("mode", ["retrieve", "compose"])
 async def test_rerank_keep_with_cards_header_keeps_raw_turns(mode: str) -> None:
-    """A-1: ``rerank_keep`` cut the candidates before the header's hide removed the
+    """A-1: ``model.rerank.keep`` cut the candidates before the header's hide removed the
     facts, so the routed read came back empty (and abstained)."""
-    eng = _engine({"cards": "header", "candidate_pool": 4, "rerank_keep": 6})
+    eng = _engine({"cards": "header", "candidate_pool": 4}, rerank={"keep": 6})
     await eng.start()
     try:
         await _seed(eng, TURNS_12, FACTS_10)

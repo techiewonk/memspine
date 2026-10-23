@@ -70,24 +70,29 @@ def test_call_budget_blocks_before_the_call() -> None:
 
 
 def test_engine_config_defaults_to_cohere_v4_and_qwen3() -> None:
-    cfg = bedrock_engine_config("us-east-1")
+    cfg = bedrock_engine_config("us-east-1")["model"]  # ADR-082: the model slots
     assert cfg["embedding"] == {
         "provider": "litellm",
-        "model": COHERE_EMBED_V4,
-        "dim": COHERE_EMBED_V4_DIM,
-        "aws_region": "us-east-1",
-        "request_dimensions": True,
-        "query_input_type": "search_query",
-        "document_input_type": "search_document",
+        "settings": {
+            "model": COHERE_EMBED_V4,
+            "dim": COHERE_EMBED_V4_DIM,
+            "aws_region": "us-east-1",
+            "request_timeout_s": 60.0,
+            "request_dimensions": True,
+            "query_input_type": "search_query",
+            "document_input_type": "search_document",
+        },
     }
     assert COHERE_EMBED_V4_DIM == 1024
-    assert all(role["model"] == QWEN3_32B for role in cfg["llm"]["roles"].values())
+    assert all(role["settings"]["model"] == QWEN3_32B for role in cfg["llm"].values())
+    assert all(role["timeout_s"] == 180.0 for role in cfg["llm"].values())
 
 
 def test_engine_config_can_select_titan() -> None:
     cfg = bedrock_engine_config("us-east-1", embed_model=TITAN_V2, embed_dim=TITAN_V2_DIM)
-    assert cfg["embedding"]["model"] == TITAN_V2 and cfg["embedding"]["dim"] == 1024
-    assert "query_input_type" not in cfg["embedding"]  # Titan is symmetric
+    settings = cfg["model"]["embedding"]["settings"]
+    assert settings["model"] == TITAN_V2 and settings["dim"] == 1024
+    assert "query_input_type" not in settings  # Titan is symmetric
 
 
 def test_judge_parser_handles_locomo_label_and_explanations() -> None:

@@ -23,7 +23,7 @@ from pydantic import BaseModel
 from memspine.config.schema import MemspineConfig
 
 #: Placeholder for an open map keyed by name (an LLM role, memory type, or
-#: namespace). Provider role settings recurse under ``llm.roles.*.settings``.
+#: namespace). LLM role slots recurse under ``model.llm.*``.
 _WILDCARD = "*"
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -53,8 +53,8 @@ def _walk(model: type[BaseModel], prefix: str, out: set[str]) -> None:
     """Collect every leaf config key path of ``model`` into ``out``.
 
     Sub-models recurse (``storage`` -> ``storage.backend`` …); ``dict[str, SubModel]``
-    fields recurse under a ``*`` wildcard segment (``llm.roles`` ->
-    ``llm.roles.*.provider`` and ``llm.roles.*.settings``); scalars and open dicts (``read.scoring``,
+    fields recurse under a ``*`` wildcard segment (``model.llm`` ->
+    ``model.llm.*.provider`` and ``model.llm.*.settings``); scalars and open dicts (``read.scoring``,
     ``*.policies``, ``prompts.overrides``) are leaves documented by their own key.
     """
     for name, field in model.model_fields.items():

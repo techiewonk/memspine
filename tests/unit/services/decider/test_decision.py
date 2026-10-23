@@ -12,7 +12,7 @@ from typing import Any, ClassVar
 import pytest
 
 from memspine import Engine
-from memspine.config.schema.llm import GlinerSettings
+from memspine.config.schema.model import GlinerSettings
 from memspine.exceptions import ConfigError, MissingServiceError
 from memspine.services.decider import DecisionProvider
 from memspine.services.decider.gliner2 import (
@@ -199,15 +199,15 @@ async def test_load_is_serialised_by_pool() -> None:
 
 
 def _engine(**extra: Any) -> Engine:
-    models = {
-        "profiles": {"gliner-default": {"kind": "gliner", "provider": "gliner2", "settings": {}}},
-        "bindings": {"gliner_decision": "gliner-default"},
+    """ADR-082: the decision router is the ``model.decider.route`` slot; a caller's ``model``
+    categories merge over it (one level deep)."""
+    model: dict[str, Any] = {
+        "embedding": {"provider": "hash", "settings": {}},
+        "decider": {"route": {"provider": "gliner2", "settings": {}}},
     }
-    overrides = extra.pop("models", {})
-    for key in ("profiles", "bindings"):
-        if key in overrides:
-            models[key].update(overrides[key])
-    models.update({key: value for key, value in overrides.items() if key not in models})
+    for key, value in extra.pop("model", {}).items():
+        current = model.get(key)
+        model[key] = {**current, **value} if isinstance(current, dict) else value
     return Engine(
         template="core",
         dotenv_path=None,
@@ -217,12 +217,8 @@ def _engine(**extra: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={
-            "embedding": {"provider": "hash", "settings": {}},
-            "decider": {"route": {"provider": "gliner2"}},
-        },
+        model=model,
         read={"hybrid": False, "planner": "decision"},
-        models=models,
         **extra,
     )
 
@@ -268,9 +264,9 @@ async def test_core_start_does_not_import_or_load_gliner_when_off(
 
 
 async def test_enabled_consumer_requires_its_configured_gliner_task() -> None:
-    eng = _engine()
+    route = {"provider": "gliner2", "settings": {"tasks": ["entities"]}}
     with pytest.raises(ConfigError, match="classification"):
-        await eng.start()
+        await _engine(model={"decider": {"route": route}}).start()
 
 
 class _Fake:
@@ -403,13 +399,13 @@ async def test_engine_injects_one_owned_pool_into_enabled_consumers(
             "window_extract": "facts",
             "online_extractor_v2": True,
         },
-        models={
-            "bindings": {
-                "gliner_semantic": "gliner-default",
-                "gliner_prepass": "gliner-default",
+        model={
+            "extraction": {
+                "semantic": {"provider": "gliner2", "settings": {}},
+                "prepass": {"provider": "gliner2", "settings": {}},
             },
+            "placement": {"max_loaded_models": 2},
         },
-        model={"placement": {"max_loaded_models": 2}},
     )
     await eng.start()
     try:
@@ -470,6 +466,12 @@ async def test_engine_profiles_select_distinct_models_and_share_equal_settings(
             "extraction": {
                 "semantic": {"provider": "gliner2", "settings": shared_entities},
                 "prepass": {"provider": "gliner2", "settings": shared_entities},
+            },
+            "decider": {
+                "route": {
+                    "provider": "gliner2",
+                    "settings": {"model": "fake/classification", "tasks": ["classification"]},
+                }
             },
             "placement": {"max_loaded_models": 2},
         },

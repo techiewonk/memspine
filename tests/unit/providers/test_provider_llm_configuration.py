@@ -6,7 +6,7 @@ import pytest
 from pydantic import BaseModel, ValidationError
 
 from memspine import Engine
-from memspine.config.schema.llm import LLMRoleConfig, ModelDecl
+from memspine.config.schema.model import LLMSlot, ModelDecl
 from memspine.exceptions import LLMError
 from memspine.prompts.base import Prompt, PromptFormat
 from memspine.providers.contexts import LLMBuildContext
@@ -30,7 +30,9 @@ class PluginLLM:
 
 def test_role_requires_explicit_provider_and_catalogue_llm_requires_timeout() -> None:
     with pytest.raises(ValidationError, match="provider"):
-        LLMRoleConfig(settings={"model": "ollama/model", "timeout_seconds": 30.0})
+        LLMSlot(timeout_s=30.0, settings={"model": "ollama/model"})  # type: ignore[call-arg]
+    with pytest.raises(ValidationError, match="timeout_s"):
+        LLMSlot(provider="litellm", settings={"model": "ollama/model"})  # type: ignore[call-arg]
     with pytest.raises(ValidationError, match="explicit provider"):
         ModelDecl(id="ollama/model", kind="llm", timeout_seconds=30.0)
     with pytest.raises(ValidationError, match="explicit timeout_seconds"):
@@ -75,6 +77,7 @@ async def test_explicit_plugin_uses_its_schema_and_role_context_and_closes_once(
                 "llm": {
                     "chat": {
                         "provider": ref.name,
+                        "timeout_s": 7.0,
                         "settings": {"deployment_name": "tenant-a", "request_timeout_s": 7.0},
                     }
                 },
@@ -127,6 +130,7 @@ async def test_two_engines_keep_independent_structured_retry_policies() -> None:
                 "llm": {
                     "chat": {
                         "provider": ref.name,
+                        "timeout_s": 1.0,
                         "settings": {"deployment_name": "test", "request_timeout_s": 1.0},
                         "structured": {"retry_on_error": retry},
                     }

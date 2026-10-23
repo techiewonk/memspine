@@ -56,7 +56,7 @@ def _engine(path: Path, **embedding: Any) -> Engine:
                 "settings": {"path": str(path), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}, **embedding},
+        model={"embedding": {"provider": "hash", "settings": {}, **embedding}},
         read={"hybrid": False, "record_access": False},
         memories={"semantic": {"enabled": True}},
     )
@@ -78,9 +78,9 @@ def test_profile_identity() -> None:
 
 
 def test_gpu_profile_applies_to_config() -> None:
-    from memspine.config.schema.llm import EmbeddingConfig
+    from memspine.config.schema.model import EmbeddingSlot
 
-    cfg = GPU_QWEN3.apply(EmbeddingConfig())
+    cfg = GPU_QWEN3.apply(EmbeddingSlot())
     assert cfg.provider == "st"
     assert cfg.settings == {
         "model": "Qwen/Qwen3-Embedding-0.6B",
@@ -89,7 +89,7 @@ def test_gpu_profile_applies_to_config() -> None:
         "device": "cuda",
         "dtype": "bfloat16",
     }
-    cpu = CPU_MULTILINGUAL.apply(EmbeddingConfig())
+    cpu = CPU_MULTILINGUAL.apply(EmbeddingSlot())
     assert cpu.provider == "fastembed" and cpu.settings["dim"] == 384
 
 
@@ -115,9 +115,9 @@ class _RecordingBuilder:
 @pytest.mark.parametrize(
     ("raw_embedding", "expected_provider", "expected_model"),
     [
-        ({"profile": "gpu"}, "st", "Qwen/Qwen3-Embedding-0.6B"),
+        ({"preset": "gpu"}, "st", "Qwen/Qwen3-Embedding-0.6B"),
         (
-            {"profile": "cpu_multilingual"},
+            {"preset": "cpu_multilingual"},
             "fastembed",
             "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
         ),
@@ -132,7 +132,7 @@ async def test_embedder_builder_receives_effective_profile_settings_without_load
 ) -> None:
     """The profile selects a typed builder; the fake avoids model or GPU initialization."""
 
-    config = load_config(template="core", env={}, overrides={"embedding": raw_embedding}).config
+    config = load_config(template="core", env={}, overrides={"model": {"embedding": raw_embedding}}).config
     effective = resolved_embedding(config)
     assert effective.provider == expected_provider
 
@@ -189,7 +189,7 @@ async def test_flag_off_unchanged(tmp_path: Path, events: list[Any]) -> None:
 
 async def test_pinned_at_creation_and_survives_restart(tmp_path: Path, events: list[Any]) -> None:
     db = tmp_path / "m.db"
-    eng = _engine(db, profile="fake_a", pin_profile=True)
+    eng = _engine(db, preset="fake_a", pin_preset=True)
     await eng.start()
     await eng.write("the kayak is red", namespace="u", memory_type="semantic")
     await eng.stop()
@@ -198,7 +198,7 @@ async def test_pinned_at_creation_and_survives_restart(tmp_path: Path, events: l
     assert (pin["model_id"], pin["dim"], pin["dtype"]) == ("fake-a", 64, "float32")
     assert any(stage == "embed.profile" and f["profile"] == "fake_a" for stage, f in events)
 
-    again = _engine(db, profile="fake_a", pin_profile=True)  # restart, same profile
+    again = _engine(db, preset="fake_a", pin_preset=True)  # restart, same profile
     await again.start()
     hits = await again.search("kayak", namespace="u")
     await again.stop()
@@ -208,10 +208,10 @@ async def test_pinned_at_creation_and_survives_restart(tmp_path: Path, events: l
 
 async def test_mismatch_refused_with_command(tmp_path: Path, events: list[Any]) -> None:
     db = tmp_path / "m.db"
-    first = _engine(db, profile="fake_a", pin_profile=True)
+    first = _engine(db, preset="fake_a", pin_preset=True)
     await first.start()
     await first.stop()
-    other = _engine(db, profile="fake_b", pin_profile=True)
+    other = _engine(db, preset="fake_b", pin_preset=True)
     with pytest.raises(EmbeddingProfileMismatch, match=r"VersionedSpaceStore.reembed"):
         await other.start()
     assert any(stage == "embed.profile_mismatch" for stage, _ in events)
@@ -220,21 +220,21 @@ async def test_mismatch_refused_with_command(tmp_path: Path, events: list[Any]) 
 
 async def test_migration_requires_versioned_spaces(tmp_path: Path) -> None:
     db = tmp_path / "m.db"
-    first = _engine(db, profile="fake_a", pin_profile=True)
+    first = _engine(db, preset="fake_a", pin_preset=True)
     await first.start()
     await first.stop()
-    bad = _engine(db, profile="fake_b", pin_profile=True, migrate_profile=True)
+    bad = _engine(db, preset="fake_b", pin_preset=True, migrate_preset=True)
     with pytest.raises(ConfigError, match="versioned_spaces"):
         await bad.start()
 
 
 async def test_migration_replaces_pin(tmp_path: Path, events: list[Any]) -> None:
     db = tmp_path / "m.db"
-    first = _engine(db, profile="fake_a", pin_profile=True, versioned_spaces=True)
+    first = _engine(db, preset="fake_a", pin_preset=True, versioned_spaces=True)
     await first.start()
     await first.stop()
     moved = _engine(
-        db, profile="fake_b", pin_profile=True, versioned_spaces=True, migrate_profile=True
+        db, preset="fake_b", pin_preset=True, versioned_spaces=True, migrate_preset=True
     )
     await moved.start()
     await moved.stop()
@@ -293,11 +293,11 @@ def _fastembed_cached(model: str) -> bool:
     reason="paraphrase-multilingual-MiniLM-L12-v2 is not in the local fastembed/HF cache",
 )
 async def test_cpu_multilingual_profile_resolves() -> None:
-    from memspine.config.schema.llm import EmbeddingConfig
+    from memspine.config.schema.model import EmbeddingSlot
     from memspine.providers.registry import get_registry, validate_settings
 
     prof = resolve_profile("cpu_multilingual")
-    cfg = prof.apply(EmbeddingConfig())
+    cfg = prof.apply(EmbeddingSlot())
     descriptor = get_registry("embedders").get(cfg.provider)
     settings = validate_settings(descriptor, cfg.settings)
     built = await descriptor.builder.build(settings, None)

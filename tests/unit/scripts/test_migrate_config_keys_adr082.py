@@ -420,6 +420,15 @@ def test_decision_off_means_no_route_slot() -> None:
     assert any("inert" in n for n in notes)
 
 
+def test_decision_binding_without_decision_provider_here_is_left() -> None:
+    """A helper's ``models=`` kwarg may bind gliner_decision while decision.provider is set
+    by the helper itself: absent is not off, so the binding is kept and reported."""
+    data = {"models": {"profiles": {"g": GLINER}, "bindings": {"gliner_decision": "g"}}}
+    out, notes = mig(data)
+    assert out == data
+    assert any("decision.provider is not in this config" in n for n in notes)
+
+
 def test_read_decider_opendecider_becomes_slot() -> None:
     out, _ = mig(
         {
@@ -768,6 +777,18 @@ def test_python_dotted_strings_but_not_event_names() -> None:
     assert 'tap.event("read.rerank_v2_search_pool"' in out
     assert 'tap.span("read.rerank")' in out
     assert '("read.rerank.components", "models.resolve")' in out
+
+
+def test_python_dotted_embedding_string_is_rewritten_once() -> None:
+    out, _ = py(
+        """
+        a = sources["embedding.settings.model"], sources["embedding.provider"]
+        b = cfg.embedding.settings
+        """
+    )
+    assert 'sources["model.embedding.settings.model"], sources["model.embedding.provider"]' in out
+    assert "b = cfg.model.embedding.settings" in out
+    assert "model.model." not in out
 
 
 def test_python_env_names() -> None:

@@ -97,7 +97,7 @@ def _engine(**read: Any) -> Engine:
         },
         model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
-        read={"record_access": False, "rerank": "off", **read},
+        read={"record_access": False, **read},
     )
 
 

@@ -28,7 +28,7 @@ def _engine(tmp_path: Any, **read: Any) -> Engine:
             }
         },
         model={"embedding": {"provider": "hash", "settings": {}}},
-        read={"rerank": "off", "record_access": False, **read},
+        read={"record_access": False, **read},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     )
 

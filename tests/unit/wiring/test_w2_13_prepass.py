@@ -428,7 +428,7 @@ async def test_async_hint_cache_tracks_record_snapshot_and_sender() -> None:
 async def test_gliner_hints_uses_shared_settings_and_pool(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from memspine.config.schema.llm import GlinerSettings
+    from memspine.config.schema.model import GlinerSettings
     from memspine.services.decider.gliner2 import DEFAULT_MODEL
     from memspine.services.extraction.gliner2 import GLiNERModelPool
 

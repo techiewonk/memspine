@@ -11,7 +11,6 @@ from pydantic import ValidationError
 from memspine.config.schema import MemspineConfig
 from memspine.semantics import PackManifest, SemanticRegistry, load_builtin_registry, load_registry
 from memspine.semantics.domains import (
-    TOPIC_BINDING_ROLE,
     domain_covers,
     domain_in,
     resolve_domain,
@@ -108,6 +107,11 @@ def test_pack_domain_changes_registry_digest() -> None:
     assert without.pack_domain("predicate", "plays_sport") is None
 
 
+def _with_topic(slot: object) -> SimpleNamespace:
+    """A config stand-in carrying only ``model.extraction.topic`` (ADR-082)."""
+    return SimpleNamespace(model=SimpleNamespace(extraction=SimpleNamespace(topic=slot)))
+
+
 def test_topic_hook_is_off_unless_bound() -> None:
     calls: list[str] = []
 
@@ -115,8 +119,8 @@ def test_topic_hook_is_off_unless_bound() -> None:
         calls.append(text)
         return ["health/condition", "Not Valid", "health/condition"]
 
-    unbound = SimpleNamespace(models=SimpleNamespace(bindings={}))
-    bound = SimpleNamespace(models=SimpleNamespace(bindings={TOPIC_BINDING_ROLE: "topics"}))
+    unbound = _with_topic(None)
+    bound = _with_topic(SimpleNamespace(provider="gliner2"))
     assert topic_hook(unbound, stub) is None
     assert topic_hook(bound, None) is None
     tagger = topic_hook(bound, stub)
@@ -126,7 +130,7 @@ def test_topic_hook_is_off_unless_bound() -> None:
     assert calls == ["I have asthma"]
 
 
-def test_gliner_topic_binding_role_is_accepted_by_config() -> None:
+def test_gliner_topic_slot_is_accepted_by_config() -> None:
     runtime = {
         "provider_services": {
             "health_timeout_s": 5.0,
@@ -137,11 +141,9 @@ def test_gliner_topic_binding_role_is_accepted_by_config() -> None:
     cfg = MemspineConfig.model_validate(
         {
             "runtime": runtime,
-            "models": {
-                "profiles": {"topics": {"kind": "gliner", "provider": "gliner2"}},
-                "bindings": {TOPIC_BINDING_ROLE: "topics"},
-            },
+            "model": {"extraction": {"topic": {"provider": "gliner2", "settings": {}}}},
         }
     )
-    assert cfg.models.bindings[TOPIC_BINDING_ROLE] == "topics"
+    assert cfg.model.extraction.topic is not None
+    assert cfg.model.extraction.topic.provider == "gliner2"
     assert topic_hook(cfg, lambda text: ["health"]) is not None

@@ -11,7 +11,7 @@ import pytest
 from pydantic import ValidationError
 
 from memspine import Engine
-from memspine.config.schema import MemspineConfig
+from memspine.config.schema import DeciderReadSlot, MemspineConfig
 from memspine.core.agentic import clean_query, evidence_view, fuse_new, merge_budget
 from memspine.models.encoders.query.shape import is_multi_hop
 from memspine.observability.trace import search_forensics
@@ -69,7 +69,11 @@ def _with_roles(monkeypatch: pytest.MonkeyPatch, stubs: dict[str, LLMService]) -
     monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
 
 
-def _engine(**read: Any) -> Engine:
+def _engine(decider: dict[str, Any] | None = None, **read: Any) -> Engine:
+    # ADR-082: the read-path decider is the model.decider.read slot (absent = heuristic).
+    model: dict[str, Any] = {"embedding": {"provider": "hash", "settings": {}}}
+    if decider is not None:
+        model["decider"] = {"read": {"provider": "opendecider", **decider}}
     return Engine(
         template="core",
         dotenv_path=None,
@@ -79,7 +83,7 @@ def _engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model=model,
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
     )
@@ -135,7 +139,7 @@ def test_defaults_are_off() -> None:
     assert read.agentic is False
     assert read.agentic_max_steps == 2
     assert read.agentic_trigger == "multi_hop"
-    assert read.decider_tasks == ["list_mode", "bridge_hop"]
+    assert DeciderReadSlot(provider="opendecider").tasks == ["list_mode", "bridge_hop"]
     with pytest.raises(ValueError):
         MemspineConfig(read={"agentic_max_steps": 6})
 
@@ -451,8 +455,7 @@ async def test_decider_trigger_follows_the_decider(monkeypatch: pytest.MonkeyPat
     eng = _engine(
         agentic=True,
         agentic_trigger="decider",
-        decider="opendecider",
-        decider_tasks=["needs_more_evidence"],
+        decider={"tasks": ["needs_more_evidence"]},
     )
     fake = _FakeDecider("needs_more")
     eng.set_decider(fake)
@@ -472,7 +475,7 @@ async def test_decider_trigger_without_a_decider_uses_the_heuristic(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _with_roles(monkeypatch, {"sufficiency": _Stub(ANSWER_READY)})
-    eng = _engine(agentic=True, agentic_trigger="decider")  # decider: heuristic (default)
+    eng = _engine(agentic=True, agentic_trigger="decider")  # no model.decider.read slot: heuristic
     await eng.start()
     try:
         await _seed(eng)

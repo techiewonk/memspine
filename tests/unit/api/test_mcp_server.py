@@ -102,7 +102,7 @@ async def test_real_subprocess_stdout_is_protocol_only(tmp_path: Any) -> None:
 
     cfg = tmp_path / "c.yaml"
     cfg.write_text(
-        "embedding:\n  provider: hash\nread:\n  hybrid: false\n"
+        "model:\n  embedding:\n    provider: hash\nread:\n  hybrid: false\n"
         "memories:\n  semantic:\n    enabled: true\n",
         encoding="utf-8",
     )

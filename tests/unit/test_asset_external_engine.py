@@ -125,7 +125,7 @@ def test_everything_is_off_by_default() -> None:
     )
     assert cfg.ingest.assets == "off" and cfg.read.asset_evidence == "off"
     assert cfg.read.external_evidence == "off" and cfg.read.external_provider == "none"
-    assert IngestConfig().asset_vision == "none"
+    assert cfg.model.vision is None  # ADR-082: no vision slot = no description
 
 
 def test_config_rejects_inconsistent_asset_keys() -> None:

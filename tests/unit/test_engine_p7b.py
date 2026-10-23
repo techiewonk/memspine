@@ -31,7 +31,9 @@ class FakeReranker:
         return [10.0 if self.marker in doc else 0.0 for doc in documents]
 
 
-def make_engine(**read: Any) -> Engine:
+def make_engine(reranker: str | None = None, **read: Any) -> Engine:
+    # ADR-082: a reranker is a one-entry model.rerank.chain (none = [] = off).
+    chain = [{"provider": reranker, "settings": {}}] if reranker else []
     return Engine(
         template="core",
         dotenv_path=None,
@@ -41,7 +43,7 @@ def make_engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model={"embedding": {"provider": "hash", "settings": {}}, "rerank": {"chain": chain}},
         read=read,
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
     )
@@ -79,7 +81,7 @@ async def test_static_prefilter_off_by_default(engine: Engine) -> None:
 
 
 async def test_injected_reranker_reorders_results() -> None:
-    eng = make_engine(rerank="fastembed")
+    eng = make_engine(reranker="fastembed")
     await eng.start()
     try:
         fake = FakeReranker(marker="zebra")
@@ -98,7 +100,7 @@ async def test_missing_rerank_provider_skips_loudly_but_search_works(
 ) -> None:
     # M-BRANCH: simulate the absent [rerank] extra whatever this environment has installed.
     monkeypatch.setitem(sys.modules, "flashrank", None)
-    eng = make_engine(rerank="flashrank")
+    eng = make_engine(reranker="flashrank")
     await eng.start()
     try:
         await eng.write("still retrievable")
@@ -110,7 +112,7 @@ async def test_missing_rerank_provider_skips_loudly_but_search_works(
 
 
 async def test_quarantined_records_stay_excluded_with_rerank_on() -> None:
-    eng = make_engine(rerank="fastembed")
+    eng = make_engine(reranker="fastembed")
     await eng.start()
     try:
         eng._reranker = FakeReranker(marker="Ignore")
@@ -141,8 +143,8 @@ async def test_static_prefilter_drops_non_overlapping_candidates() -> None:
 
 
 async def test_invalid_rerank_mode_fails_at_start() -> None:
-    eng = make_engine(rerank="bogus")
-    with pytest.raises(ConfigError, match=r"read\.rerank"):
+    eng = make_engine(reranker="bogus")
+    with pytest.raises(ConfigError, match=r"model\.rerank"):
         await eng.start()
 
 
@@ -187,7 +189,7 @@ async def test_reranker_construction_failure_for_explicit_provider_propagates(
             raise RuntimeError("model weights failed to download")
 
     monkeypatch.setattr(fastembed_module, "FastembedReranker", ExplodingReranker)
-    eng = make_engine(rerank="fastembed")
+    eng = make_engine(reranker="fastembed")
     await eng.start()
     try:
         await eng.write("still retrievable after a broken reranker")

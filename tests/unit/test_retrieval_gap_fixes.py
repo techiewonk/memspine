@@ -1,4 +1,4 @@
-"""RETRIEVAL_GAPS fixes: asymmetric replay window, ``read.rerank_floor``, wide rerank pool."""
+"""RETRIEVAL_GAPS fixes: asymmetric replay window, ``model.rerank.floor``, wide rerank pool."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import pytest
 from pydantic import ValidationError
 
 from memspine import Engine
-from memspine.config.schema import ReadConfig
+from memspine.config.schema import ReadConfig, RerankConfig
 from memspine.store.records import MemoryRecord
 
 WORDS = [f"w{i}x{i * 7}" for i in range(60)]
@@ -22,6 +22,8 @@ T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 
 
 def _engine(**read: Any) -> Engine:
+    # ADR-082: the reranker behaviour keys live in model.rerank, the rest in read.
+    rerank = {k: read.pop(k) for k in ("floor", "keep") if k in read}
     return Engine(
         template="core",
         dotenv_path=None,
@@ -31,7 +33,7 @@ def _engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model={"embedding": {"provider": "hash", "settings": {}}, "rerank": rerank},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
     )
@@ -117,7 +119,7 @@ async def test_rerank_floor_skip_keeps_reranked_hits_the_minmax_floor_drops() ->
     floor = {"assembly": {"relative_floor": 0.9}}
     base = {"candidate_pool": 3, **floor}
     minmax = await _read(base, _Reranker())
-    skip = await _read({**base, "rerank_floor": "skip"}, _Reranker())
+    skip = await _read({**base, "floor": "skip"}, _Reranker())
     assert len(minmax) < 15  # min-max puts the worst at 0.0: the floor deletes hits
     assert len(skip) == 15  # nothing deleted by the floor
     assert set(minmax) <= set(skip)
@@ -126,20 +128,20 @@ async def test_rerank_floor_skip_keeps_reranked_hits_the_minmax_floor_drops() ->
 async def test_rerank_floor_skip_still_floors_a_read_the_reranker_did_not_score() -> None:
     floor = {"assembly": {"relative_floor": 0.99}, "candidate_pool": 3}
     plain = await _read(floor, None)
-    skip = await _read({**floor, "rerank_floor": "skip"}, None)
+    skip = await _read({**floor, "floor": "skip"}, None)
     assert skip == plain
     assert len(plain) < 15
 
 
 def test_default_rerank_floor_is_minmax() -> None:
-    assert ReadConfig().rerank_floor == "minmax"
+    assert RerankConfig().floor == "minmax"
 
 
 @pytest.mark.parametrize("pool", [2, 3])
 async def test_wider_pool_reaches_the_reranker_and_only_rerank_keep_goes_on(pool: int) -> None:
     reranker = _Reranker()
-    records = await _read({"candidate_pool": pool, "rerank_keep": 10}, reranker, top_k=10)
+    records = await _read({"candidate_pool": pool, "keep": 10}, reranker, top_k=10)
     assert len(reranker.seen) == 10 * pool  # the reranker sees top_k x pool
-    assert len(records) == 10  # and only rerank_keep of them leave
+    assert len(records) == 10  # and only model.rerank.keep of them leave
     top = reranker.seen[:10]  # the fake reranker ranks its input order
     assert all(any(doc.endswith(r) for doc in top) for r in records)

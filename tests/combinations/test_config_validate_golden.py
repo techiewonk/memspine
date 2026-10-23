@@ -131,9 +131,8 @@ async def test_strict_services_is_the_gate_default(make_engine) -> None:
         ("storage.vector", "provider", "settings"),
         ("storage.cache", "provider", "settings"),
         ("storage.graph", "provider", "settings"),
-        ("embedding", "provider", "settings"),
+        ("model.embedding", "provider", "settings"),
         ("storage.lexical", "provider", "settings"),
-        ("read", "rerank", "rerank_settings"),
         ("model.llm.window_extract", "provider", "settings"),
     ],
 )
@@ -141,6 +140,8 @@ def test_provider_change_replaces_inherited_native_settings(
     group: str, selector: str, settings_key: str
 ) -> None:
     def nested(**values):
+        if group.startswith("model.llm."):
+            values["timeout_s"] = 30.0  # required on every LLM slot (ADR-082)
         node = {}
         current = node
         parts = group.split(".")
@@ -179,7 +180,7 @@ def test_provider_settings_overlay_merges_same_provider_and_refreshes_sources() 
     assert loaded.config.storage.records.settings == {"path": "first.db", "busy_timeout_s": 7.0}
     assert loaded.sources["storage.records.settings.path"] == "user"
     assert loaded.sources["storage.records.settings.busy_timeout_s"] == "kwargs"
-    assert "model.model.embedding.settings.model" not in loaded.sources
+    assert "model.embedding.settings.model" not in loaded.sources
 
 
 def test_provider_change_applies_across_yaml_environment_and_kwargs_layers() -> None:
@@ -198,9 +199,9 @@ def test_provider_change_applies_across_yaml_environment_and_kwargs_layers() -> 
     )
     assert loaded.config.model.embedding.provider == "hash"
     assert loaded.config.model.embedding.settings == {"test_seed": 17}
-    assert "model.model.embedding.settings.model" not in loaded.sources
-    assert "model.model.embedding.settings.region" not in loaded.sources
-    assert loaded.sources["model.model.embedding.settings.test_seed"] == "kwargs"
+    assert "model.embedding.settings.model" not in loaded.sources
+    assert "model.embedding.settings.region" not in loaded.sources
+    assert loaded.sources["model.embedding.settings.test_seed"] == "kwargs"
 
 
 # ── (c) reserved-key rejection ────────────────────────────────────────────────

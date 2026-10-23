@@ -208,7 +208,7 @@ def test_decider_selection_goes_through_the_descriptors() -> None:
     assert opendecider.decider_id == "opendecider" and opendecider.threads == 2
     with pytest.raises(ValueError):
         build_decider("jepa")
-    from memspine.config.schema.llm import GlinerSettings
+    from memspine.config.schema.model import GlinerSettings
     from memspine.exceptions import ConfigError
 
     with pytest.raises(ConfigError, match="GLiNER pool"):

@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from memspine import Engine
-from memspine.config.schema import ReadConfig
+from memspine.config.schema import RerankConfig
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
@@ -25,7 +25,7 @@ class FakeReranker:
         return [next((v for k, v in self.table.items() if k in d), 0.0) for d in documents]
 
 
-async def _search(read: dict[str, Any], reranker: FakeReranker) -> list[str]:
+async def _search(rerank: dict[str, Any], reranker: FakeReranker) -> list[str]:
     eng = Engine(
         template="core",
         dotenv_path=None,
@@ -35,9 +35,12 @@ async def _search(read: dict[str, Any], reranker: FakeReranker) -> list[str]:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "rerank": {"chain": [{"provider": "fastembed", "settings": {}}], **rerank},
+        },
         memories={"episodic": {"enabled": True}},
-        read={"record_access": False, "rerank": "fastembed", **read},
+        read={"record_access": False},
     )
     await eng.start()
     eng._reranker = reranker
@@ -62,28 +65,28 @@ async def _search(read: dict[str, Any], reranker: FakeReranker) -> list[str]:
 
 
 def test_keys_are_off_by_default() -> None:
-    read = ReadConfig()
-    assert (read.rerank_blend, read.rerank_gate, read.rerank_context) == (None, None, 0)
+    rerank = RerankConfig()
+    assert (rerank.blend, rerank.gate, rerank.context) == (None, None, 0)
 
 
 async def test_blend_zero_keeps_the_retrieval_order() -> None:
     table = {"the lake": 9.0}
     replaced = await _search({}, FakeReranker(table))
-    blended = await _search({"rerank_blend": 0.0}, FakeReranker(table))
+    blended = await _search({"blend": 0.0}, FakeReranker(table))
     assert replaced[0] == "Ben: yes, the lake"
     assert blended[0] != "Ben: yes, the lake"
 
 
 async def test_gate_keeps_the_retrieval_order_when_the_reranker_is_unsure() -> None:
     table = {"the lake": 0.2}
-    baseline = await _search({"rerank_blend": 0.0}, FakeReranker(table))
-    gated = await _search({"rerank_gate": 1.0}, FakeReranker(table))
+    baseline = await _search({"blend": 0.0}, FakeReranker(table))
+    gated = await _search({"gate": 1.0}, FakeReranker(table))
     assert gated == baseline
 
 
 async def test_context_shows_the_reranker_the_neighbouring_turns() -> None:
     fake = FakeReranker({})
-    await _search({"rerank_context": 1}, fake)
+    await _search({"context": 1}, fake)
     reply = next(d for d in fake.seen[0] if "[type: episodic]\nBen: yes" in d)
     assert "where should we go camping" in reply  # the question before it
     assert "gear list" in reply  # and the turn after

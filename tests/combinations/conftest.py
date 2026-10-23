@@ -37,7 +37,11 @@ def make_engine() -> EngineFactory:
                 }
             },
         )
-        overrides.setdefault("embedding", {"provider": "hash", "settings": {}})
+        # ADR-082: a caller's model slots merge over the default hash embedder.
+        overrides["model"] = {
+            "embedding": {"provider": "hash", "settings": {}},
+            **overrides.get("model", {}),
+        }
         return Engine(template=template, dotenv_path=None, **overrides)
 
     return _factory

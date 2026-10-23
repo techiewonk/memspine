@@ -33,7 +33,14 @@ def _lexical_reranker(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     return sizes
 
 
-def _engine(**read: Any) -> Engine:
+#: The old ``read.rerank_v2: true`` default chain (ADR-082: one ``model.rerank.chain`` entry each).
+_V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "fastembed")]
+
+
+def _engine(*, chain: bool = False, search_pool: int | None = None, **read: Any) -> Engine:
+    rerank: dict[str, Any] = {"chain": _V2_CHAIN if chain else []}
+    if search_pool is not None:
+        rerank["search_pool"] = search_pool
     return Engine(
         template="core",
         dotenv_path=None,
@@ -43,9 +50,9 @@ def _engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model={"embedding": {"provider": "hash", "settings": {}}, "rerank": rerank},
         memories={"episodic": {"enabled": True}},
-        read={"record_access": False, "rerank": "off", **read},
+        read={"record_access": False, **read},
     )
 
 
@@ -75,13 +82,13 @@ async def _rerank_sizes(sizes: list[int], **read: Any) -> list[int]:
         await eng.stop()
 
 
-# ------------------------------------------------------------------ S67: rerank_v2_search_pool
+# ------------------------------------------------------------------ S67: model.rerank.search_pool
 
 
 async def test_read_replay_widens_the_rerank_pool(_lexical_reranker: list[int]) -> None:
-    off = await _rerank_sizes(_lexical_reranker, rerank_v2=True)
-    zero = await _rerank_sizes(_lexical_reranker, rerank_v2=True, rerank_v2_search_pool=0)
-    on = await _rerank_sizes(_lexical_reranker, rerank_v2=True, rerank_v2_search_pool=20)
+    off = await _rerank_sizes(_lexical_reranker, chain=True)
+    zero = await _rerank_sizes(_lexical_reranker, chain=True, search_pool=0)
+    on = await _rerank_sizes(_lexical_reranker, chain=True, search_pool=20)
     assert off and off == zero
     assert max(off) <= 2
     assert max(on) > max(off) and max(on) <= 20
@@ -89,9 +96,9 @@ async def test_read_replay_widens_the_rerank_pool(_lexical_reranker: list[int]) 
 
 async def test_candidate_pool_is_not_widened_twice(_lexical_reranker: list[int]) -> None:
     # want = top_k x candidate_pool = 10 > search_pool 5: the key changes nothing
-    base = await _rerank_sizes(_lexical_reranker, rerank_v2=True, candidate_pool=5)
+    base = await _rerank_sizes(_lexical_reranker, chain=True, candidate_pool=5)
     small = await _rerank_sizes(
-        _lexical_reranker, rerank_v2=True, candidate_pool=5, rerank_v2_search_pool=5
+        _lexical_reranker, chain=True, candidate_pool=5, search_pool=5
     )
     assert base == small
 
@@ -100,12 +107,12 @@ async def test_candidate_pool_is_not_widened_twice(_lexical_reranker: list[int])
 
 
 async def test_tier_sets_the_rerank_pool(_lexical_reranker: list[int]) -> None:
-    off = await _rerank_sizes(_lexical_reranker, rerank_v2=True)
-    fast = await _rerank_sizes(_lexical_reranker, rerank_v2=True, tiers_v2=True)
+    off = await _rerank_sizes(_lexical_reranker, chain=True)
+    fast = await _rerank_sizes(_lexical_reranker, chain=True, tiers_v2=True)
     assert max(off) <= 2
     assert max(fast) == 32  # the fast tier's pool (read/tiers.py DEFAULT_TIER_TABLE)
     standard = await _rerank_sizes(
-        _lexical_reranker, rerank_v2=True, tiers_v2=True, tiers_v2_depth="standard"
+        _lexical_reranker, chain=True, tiers_v2=True, tiers_v2_depth="standard"
     )
     assert max(standard) == 48
 

@@ -78,9 +78,13 @@ class TopicEmbedder(HashEmbedding):
 
 
 async def _engine(
-    monkeypatch: pytest.MonkeyPatch, embedder: EmbeddingService | None = None, **read: Any
+    monkeypatch: pytest.MonkeyPatch,
+    embedder: EmbeddingService | None = None,
+    reranker: str | None = None,
+    **read: Any,
 ) -> Engine:
     emb = embedder or TopicEmbedder()
+    chain = [{"provider": reranker, "settings": {}}] if reranker else []
 
     class Builder:
         async def build(self, settings: Any, context: Any) -> BuildResult[EmbeddingService]:
@@ -113,7 +117,7 @@ async def _engine(
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model={"embedding": {"provider": "hash", "settings": {}}, "rerank": {"chain": chain}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "relevance_gate_bypass": "none", **read},
     )
@@ -312,7 +316,7 @@ class FakeReranker:
 
 
 async def _rerank_engine(monkeypatch: pytest.MonkeyPatch, **read: Any) -> Engine:
-    eng = await _engine(monkeypatch, rerank="flashrank", **read)
+    eng = await _engine(monkeypatch, reranker="flashrank", **read)
     eng._reranker = FakeReranker()  # type: ignore[assignment]
     return eng
 

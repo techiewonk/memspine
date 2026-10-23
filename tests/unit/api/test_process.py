@@ -251,7 +251,7 @@ async def test_worker_app_factory_reads_the_environment(
     from memspine.api.rest import worker_app
 
     cfg = tmp_path / "c.yaml"
-    cfg.write_text("embedding:\n  provider: hash\n", encoding="utf-8")
+    cfg.write_text("model:\n  embedding:\n    provider: hash\n", encoding="utf-8")
     monkeypatch.setenv("MEMSPINE_TEMPLATE", "core")
     monkeypatch.setenv("MEMSPINE_CONFIG", str(cfg))
     worker_app()
@@ -270,7 +270,7 @@ async def test_taskiq_worker_hook_starts_the_engine_before_serving(
     cfg.write_text(
         "storage:\n  records:\n    provider: sqlite\n    settings:\n"
         f"      path: '{(tmp_path / 'm.db').as_posix()}'\n      busy_timeout_s: 5.0\n"
-        "embedding:\n  provider: hash\n",
+        "model:\n  embedding:\n    provider: hash\n",
         encoding="utf-8",
     )
     seen: dict[str, Any] = {}
@@ -300,7 +300,7 @@ def test_spawned_worker_process_builds_and_warms_its_own_registry(tmp_path: Path
 
         spec = EngineSpec("core", None, {{
             "storage": {{"records": {{"provider": "sqlite", "settings": {{"path": "{db}", "busy_timeout_s": 5.0}}}}}},
-            "embedding": {{"provider": "hash", "settings": {{}}}},
+            "model": {{"embedding": {{"provider": "hash", "settings": {{}}}}}},
             "read": {{"hybrid": True}},
         }}, dotenv_path=None)
 

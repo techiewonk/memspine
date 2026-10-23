@@ -174,7 +174,13 @@ class _Reranker:
         return [1.0 for _ in documents]
 
 
-def _engine(monkeypatch: pytest.MonkeyPatch, stub: _PlanStub | None = None, **read: Any) -> Engine:
+def _engine(
+    monkeypatch: pytest.MonkeyPatch,
+    stub: _PlanStub | None = None,
+    reranker: str | None = None,
+    **read: Any,
+) -> Engine:
+    chain = [{"provider": reranker, "settings": {}}] if reranker else []
     stubs: dict[str, LLMService] = {"plan": stub} if stub is not None else {}
 
     async def router(
@@ -192,7 +198,7 @@ def _engine(monkeypatch: pytest.MonkeyPatch, stub: _PlanStub | None = None, **re
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model={"embedding": {"provider": "hash", "settings": {}}, "rerank": {"chain": chain}},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
     )
@@ -258,7 +264,7 @@ async def test_rerank_hint_reaches_the_reranker_only_when_asked(
     for use in (["header"], ["header", "rerank"]):
         eng = _engine(
             monkeypatch,
-            rerank="fastembed",
+            reranker="fastembed",
             query_contract="heuristic",
             query_contract_use=use,
         )

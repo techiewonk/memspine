@@ -273,7 +273,7 @@ def test_resolve_config_preserves_source_provenance_when_freezing() -> None:
 
     resolved = resolve_config(_SPEC, Secrets())
 
-    assert resolved.sources["model.model.embedding.provider"] == "kwargs"
+    assert resolved.sources["model.embedding.provider"] == "kwargs"
     assert resolved.config.model.embedding.provider == "hash"
 
 

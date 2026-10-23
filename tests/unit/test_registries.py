@@ -84,10 +84,10 @@ def test_rerank_modes_come_from_the_registry() -> None:
 
 
 def test_llm_provider_is_declared_separately_from_model_id() -> None:
-    from memspine.config.schema.llm import ModelDecl, ModelsConfig
+    from memspine.config.schema.model import ModelDecl, PlacementConfig
     from memspine.models.resolve import resolve_models
 
-    models = ModelsConfig(
+    models = PlacementConfig(
         tiers_v2=True,
         catalogue=[
             ModelDecl(

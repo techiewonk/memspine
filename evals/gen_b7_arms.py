@@ -22,11 +22,15 @@ PRESETS = Path(__file__).resolve().parents[1] / "src" / "memspine" / "config" / 
 J_BASE = "scr-pool-protect-jina"  # the reference arm behind f-jref2-i2
 GC_BASE = "scr-gc3-graph-jina"  # S02
 WF_BASE = "scr-gc3-windowfacts"  # S43: gc3 + write.window_extract=facts
+#: ADR-082: one model.llm slot (typed timeout_s, provider-owned settings).
 ROLE = {
-    "model": "ollama/qwen3.5:9b",
-    "api_base": "http://127.0.0.1:11434",
-    "timeout_seconds": 180.0,
-    "no_think": True,
+    "provider": "litellm",
+    "timeout_s": 180.0,
+    "settings": {
+        "model": "ollama/qwen3.5:9b",
+        "api_base": "http://127.0.0.1:11434",
+        "no_think": True,
+    },
 }
 #: R3-12: one sufficiency check, at most one rewrite and one extra retrieval; without a bound role the deep tier
 #: is rules-only and logs ``agentic_unbound`` (audit finding 4)

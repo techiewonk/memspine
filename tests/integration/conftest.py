@@ -51,7 +51,11 @@ def make_file_engine(db_path: str) -> FileEngineFactory:
             },
             **overrides.get("storage", {}),
         }
-        overrides.setdefault("embedding", {"provider": "hash", "settings": {}})
+        # ADR-082: a caller's model slots merge over the default hash embedder.
+        overrides["model"] = {
+            "embedding": {"provider": "hash", "settings": {}},
+            **overrides.get("model", {}),
+        }
         return Engine(dotenv_path=None, **overrides)
 
     return _factory

@@ -68,7 +68,10 @@ def test_profile_satisfies_every_requirement_and_turns_flags_on(name: str) -> No
     check_requires(cfg)  # raises ConfigError naming the missing prerequisite
     preset = load_preset(name)
     for key in _leaf_keys(preset):
-        assert resolve_path(cfg, key) == _dig(preset, key), key
+        got = resolve_path(cfg, key)
+        if isinstance(got, (list, tuple)):  # ADR-082: model.rerank.chain holds typed stages
+            got = [g.model_dump(mode="json") if hasattr(g, "model_dump") else g for g in got]
+        assert got == _dig(preset, key), key
     assert all(
         is_active(_dig(preset, k)) for k in _leaf_keys(preset)
     )  # a profile only switches things on

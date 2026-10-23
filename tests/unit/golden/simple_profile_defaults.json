@@ -12,9 +12,6 @@
       "untagged": "allow",
       "v2": false
     },
-    "decision": {
-      "provider": "off"
-    },
     "firewall": {
       "enabled": true,
       "gates_v2": false,
@@ -60,6 +57,60 @@
       "trust_weighted_ranking": true,
       "untrusted_wrap_below": 0.0,
       "verification_bonus": 1.0
+    },
+    "model": {
+      "decider": {
+        "read": null,
+        "route": null
+      },
+      "embedding": {
+        "batch_size": 32,
+        "migrate_preset": false,
+        "pin_preset": false,
+        "preset": null,
+        "provider": "fastembed",
+        "settings": {},
+        "versioned_spaces": false
+      },
+      "extraction": {
+        "prepass": null,
+        "semantic": null,
+        "sensitivity": null,
+        "topic": null
+      },
+      "llm": {},
+      "placement": {
+        "allow_hosted": false,
+        "catalogue": [],
+        "catalogue_rerankers": "shipped",
+        "detect_gpus": false,
+        "gpu_headroom_mb": 512,
+        "gpus": [],
+        "max_loaded_models": 1,
+        "on_missing_model": "error",
+        "pins": {},
+        "ram_mb": 0,
+        "required_roles": [],
+        "role_tier": {},
+        "tiers_v2": false
+      },
+      "rerank": {
+        "balanced": false,
+        "blend": null,
+        "chain": [],
+        "chunk_chars": null,
+        "chunk_overlap": 0,
+        "context": 0,
+        "date_prefix": false,
+        "floor": "minmax",
+        "gate": null,
+        "keep": null,
+        "max_top_k": null,
+        "pool": 64,
+        "search_pool": 0,
+        "skip_for_ordering": false
+      },
+      "vision": null
     },
     "read": {
       "abstain_on_raw": false,
@@ -120,18 +171,6 @@
       "date_prior": false,
       "date_prior_boost": 1.0,
       "date_prior_days": 14,
-      "decider": "heuristic",
-      "decider_backend": "torch",
-      "decider_device": "cpu",
-      "decider_dtype": "float32",
-      "decider_min_confidence": 0.5,
-      "decider_model": "manjunathshiva/opendecider-nano",
-      "decider_tasks": [
-        "list_mode",
-        "bridge_hop"
-      ],
-      "decider_threads": 0,
-      "decider_workers": 1,
       "decompose_v2": false,
       "decompose_v2_max_entities": 3,
       "dedupe": "off",
@@ -302,26 +341,6 @@
       "replay_window_unit": "turns",
       "reply_links": false,
       "reply_reserve_tokens": 0,
-      "rerank": "off",
-      "rerank_balanced": false,
-      "rerank_blend": null,
-      "rerank_chunk_chars": null,
-      "rerank_chunk_overlap": 0,
-      "rerank_context": 0,
-      "rerank_date_prefix": false,
-      "rerank_floor": "minmax",
-      "rerank_gate": null,
-      "rerank_keep": null,
-      "rerank_max_top_k": null,
-      "rerank_settings": {},
-      "rerank_v2": false,
-      "rerank_v2_chain": [
-        "jina",
-        "qwen3",
-        "fastembed"
-      ],
-      "rerank_v2_pool": 64,
-      "rerank_v2_search_pool": 0,
       "resolve_durations": false,
       "resolve_relative_dates": false,
       "role_aware": false,
@@ -340,7 +359,6 @@
       "session_sequence": false,
       "short_query_lexical_weight": null,
       "skip_defaulted_dates": false,
-      "skip_rerank_for_ordering": false,
       "span_line": false,
       "speaker_probe": false,
       "speaker_vote_mode": "name",

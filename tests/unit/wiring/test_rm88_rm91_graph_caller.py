@@ -251,7 +251,7 @@ async def test_no_filter_applies_no_caller_layer(monkeypatch: pytest.MonkeyPatch
 
 async def test_topic_tagger_runs_only_when_bound() -> None:
     """(d) GLiNER topic tags: an attached stub tagger is inert without the binding; with
-    ``models.bindings.gliner_topic`` it tags writes. Callers cannot forge the tag."""
+    ``model.extraction.topic`` it tags writes. Callers cannot forge the tag."""
     calls: list[str] = []
 
     def stub(text: str) -> list[str]:

@@ -198,8 +198,8 @@ def cpu_config(arm: dict[str, Any]) -> dict[str, Any]:
     cfg.setdefault("model", {}).setdefault("embedding", {})["provider"] = "hash"
     read = cfg["read"]
     for key in ("rerank", "rerank_model", "rerank_device", "rerank_keep", "rerank_floor"):
-        read.pop(key, None)
-    read["rerank"] = "off"
+        read.pop(key, None)  # PA-107 flat arm keys
+    cfg["model"]["rerank"] = {"chain": []}  # ADR-082: an empty chain is off
     cfg["storage"] = {"path": "tempdir"}
     return cfg
 
@@ -214,7 +214,7 @@ async def run_arm(arm_id: str, workdir: Path, data: Path) -> dict[str, Any]:
     validate_engine_config(arm)  # the arm exactly as it will run
     cfg = cpu_config(arm)
     validate_engine_config(cfg)
-    roles = sorted((arm.get("llm") or {}).get("roles") or {})
+    roles = sorted((arm.get("model") or {}).get("llm") or {})
     forensics = workdir / f"{arm_id}--forensics"
     os.environ["MEMSPINE_FORENSICS_DIR"] = str(forensics)
     stub = make_stub()

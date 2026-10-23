@@ -10,7 +10,7 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.config.schema import ReadConfig
+from memspine.config.schema import DeciderReadSlot, ModelConfig, OpenDeciderSettings, ReadConfig
 from memspine.observability.trace import search_forensics
 from memspine.providers.decider import build_decider
 from memspine.services.decider import decider as decider_mod
@@ -46,7 +46,11 @@ class BoomDecider:
         raise RuntimeError("model unavailable")
 
 
-def _engine(**read: Any) -> Engine:
+def _engine(decider: dict[str, Any] | None = None, **read: Any) -> Engine:
+    # ADR-082: the read-path decider is the model.decider.read slot (absent = heuristic).
+    model: dict[str, Any] = {"embedding": {"provider": "hash", "settings": {}}}
+    if decider is not None:
+        model["decider"] = {"read": {"provider": "opendecider", **decider}}
     return Engine(
         template="core",
         dotenv_path=None,
@@ -56,7 +60,7 @@ def _engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model=model,
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, **read},
     )
@@ -75,17 +79,17 @@ async def _seed(eng: Engine) -> None:
 
 
 def test_defaults_are_heuristic() -> None:
-    read = ReadConfig()
-    assert read.decider == "heuristic"
-    assert read.decider_device == "cpu"
-    assert read.decider_tasks == ["list_mode", "bridge_hop"]
-    assert read.relevance_gate == "off"
-    assert read.decider_min_confidence == 0.5  # the calibrated probability, no tuned cut
+    assert ModelConfig().decider.read is None  # no slot = the heuristic rules
+    assert OpenDeciderSettings().device == "cpu"
+    slot = DeciderReadSlot(provider="opendecider")
+    assert slot.tasks == ["list_mode", "bridge_hop"]
+    assert ReadConfig().relevance_gate == "off"
+    assert slot.min_confidence == 0.5  # the calibrated probability, no tuned cut
 
 
 def test_unknown_decider_task_is_rejected() -> None:
-    with pytest.raises(ValueError, match="decider_tasks"):
-        ReadConfig(decider_tasks=["nonsense"])  # type: ignore[list-item]
+    with pytest.raises(ValueError, match="tasks"):
+        DeciderReadSlot(provider="opendecider", tasks=["nonsense"])  # type: ignore[list-item]
 
 
 async def test_default_engine_never_consults_a_decider() -> None:
@@ -132,9 +136,7 @@ def test_build_decider() -> None:
 async def test_list_mode_follows_the_decider() -> None:
     eng = _engine(
         list_mode=True,
-        decider="opendecider",
-        decider_tasks=["list_mode"],
-        decider_min_confidence=0.6,
+        decider={"tasks": ["list_mode"], "min_confidence": 0.6},
     )
     fake = FakeDecider({"list_mode": ("set", 0.9)})
     eng.set_decider(fake)
@@ -153,7 +155,7 @@ async def test_list_mode_follows_the_decider() -> None:
 
 
 async def test_list_mode_off_never_asks_the_decider() -> None:
-    eng = _engine(list_mode=False, decider="opendecider", decider_tasks=["list_mode"])
+    eng = _engine(list_mode=False, decider={"tasks": ["list_mode"]})
     fake = FakeDecider({"list_mode": ("set", 0.99)})
     eng.set_decider(fake)
     await eng.start()
@@ -165,7 +167,7 @@ async def test_list_mode_off_never_asks_the_decider() -> None:
 
 
 async def test_bridge_gate_follows_the_decider_and_records_it() -> None:
-    eng = _engine(bridge_hop=True, decider="opendecider", decider_tasks=["bridge_hop"])
+    eng = _engine(bridge_hop=True, decider={"tasks": ["bridge_hop"]})
     fake = FakeDecider({"bridge_hop": ("no_hop", 0.95)})
     eng.set_decider(fake)
     await eng.start()
@@ -189,7 +191,7 @@ async def test_bridge_gate_follows_the_decider_and_records_it() -> None:
 
 
 async def test_a_failing_decider_falls_back_to_the_heuristic() -> None:
-    eng = _engine(list_mode=True, decider="opendecider", decider_tasks=["list_mode"])
+    eng = _engine(list_mode=True, decider={"tasks": ["list_mode"]})
     eng.set_decider(BoomDecider())
     await eng.start()
     try:
@@ -209,8 +211,7 @@ async def test_the_decider_sees_no_gold_or_category() -> None:
     eng = _engine(
         list_mode=True,
         bridge_hop=True,
-        decider="opendecider",
-        decider_tasks=["list_mode", "bridge_hop"],
+        decider={"tasks": ["list_mode", "bridge_hop"]},
     )
     fake = FakeDecider({"list_mode": ("single", 0.9), "bridge_hop": ("hop", 0.9)})
     eng.set_decider(fake)

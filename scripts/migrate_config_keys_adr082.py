@@ -330,6 +330,10 @@ def _llm_roles(m: Migration) -> None:
         if llm_slot is None or llm_slot == {}:
             m.model["llm"] = roles  # the role map moves as a whole
             del llm["roles"]
+            m.note(
+                "llm.roles is not a literal: moved as a whole; move each role's "
+                "settings.timeout_seconds to timeout_s by hand"
+            )
             if "structured" in llm:
                 m.note("llm.roles is not a literal: copy llm.structured into each role by hand")
         else:
@@ -446,8 +450,13 @@ def _models(m: Migration) -> None:
         for role, name in list(bindings.items()):
             origin = f"models.bindings.{role}"
             if role == "gliner_decision" and decision != "gliner2":
-                if decision is UNKNOWN:
-                    m.note(f"{origin}: decision.provider is not a literal; left in place")
+                if decision is UNKNOWN or decision is None:
+                    # Absent here is not "off": a helper or another layer may set it.
+                    why = "is not a literal" if decision is UNKNOWN else "is not in this config"
+                    m.note(
+                        f"{origin}: decision.provider {why}; left in place "
+                        "(gliner2 = model.decider.route, off = drop the binding)"
+                    )
                     unresolved = True
                     continue
                 m.note(f"{origin}: decision.provider is off, so the binding was inert; dropped")
@@ -867,10 +876,12 @@ def _env_sub(text: str, notes: list[str], where: str) -> str:
 
 ATTRIBUTE_SUBS: tuple[tuple[str, str], ...] = (
     (
-        r"(?<!\.model)\.embedding\.(provider|settings|batch_size|versioned_spaces)\b",
+        # ``(?<!model)``, not ``(?<!\.model)``: a dotted string the constant pass already
+        # rewrote ("model.embedding.provider") must not gain a second ``model.``.
+        r"(?<!model)\.embedding\.(provider|settings|batch_size|versioned_spaces)\b",
         r".model.embedding.\1",
     ),
-    (r"(?<!\.model)\.embedding\.(pin_|migrate_)?profile\b", r".model.embedding.\1preset"),
+    (r"(?<!model)\.embedding\.(pin_|migrate_)?profile\b", r".model.embedding.\1preset"),
     (r"\.llm\.roles\b", ".model.llm"),
     (r"\.models\.(" + "|".join(PLACEMENT_KEYS) + r")\b", r".model.placement.\1"),
     (r"\.models\.default_rerankers\b", ".model.placement.catalogue_rerankers"),

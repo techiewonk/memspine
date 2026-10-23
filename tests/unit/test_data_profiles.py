@@ -40,11 +40,13 @@ def test_auto_without_a_shape_is_a_no_op() -> None:
 def test_no_timestamps_turns_the_date_features_off() -> None:
     base = _cfg().config.read
     assert base.resolve_relative_dates and base.temporal_leg  # the LoCoMo-tuned template
-    got = _cfg(
+    config = _cfg(
         overrides={"data_profile": "auto", "data_shape": {"has_timestamps": False}}
-    ).config.read
+    ).config
+    got = config.read
     assert not got.resolve_relative_dates and not got.temporal_leg
-    assert got.render == "plain" and got.skip_defaulted_dates and not got.rerank_date_prefix
+    assert got.render == "plain" and got.skip_defaulted_dates
+    assert not config.model.rerank.date_prefix
 
 
 def test_real_timestamps_turn_the_date_prefix_on() -> None:

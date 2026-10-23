@@ -140,15 +140,15 @@ def aws_region_from_env(default: str = "us-east-1") -> str:
 def engine_llm_config(
     model: str, region: str, roles: tuple[str, ...] = ENGINE_LLM_ROLES
 ) -> dict[str, Any]:
-    """``llm`` config binding every engine role to one LiteLLM model in ``region``."""
+    """``model.llm`` slots (ADR-082) binding every engine role to one LiteLLM model in
+    ``region``."""
     return {
-        "roles": {
-            role: {
-                "provider": "litellm",
-                "settings": {"model": model, "aws_region": region, "timeout_seconds": 180.0},
-            }
-            for role in roles
+        role: {
+            "provider": "litellm",
+            "timeout_s": 180.0,
+            "settings": {"model": model, "aws_region": region},
         }
+        for role in roles
     }
 
 
@@ -164,12 +164,12 @@ def merge_engine_llm_roles(
     always wins over the run-wide default.
     """
     merged = dict(memspine_config or {})
-    llm = dict(merged.get("llm") or {})
-    bound = dict(llm.get("roles") or {})
-    for role, binding in engine_llm_config(model, region, roles)["roles"].items():
+    model_block = dict(merged.get("model") or {})  # ADR-082: roles are model.llm slots
+    bound = dict(model_block.get("llm") or {})
+    for role, binding in engine_llm_config(model, region, roles).items():
         bound.setdefault(role, binding)
-    llm["roles"] = bound
-    merged["llm"] = llm
+    model_block["llm"] = bound
+    merged["model"] = model_block
     deployment = dict(merged.get("deployment") or {})  # ADR-081: was runtime.deployment_id
     deployment.setdefault("id", "bedrock-evaluation")
     merged["deployment"] = deployment
@@ -256,11 +256,8 @@ def bedrock_engine_config(
             "llm": {
                 role: {
                     "provider": "litellm",
-                    "settings": {
-                        "model": llm_model,
-                        "aws_region": region,
-                        "timeout_seconds": llm_timeout_seconds,
-                    },
+                    "timeout_s": llm_timeout_seconds,
+                    "settings": {"model": llm_model, "aws_region": region},
                 }
                 for role in roles
             },

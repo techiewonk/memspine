@@ -58,7 +58,13 @@ class FakeDecider:
         return Decision(label, conf, None, task, self.decider_id)
 
 
-def _engine(write: dict[str, Any] | None = None, **read: Any) -> Engine:
+def _engine(
+    write: dict[str, Any] | None = None, decider: dict[str, Any] | None = None, **read: Any
+) -> Engine:
+    # ADR-082: the read-path decider is the model.decider.read slot (absent = heuristic).
+    model: dict[str, Any] = {"embedding": {"provider": "hash", "settings": {}}}
+    if decider is not None:
+        model["decider"] = {"read": {"provider": "opendecider", **decider}}
     return Engine(
         template="core",
         dotenv_path=None,
@@ -68,7 +74,7 @@ def _engine(write: dict[str, Any] | None = None, **read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model=model,
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
         write=write or {},
@@ -241,7 +247,7 @@ async def test_gate_off_returns_the_sensitive_memory_as_today() -> None:
 
 async def test_decider_raises_an_ungraded_text_and_opens_the_scope_gate() -> None:
     fake = FakeDecider({"sensitivity": ("sensitive", 0.9), "sensitivity_scope": ("about", 0.9)})
-    eng = _engine({"sensitivity": "decider"}, sensitivity_gate="decider", decider="opendecider")
+    eng = _engine({"sensitivity": "decider"}, decider={}, sensitivity_gate="decider")
     eng.set_decider(fake)
     await eng.start()
     try:
@@ -263,7 +269,7 @@ async def test_decider_raises_an_ungraded_text_and_opens_the_scope_gate() -> Non
 
 async def test_decider_never_lowers_a_lexicon_grade() -> None:
     fake = FakeDecider({"sensitivity": ("not_sensitive", 0.99)})
-    eng = _engine({"sensitivity": "decider"}, decider="opendecider")
+    eng = _engine({"sensitivity": "decider"}, decider={})
     eng.set_decider(fake)
     await eng.start()
     try:

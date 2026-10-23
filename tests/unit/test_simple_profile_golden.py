@@ -2,7 +2,7 @@
 
 Every opt-in feature (H1-H24, the firewall, MTI, the decision port) promises to leave the
 default engine unchanged. This snapshot makes that promise checkable: a changed default in
-the read / firewall / decision / integrity config sections, or in any bindable policy's
+the read / firewall / model / integrity config sections, or in any bindable policy's
 options, fails here and has to be accepted on purpose.
 
 To accept an intended change, regenerate the snapshot and review the diff::
@@ -38,7 +38,7 @@ _SECTIONS = (
     "read",
     "write",
     "firewall",
-    "decision",
+    "model",  # ADR-082: the model slots (was ``decision`` plus the read.rerank*/decider* keys)
     "integrity",
     "retention",
     "audit",

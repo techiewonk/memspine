@@ -122,7 +122,8 @@ async def test_raw_turn_floor_without_derived_records_is_byte_identical(mode: st
 
 def test_rerank_instruction_reaches_the_settings() -> None:
     """N12 (plan v3.2): reranker-specific settings carry the instruction."""
+    from memspine.config.schema import RerankStage
     from memspine.config.schema.providers import Qwen3RerankerSettings
 
-    assert ReadConfig().rerank_settings == {}
+    assert RerankStage(provider="qwen3").settings == {}
     assert Qwen3RerankerSettings(instruction="judge relevance").instruction == "judge relevance"

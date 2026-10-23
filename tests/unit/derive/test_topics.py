@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from memspine.config import constants
-from memspine.config.schema.llm import GlinerSettings
+from memspine.config.schema.model import GlinerSettings
 from memspine.config.schema.root import MemspineConfig
 from memspine.derive.topics import GlinerTopicTagger, parse_topic_hits, readable_label
 from memspine.exceptions import ConfigError
@@ -149,16 +149,14 @@ def _config(topic: dict[str, Any] | None = None, **settings: Any) -> dict[str, A
                 "startup_timeout_s": None,
             }
         },
-        "models": {
-            "profiles": {
-                "topics": {
-                    "kind": "gliner",
+        "model": {
+            "extraction": {
+                "topic": {
                     "provider": "gliner2",
+                    **(topic or {}),
                     "settings": {"tasks": ["classification"], **settings},
                 }
-            },
-            "bindings": {"gliner_topic": "topics"},
-            **({"topic": topic} if topic is not None else {}),
+            }
         },
     }
 
@@ -167,10 +165,13 @@ def test_config_label_map_and_threshold() -> None:
     cfg = MemspineConfig.model_validate(
         _config({"labels": {"cinema": "media/film"}, "min_confidence": 0.7})
     )
-    assert cfg.models.topic.labels == {"cinema": "media/film"}
-    assert cfg.models.topic.min_confidence == 0.7
-    default = MemspineConfig.model_validate(_config())
-    assert default.models.topic.min_confidence == constants.TOPIC_MIN_CONFIDENCE
+    topic = cfg.model.extraction.topic
+    assert topic is not None
+    assert topic.labels == {"cinema": "media/film"}
+    assert topic.min_confidence == 0.7
+    default = MemspineConfig.model_validate(_config()).model.extraction.topic
+    assert default is not None
+    assert default.min_confidence == constants.TOPIC_MIN_CONFIDENCE
 
 
 @pytest.mark.parametrize(
@@ -192,6 +193,6 @@ def test_config_gliner_topic_binding_is_offline_only_with_classification() -> No
     with pytest.raises((ConfigError, ValueError), match="offline only"):
         MemspineConfig.model_validate(_config(local_files_only=False))
     bad = _config()
-    bad["models"]["profiles"]["topics"]["settings"]["tasks"] = ["entities"]
+    bad["model"]["extraction"]["topic"]["settings"]["tasks"] = ["entities"]
     with pytest.raises((ConfigError, ValueError), match="classification"):
         MemspineConfig.model_validate(bad)

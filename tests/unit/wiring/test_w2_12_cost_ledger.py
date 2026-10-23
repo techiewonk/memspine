@@ -83,12 +83,14 @@ async def _engine(
             "llm": {
                 "window_extract": {
                     "provider": "litellm",
-                    "settings": {"model": "fake/window", "timeout_seconds": 60.0},
+                    "timeout_s": 60.0,
+                    "settings": {"model": "fake/window"},
                 },
                 **{
                     r: {
                         "provider": "litellm",
-                        "settings": {"model": "fake/x", "timeout_seconds": 60.0},
+                        "timeout_s": 60.0,
+                        "settings": {"model": "fake/x"},
                     }
                     for r in (extra_roles or {})
                 },

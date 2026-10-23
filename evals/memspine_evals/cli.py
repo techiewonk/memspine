@@ -956,7 +956,7 @@ def build_parser() -> argparse.ArgumentParser:
         default="none",
         help="bind every engine LLM role of the memspine arm (extract, summarize, reflect, ...) "
         "to this model; bedrock-qwen3 = the reader's Qwen3-32B in the environment's AWS region. "
-        "Explicit llm.roles in --memspine-config win",
+        "Explicit model.llm roles in --memspine-config win",
     )
     c01.add_argument(
         "--price",

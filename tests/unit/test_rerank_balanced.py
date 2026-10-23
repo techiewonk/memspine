@@ -1,4 +1,4 @@
-"""GR-15 fix: ``read.rerank_balanced`` must actually widen what the reranker can choose from.
+"""GR-15 fix: ``model.rerank.balanced`` must actually widen what the reranker can choose from.
 
 Before the fix the fused list was cut to the pool size before the balanced selection, so the
 option was a no-op (identical answers on 233 dev questions, 2026-10-10)."""
@@ -52,7 +52,7 @@ def _const_provider():
     get_registry("rerankers").unregister("const_test")
 
 
-def _engine(**read: Any) -> Engine:
+def _engine(**rerank: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
@@ -62,15 +62,18 @@ def _engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "rerank": {"chain": [{"provider": "const_test", "settings": {}}], **rerank},
+        },
         memories={"episodic": {"enabled": True}},
-        read={"record_access": False, "rerank": "const_test", **read},
+        read={"record_access": False},
     )
 
 
 @pytest.mark.parametrize(("balanced", "factor"), [(False, 1), (True, 3)])
 async def test_balanced_rerank_keeps_a_wider_fused_list(balanced: bool, factor: int) -> None:
-    eng = _engine(rerank_balanced=balanced)
+    eng = _engine(balanced=balanced)
     await eng.start()
     try:
         for i in range(80):

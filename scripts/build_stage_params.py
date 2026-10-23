@@ -818,7 +818,7 @@ def build() -> dict:
         have = {m["role"] for m in st["models"]}
         for r in sorted(role_models.get(sid, ())):
             if r not in have:
-                st["models"].append({"role": r, "source": f"llm.roles.{r}.model"})
+                st["models"].append({"role": r, "source": f"model.llm.{r}.settings.model"})
         for k in st["keys"]:
             if k["key"].startswith("cli:"):
                 continue

@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from memspine import Engine
-from memspine.config.schema import ReadConfig
+from memspine.config.schema import ReadConfig, RerankConfig
 from memspine.observability.trace import search_forensics
 from memspine.read.pipeline.fusion import fuse_families, schema_family
 from memspine.read.pipeline.lift import lineage_from_records
@@ -14,7 +14,11 @@ from memspine.services.rerank.jina import JinaReranker
 _GOLD = "zyzzyva"
 
 
-def _engine(**read: Any) -> Engine:
+#: The old ``read.rerank_v2: true`` default chain (ADR-082: one ``model.rerank.chain`` entry each).
+_V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "fastembed")]
+
+
+def _engine(rerank: dict[str, Any] | None = None, **read: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
@@ -24,7 +28,7 @@ def _engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model={"embedding": {"provider": "hash", "settings": {}}, "rerank": rerank or {}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, **read},
     )
@@ -38,9 +42,10 @@ class _Hit:
 
 def test_defaults_off() -> None:
     cfg = ReadConfig()
-    assert (cfg.family_fusion, cfg.lift_before_rerank, cfg.rerank_v2) == (False, False, False)
-    assert cfg.rerank_v2_chain == ["jina", "qwen3", "fastembed"]
-    assert cfg.rerank_v2_pool == 64
+    assert (cfg.family_fusion, cfg.lift_before_rerank) == (False, False)
+    rerank = RerankConfig()
+    assert rerank.chain == []  # ADR-082: an empty chain is off
+    assert rerank.pool == 64
 
 
 def test_schema_family_reconciliation() -> None:
@@ -165,8 +170,10 @@ class _Fake:
         return [float(len(d)) for d in documents]
 
 
-async def _rerank_run(cache: dict[str, Any], **read: Any) -> tuple[list[str], dict[str, Any]]:
-    eng = _engine(rerank_v2=True, **read)
+async def _rerank_run(
+    cache: dict[str, Any], **rerank: Any
+) -> tuple[list[str], dict[str, Any]]:
+    eng = _engine({"chain": _V2_CHAIN, **rerank})
     await eng.start()
     try:
         for i in range(8):
@@ -191,7 +198,7 @@ async def test_rerank_v2_chain_falls_back_and_never_scores_zero() -> None:
 
 async def test_rerank_v2_pool_cap_leaves_tail_unscored() -> None:
     cache = {"jina": _Fake("jina:fake"), "qwen3": None, "fastembed": None}
-    ids, fx = await _rerank_run(cache, rerank_v2_pool=3)
+    ids, fx = await _rerank_run(cache, pool=3)
     v2 = fx["rerank_v2"]
     assert v2["scored"] == 3 and len(v2["unscored"]) == 5
     assert len(ids) == 8  # unscored candidates stay in the result, after the scored ones

@@ -117,7 +117,8 @@ async def _engine(
             "llm": {
                 role: {
                     "provider": "litellm",
-                    "settings": {"model": "fake/close", "timeout_seconds": 60.0},
+                    "timeout_s": 60.0,
+                    "settings": {"model": "fake/close"},
                 }
             },
         },

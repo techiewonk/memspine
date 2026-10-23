@@ -142,7 +142,7 @@ class C01Config:
     #: comparability keys are unchanged).
     query_slice_id: str | None = None
     #: G2b: bind every engine LLM role of the memspine arm to this model family
-    #: (``none`` | ``bedrock-qwen3``). Explicit ``llm.roles`` in ``memspine_config`` win.
+    #: (``none`` | ``bedrock-qwen3``). Explicit ``model.llm`` roles in ``memspine_config`` win.
     memspine_llm: str = "none"
     #: G3: USD per 1M tokens, ``(model, in, out)`` triples; override the built-in table.
     prices_per_mtok: tuple[tuple[str, float, float], ...] = ()
@@ -406,7 +406,7 @@ def engine_llm_models(config: C01Config) -> set[str]:
     """Model ids bound to the memspine arm's engine roles (empty without the arm)."""
     if not config.include_memspine:
         return set()
-    roles = ((memspine_engine_config(config) or {}).get("llm") or {}).get("roles") or {}
+    roles = ((memspine_engine_config(config) or {}).get("model") or {}).get("llm") or {}
     models: set[str] = set()
     for binding in roles.values():
         settings = binding.get("settings") or {}
@@ -422,12 +422,13 @@ def paid_services(config: C01Config) -> list[tuple[str, str]]:
         return []
     engine = memspine_engine_config(config) or {}
     out: list[tuple[str, str]] = []
-    embedding = dict(engine.get("embedding") or {})
+    model = dict(engine.get("model") or {})  # ADR-082: the model slots
+    embedding = dict(model.get("embedding") or {})
     if embedding.get("provider") == "litellm":
         out.append(("embed", str((embedding.get("settings") or {}).get("model") or "")))
-    read = dict(engine.get("read") or {})
-    if read.get("rerank") == "litellm":
-        out.append(("rerank", str((read.get("rerank_settings") or {}).get("model") or "")))
+    for stage in dict(model.get("rerank") or {}).get("chain") or []:
+        if isinstance(stage, dict) and stage.get("provider") == "litellm":
+            out.append(("rerank", str((stage.get("settings") or {}).get("model") or "")))
     return out
 
 

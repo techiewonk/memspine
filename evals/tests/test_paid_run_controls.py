@@ -78,22 +78,20 @@ def test_merge_binds_every_engine_role_and_keeps_explicit_ones() -> None:
         "read": {"x": 1},
     }
     merged = merge_engine_llm_roles(explicit, QWEN3_32B, "eu-west-1")
-    roles = merged["llm"]["roles"]
+    roles = merged["model"]["llm"]
     assert set(roles) == set(ENGINE_LLM_ROLES)
     assert roles["extract"] == {
         "provider": "litellm",
-        "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
+        "timeout_s": 30.0,
+        "settings": {"model": "ollama/llama3"},
     }  # the caller's binding wins
     assert roles["reflect"] == {
         "provider": "litellm",
-        "settings": {
-            "model": QWEN3_32B,
-            "aws_region": "eu-west-1",
-            "timeout_seconds": 180.0,
-        },
+        "timeout_s": 180.0,
+        "settings": {"model": QWEN3_32B, "aws_region": "eu-west-1"},
     }
     assert merged["read"] == {"x": 1}
-    assert explicit["llm"]["roles"]["extract"]["provider"] == "litellm"  # not mutated
+    assert list(explicit["model"]["llm"]) == ["extract"]  # not mutated
 
 
 def test_engine_role_list_matches_the_engine() -> None:
@@ -108,7 +106,7 @@ def test_build_systems_binds_qwen3_roles_in_env_region(monkeypatch: pytest.Monke
         include_memspine=True, memspine_llm="bedrock-qwen3", memspine_config={"read": {}}
     )
     memspine = next(s for s in build_systems(config) if s.system_id == "memspine")
-    roles = memspine.describe()["config"]["llm"]["roles"]
+    roles = memspine.describe()["config"]["model"]["llm"]
     assert {role: binding["settings"]["model"] for role, binding in roles.items()} == dict.fromkeys(
         ENGINE_LLM_ROLES, QWEN3_32B
     )
@@ -116,7 +114,7 @@ def test_build_systems_binds_qwen3_roles_in_env_region(monkeypatch: pytest.Monke
     plain = next(
         s for s in build_systems(C01Config(include_memspine=True)) if s.system_id == "memspine"
     )
-    assert "llm" not in plain.describe()["config"]
+    assert "llm" not in plain.describe()["config"].get("model", {})
 
 
 def test_cli_flags_parse() -> None:

@@ -592,8 +592,7 @@ async def _run_engine(database: Path, snapshot: Path, counters: dict[str, Any]) 
             },
             "model": {
                 "provider": "gliner2.AutoExtractor",
-                "profile": "local-gliner",
-                "bindings": ["gliner_prepass", "gliner_semantic"],
+                "slots": ["model.extraction.prepass", "model.extraction.semantic"],
                 "tasks": ["entities"],
                 "local_files_only": True,
                 "snapshot": _snapshot_metadata(snapshot),

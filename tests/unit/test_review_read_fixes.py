@@ -23,6 +23,7 @@ T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 
 def _engine(read: dict[str, Any] | None = None, **extra: Any) -> Engine:
     memories = extra.pop("memories", {"semantic": {"enabled": True}, "episodic": {"enabled": True}})
+    model = {"embedding": {"provider": "hash", "settings": {}}, **extra.pop("model", {})}
     return Engine(
         template="core",
         dotenv_path=None,
@@ -32,7 +33,7 @@ def _engine(read: dict[str, Any] | None = None, **extra: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model=model,
         memories=memories,
         read={"hybrid": False, **(read or {})},
         **extra,
@@ -389,7 +390,7 @@ async def test_rerank_gate_judges_the_kept_count_not_the_pool(
             calls.append(len(documents))
             return [float(i) for i in range(len(documents))]
 
-    eng = _engine({"candidate_pool": 4, "rerank_max_top_k": 3})
+    eng = _engine({"candidate_pool": 4}, model={"rerank": {"max_top_k": 3}})
     await eng.start()
     try:
         monkeypatch.setattr(eng, "_rerank_provider", lambda: _resolved_provider(FakeReranker()))

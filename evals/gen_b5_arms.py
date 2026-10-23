@@ -13,11 +13,15 @@ from pathlib import Path
 
 ARMS = Path(__file__).resolve().parent / "arms"
 BASE = "scr-gc3-graph-jina"
+#: ADR-082: one model.llm slot (typed timeout_s, provider-owned settings).
 ROLE = {
-    "model": "ollama/qwen3.5:9b",
-    "api_base": "http://127.0.0.1:11434",
-    "timeout_seconds": 180.0,
-    "no_think": True,
+    "provider": "litellm",
+    "timeout_s": 180.0,
+    "settings": {
+        "model": "ollama/qwen3.5:9b",
+        "api_base": "http://127.0.0.1:11434",
+        "no_think": True,
+    },
 }
 SC = {"model": {"llm": {"session_close": ROLE}}}
 WX = {

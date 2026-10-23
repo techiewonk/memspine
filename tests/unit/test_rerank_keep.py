@@ -1,4 +1,4 @@
-"""G5b: ``read.rerank_keep`` caps what a reranked wide pool passes to assembly."""
+"""G5b: ``model.rerank.keep`` caps what a reranked wide pool passes to assembly."""
 
 from __future__ import annotations
 
@@ -23,7 +23,8 @@ class _Reranker:
         return [float(i) for i in range(len(documents))]  # reverses the order
 
 
-def _engine(**read: Any) -> Engine:
+def _engine(*, keep: int | None = None, **read: Any) -> Engine:
+    rerank = {} if keep is None else {"keep": keep}
     return Engine(
         template="core",
         dotenv_path=None,
@@ -33,7 +34,7 @@ def _engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model={"embedding": {"provider": "hash", "settings": {}}, "rerank": rerank},
         read={"hybrid": False, "record_access": False, **read},
     )
 
@@ -53,11 +54,11 @@ async def _assemble(eng: Engine, reranker: _Reranker | None) -> list[str]:
 @pytest.mark.parametrize(
     ("read", "with_reranker", "fail", "expected", "pool_seen"),
     [
-        ({"candidate_pool": 3, "rerank_keep": 4}, True, False, 4, 15),
+        ({"candidate_pool": 3, "keep": 4}, True, False, 4, 15),
         ({"candidate_pool": 3}, True, False, 15, 15),  # unset: the whole pool
-        ({"candidate_pool": 1, "rerank_keep": 2}, True, False, 5, 5),  # no wide pool
-        ({"candidate_pool": 3, "rerank_keep": 4}, False, False, 15, 0),  # no reranker
-        ({"candidate_pool": 3, "rerank_keep": 4}, True, True, 15, 15),  # rerank failed
+        ({"candidate_pool": 1, "keep": 2}, True, False, 5, 5),  # no wide pool
+        ({"candidate_pool": 3, "keep": 4}, False, False, 15, 0),  # no reranker
+        ({"candidate_pool": 3, "keep": 4}, True, True, 15, 15),  # rerank failed
     ],
 )
 async def test_rerank_keep(
@@ -75,7 +76,7 @@ async def test_rerank_keep(
 
 
 async def test_kept_records_are_the_reranker_best() -> None:
-    eng = _engine(candidate_pool=3, rerank_keep=3)
+    eng = _engine(candidate_pool=3, keep=3)
     await eng.start()
     try:
         reranker = _Reranker()

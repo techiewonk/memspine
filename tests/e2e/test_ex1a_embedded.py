@@ -177,8 +177,16 @@ def _overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[s
         "model": {
             "embedding": {"provider": "hash"},
             "llm": {
-                "window_extract": {"provider": "litellm", "settings": {"model": "stub/window"}},
-                "session_close": {"provider": "litellm", "settings": {"model": "stub/close"}},
+                "window_extract": {
+                    "provider": "litellm",
+                    "timeout_s": 60.0,
+                    "settings": {"model": "stub/window"},
+                },
+                "session_close": {
+                    "provider": "litellm",
+                    "timeout_s": 60.0,
+                    "settings": {"model": "stub/close"},
+                },
             },
         },
         "memories": {

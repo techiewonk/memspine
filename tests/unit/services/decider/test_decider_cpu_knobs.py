@@ -1,5 +1,5 @@
-"""I28 / I38: the decider CPU knobs (``decider_model``, ``decider_threads``, ``decider_backend``,
-``decider_dtype``, ``decider_workers``) with fakes, plus an optional real parity check that is
+"""I28 / I38: the decider CPU knobs (``model.decider.read.settings.{model, threads, backend,
+dtype}`` and ``model.decider.read.workers``) with fakes, plus an optional real parity check that is
 skipped when the model is not downloaded. No network, no GPU."""
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import pytest
 
 from memspine import Engine
 from memspine.clients.weights import opendecider as nano
-from memspine.config.schema import ReadConfig
+from memspine.config.schema import DeciderReadSlot, OpenDeciderSettings
 from memspine.exceptions import MissingServiceError
 from memspine.observability.trace import search_forensics
 from memspine.providers.decider import build_decider
@@ -26,7 +26,11 @@ from memspine.services.decider.decider import TASKS, OpenDeciderDecider
 # -- config plumbing -------------------------------------------------------------------------
 
 
-def _engine(**read: Any) -> Engine:
+def _engine(decider: dict[str, Any] | None = None, **read: Any) -> Engine:
+    # ADR-082: the read-path decider is the model.decider.read slot (absent = heuristic).
+    model: dict[str, Any] = {"embedding": {"provider": "hash", "settings": {}}}
+    if decider is not None:
+        model["decider"] = {"read": {"provider": "opendecider", **decider}}
     return Engine(
         template="core",
         dotenv_path=None,
@@ -36,27 +40,28 @@ def _engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model=model,
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, **read},
     )
 
 
 def test_knob_defaults_are_the_evaluated_configuration() -> None:
-    cfg = ReadConfig()
-    assert (cfg.decider_threads, cfg.decider_backend, cfg.decider_workers) == (0, "torch", 1)
-    assert (cfg.decider_dtype, cfg.decider_model) == ("float32", decider_mod.DEFAULT_MODEL)
+    cfg = OpenDeciderSettings()
+    workers = DeciderReadSlot(provider="opendecider").workers
+    assert (cfg.threads, cfg.backend, workers) == (0, "torch", 1)
+    assert (cfg.dtype, cfg.model) == ("float32", decider_mod.DEFAULT_MODEL)
 
 
 def test_knob_values_are_validated() -> None:
     for bad in (
-        {"decider_backend": "tensorrt"},
-        {"decider_dtype": "float16"},
-        {"decider_workers": 0},
-        {"decider_threads": -1},
+        {"settings": {"backend": "tensorrt"}},
+        {"settings": {"dtype": "float16"}},
+        {"workers": 0},
+        {"settings": {"threads": -1}},
     ):
         with pytest.raises(ValueError):
-            ReadConfig(**bad)
+            DeciderReadSlot.model_validate({"provider": "opendecider", **bad})
 
 
 async def test_engine_passes_every_knob_to_build_decider(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -77,12 +82,10 @@ async def test_engine_passes_every_knob_to_build_decider(monkeypatch: pytest.Mon
 
     monkeypatch.setattr(engine_mod, "build_decider", build)
     eng = _engine(
-        decider="opendecider",
-        decider_model="my/model",
-        decider_threads=3,
-        decider_backend="onnx",
-        decider_workers=2,
-        decider_dtype="bfloat16",
+        decider={
+            "workers": 2,
+            "settings": {"model": "my/model", "threads": 3, "backend": "onnx", "dtype": "bfloat16"},
+        }
     )
     await eng.start()
     a = eng._decider_adapter()
@@ -100,12 +103,10 @@ async def test_engine_passes_every_knob_to_build_decider(monkeypatch: pytest.Mon
     # An immutable Engine config is selected at startup; a second instance exercises
     # the alternate setting without mutating the first engine's snapshot.
     changed = _engine(
-        decider="opendecider",
-        decider_model="my/model",
-        decider_threads=3,
-        decider_backend="onnx",
-        decider_workers=2,
-        decider_dtype="float32",
+        decider={
+            "workers": 2,
+            "settings": {"model": "my/model", "threads": 3, "backend": "onnx", "dtype": "float32"},
+        }
     )
     await changed.start()
     try:
@@ -280,7 +281,7 @@ async def test_a_failed_backend_keeps_the_heuristic_answer(fake_stack: dict[str,
     """The decider is an enhancer: an unavailable backend surfaces as an error to the caller,
     which the engine turns into the heuristic answer (``read.decider_failed``)."""
     sys.modules["onnxruntime"] = None  # type: ignore[assignment]
-    eng = _engine(decider="opendecider", decider_backend="onnx", decider_tasks=["list_mode"])
+    eng = _engine(decider={"tasks": ["list_mode"], "settings": {"backend": "onnx"}})
     await eng.start()
     try:
         with search_forensics() as stages:

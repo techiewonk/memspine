@@ -262,8 +262,9 @@ class EvalRunner:
         from the ``MEMSPINE_*`` variables ``pinned_run.sh`` exports."""
         flags = dict(self.system.describe())
         cfg = dict(flags.get("config") or {})
-        read = dict(cfg.get("read") or {})
-        llm = dict(cfg.get("llm") or {})
+        model_cfg = dict(cfg.get("model") or {})  # ADR-082: the model slots
+        chain = list(dict(model_cfg.get("rerank") or {}).get("chain") or [])
+        roles = dict(model_cfg.get("llm") or {})
         prompts: dict[str, str] = {}
         reader_prompt = getattr(self.reader, "prompt", None)
         if isinstance(reader_prompt, str):
@@ -281,13 +282,12 @@ class EvalRunner:
         models: dict[str, Any] = {
             "reader": getattr(self.reader, "model", None),
             "judge": getattr(self.judge.spec, "model", None),
-            "embedder": ((cfg.get("embedding") or {}).get("settings") or {}).get("model"),
-            "reranker": (read.get("rerank_settings") or {}).get("model"),
-            "worker": llm.get("model") or llm.get("worker_model"),
+            "embedder": ((model_cfg.get("embedding") or {}).get("settings") or {}).get("model"),
+            "reranker": ((chain[0] if chain else {}).get("settings") or {}).get("model"),
+            "worker": None,
         }
         # The extract role's typed provider settings carry the worker model.
-        roles = llm.get("roles") or {}
-        extract = roles.get("extract") if isinstance(roles, dict) else None
+        extract = roles.get("extract")
         if not models["worker"] and isinstance(extract, dict):
             models["worker"] = (extract.get("settings") or {}).get("model")
         item_ids = (self.config.extra_limits or {}).get("item_ids")

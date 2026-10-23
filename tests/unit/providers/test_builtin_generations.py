@@ -216,12 +216,12 @@ def test_builtin_embedding_defaults_are_model_specific() -> None:
 
     assert HashEmbeddingSettings().dim == 64
     assert HashEmbeddingSettings(dim=768).dim == 768
-    from memspine.config.schema import EmbeddingConfig
+    from memspine.config.schema import EmbeddingSlot
     from memspine.models.embedding_profiles import EmbeddingProfile
 
     profiled_hash = EmbeddingProfile(
         name="hash-768", provider="hash", model_id="ignored", dim=768
-    ).apply(EmbeddingConfig())
+    ).apply(EmbeddingSlot())
     assert profiled_hash.settings["dim"] == 768
 
     assert StaticEmbeddingSettings().dim == 256

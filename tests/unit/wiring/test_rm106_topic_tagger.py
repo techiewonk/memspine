@@ -1,4 +1,4 @@
-"""RM-106: the Engine builds the GLiNER topic tagger from the bound ``gliner_topic`` profile
+"""RM-106: the Engine builds the GLiNER topic tagger from the ``model.extraction.topic`` slot
 and feeds it as the lowest-precedence domain source on the write path and the compile /
 requalify path. Model-free: the tagger's model binding is replaced by a stub (no download)."""
 
@@ -48,18 +48,15 @@ class _Binding:
 
 
 async def _engine(*, bound: bool, **topic: Any) -> Engine:
-    models: dict[str, Any] = {}
-    if bound:
-        models = {
-            "profiles": {
-                "topics": {
-                    "kind": "gliner",
-                    "provider": "gliner2",
-                    "settings": {"tasks": ["classification"], "local_files_only": True},
-                }
-            },
-            "bindings": {"gliner_topic": "topics"},
-            "topic": {"labels": {"cinema": "media/film"}, **topic},
+    model: dict[str, Any] = {"embedding": {"provider": "hash", "settings": {}}}
+    if bound:  # ADR-082: the slot enables the tagger (was the gliner_topic binding)
+        model["extraction"] = {
+            "topic": {
+                "provider": "gliner2",
+                "labels": {"cinema": "media/film"},
+                **topic,
+                "settings": {"tasks": ["classification"], "local_files_only": True},
+            }
         }
     eng = Engine(
         template="core",
@@ -70,14 +67,13 @@ async def _engine(*, bound: bool, **topic: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model=model,
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
         graph={"edge_compiler_v2": True},
-        models=models,
     )
     await eng.start()
     return eng

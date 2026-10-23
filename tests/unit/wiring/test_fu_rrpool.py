@@ -1,4 +1,4 @@
-"""FU-RRPOOL: ``read.rerank_v2_search_pool`` widens what ``search`` hands the v2 reranker.
+"""FU-RRPOOL: ``model.rerank.search_pool`` widens what ``search`` hands the v2 reranker.
 
 Model-free: a lexical-overlap stub replaces the reranker chain, the hash embedder stands in for the
 encoder. INV-FILLER shape: filler turns share the question words and outrank the evidence in
@@ -13,7 +13,7 @@ import pytest
 
 import memspine.read.pipeline.rerank as rerank_mod
 from memspine import Engine
-from memspine.config.schema import MemspineConfig, ReadConfig
+from memspine.config.schema import MemspineConfig, RerankConfig
 from memspine.exceptions import ConfigError
 
 _QUERY = "where does Ilse keep the spare key"
@@ -35,7 +35,11 @@ def _lexical_reranker(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     return sizes
 
 
-def _engine(**read: Any) -> Engine:
+#: The old ``read.rerank_v2: true`` default chain (ADR-082: one ``model.rerank.chain`` entry each).
+_V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "fastembed")]
+
+
+def _engine(**rerank: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
@@ -45,9 +49,12 @@ def _engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "rerank": {"chain": _V2_CHAIN, **rerank},
+        },
         memories={"episodic": {"enabled": True}},
-        read={"record_access": False, "rerank": "off", **read},
+        read={"record_access": False},
     )
 
 
@@ -67,7 +74,7 @@ async def _top(eng: Engine, top_k: int = 2) -> list[str]:
 
 
 def test_default_off_and_requires() -> None:
-    assert ReadConfig().rerank_v2_search_pool == 0
+    assert RerankConfig().search_pool == 0
     runtime = {
         "provider_services": {
             "health_timeout_s": 1.0,
@@ -75,7 +82,7 @@ def test_default_off_and_requires() -> None:
             "startup_timeout_s": None,
         }
     }
-    with pytest.raises(ConfigError, match="rerank_v2"):
+    with pytest.raises(ConfigError, match="model.rerank.chain"):
         MemspineConfig(model={"rerank": {"search_pool": 20}}, runtime=runtime)
     MemspineConfig(
         model={
@@ -93,7 +100,7 @@ def test_default_off_and_requires() -> None:
 
 
 async def test_narrow_pool_loses_the_evidence() -> None:
-    eng = _engine(rerank_v2=True)
+    eng = _engine()
     await eng.start()
     try:
         gold = await _fill(eng)
@@ -103,7 +110,7 @@ async def test_narrow_pool_loses_the_evidence() -> None:
 
 
 async def test_wide_pool_keeps_the_evidence_in_top_2(_lexical_reranker: list[int]) -> None:
-    eng = _engine(rerank_v2=True, rerank_v2_search_pool=20)
+    eng = _engine(search_pool=20)
     await eng.start()
     try:
         gold = await _fill(eng)
@@ -115,8 +122,8 @@ async def test_wide_pool_keeps_the_evidence_in_top_2(_lexical_reranker: list[int
 
 
 async def test_flag_off_matches_default() -> None:
-    plain = _engine(rerank_v2=True)
-    zero = _engine(rerank_v2=True, rerank_v2_search_pool=0)
+    plain = _engine()
+    zero = _engine(search_pool=0)
     outs = []
     for eng in (plain, zero):
         await eng.start()
@@ -132,7 +139,7 @@ async def test_assemble_honours_the_key(_lexical_reranker: list[int]) -> None:
     # FX-READPATH: assemble / read widen through the same key; key off = unchanged.
     sizes = []
     for pool in (0, 20):
-        eng = _engine(rerank_v2=True, rerank_v2_search_pool=pool)
+        eng = _engine(search_pool=pool)
         await eng.start()
         try:
             await _fill(eng)
