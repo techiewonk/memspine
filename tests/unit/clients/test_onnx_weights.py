@@ -10,6 +10,8 @@ from memspine.clients.weights.onnx import OnnxModel, text_weights
 from memspine.clients.weights.onnx_catalogue import (
     CATALOGUE,
     legacy_embedder_id,
+    model_embedder_id,
+    model_reranker_id,
     resolve_model_spec,
 )
 from memspine.clients.weights.shared import PrivateWeightRegistry
@@ -91,3 +93,68 @@ async def test_empty_embedding_never_loads() -> None:
     assert await instance.embed([]) == []
     assert not instance._weights.loaded
     await instance.aclose()
+
+
+def test_identity_matches_adapter_and_cannot_impersonate_certified_model() -> None:
+    from dataclasses import asdict, replace
+
+    spec = CATALOGUE[MODEL]
+    values = asdict(spec)
+    assert not resolve_model_spec(MODEL, spec).certified
+    assert model_embedder_id(MODEL) == OnnxEmbedding(MODEL).embedder_id
+    assert model_embedder_id(MODEL, spec).startswith(f"onnx:{MODEL}:")
+    assert model_embedder_id(MODEL, values) == model_embedder_id(MODEL, spec)
+    identities = {
+        model_embedder_id(MODEL, spec),
+        model_embedder_id(MODEL, replace(spec, pooling="mean")),
+        model_embedder_id(MODEL, replace(spec, revision="0" * 40)),
+        model_embedder_id(MODEL, replace(spec, passage_prefix="passage: ")),
+        model_embedder_id(MODEL, replace(spec, query_prefix="query: ")),
+        model_embedder_id(MODEL, replace(spec, normalize=False)),
+    }
+    assert len(identities) == 6
+    instance = OnnxEmbedding(MODEL, model_spec=values)
+    frozen_id = instance.embedder_id
+    values["passage_prefix"] = "mutated"
+    assert instance.embedder_id == frozen_id
+    reranker = CATALOGUE["Xenova/ms-marco-MiniLM-L-6-v2"]
+    assert model_reranker_id("custom", reranker) != model_reranker_id(
+        "custom", replace(reranker, revision="0" * 40)
+    )
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("dim", True),
+        ("max_length", 1.5),
+        ("normalize", "true"),
+        ("pooling", "guessed"),
+        ("model_file", "../escape.onnx"),
+        ("model_file", "C:/escape.onnx"),
+        ("tokenizer_file", "/tokenizer.json"),
+        ("additional_files", "model.onnx_data"),
+        ("revision", "main"),
+        ("passage_prefix", None),
+    ],
+)
+def test_custom_model_metadata_rejects_ambiguous_values(field: str, value: Any) -> None:
+    from dataclasses import asdict
+
+    spec = asdict(CATALOGUE[MODEL])
+    spec[field] = value
+    with pytest.raises(ValueError, match="ONNX"):
+        resolve_model_spec(MODEL, spec)
+
+
+def test_provider_policy_frozen_and_checked_before_load() -> None:
+    providers = ["CPUExecutionProvider"]
+    weights = text_weights(MODEL, providers=providers)
+    identity = weights.identity()
+    providers.append("mutated")
+    assert weights.identity() == identity
+    assert identity == text_weights(MODEL, providers=("CPUExecutionProvider",)).identity()
+    with pytest.raises(ValueError, match="threads"):
+        text_weights(MODEL, threads=True)
+    with pytest.raises(ValueError, match="providers"):
+        text_weights(MODEL, providers=[])

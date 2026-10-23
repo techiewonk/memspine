@@ -6,7 +6,9 @@ reference fixtures. In particular the multilingual model does NOT normalize.
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+import hashlib
+import json
+from dataclasses import asdict, dataclass, replace
 from typing import Any, Literal
 
 
@@ -26,12 +28,44 @@ class OnnxModelSpec:
     additional_files: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
+        for field in (
+            "repo",
+            "revision",
+            "model_file",
+            "tokenizer_file",
+            "pooling",
+            "query_prefix",
+            "passage_prefix",
+        ):
+            value = getattr(self, field)
+            if not isinstance(value, str) or "\x00" in value:
+                raise ValueError(f"ONNX {field} must be a string without NUL characters")
+        if not self.repo:
+            raise ValueError("ONNX repo must be nonempty")
         if len(self.revision) != 40 or any(c not in "0123456789abcdef" for c in self.revision):
             raise ValueError("ONNX revision must be a pinned 40-character commit hash")
-        if self.max_length < 1 or self.dim < 1:
-            raise ValueError("ONNX max_length and dim must be positive")
+        if any(type(value) is not int or value < 1 for value in (self.max_length, self.dim)):
+            raise ValueError("ONNX max_length and dim must be positive integers")
+        if type(self.normalize) is not bool or type(self.certified) is not bool:
+            raise ValueError("ONNX normalize and certified must be booleans")
         if self.pooling not in {"cls", "mean", "score"}:
             raise ValueError("ONNX pooling must be cls, mean or score")
+        if not isinstance(self.additional_files, tuple):
+            raise ValueError(
+                "ONNX additional_files must be a tuple of repository-relative file paths"
+            )
+        for filename in (self.model_file, self.tokenizer_file, *self.additional_files):
+            if (
+                not isinstance(filename, str)
+                or not filename
+                or "\\" in filename
+                or any(part in {"", ".", ".."} for part in filename.split("/"))
+                or ":" in filename
+                or "\x00" in filename
+            ):
+                raise ValueError("ONNX files must be nonempty repository-relative file paths")
+        if self.pooling == "score" and self.dim != 1:
+            raise ValueError("ONNX score models must have dim=1")
 
 
 CATALOGUE: dict[str, OnnxModelSpec] = {
@@ -92,8 +126,10 @@ def resolve_model_spec(
     model: str, model_spec: dict[str, Any] | OnnxModelSpec | None = None
 ) -> OnnxModelSpec:
     if isinstance(model_spec, OnnxModelSpec):
-        return model_spec
+        return replace(model_spec, certified=False)
     if model_spec is not None:
+        if not isinstance(model_spec, dict):
+            raise ValueError("ONNX model_spec must be an explicit object")
         required = {
             "repo",
             "revision",
@@ -112,8 +148,16 @@ def resolve_model_spec(
                 f"ONNX model_spec missing explicit fields: {', '.join(sorted(missing))}"
             )
         values = dict(model_spec)
+        unknown = values.keys() - (required | {"certified", "additional_files"})
+        if unknown:
+            raise ValueError(f"ONNX model_spec unknown fields: {', '.join(sorted(unknown))}")
         values["certified"] = False  # user-supplied metadata cannot assert parity
-        values["additional_files"] = tuple(values.get("additional_files", ()))
+        additional_files = values.get("additional_files", ())
+        if not isinstance(additional_files, (list, tuple)):
+            raise ValueError(
+                "ONNX additional_files must be a list of repository-relative file paths"
+            )
+        values["additional_files"] = tuple(additional_files)
         return OnnxModelSpec(**values)
     try:
         return CATALOGUE[model]
@@ -140,3 +184,29 @@ def legacy_embedder_id(
 
 def spec_identity(spec: OnnxModelSpec) -> dict[str, Any]:
     return asdict(spec)
+
+
+def model_embedder_id(model: str, model_spec: dict[str, Any] | OnnxModelSpec | None = None) -> str:
+    """A catalogue certificate grants ``embedder:``; all custom spaces include their spec."""
+    spec = resolve_model_spec(model, model_spec)
+    if spec.pooling == "score":
+        raise ValueError("ONNX score model cannot be used for embedding")
+    if model_spec is None and spec.certified:
+        return f"embedder:{model}"
+    return _custom_model_id(model, spec)
+
+
+def model_reranker_id(model: str, model_spec: dict[str, Any] | OnnxModelSpec | None = None) -> str:
+    spec = resolve_model_spec(model, model_spec)
+    if spec.pooling != "score":
+        raise ValueError("ONNX embedding model cannot be used for reranking")
+    return (
+        f"onnx:{model}" if model_spec is None and spec.certified else _custom_model_id(model, spec)
+    )
+
+
+def _custom_model_id(model: str, spec: OnnxModelSpec) -> str:
+    suffix = hashlib.sha256(json.dumps(spec_identity(spec), sort_keys=True).encode()).hexdigest()[
+        :32
+    ]
+    return f"onnx:{model}:{suffix}"

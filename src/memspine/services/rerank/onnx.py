@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from typing import Any
 
 from memspine.clients.weights.onnx import rerank_weights
-from memspine.clients.weights.onnx_catalogue import OnnxModelSpec
+from memspine.clients.weights.onnx_catalogue import OnnxModelSpec, model_reranker_id
 from memspine.clients.weights.shared import SharedWeights
 
 
@@ -19,7 +20,7 @@ class OnnxReranker:
         model_spec: dict[str, Any] | OnnxModelSpec | None = None,
         batch_size: int = 64,
         threads: int = 0,
-        providers: list[str] | None = None,
+        providers: Sequence[str] | None = None,
         local_files_only: bool = False,
     ) -> None:
         if batch_size < 1:
@@ -36,7 +37,7 @@ class OnnxReranker:
                 local_files_only=local_files_only,
             )
         )
-        self.reranker_id = f"onnx:{model}"
+        self.reranker_id = model_reranker_id(model, model_spec)
 
     async def warm(self) -> None:
         await self._weights.warm()

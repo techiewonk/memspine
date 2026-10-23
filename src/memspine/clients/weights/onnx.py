@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -22,15 +22,15 @@ class OnnxModel:
         spec: OnnxModelSpec,
         *,
         threads: int = 0,
-        providers: list[str] | None = None,
+        providers: Sequence[str] | None = None,
         local_files_only: bool = False,
     ) -> None:
         import onnxruntime as ort
         from huggingface_hub import hf_hub_download
         from tokenizers import AddedToken, Tokenizer
 
-        if threads < 0:
-            raise ValueError("ONNX threads must be nonnegative")
+        if type(threads) is not int or threads < 0:
+            raise ValueError("ONNX threads must be a nonnegative integer")
         self.spec = spec
         self._lock = threading.Lock()
 
@@ -139,7 +139,7 @@ class OnnxModel:
                 raise ValueError(f"Unsupported ONNX embedding shape: {output.shape}")
             if self.spec.normalize:
                 norm = np.linalg.norm(pooled, axis=1, keepdims=True)
-                pooled = pooled / np.where(norm == 0, 1, norm)
+                pooled = pooled / np.maximum(norm, 1e-12)
             pooled = pooled.astype(output.dtype, copy=False)
             if pooled.shape[1] != self.spec.dim:
                 raise ValueError("ONNX output dimension differs from model_spec.dim")
@@ -163,11 +163,20 @@ def _weights(
     rerank: bool,
     model_spec: dict[str, Any] | OnnxModelSpec | None = None,
     threads: int = 0,
-    providers: list[str] | None = None,
+    providers: Sequence[str] | None = None,
     local_files_only: bool = False,
     registry: WeightRegistry | None = None,
 ) -> SharedWeights[OnnxModel]:
     spec = resolve_model_spec(model, model_spec)
+    if type(threads) is not int or threads < 0:
+        raise ValueError("ONNX threads must be a nonnegative integer")
+    if providers is not None and (
+        not providers
+        or isinstance(providers, str)
+        or any(not isinstance(provider, str) or not provider for provider in providers)
+    ):
+        raise ValueError("ONNX providers must be a nonempty sequence of provider names")
+    selected = tuple(providers) if providers is not None else ("CPUExecutionProvider",)
     if (spec.pooling == "score") != rerank:
         raise ValueError("ONNX model catalogue task does not match requested embedding/rerank task")
     return SharedWeights(
@@ -175,11 +184,11 @@ def _weights(
         spec_identity(spec),
         {
             "threads": threads,
-            "providers": providers or ["CPUExecutionProvider"],
+            "providers": selected,
             "local_files_only": local_files_only,
         },
         lambda: OnnxModel(
-            spec, threads=threads, providers=providers, local_files_only=local_files_only
+            spec, threads=threads, providers=selected, local_files_only=local_files_only
         ),
         warm=(lambda loaded: list(loaded.rerank(WARM_TEXT, [WARM_TEXT])))
         if rerank
@@ -193,7 +202,7 @@ def text_weights(
     *,
     model_spec: dict[str, Any] | OnnxModelSpec | None = None,
     threads: int = 0,
-    providers: list[str] | None = None,
+    providers: Sequence[str] | None = None,
     local_files_only: bool = False,
     registry: WeightRegistry | None = None,
 ) -> SharedWeights[OnnxModel]:
@@ -213,7 +222,7 @@ def rerank_weights(
     *,
     model_spec: dict[str, Any] | OnnxModelSpec | None = None,
     threads: int = 0,
-    providers: list[str] | None = None,
+    providers: Sequence[str] | None = None,
     local_files_only: bool = False,
     registry: WeightRegistry | None = None,
 ) -> SharedWeights[OnnxModel]:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import Sequence
 from typing import Any
 
 from memspine.clients.weights.onnx import text_weights
@@ -10,6 +11,7 @@ from memspine.clients.weights.onnx_catalogue import (
     CATALOGUE,
     OnnxModelSpec,
     legacy_embedder_id,
+    model_embedder_id,
     resolve_model_spec,
 )
 from memspine.clients.weights.shared import SharedWeights
@@ -29,11 +31,12 @@ class OnnxEmbedding:
         model_spec: dict[str, Any] | OnnxModelSpec | None = None,
         batch_size: int = 256,
         threads: int = 0,
-        providers: list[str] | None = None,
+        providers: Sequence[str] | None = None,
         local_files_only: bool = False,
     ) -> None:
         self._model_name = model
         self._spec = resolve_model_spec(model, model_spec)
+        self._embedder_id = model_embedder_id(model, model_spec)
         if self._spec.pooling == "score":
             raise ValueError("ONNX score model cannot be used for embedding")
         if dim is not None and dim != self._spec.dim:
@@ -59,17 +62,7 @@ class OnnxEmbedding:
 
     @property
     def embedder_id(self) -> str:
-        if self._model_spec is None:
-            return f"embedder:{self._model_name}"
-        # An arbitrary export must not impersonate the certified catalogue space.
-        import hashlib
-        import json
-        from dataclasses import asdict
-
-        suffix = hashlib.sha256(
-            json.dumps(asdict(self._spec), sort_keys=True).encode()
-        ).hexdigest()[:16]
-        return f"onnx:{self._model_name}:{suffix}"
+        return self._embedder_id
 
     @property
     def legacy_embedder_id(self) -> str | None:
