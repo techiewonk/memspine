@@ -7,6 +7,14 @@
 > measurements and DBOS comparisons below are historical, not current setup instructions.
 
 
+Lock refresh (RM-02, 2026-10-23, uv 0.13.5): 15 direct entries moved to the
+latest allowed release (alembic 1.20.1, boto3 1.43.118, fastapi 0.161.1,
+json-repair 0.64.2, litellm 1.106.2, markitdown 0.1.9, mkdocstrings 1.0.8,
+pydantic-settings 2.16.1, ruff 0.17.2, sentence-transformers 6.2.0,
+sqlalchemy 2.1.6, tantivy 0.27.0 (same on-disk index format v7 as 0.26.2),
+transformers 5.20.2, weaviate-client 4.24.0, xxhash 4.0.2); no constraint
+changes. The table below is regenerated from that audit.
+
 Audit: 2026-10-17. Target: CPython 3.13; clean validation interpreter: 3.13.5,
 Windows x64. Sources: [PyPI JSON API](https://docs.pypi.org/api/json/), package
 metadata and actual local installation/tests. See [ADR-070](adr/ADR-070-python313-dependency-refresh.md).
@@ -32,7 +40,7 @@ not an assertion that every transitive package can use its standalone latest.
 
 | Package / area | Decision | Reason / evidence |
 |---|---|---|
-| Hugging Face Hub | 1.33.0, below 2 | Latest standalone is 2.2.0; sentence-transformers 6.1.0 declares `<2`. [Published metadata](https://pypi.org/pypi/sentence-transformers/6.1.0/json) |
+| Hugging Face Hub | 1.33.0, below 2 | Latest standalone is 2.2.0; sentence-transformers 6.1.0 declared `<2`. As of the 2026-10-23 refresh, sentence-transformers 6.2.0 and transformers 5.20.2 both permit `<3`, so only memspine's own `[decider]` cap remains; lifting it to Hub 2.x is a separate decision, not part of RM-02. [Published metadata](https://pypi.org/pypi/sentence-transformers/6.2.0/json) |
 | Ladybug | Latest 0.21.2 within `<0.22` | Preserve the agreed graph storage-format compatibility boundary |
 | DBOS | Upgrade to 3.3.0, `<4` | Fresh-environment durable resume and runner parity passed; existing whole-pipeline recovery semantics remain |
 | GLiNER2 | Upgrade to 2.1.0 with `[local]`, `<3` | Publisher metadata permits 3.13 and Transformers 5.x; weights/inference were not run |
@@ -113,16 +121,15 @@ query time and manifest/lock hashes: [dependency-audit.json](provider_verificati
 | Package | Locked version(s) | Latest allowed | Latest for 3.13 | Host wheel |
 |---|---|---|---|---|
 | aiosqlite | 0.22.1 | 0.22.1 | 0.22.1 | Yes |
-| alembic | 1.20.0 | 1.20.0 | 1.20.0 | Yes |
+| alembic | 1.20.1 | 1.20.1 | 1.20.1 | Yes |
 | bitsandbytes | 0.50.2 | 0.50.2 | 0.50.2 | Yes |
-| boto3 | 1.43.114 | 1.43.114 | 1.43.114 | Yes |
+| boto3 | 1.43.118 | 1.43.118 | 1.43.118 | Yes |
 | cashews | 7.6.0 | 7.6.0 | 7.6.0 | Yes |
 | chonkie | 1.7.0 | 1.7.0 | 1.7.0 | Yes |
 | datasketch | 2.0.0 | 2.0.0 | 2.0.0 | Yes |
-| dbos | 3.3.0 | 3.3.0 | 3.3.0 | Yes |
 | dishka | 1.10.1 | 1.10.1 | 1.10.1 | Yes |
 | fakeredis | 2.40.0 | 2.40.0 | 2.40.0 | Yes |
-| fastapi | 0.143.3 | 0.143.3 | 0.143.3 | Yes |
+| fastapi | 0.161.1 | 0.161.1 | 0.161.1 | Yes |
 | fastembed | 0.9.0 | 0.9.0 | 0.9.0 | Yes |
 | fastuuid | 0.14.0 | 0.14.0 | 0.14.0 | Yes |
 | flashrank | 0.2.10 | 0.2.10 | 0.2.10 | Yes |
@@ -134,16 +141,16 @@ query time and manifest/lock hashes: [dependency-audit.json](provider_verificati
 | huggingface-hub | 1.33.0 | 1.33.0 | 2.2.0 | Yes |
 | import-linter | 2.15 | 2.15 | 2.15 | Yes |
 | jinja2 | 3.1.6 | 3.1.6 | 3.1.6 | Yes |
-| json-repair | 0.64.0 | 0.64.0 | 0.64.0 | Yes |
+| json-repair | 0.64.2 | 0.64.2 | 0.64.2 | Yes |
 | ladybug | 0.21.2 | 0.21.2 | 0.21.2 | Yes |
 | lancedb | 0.40.0 | 0.40.0 | 0.40.0 | Yes |
 | langmem | 0.0.30 | 0.0.30 | 0.0.30 | Yes |
-| litellm | 1.105.1 | 1.105.1 | 1.105.1 | Yes |
+| litellm | 1.106.2 | 1.106.2 | 1.106.2 | Yes |
 | llama-cpp-python | 0.3.36 | 0.3.36 | 0.3.36 | No; native build check needed |
 | llmlingua | 0.2.2 | 0.2.2 | 0.2.2 | Yes |
-| markitdown | 0.1.8 | 0.1.8 | 0.1.8 | Yes |
+| markitdown | 0.1.9 | 0.1.9 | 0.1.9 | Yes |
 | mkdocs-material | 9.7.7 | 9.7.7 | 9.7.7 | Yes |
-| mkdocstrings | 1.0.7 | 1.0.7 | 1.0.7 | Yes |
+| mkdocstrings | 1.0.8 | 1.0.8 | 1.0.8 | Yes |
 | model2vec | 0.10.0 | 0.10.0 | 0.10.0 | Yes |
 | mypy | 2.4.0 | 2.4.0 | 2.4.0 | Yes |
 | neo4j | 6.4.1 | 6.4.1 | 6.4.1 | Yes |
@@ -155,29 +162,31 @@ query time and manifest/lock hashes: [dependency-audit.json](provider_verificati
 | pgvector | 0.5.1 | 0.5.1 | 0.5.1 | Yes |
 | psycopg | 3.3.6 | 3.3.6 | 3.3.6 | Yes |
 | pydantic | 2.14.1 | 2.14.1 | 2.14.1 | Yes |
-| pydantic-settings | 2.16.0 | 2.16.0 | 2.16.0 | Yes |
-| pymongo | not yet locked (RM-112 `[mongodb]`, 2026-10-23: re-lock needs uv >= 0.13.1) | 4.19.0 | 4.19.0 | Yes |
+| pydantic-settings | 2.16.1 | 2.16.1 | 2.16.1 | Yes |
+| pymongo | 4.19.0 | 4.19.0 | 4.19.0 | Yes |
 | pytest | 9.1.1 | 9.1.1 | 9.1.1 | Yes |
 | pytest-asyncio | 1.4.0 | 1.4.0 | 1.4.0 | Yes |
 | pytest-cov | 7.1.0 | 7.1.0 | 7.1.0 | Yes |
 | pyyaml | 6.0.3 | 6.0.3 | 6.0.3 | Yes |
-| ruff | 0.17.1 | 0.17.1 | 0.17.1 | Yes |
+| resonate-sdk | 0.8.1 | 0.8.1 | 0.8.1 | Yes |
+| ruff | 0.17.2 | 0.17.2 | 0.17.2 | Yes |
 | safetensors | 0.8.0 | 0.8.0 | 0.8.0 | Yes |
-| sentence-transformers | 6.1.0 | 6.1.0 | 6.1.0 | Yes |
-| sqlalchemy | 2.1.5 | 2.1.5 | 2.1.5 | Yes |
+| sentence-transformers | 6.2.0 | 6.2.0 | 6.2.0 | Yes |
+| sqlalchemy | 2.1.6 | 2.1.6 | 2.1.6 | Yes |
 | sqlcipher3 | 0.6.4 | 0.6.4 | 0.6.4 | Yes |
 | structlog | 26.1.0 | 26.1.0 | 26.1.0 | Yes |
-| tantivy | 0.26.2 | 0.26.2 | 0.26.2 | Yes |
+| tantivy | 0.27.0 | 0.27.0 | 0.27.0 | Yes |
 | taskiq | 0.13.0 | 0.13.0 | 0.13.0 | Yes |
 | taskiq-redis | 1.2.4 | 1.2.4 | 1.2.4 | Yes |
+| temporalio | 1.34.0 | 1.34.0 | 1.34.0 | Yes |
 | torch | 2.14.1 | 2.14.1 | 2.14.1 | Yes |
-| transformers | 5.20.1 | 5.20.1 | 5.20.1 | Yes |
+| transformers | 5.20.2 | 5.20.2 | 5.20.2 | Yes |
 | typer | 0.27.3 | 0.27.3 | 0.27.3 | Yes |
 | types-pyyaml | 6.0.12.20260906 | 6.0.12.20260906 | 6.0.12.20260906 | Yes |
 | tzdata | 2026.5 | 2026.5 | 2026.5 | Yes |
 | uvicorn | 0.54.0 | 0.54.0 | 0.54.0 | Yes |
-| weaviate-client | 4.23.1 | 4.23.1 | 4.23.1 | Yes |
-| xxhash | 4.0.1 | 4.0.1 | 4.0.1 | Yes |
+| weaviate-client | 4.24.0 | 4.24.0 | 4.24.0 | Yes |
+| xxhash | 4.0.2 | 4.0.2 | 4.0.2 | Yes |
 | zstandard | 0.25.0 | 0.25.0 | 0.25.0 | Yes |
 
 GLiNER2.5 adoption is assessed separately in the [ingestion plan](GLINER25_INGESTION_PLAN.md).

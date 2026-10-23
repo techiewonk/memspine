@@ -1,12 +1,12 @@
 {
-  "checked_at": "2026-10-23T05:26:45.193484+00:00",
+  "checked_at": "2026-10-23T07:35:44.975178+00:00",
   "target_python": "3.13.0",
   "evidence_level": "Published Requires-Python and release-file metadata, not runtime proof",
   "host_wheel_scope": "Interpreter/platform running this audit only; not a cross-platform guarantee",
   "manifest_source": "pyproject.toml and uv.lock",
   "source_sha256": {
     "pyproject.toml": "b2d5240e6df5ab0acda4584628501cef31489a9d197b238ee4bcd2e117c5ac21",
-    "uv.lock": "4323ff842e4ee72632d11cae388668c5636c2c90b3d9c5fc9606b4c5b55219fb"
+    "uv.lock": "4ffe7b6f915233978a29c0aa08daf11300405475d2455e244e36bf75b8f2220a"
   },
   "packages": [
     {
@@ -41,11 +41,11 @@
         }
       ],
       "locked": [
-        "1.20.0"
+        "1.20.1"
       ],
       "latest_python313": "1.20.1",
       "latest_within_constraints": "1.20.1",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.10"
       ],
@@ -91,11 +91,11 @@
         }
       ],
       "locked": [
-        "1.43.114"
+        "1.43.118"
       ],
       "latest_python313": "1.43.118",
       "latest_within_constraints": "1.43.118",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.10"
       ],
@@ -233,11 +233,11 @@
         }
       ],
       "locked": [
-        "0.143.3"
+        "0.161.1"
       ],
       "latest_python313": "0.161.1",
       "latest_within_constraints": "0.161.1",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.10"
       ],
@@ -666,17 +666,17 @@
         }
       ],
       "locked": [
-        "0.64.0"
+        "0.64.2"
       ],
-      "latest_python313": "0.64.1",
-      "latest_within_constraints": "0.64.1",
-      "lock_current": false,
+      "latest_python313": "0.64.2",
+      "latest_within_constraints": "0.64.2",
+      "lock_current": true,
       "requires_python": [
         ">=3.10"
       ],
       "host_compatible_wheel": true,
       "wheel_filenames": [
-        "json_repair-0.64.1-py3-none-any.whl"
+        "json_repair-0.64.2-py3-none-any.whl"
       ],
       "source": "https://pypi.org/pypi/json-repair/json"
     },
@@ -800,11 +800,11 @@
         }
       ],
       "locked": [
-        "1.105.1"
+        "1.106.2"
       ],
       "latest_python313": "1.106.2",
       "latest_within_constraints": "1.106.2",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         "<3.15,>=3.10"
       ],
@@ -873,11 +873,11 @@
         }
       ],
       "locked": [
-        "0.1.8"
+        "0.1.9"
       ],
       "latest_python313": "0.1.9",
       "latest_within_constraints": "0.1.9",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         "<3.15,>=3.10"
       ],
@@ -919,11 +919,11 @@
         }
       ],
       "locked": [
-        "1.0.7"
+        "1.0.8"
       ],
       "latest_python313": "1.0.8",
       "latest_within_constraints": "1.0.8",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.11"
       ],
@@ -1302,11 +1302,11 @@
         }
       ],
       "locked": [
-        "2.16.0"
+        "2.16.1"
       ],
       "latest_python313": "2.16.1",
       "latest_within_constraints": "2.16.1",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.11"
       ],
@@ -1603,11 +1603,11 @@
         }
       ],
       "locked": [
-        "0.17.1"
+        "0.17.2"
       ],
       "latest_python313": "0.17.2",
       "latest_within_constraints": "0.17.2",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.7"
       ],
@@ -1680,11 +1680,11 @@
         }
       ],
       "locked": [
-        "6.1.0"
+        "6.2.0"
       ],
       "latest_python313": "6.2.0",
       "latest_within_constraints": "6.2.0",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.10"
       ],
@@ -1703,11 +1703,11 @@
         }
       ],
       "locked": [
-        "2.1.5"
+        "2.1.6"
       ],
       "latest_python313": "2.1.6",
       "latest_within_constraints": "2.1.6",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.11"
       ],
@@ -1918,11 +1918,11 @@
         }
       ],
       "locked": [
-        "0.26.2"
+        "0.27.0"
       ],
       "latest_python313": "0.27.0",
       "latest_within_constraints": "0.27.0",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.11"
       ],
@@ -2076,11 +2076,11 @@
         }
       ],
       "locked": [
-        "5.20.1"
+        "5.20.2"
       ],
       "latest_python313": "5.20.2",
       "latest_within_constraints": "5.20.2",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.10.0"
       ],
@@ -2191,11 +2191,11 @@
         }
       ],
       "locked": [
-        "4.23.1"
+        "4.24.0"
       ],
       "latest_python313": "4.24.0",
       "latest_within_constraints": "4.24.0",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.10"
       ],
@@ -2214,11 +2214,11 @@
         }
       ],
       "locked": [
-        "4.0.1"
+        "4.0.2"
       ],
       "latest_python313": "4.0.2",
       "latest_within_constraints": "4.0.2",
-      "lock_current": false,
+      "lock_current": true,
       "requires_python": [
         ">=3.9"
       ],
