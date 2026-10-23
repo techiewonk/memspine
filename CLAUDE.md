@@ -6,7 +6,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix. Get the current test count with `uv run pytest --collect-only -q` (evals add `evals/tests`); `ruff` + `mypy --strict` are the gate. **80 ADRs** (ADR-001…ADR-082; 038 and 045 unassigned; ADR-029/030/031 *proposed*), decision register through D-106. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current task/status lives only in `docs/PROVIDER_TODO.md` (see below). The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix. Get the current test count with `uv run pytest --collect-only -q` (evals add `evals/tests`); `ruff` + `mypy --strict` are the gate. **81 ADRs** (ADR-001…ADR-083; 038 and 045 unassigned; ADR-029/030/031 *proposed*), decision register through D-107. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current task/status lives only in `docs/PROVIDER_TODO.md` (see below). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Single live task/status tracker
 
@@ -14,7 +14,7 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 
 ## Read these first (in order)
 
-1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-106), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
+1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-107), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
 2. `docs/UNIMEM_V2_REWORK_PROPOSAL.md` — architecture rationale (why, and the evidence base).
 3. `docs/DEPENDENCY_ANALYSIS.md` + `docs/PACKAGE_CATALOG.md` — why each dependency was chosen; every candidate package with "does what".
 
@@ -30,7 +30,7 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 - **Profiles stay green.** Preserve `simple` retrieval behaviour while applying the accepted breaking provider schema. No legacy configuration aliases or compatibility modules (ADR-068); `core` is the bare reference used by mechanics tests.
 - **Hard-fail clearly (D-10).** Missing service → `MissingServiceError` naming the extra to install, unless `strict_services: false`.
 
-## Locked defaults (decision register — see plan for D-01…D-106)
+## Locked defaults (decision register — see plan for D-01…D-107)
 
 | Area | Default | Notes |
 |------|---------|-------|
@@ -89,7 +89,7 @@ uv run ruff check . && uv run ruff format --check .
 ## How to work here
 
 1. **Find the phase.** Work follows P0→P7 (see plan §5). Confirm which phase a task belongs to; don't build P4 before P1's contracts exist.
-2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-106. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
+2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-107. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
 3. **Keep the core slim and `simple` green.** Guard both in every PR.
 4. **Update docs with the code.** If you change a contract, update the structure plan + this file in the same change.
 
@@ -134,3 +134,5 @@ D-104 / ADR-080: compiled graph edges carry typed qualifiers (aware-only times; 
 D-105 / ADR-081 (RM-111 WP1-WP3/WP5/WP7 landed): data providers live in one `storage` block with a slot per category (`storage.records`, `.vector`, `.lexical`, `.graph`, `.graph_mirror` (null = off; needs the `mirror` capability), `.cache`, `.documents` (reserved, must be null)), each `{provider, settings}`, plus a `deployment` block (`id` (was `runtime.deployment_id`), `locality`, `data_dir` (was postgres `settings.data_dir`; unset keeps today's placement base)). The old keys (`storage.profile/provider/settings`, top-level `vector`/`cache`, `graph.provider/settings/mirror`, `read.lexical_*`, `runtime.deployment_id`) are rejected naming the new key; `scripts/migrate_config_keys_adr081.py` migrates configs. Every durable SQL database uses Alembic (Postgres under an advisory lock). Every built-in data descriptor declares `locality` (process/host/cluster); WP6 validation is pending. `embedded` and `server` are config templates. Service providers (embedding model, LLM, models) stay outside `storage`.
 
 D-106 / ADR-082 (RM-117 landed 2026-10-23): model providers move to one `model` block: `model.embedding`, `model.llm.<role>`, `model.rerank` (chain + typed behaviour), `model.extraction.<consumer>`, `model.decider.<consumer>`, `model.vision`, `model.placement`. Each slot is `{provider, typed common keys, settings}` (settings = provider-owned JSON). No named profiles; identical settings share weights (weights key ignores consumer-only fields). The old keys (`embedding`, `llm.roles`, `models.*`, `decision.provider`, `read.rerank*`, `read.decider*`, `ingest.asset_vision*`) are rejected naming the new key; `scripts/migrate_config_keys_adr082.py` migrates configs. Every LLM slot states `timeout_s`. Follow-ups are RM-118. See docs/MODEL_SLOTS_MIGRATION_PLAN.md.
+
+D-107 / ADR-083 (accepted design, RM-119 not implemented): the `mongodb` provider may launch a local mongod (`launch.mode: managed`, exact version pin, explicit port, download only with `download: true` and SHA-256 verification, one-member replica set on loopback, host-local). Default stays `external`; SQLite + filesystem remain the embedded default.
