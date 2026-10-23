@@ -981,6 +981,23 @@ def test_second_run_is_a_no_op_python(tmp_path: Path) -> None:
     assert mod.rewrite_file(path) == (None, [])
 
 
+def test_migrated_model_block_is_not_migrated_again() -> None:
+    """The new ``model`` value holds ``embedding`` / ``llm`` slot keys; a second run must not
+    read it as an old root and nest it as ``model={"model": ...}``."""
+    first, _ = py('eng = Engine(embedding={"provider": "hash", "settings": {}}, read={"x": 1})\n')
+    assert 'model={"embedding": {"provider": "hash", "settings": {}}}' in first
+    second, notes = py(first)
+    assert second == first and notes == []
+    nested, _ = py('cfg = {"model": {"embedding": {"provider": "hash"}, "llm": {}}}\n')
+    assert nested == 'cfg = {"model": {"embedding": {"provider": "hash"}, "llm": {}}}\n'
+    kept = (
+        'model: dict = {"embedding": {"provider": "hash"}}\n'
+        'cfg["model"] = {"embedding": {"provider": "hash"}, **extra}\n'
+        'cfg.setdefault("model", {}).setdefault("embedding", {})["provider"] = "hash"\n'
+    )
+    assert py(kept) == (kept, [])
+
+
 @pytest.mark.parametrize("suffix", [".yaml", ".json"])
 def test_second_run_is_a_no_op_data(tmp_path: Path, suffix: str) -> None:
     data = yaml.safe_load(YAML_TEXT)

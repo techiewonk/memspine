@@ -62,7 +62,7 @@ def _filler_status(read: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> Sta
             dotenv_path=None,
             storage={"path": str(d / "b.db")},
             model={"embedding": {"provider": "hash"}},
-            read={"rerank": "off", "record_access": False, **read},
+            read={"record_access": False, **read},
             memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         )
 

@@ -96,7 +96,7 @@ FEATURES = [
     ("H15", "topic segments", ["topic_segments"], code),
     ("H16", "time order for ordering questions", ["order_by_time_for_ordering"], code),
     ("H17", "3-way relevance filter", ["relevance_filter"], code),
-    ("H18", "gated rerank", ["rerank_max_top_k"], code),
+    ("H18", "gated rerank", ["max_top_k"], code),
     ("H19", "latest-dated slots", ["latest_slots"], code),
     ("H20", "hard exclusion of superseded", ["RecordStatus.ARCHIVED"], code),
     ("H21", "deposit filters", ["skip_injected_recall"], code),
@@ -119,7 +119,7 @@ FEATURES = [
     (
         "ORDER-NORERANK",
         "skip rerank for ordering queries (Agent Zero)",
-        ["skip_rerank_for_ordering"],
+        ["skip_for_ordering"],
         code,
     ),
     ("RESERVE", "reply reserve in the budget (ContextPipe)", ["reply_reserve_tokens"], code),
@@ -1217,11 +1217,13 @@ async def check_h16_time_order() -> bool:
     return orders == [True, False]
 
 
-async def _reranked(read: dict[str, Any], queries: list[tuple[str, int]]) -> _FakeReranker:
+async def _reranked(rerank: dict[str, Any], queries: list[tuple[str, int]]) -> _FakeReranker:
+    """``rerank`` holds ``model.rerank`` behaviour keys (ADR-082)."""
     fake = _FakeReranker()
     eng = _engine_kw(
         memories={"semantic": {"enabled": True}},
-        read={"hybrid": False, "record_access": False, **read},
+        read={"hybrid": False, "record_access": False},
+        model={"embedding": {"provider": "hash"}, "rerank": rerank},
     )
     await eng.start()
     try:
@@ -1261,12 +1263,12 @@ async def check_rr_rerank() -> bool:
 
 
 async def check_h18_rerank_gate() -> bool:
-    fake = await _reranked({"rerank_max_top_k": 3}, [("hiking", 2), ("hiking", 10)])
+    fake = await _reranked({"max_top_k": 3}, [("hiking", 2), ("hiking", 10)])
     return len(fake.inputs) == 1
 
 
 async def check_rerank_date_prefix() -> bool:
-    on = await _reranked({"rerank_date_prefix": True}, [("where did I go hiking", 2)])
+    on = await _reranked({"date_prefix": True}, [("where did I go hiking", 2)])
     off = await _reranked({}, [("where did I go hiking", 2)])
     return on.inputs[0][0].startswith("[Date: 2023-05-") and not off.inputs[0][0].startswith(
         "[Date:"
@@ -1275,7 +1277,7 @@ async def check_rerank_date_prefix() -> bool:
 
 async def check_order_norerank() -> bool:
     q = [("what hiking did I do most recently", 2)]
-    on = await _reranked({"skip_rerank_for_ordering": True}, q)
+    on = await _reranked({"skip_for_ordering": True}, q)
     off = await _reranked({}, q)
     return len(on.inputs) == 0 and len(off.inputs) == 1
 

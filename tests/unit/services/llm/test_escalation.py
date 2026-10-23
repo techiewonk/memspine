@@ -374,7 +374,11 @@ async def test_target_remote_candidate_is_individually_privacy_gated(
                                 "timeout_s": 30,
                                 "settings": {"model": "openai/remote", "max_tokens": 7},
                             },
-                            {"provider": "missing-provider-plugin", "timeout_s": 30, "settings": {}},
+                            {
+                                "provider": "missing-provider-plugin",
+                                "timeout_s": 30,
+                                "settings": {},
+                            },
                         ],
                         "triggers": ["empty"],
                         "max_attempts": 2,

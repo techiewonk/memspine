@@ -132,7 +132,9 @@ async def test_embedder_builder_receives_effective_profile_settings_without_load
 ) -> None:
     """The profile selects a typed builder; the fake avoids model or GPU initialization."""
 
-    config = load_config(template="core", env={}, overrides={"model": {"embedding": raw_embedding}}).config
+    config = load_config(
+        template="core", env={}, overrides={"model": {"embedding": raw_embedding}}
+    ).config
     effective = resolved_embedding(config)
     assert effective.provider == expected_provider
 

@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 from pydantic import BaseModel
 
-from memspine.config.schema import MemspineConfig
+from memspine.config.schema import LLMSlot, MemspineConfig
 from memspine.exceptions import LLMError
 from memspine.prompts.base import Prompt, PromptFormat
 from memspine.services.llm import structured
@@ -123,8 +123,11 @@ def test_config_defaults_off_and_unknown_keys_refused() -> None:
             }
         }
     )
-    assert cfg.llm.structured.retry_on_error is False
-    assert cfg.llm.structured.constrained_retry is False
+    # ADR-082: structured recovery is typed inside each model.llm.<role> slot.
+    slot = LLMSlot(provider="litellm", timeout_s=30.0)
+    assert slot.structured.retry_on_error is False
+    assert slot.structured.constrained_retry is False
+    assert cfg.model.llm == {}
     with pytest.raises(ValueError):
-        MemspineConfig(llm={"structured": {"bogus": True}})
+        LLMSlot(provider="litellm", timeout_s=30.0, structured={"bogus": True})  # type: ignore[arg-type]
     assert StructuredOptions() == structured._OPTIONS

@@ -1,7 +1,7 @@
 """Generate the local Qwen-stack arm configs (embedder x reranker grid) under evals/arms/.
 
-Base = ``local-combo-A`` (the plan-v3.2 local retrieval baseline); only ``embedding`` and the
-``read.rerank*`` keys change, so every cell differs from its neighbours in one component.
+Base = ``local-combo-A`` (the plan-v3.2 local retrieval baseline); only ``model.embedding`` and
+``model.rerank.chain`` change (ADR-082), so every cell differs from its neighbours in one component.
 
     python gen_qwen_stack_arms.py
 """
@@ -44,25 +44,22 @@ EMBEDDERS = {
         },
     },
 }
-RERANKERS = {
-    "rjina": {
-        "rerank": "jina",
-        "rerank_settings": {"model": "jinaai/jina-reranker-v3.5", "device": "cuda"},
-    },
-    "roff": {"rerank": "off"},
-    "rbge": {"rerank": "fastembed", "rerank_settings": {"model": "BAAI/bge-reranker-base"}},
-    "rq06": {
-        "rerank": "qwen3",
-        "rerank_settings": {"model": "Qwen/Qwen3-Reranker-0.6B", "device": "cuda"},
-    },
-    "rq4b4": {
-        "rerank": "qwen3",
-        "rerank_settings": {
-            "model": "Qwen/Qwen3-Reranker-4B",
-            "device": "cuda",
-            "quant": "4bit",
-        },
-    },
+#: name -> ``model.rerank.chain`` (one entry per reranker; ``[]`` is off).
+RERANKERS: dict[str, list[dict]] = {
+    "rjina": [
+        {"provider": "jina", "settings": {"model": "jinaai/jina-reranker-v3.5", "device": "cuda"}}
+    ],
+    "roff": [],
+    "rbge": [{"provider": "fastembed", "settings": {"model": "BAAI/bge-reranker-base"}}],
+    "rq06": [
+        {"provider": "qwen3", "settings": {"model": "Qwen/Qwen3-Reranker-0.6B", "device": "cuda"}}
+    ],
+    "rq4b4": [
+        {
+            "provider": "qwen3",
+            "settings": {"model": "Qwen/Qwen3-Reranker-4B", "device": "cuda", "quant": "4bit"},
+        }
+    ],
 }
 
 
@@ -70,8 +67,9 @@ def main() -> None:
     for e, emb in EMBEDDERS.items():
         for r, rr in RERANKERS.items():
             cfg = json.loads(json.dumps(BASE))
-            cfg["embedding"] = emb
-            cfg["read"].update(rr)
+            model = cfg.setdefault("model", {})
+            model["embedding"] = emb
+            model.setdefault("rerank", {})["chain"] = rr
             (ARMS / f"qs-{e}-{r}.json").write_text(json.dumps(cfg), encoding="utf-8")
             print(f"qs-{e}-{r}")
 

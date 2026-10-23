@@ -283,7 +283,7 @@ async def test_core_terms_leg_adds_a_lexical_probe() -> None:
 
 
 async def test_rerank_gate_skips_reranker_for_large_top_k(monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    """H18: with rerank_max_top_k=3 the reranker runs for top_k=2 but not for top_k=10."""
+    """H18: with model.rerank.max_top_k=3 the reranker runs for top_k=2 but not for top_k=10."""
     calls: list[int] = []
 
     class FakeReranker:

@@ -102,11 +102,11 @@ def test_resolve_arm_and_offline_swap() -> None:
         "storage": {"records": {"provider": "sqlite", "settings": {"path": "tempdir"}}},
     }
     off, notes = step.offline_config(cfg)
-    assert off["embedding"] == {"provider": "hash", "settings": {}}
-    assert off["read"]["rerank"] == "off" and off["read"]["rerank_settings"] == {}
+    assert off["model"]["embedding"] == {"provider": "hash", "settings": {}}
+    assert off["model"]["rerank"]["chain"] == []
     assert any("embedder" in n for n in notes) and any("reranker" in n for n in notes)
     name, arm = step.resolve_arm("scr-b8-write-v2")
-    assert name == "scr-b8-write-v2" and arm["embedding"]["provider"] == "st"
+    assert name == "scr-b8-write-v2" and arm["model"]["embedding"]["provider"] == "st"
     with pytest.raises(FileNotFoundError):
         step.resolve_arm("no-such-arm")
 

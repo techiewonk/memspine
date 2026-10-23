@@ -296,7 +296,7 @@ _SEAM_LIST: Final[tuple[ToggleSeam, ...]] = (
         off={"memories.semantic.policies.extract_graph": False},
         on_caveat=(
             "graph_extraction=True only does work when an `extract_edges` LLM role is "
-            "bound; with llm.roles empty the stage self-skips, so the row would show "
+            "bound; with model.llm empty the stage self-skips, so the row would show "
             "the layer on and its cost at zero."
         ),
     ),
@@ -344,8 +344,8 @@ _SEAM_LIST: Final[tuple[ToggleSeam, ...]] = (
     ),
     ToggleSeam(
         field_name="rerank",
-        on={"model.rerank.chain": "fastembed"},
-        off={"model.rerank.chain": "off"},
+        on={"model.rerank.chain": [{"provider": "fastembed", "settings": {}}]},
+        off={"model.rerank.chain": []},
         on_caveat=(
             "rerank=True selects the fastembed ONNX cross-encoder; the flashrank "
             "alternative (memspine[rerank]) must be selected through --config."

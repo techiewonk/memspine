@@ -1004,6 +1004,9 @@ class PyRewriter(ast.NodeVisitor):
         )
         self._keep: list[Any] = []  # keeps tree objects alive so their ids stay unique
         self._event_names: set[int] = set()
+        #: Values of a ``model`` key / ``model=`` kwarg: already the new block, never an old
+        #: root (its ``embedding`` / ``llm`` keys are slots), so a second run is a no-op.
+        self._model_blocks: set[int] = set()
 
     # ── helpers ──
     def _note(self, node: ast.AST, text: str) -> None:
@@ -1133,9 +1136,15 @@ class PyRewriter(ast.NodeVisitor):
         self._diff_entries(entries, tree, new, keyword=keyword, container=node)
         return True
 
+    def _mark_model_blocks(self, entries: list[Entry]) -> None:
+        for entry in entries:
+            if entry.key == "model" and entry.value is not None:
+                self._model_blocks.add(id(entry.value))
+
     def visit_Dict(self, node: ast.Dict) -> None:
-        if self._covered(node):
+        if self._covered(node) or id(node) in self._model_blocks:
             return
+        self._mark_model_blocks(self._dict_entries(node))
         if any(_const_key(k) in ROOT_TRIGGERS for k in node.keys if k is not None):
             self._migrate_root(node, self._dict_entries(node), keyword=False)
         self._warmup_entries(self._dict_entries(node))
@@ -1144,6 +1153,7 @@ class PyRewriter(ast.NodeVisitor):
     def visit_Call(self, node: ast.Call) -> None:
         if self._covered(node):
             return
+        self._mark_model_blocks(self._call_entries(node))
         name = _call_name(node)
         if name in REMOVED_CLASSES:
             self._note(node, f"{name}(...) is removed by ADR-082: rewrite as a model slot")
@@ -1187,7 +1197,20 @@ class PyRewriter(ast.NodeVisitor):
         self.edits.append(Edit(*self.src.span(node), _q(value, quote)))
 
     # ── item assignment / setdefault chains ──
+    def _model_target(self, target: ast.expr, value: ast.expr | None) -> None:
+        """``model = {...}`` / ``cfg["model"] = {...}``: the value is a new model block."""
+        chain = _subscript_chain(target)
+        named = isinstance(target, ast.Name) and target.id == "model"
+        if value is not None and (named or (chain is not None and chain[1][-1] == "model")):
+            self._model_blocks.add(id(value))
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        self._model_target(node.target, node.value)
+        self.generic_visit(node)
+
     def visit_Assign(self, node: ast.Assign) -> None:
+        for target in node.targets:
+            self._model_target(target, node.value)
         if len(node.targets) == 1 and not self._covered(node):
             chain = _subscript_chain(node.targets[0])
             if chain is not None and self._assign(node, *chain):
@@ -1196,8 +1219,8 @@ class PyRewriter(ast.NodeVisitor):
 
     def _assign(self, node: ast.Assign, base: ast.expr, path: list[str]) -> bool:
         root = next((i for i, k in enumerate(path) if k in ROOT_TRIGGERS), None)
-        if root is None:
-            return False
+        if root is None or "model" in path[:root]:
+            return False  # below ``model`` the keys are already slots
         if root > 0:
             # the base is the expression up to the root key; re-derive it from the target
             sub = _chain_node(node.targets[0], len(path) - root)

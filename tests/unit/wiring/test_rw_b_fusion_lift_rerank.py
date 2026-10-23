@@ -170,9 +170,7 @@ class _Fake:
         return [float(len(d)) for d in documents]
 
 
-async def _rerank_run(
-    cache: dict[str, Any], **rerank: Any
-) -> tuple[list[str], dict[str, Any]]:
+async def _rerank_run(cache: dict[str, Any], **rerank: Any) -> tuple[list[str], dict[str, Any]]:
     eng = _engine({"chain": _V2_CHAIN, **rerank})
     await eng.start()
     try:

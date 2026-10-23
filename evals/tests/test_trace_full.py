@@ -278,7 +278,9 @@ def test_real_engine_run_writes_the_whole_trace_folder(tmp_path: Path) -> None:
     holds the write trace with timers, the read-path rows and the exact prompts."""
     from memspine_evals.systems.memspine_system import MemspineSystem
 
-    system = MemspineSystem(config={"embedding": {"provider": "hash", "dim": 64}})
+    system = MemspineSystem(
+        config={"model": {"embedding": {"provider": "hash", "settings": {"dim": 64}}}}
+    )
     reader = OpenAICompatReader(model="m", prompt=QA_PROMPTS["dated"])
     reader._httpx = _fake_httpx(REPLY)
     dataset = SyntheticDataset(n_items=1, turns_per_item=8, facts_per_item=2)

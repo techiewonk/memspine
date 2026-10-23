@@ -97,9 +97,7 @@ async def test_read_replay_widens_the_rerank_pool(_lexical_reranker: list[int]) 
 async def test_candidate_pool_is_not_widened_twice(_lexical_reranker: list[int]) -> None:
     # want = top_k x candidate_pool = 10 > search_pool 5: the key changes nothing
     base = await _rerank_sizes(_lexical_reranker, chain=True, candidate_pool=5)
-    small = await _rerank_sizes(
-        _lexical_reranker, chain=True, candidate_pool=5, search_pool=5
-    )
+    small = await _rerank_sizes(_lexical_reranker, chain=True, candidate_pool=5, search_pool=5)
     assert base == small
 
 

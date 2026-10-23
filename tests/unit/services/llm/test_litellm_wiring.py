@@ -155,7 +155,7 @@ async def test_litellm_embedder_requires_dim() -> None:
 
 
 async def test_read_rerank_litellm_accepted_at_start() -> None:
-    """A1 regression: read.rerank='litellm' (ADR-024) must pass the startup
+    """A1 regression: a litellm model.rerank.chain entry (ADR-024) must pass the startup
     validator — it used to raise ConfigError because the validator tuple
     predated the litellm rerank branch. The reranker itself loads lazily."""
     eng = Engine(

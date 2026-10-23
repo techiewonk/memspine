@@ -79,9 +79,9 @@ CONFIGS: dict[str, dict[str, Any]] = {
         "entity_expand_leg": True,
     },
     "temporal_leg": {"temporal_leg": True, "temporal_leg_mentions": True},
-    "rerank": {"rerank": "leak_probe_const", "candidate_pool": 3, "rerank_keep": 5},
+    "rerank": {"reranker": "leak_probe_const", "candidate_pool": 3, "keep": 5},
     "rerank_bridge_list": {
-        "rerank": "leak_probe_const",
+        "reranker": "leak_probe_const",
         "candidate_pool": 3,
         "bridge_hop": True,
         "list_mode": True,
@@ -196,11 +196,17 @@ async def _seed(eng: Any, ns: str, tag: str) -> None:
 def _make_engine(read: Mapping[str, Any]) -> Any:
     from memspine import Engine
 
+    # ADR-082: ``reranker`` / ``keep`` in a probe overlay go to model.rerank, the rest to read.
+    read = dict(read)
+    reranker = read.pop("reranker", None)
+    rerank: dict[str, Any] = {"chain": [{"provider": reranker, "settings": {}}] if reranker else []}
+    if "keep" in read:
+        rerank["keep"] = read.pop("keep")
     return Engine(
         template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
-        model={"embedding": {"provider": "hash"}},
+        model={"embedding": {"provider": "hash"}, "rerank": rerank},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, **read},
     )

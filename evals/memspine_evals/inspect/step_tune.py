@@ -43,7 +43,6 @@ REBUILD_PREFIXES = (
     "event_log",
     "workers",
     "model.rerank.chain",
-    "model.rerank.chain",
     "read.hybrid",
     "read.static_embedding_prefilter",
     "storage.lexical.provider",

@@ -161,7 +161,7 @@ READ_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ),
     (
         "rerank",
-        ("model.rerank.chain", "models.rerank", "read.coverage_select"),
+        ("read.rerank", "models.rerank", "read.coverage_select"),
     ),
     ("headers / pack", ("compose.", "read.retrieve.writeback", "read.contract.header")),
 )
@@ -206,18 +206,17 @@ def offline_config(
     """The arm config with the heavy parts swapped for local ones; returns ``(config, notes)``."""
     out = copy.deepcopy(dict(cfg))
     notes: list[str] = []
-    emb = out.get("embedding") or {}
+    emb = (out.get("model") or {}).get("embedding") or {}  # ADR-082: the model slots
     if not keep_models and emb.get("provider") not in (None, "hash"):
         model = (emb.get("settings") or {}).get("model")
         notes.append(f"embedder: hash (arm uses {emb.get('provider')}:{model})")
         out.setdefault("model", {}).setdefault("embedding", {})["provider"] = "hash"
         out.setdefault("model", {}).setdefault("embedding", {})["settings"] = {}
-    read = dict(out.get("read") or {})
-    if not keep_models and read.get("rerank") not in (None, "off"):
-        notes.append(f"reranker: off (arm uses {read.get('rerank')})")
-        read["rerank"] = "off"
-        read["rerank_settings"] = {}
-    out["read"] = read
+    chain = ((out.get("model") or {}).get("rerank") or {}).get("chain") or []
+    if not keep_models and chain:
+        names = ", ".join(str(stage.get("provider")) for stage in chain)
+        notes.append(f"reranker: off (arm uses {names})")
+        out.setdefault("model", {}).setdefault("rerank", {})["chain"] = []
     storage = dict(out.get("storage") or {})
     records = dict(storage.get("records") or {})
     storage_settings = dict(records.get("settings") or {})
