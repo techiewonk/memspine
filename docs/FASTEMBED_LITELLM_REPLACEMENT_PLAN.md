@@ -1,7 +1,10 @@
 # Replacement plan: own ONNX embedder (ADR-084) and own OpenAI-compatible client (ADR-085)
 
-Status: planned 2026-10-23 and handed to Codex. Register rows: RM-123 (ADR-084) and RM-124
-(ADR-085) in [PROVIDER_TODO.md](PROVIDER_TODO.md). Statuses live there only.
+Implementation contracts accepted on 2026-10-23. Register rows RM-123 (ADR-084) and
+RM-124 (ADR-085) in [PROVIDER_TODO.md](PROVIDER_TODO.md) own current status.
+[Verification evidence](provider_verification/rm123-rm124-2026-10-23.json) records
+parity, store adoption, runtime gates and the exact eval baseline comparison.
+The checked-facts table below describes the pre-replacement source snapshot.
 
 Goal: remove `fastembed` and `litellm` from core, which are the two packages that block
 `huggingface-hub` 2.x, with no behaviour regression and no aliases (ADR-068).

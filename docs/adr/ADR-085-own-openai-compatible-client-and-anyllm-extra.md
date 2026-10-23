@@ -1,7 +1,6 @@
 # ADR-085: Own OpenAI-compatible client in core, any-llm as the optional hosted-provider extra
 
-**Status:** Accepted (design) on 2026-10-23. Not implemented; the build is RM-124 and is handed
-to Codex.
+**Status:** Accepted and implemented on 2026-10-23. Verification and current follow-ups: RM-124 in [PROVIDER_TODO.md](../PROVIDER_TODO.md).
 **Date:** 2026-10-23
 **Deciders:** Owner (question rounds of 2026-10-23)
 **Supersedes:** D-33 / ADR-024 (litellm as the unified LLM/embedding/rerank gateway in core).

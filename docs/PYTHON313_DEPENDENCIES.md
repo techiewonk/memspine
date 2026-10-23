@@ -192,3 +192,8 @@ query time and manifest/lock hashes: [dependency-audit.json](provider_verificati
 | zstandard | 0.25.0 | 0.25.0 | 0.25.0 | Yes |
 
 GLiNER2.5 adoption is assessed separately in the [ingestion plan](GLINER25_INGESTION_PLAN.md).
+
+Provider replacement verification: [RM-123/RM-124 evidence](provider_verification/rm123-rm124-2026-10-23.json).
+Hub 2.3.0 offline/cache checks: 75 passed, 2 skipped. Strict mypy passes all 703
+source files, import contracts are 18/0, and the final eval failure set contains
+187 existing failures against 193 on d9a87db6, with zero additions.

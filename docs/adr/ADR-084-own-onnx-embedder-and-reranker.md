@@ -1,7 +1,6 @@
 # ADR-084: Our own ONNX embedder and cross-encoder reranker replace fastembed
 
-**Status:** Accepted (design) on 2026-10-23. Not implemented; the build is RM-123 and is handed
-to Codex.
+**Status:** Accepted and implemented on 2026-10-23. Verification and current follow-ups: RM-123 in [PROVIDER_TODO.md](../PROVIDER_TODO.md).
 **Date:** 2026-10-23
 **Deciders:** Owner (question rounds of 2026-10-23)
 **Supersedes:** D-08 "fastembed (ONNX, CPU)" as the embedder implementation (the ONNX/CPU
