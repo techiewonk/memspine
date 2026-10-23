@@ -20,9 +20,9 @@ from typing import Any
 from pydantic import BaseModel
 
 from memspine.config.schema.providers import (
-    OnnxEmbeddingSettings,
     HashEmbeddingSettings,
     LiteLLMEmbeddingSettings,
+    OnnxEmbeddingSettings,
     SentenceTransformersEmbeddingSettings,
     StaticEmbeddingSettings,
 )
@@ -334,25 +334,14 @@ def _register(
 def _embedding_target_identity(name: str) -> Callable[[Any], dict[str, Any]]:
     """Expose a no-load embedding table identity for pre-connect projection checks."""
     if name == "onnx":
-        from memspine.services.embedding.onnx import _KNOWN_DIMS
+        from memspine.clients.weights.onnx_catalogue import model_embedder_id, resolve_model_spec
 
         def onnx_identity(settings: OnnxEmbeddingSettings) -> dict[str, Any]:
-            dimension = _KNOWN_DIMS.get(settings.model, settings.dim)
-            if dimension is None:
-                from memspine.exceptions import ConfigError
-
-                raise ConfigError(
-                    "model.embedding.settings.dim is required to identify an unknown onnx "
-                    "model"
-                )
-            if settings.dim is not None and settings.dim != dimension:
-                from memspine.exceptions import ConfigError
-
-                raise ConfigError(
-                    "model.embedding.settings.dim conflicts with the known onnx model "
-                    "dimension"
-                )
-            return {"embedder_id": f"embedder:{settings.model}", "dimension": dimension}
+            spec = resolve_model_spec(settings.model, settings.model_spec)
+            return {
+                "embedder_id": model_embedder_id(settings.model, settings.model_spec),
+                "dimension": spec.dim,
+            }
 
         return onnx_identity
     if name == "hash":

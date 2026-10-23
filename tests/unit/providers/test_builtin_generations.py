@@ -9,9 +9,9 @@ from pydantic import ValidationError
 from memspine import Engine
 from memspine.config.loader import load_config
 from memspine.config.schema.providers import (
-    OnnxEmbeddingSettings,
     HashEmbeddingSettings,
     LiteLLMEmbeddingSettings,
+    OnnxEmbeddingSettings,
     SentenceTransformersEmbeddingSettings,
     StaticEmbeddingSettings,
 )
@@ -188,14 +188,18 @@ def test_embedding_target_identity_requires_exact_dimension_without_loading_mode
         "dimension": 384,
     }
 
-    unknown = OnnxEmbeddingSettings(model="organization/private-model", dim=512)
+    from dataclasses import asdict
+
+    from memspine.clients.weights.onnx_catalogue import CATALOGUE, model_embedder_id
+    spec = {**asdict(CATALOGUE["BAAI/bge-small-en-v1.5"]), "dim": 512}
+    unknown = OnnxEmbeddingSettings(model="organization/private-model", model_spec=spec)
     identity = provider_target_identity(onnx, unknown)
     assert identity == {
-        "embedder_id": "embedder:organization/private-model",
+        "embedder_id": model_embedder_id(unknown.model, spec),
         "dimension": 512,
     }
-    with pytest.raises(ValidationError, match="settings.dim is required"):
-        OnnxEmbeddingSettings(model="organization/private-model")
+    with pytest.raises(ValidationError, match="explicit settings.model_spec"):
+        OnnxEmbeddingSettings(model="organization/private-model", dim=512)
 
     static = get_registry("embedders").get("static")
     settings = validate_settings(static, {"model": "org/static", "dim": 768})
@@ -210,9 +214,8 @@ def test_embedding_target_identity_requires_exact_dimension_without_loading_mode
 def test_builtin_embedding_defaults_are_model_specific() -> None:
     assert OnnxEmbeddingSettings().dim == 384
     assert OnnxEmbeddingSettings(model="BAAI/bge-base-en-v1.5").dim == 768
-    assert OnnxEmbeddingSettings(model="organization/private-model", dim=512).dim == 512
-    with pytest.raises(ValidationError, match="settings.dim is required"):
-        OnnxEmbeddingSettings(model="organization/private-model")
+    with pytest.raises(ValidationError, match="explicit settings.model_spec"):
+        OnnxEmbeddingSettings(model="organization/private-model", dim=512)
 
     assert HashEmbeddingSettings().dim == 64
     assert HashEmbeddingSettings(dim=768).dim == 768
@@ -269,6 +272,7 @@ async def test_mock_embedding_dimensions_must_match_the_declared_table(
             return [[1.0, 2.0, 3.0]]
 
     from dataclasses import asdict
+
     from memspine.clients.weights.onnx_catalogue import CATALOGUE
     spec = asdict(CATALOGUE["BAAI/bge-small-en-v1.5"])
     spec["dim"] = 3
