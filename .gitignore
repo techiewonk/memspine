@@ -61,3 +61,6 @@ Thumbs.db
 
 # Licence: no archives with dataset content under docs/
 docs/**/*.zip
+
+# stray Tantivy index left by test runs that place the lexical index beside the default db path
+/memspine.db.tantivy/
