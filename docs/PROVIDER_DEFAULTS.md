@@ -37,12 +37,12 @@ slot key (ADR-082), so they are never written in the slot's `settings`.
 | llm | <code>vllm</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>api_key = null</code><br><code>no_think = null</code> | <code>model</code>, <code>api_base</code> | <code>timeout_seconds</code> from <code>model.llm.&lt;role&gt;.timeout_s</code> |
 | llm | <code>bedrock</code> | <code>temperature = 0.2</code><br><code>top_p = 1.0</code><br><code>max_tokens = 2048</code><br><code>aws_region = null</code><br><code>no_think = null</code> | <code>model</code> | <code>timeout_seconds</code> from <code>model.llm.&lt;role&gt;.timeout_s</code> |
 | llm | <code>llamacpp</code> | <code>temperature = 0.8</code><br><code>top_p = 0.95</code><br><code>max_tokens = 2048</code><br><code>n_ctx = 8192</code><br><code>n_gpu_layers = 0</code><br><code>n_batch = 512</code><br><code>n_threads = null</code><br><code>no_think = null</code> | <code>model</code> | <code>timeout_seconds</code> from <code>model.llm.&lt;role&gt;.timeout_s</code> |
-| embedding | <code>fastembed</code> | <code>model = &quot;BAAI/bge-small-en-v1.5&quot;</code><br><code>query_instruction = null</code><br><code>dim = 384</code> | None | None |
+| embedding | <code>onnx</code> | <code>model = &quot;BAAI/bge-small-en-v1.5&quot;</code><br><code>query_instruction = null</code><br><code>dim = 384</code><br><code>local_files_only = false</code><br><code>threads = 0</code><br><code>batch_size = 32</code><br><code>providers = [&quot;CPUExecutionProvider&quot;]</code><br><code>model_spec = null</code> | None | None |
 | embedding | <code>hash</code> | <code>dim = 64</code> | None | None |
 | embedding | <code>static</code> | <code>model = &quot;minishlab/potion-base-8M&quot;</code><br><code>dim = 256</code><br><code>local_files_only = false</code> | None | None |
 | embedding | <code>litellm</code> | <code>model = &quot;openai/text-embedding-3-small&quot;</code><br><code>dim = 1536</code><br><code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code><br><code>request_dimensions = false</code><br><code>query_input_type = null</code><br><code>document_input_type = null</code> | <code>request_timeout_s</code> | None |
 | embedding | <code>st</code> | <code>model = &quot;sentence-transformers/all-MiniLM-L6-v2&quot;</code><br><code>dim = 384</code><br><code>query_instruction = null</code><br><code>device = null</code><br><code>dtype = null</code><br><code>query_prompt_name = null</code><br><code>document_prompt_name = null</code><br><code>trust_remote_code = false</code> | None | None |
-| rerank | <code>fastembed</code> | <code>model = &quot;Xenova/ms-marco-MiniLM-L-6-v2&quot;</code> | None | None |
+| rerank | <code>onnx</code> | <code>model = &quot;Xenova/ms-marco-MiniLM-L-6-v2&quot;</code><br><code>local_files_only = false</code><br><code>threads = 0</code><br><code>batch_size = 32</code><br><code>providers = [&quot;CPUExecutionProvider&quot;]</code><br><code>model_spec = null</code> | None | None |
 | rerank | <code>flashrank</code> | <code>model = null</code> | None | None |
 | rerank | <code>litellm</code> | <code>api_base = null</code><br><code>api_key = null</code><br><code>aws_region = null</code> | <code>model</code>, <code>request_timeout_s</code> | None |
 | rerank | <code>qwen3</code> | <code>model = &quot;Qwen/Qwen3-Reranker-0.6B&quot;</code><br><code>instruction = &quot;Given a question about a user&#x27;s past conversations, judge whether the memory helps answer it&quot;</code><br><code>batch_size = 8</code><br><code>max_length = 8192</code><br><code>device = null</code><br><code>quant = null</code> | None | None |
@@ -61,6 +61,6 @@ Inspect one provider, including validation constraints, without starting an Engi
 
 ```python
 from memspine.providers import provider_settings_reference
-print(provider_settings_reference('embedding', 'fastembed'))
+print(provider_settings_reference('embedding', 'onnx'))
 print(provider_settings_reference('llm', 'litellm'))
 ```

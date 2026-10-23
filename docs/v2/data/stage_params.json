@@ -831,7 +831,7 @@
     },
     {
      "key": "model.embedding.provider",
-     "default": "fastembed",
+     "default": "onnx",
      "type": "str",
      "description": "D-08: `fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud; `settings.dim` required) | `st` (sentence-transformers, `[st]`).",
      "effect": "`fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud;",
@@ -868,7 +868,7 @@
     {
      "role": "model.embedding.provider",
      "source": "model.embedding.provider",
-     "default": "fastembed"
+     "default": "onnx"
     }
    ]
   },
@@ -4807,7 +4807,7 @@
     },
     {
      "key": "model.embedding.provider",
-     "default": "fastembed",
+     "default": "onnx",
      "type": "str",
      "description": "D-08: `fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud; `settings.dim` required) | `st` (sentence-transformers, `[st]`).",
      "effect": "`fastembed` (ONNX/CPU) | `hash` (deterministic, tests) | `static` (model2vec `[static]`) | `litellm` (cloud;",
@@ -4844,7 +4844,7 @@
     {
      "role": "model.embedding.provider",
      "source": "model.embedding.provider",
-     "default": "fastembed"
+     "default": "onnx"
     }
    ]
   },
@@ -7723,8 +7723,8 @@
      "key": "cli:--dense",
      "default": false,
      "type": "bool",
-     "description": "use fastembed instead of BM25",
-     "effect": "use fastembed instead of BM25",
+     "description": "use onnx instead of BM25",
+     "effect": "use onnx instead of BM25",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []
@@ -7733,8 +7733,8 @@
      "key": "cli:--hybrid",
      "default": false,
      "type": "bool",
-     "description": "RRF fusion of BM25 and fastembed",
-     "effect": "RRF fusion of BM25 and fastembed",
+     "description": "RRF fusion of BM25 and onnx",
+     "effect": "RRF fusion of BM25 and onnx",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []
@@ -7809,8 +7809,8 @@
      "key": "cli:--naive-dense-same-embedder",
      "default": false,
      "type": "bool",
-     "description": "add a naive-RAG arm on memspine's own (fastembed) embedder (R4-6)",
-     "effect": "add a naive-RAG arm on memspine's own (fastembed) embedder (R4-6)",
+     "description": "add a naive-RAG arm on memspine's own (onnx) embedder (R4-6)",
+     "effect": "add a naive-RAG arm on memspine's own (onnx) embedder (R4-6)",
      "rebuild": false,
      "rebuild_scope": "",
      "screen_ids": []

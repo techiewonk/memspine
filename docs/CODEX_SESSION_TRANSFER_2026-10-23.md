@@ -81,7 +81,7 @@ These are owner decisions and CLAUDE.md rules. Keep them exactly.
 | Graph backends | RM-96 | Work on one graph backend at a time; a deployment runs one graph client. |
 | Local MongoDB | RM-112 spike, `docs/provider_verification/rm112-local-mongo-options-2026-10-23.md` | Only the official `mongod` works; PoloDB, Mongita, MontyDB, pymongo_inmemory and FerretDB are rejected. The library-based local default stays SQLite records plus filesystem documents. |
 | Dependencies | RM-02 | uv ≥ 0.13.1 (0.13.5 installed). The 15 bumps landed and the audit reports 0 outdated. Hub 2.x is blocked by fastembed 0.9.0 and litellm 1.106.2 (both `<2.0`). |
-| D-108 / ADR-084 (planned) | `docs/adr/ADR-084-own-onnx-embedder-and-reranker.md` | Own `onnx` embedder and cross-encoder replace fastembed. The embedder id becomes `embed:<model>`, and parity-certified models keep their vector space (stores are adopted without re-embedding). Build: RM-123. |
+| D-108 / ADR-084 (planned) | `docs/adr/ADR-084-own-onnx-embedder-and-reranker.md` | Own `onnx` embedder and cross-encoder replace fastembed. The embedder id becomes `embedder:<model>`, and parity-certified models keep their vector space (stores are adopted without re-embedding). Build: RM-123. |
 | D-109 / ADR-085 (planned) | `docs/adr/ADR-085-own-openai-compatible-client-and-anyllm-extra.md` | Own OpenAI-compatible httpx client (presets ollama/vllm/lmstudio/llamacpp_server), Bedrock on boto3, optional `[anyllm]`, litellm removed. Build: RM-124. |
 
 ## 5. What landed (by register ID; details and evidence are in each row)

@@ -26,7 +26,7 @@ default itself stays), and the `fastembed` entry of `model.rerank.chain`.
   - `sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2`: the `cpu_multilingual`
     preset (`models/embedding_profiles.py`).
   - `Xenova/ms-marco-MiniLM-L-6-v2`: the cross-encoder, `RERANK_FASTEMBED_MODEL`.
-- **Vector identity is tied to the library.** The embedder id is `fastembed:<model>`
+- **Vector identity is tied to the library.** The embedder id is `fastembedder:<model>`
   (`services/embedding/fastembed.py`). It is part of every vector table's projection identity
   (`providers/projection_bindings.py`) and of the result-cache key.
 
@@ -66,9 +66,9 @@ default itself stays), and the `fastembed` entry of `model.rerank.chain`.
    - Embeddings must reach cosine ≥ 0.99999 and a maximum absolute difference ≤ 1e-5 per
      dimension.
    - Cross-encoder scores must keep the same order with an absolute difference ≤ 1e-4.
-6. **Library-independent embedder id: `embed:<model>`** (owner, 2026-10-23). It replaces the
-   provider-named `fastembed:<model>`.
-   - The `onnx` embedder reports `embed:<model>`. The vector-space identity then names the
+6. **Library-independent embedder id: `embedder:<model>`** (owner, 2026-10-23). It replaces the
+   provider-named `fastembedder:<model>`.
+   - The `onnx` embedder reports `embedder:<model>`. The vector-space identity then names the
      model, not the library that computed it.
    - Another embedder may report the same id only when it is parity-certified against the
      catalogue reference vectors for that model (item 5). Uncertified embedders keep a
@@ -77,8 +77,8 @@ default itself stays), and the `fastembed` entry of `model.rerank.chain`.
    - Hosted embedders (OpenAI-compatible, ADR-085) keep provider-qualified ids: their vectors
      are defined by the service, not by a local file.
 7. **Vector-space adoption, not re-embedding, for parity-certified models.**
-   - A store whose vector table or binding records `fastembed:<m>` is adopted on first start as
-     `embed:<m>` when the configured embedder is `onnx` with catalogue model `m` and that model
+   - A store whose vector table or binding records `fastembedder:<m>` is adopted on first start as
+     `embedder:<m>` when the configured embedder is `onnx` with catalogue model `m` and that model
      is parity-certified.
    - The adoption rewrites the identity metadata only (binding and space rows), never vectors,
      in one audited step with a tap event and a log line. It is idempotent.

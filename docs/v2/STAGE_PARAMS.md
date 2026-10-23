@@ -169,13 +169,13 @@ Models:
 | `model.embedding.migrate_preset` | `false` | bool | Accept a preset change on open (the pin is replaced, the old hash kept as `previous`). | - | - |
 | `model.embedding.pin_preset` | `false` | bool | Write the resolved embedding preset (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and re | - | - |
 | `model.embedding.preset` | `null` | str \| None min_length 1 | A shipped embedding preset that fills provider, model, dim and query instruction. | - | - |
-| `model.embedding.provider` | `fastembed` | str min_length 1 | `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud; | - | - |
+| `model.embedding.provider` | `onnx` | str min_length 1 | `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud; | - | - |
 | `model.embedding.settings` | `{}` | dict[str, JsonValue] | Provider-owned settings (model id, dim, api_base, ...), validated by the selected provider's descriptor. | - | - |
 | `model.embedding.versioned_spaces` | `false` | bool | Version the vector space. | - | - |
 
 Models:
 
-- model.embedding.provider (`model.embedding.provider`, default `fastembed`)
+- model.embedding.provider (`model.embedding.provider`, default `onnx`)
 
 ## A14 Post-write hooks
 
@@ -893,13 +893,13 @@ Models:
 | `model.embedding.migrate_preset` | `false` | bool | Accept a preset change on open (the pin is replaced, the old hash kept as `previous`). | - | - |
 | `model.embedding.pin_preset` | `false` | bool | Write the resolved embedding preset (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and re | - | - |
 | `model.embedding.preset` | `null` | str \| None min_length 1 | A shipped embedding preset that fills provider, model, dim and query instruction. | - | - |
-| `model.embedding.provider` | `fastembed` | str min_length 1 | `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud; | - | - |
+| `model.embedding.provider` | `onnx` | str min_length 1 | `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud; | - | - |
 | `model.embedding.settings` | `{}` | dict[str, JsonValue] | Provider-owned settings (model id, dim, api_base, ...), validated by the selected provider's descriptor. | - | - |
 | `model.embedding.versioned_spaces` | `false` | bool | Version the vector space. | - | - |
 
 Models:
 
-- model.embedding.provider (`model.embedding.provider`, default `fastembed`)
+- model.embedding.provider (`model.embedding.provider`, default `onnx`)
 
 ## C8 Vector leg
 
@@ -1308,14 +1308,14 @@ Models:
 | Key | Default | Type / range | Effect | Rebuild | Screens |
 |---|---|---|---|---|---|
 | `cli:--budget` | `4096` | int | retrieved-token cap; 4096 is the evaluation plan primary setting | - | - |
-| `cli:--dense` | `false` | bool | use fastembed instead of BM25 | - | - |
-| `cli:--hybrid` | `false` | bool | RRF fusion of BM25 and fastembed | - | - |
+| `cli:--dense` | `false` | bool | use onnx instead of BM25 | - | - |
+| `cli:--hybrid` | `false` | bool | RRF fusion of BM25 and onnx | - | - |
 | `cli:--matched-budget-tokens` | `null` | int | add a naive-RAG arm capped at this context size, e.g. memspine's mean (R4-6) | - | - |
 | `cli:--memspine-as-of-question-date` | `false` | bool | memspine arm reads as of each question's date (LongMemEval question_date; | - | - |
 | `cli:--memspine-context-order` | `chrono` | chrono \\| hits_first \\| hit_blocks | memspine arm: order of the rendered context lines (R2-4). chrono: as read; hits_first: final search hits in rank order, then the rest chronologically; hit_blocks: each hit with its neighbour lines, bl | - | - |
 | `cli:--memspine-mark-hits` | `off` | off \\| star \\| rank | memspine arm: mark the context lines that are final search hits for the reader (star: '* ' prefix; rank: '[hit k] ' prefix); neighbour lines stay unmarked (C1) | - | - |
 | `cli:--memspine-read-mode` | `null` | replay \\| auto \\| full \\| compose | memspine arm reads via Engine.read(mode) instead of assemble (C7') | - | - |
-| `cli:--naive-dense-same-embedder` | `false` | bool | add a naive-RAG arm on memspine's own (fastembed) embedder (R4-6) | - | - |
+| `cli:--naive-dense-same-embedder` | `false` | bool | add a naive-RAG arm on memspine's own (onnx) embedder (R4-6) | - | - |
 | `cli:--retrieval-only` | `false` | bool | screening: ingest and read every question exactly as the QA run would (same engine config, budget, top_k, read mode) but skip the reader and the judge; rows record retrieved_ids, context_tokens, the g | - | - |
 | `cli:--top-k` | `10` | int | Records the memory system returns per question (retrieval depth handed to the budget). | - | - |
 
