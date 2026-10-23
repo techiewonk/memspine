@@ -14,7 +14,6 @@ from memspine.exceptions import ConfigError
 from memspine.services.assets import (
     AssetAdapter,
     AssetFetchError,
-    AssetRegistry,
     FetchedAsset,
 )
 from memspine.services.external import PUBLIC_MARKER, ExternalSnippet
@@ -167,23 +166,33 @@ async def test_attachments_are_ignored_when_ingest_assets_is_off(tmp_path) -> No
 # ── E04 ──────────────────────────────────────────────────────────────────────
 
 
-async def asset_engine(tmp_path, fetcher: Fetcher, vision: Vision, mode: str = "fetch") -> Engine:
-    eng = Engine(
-        template="core",
-        dotenv_path=None,
-        storage={
-            "records": {
-                "provider": "sqlite",
-                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
-            }
+def asset_config(tmp_path, mode: str = "fetch", *, path: str = ":memory:") -> dict[str, Any]:
+    """RM-113 item 18: the registry is in the records database, the bytes in
+    ``storage.documents`` (filesystem)."""
+    return {
+        "template": "core",
+        "dotenv_path": None,
+        "storage": {
+            "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}},
+            "documents": {
+                "provider": "filesystem",
+                "settings": {"root": str(tmp_path / "documents"), "fsync": False},
+            },
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
-        memories={"episodic": {"enabled": True}},
-        ingest={"assets": "on", "asset_dir": str(tmp_path)},
-        read={"hybrid": False, "record_access": False, "asset_evidence": mode},
-    )
+        "model": {"embedding": {"provider": "hash", "settings": {}}},
+        "memories": {"episodic": {"enabled": True}},
+        "ingest": {"assets": "on"},
+        "read": {"hybrid": False, "record_access": False, "asset_evidence": mode},
+    }
+
+
+async def asset_engine(
+    tmp_path, fetcher: Fetcher, vision: Vision, mode: str = "fetch", *, path: str = ":memory:"
+) -> Engine:
+    eng = Engine(**asset_config(tmp_path, mode, path=path))
     await eng.start()
-    eng.set_asset_adapter(AssetAdapter(AssetRegistry(tmp_path), fetcher, vision, tmp_path))
+    # the Engine's own registry (records tables) and documents slot, fake fetcher and vision
+    eng.set_asset_adapter(AssetAdapter(eng._asset_registry(), fetcher, vision, eng.documents))
     await eng.ingest_messages(TURNS, namespace="a", session_id="s1")
     return eng
 
@@ -194,7 +203,7 @@ async def test_ingest_registers_identity_without_downloading(tmp_path) -> None:
     try:
         tagged = [r for r in await eng._records("a") if any(t.startswith("asset:") for t in r.tags)]
         assert len(tagged) == 1
-        entries = eng._asset_adapter().registry.all()
+        entries = await eng._asset_adapter().registry.all("a")
         assert len(entries) == 1
         e = entries[0]
         assert (e.source_turn_id, e.uri, e.caption) == ("D1:2", URL, "a photo of a book")

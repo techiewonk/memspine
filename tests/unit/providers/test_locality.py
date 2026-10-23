@@ -182,13 +182,20 @@ def test_slots_that_are_not_built_are_not_checked() -> None:
             "workers.resonate.journal_path",
         ),
         ({"model": {"embedding": {"pin_preset": True}}}, "model.embedding.pin_preset"),
-        ({"ingest": {"assets": "on", "asset_dir": "/var/cache/assets"}}, "ingest.asset_dir"),
     ],
 )
 def test_multi_node_rejects_host_local_features(overrides: dict[str, Any], fragment: str) -> None:
     config = _config("multi_node", storage=_cluster_storage(), **overrides)
     with pytest.raises(DeploymentLocalityError, match=fragment.replace(".", r"\.")):
         validate_deployment_locality(config)
+
+
+def test_multi_node_accepts_assets_in_the_records_database() -> None:
+    """RM-113 item 18: the asset registry is a table of the (cluster) records database and its
+    bytes are in storage.documents, so ``ingest.assets: on`` is no host-local feature."""
+    validate_deployment_locality(
+        _config("multi_node", storage=_cluster_storage(), ingest={"assets": "on"})
+    )
 
 
 # ------------------------------------------------------------------------- multi_process

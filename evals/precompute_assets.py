@@ -7,8 +7,14 @@
 
 Generic over any dataset adapter whose turns carry ``meta["attachments"]`` (what
 ``MemspineSystem._message`` forwards when ``ingest.assets: on``). Asset ids are the engine's
-(``asset_id_for(turn_id, uri)``), so an eval run with ``ingest.asset_dir`` pointing here and
-``read.asset_evidence: cached`` finds the evidence and makes no network or vision call.
+(``asset_id_for(turn_id, uri)``) and rows are keyed by ``--namespace`` (the eval namespace).
+
+RM-113 item 18: the pack under ``--asset-dir`` has the engine's own layout: ``assets.db`` (a
+SQLite database with the records-schema ``asset_registry`` table) and ``documents/`` (a
+``storage.documents`` filesystem root with the bytes by content hash). Not wired yet: seeding
+a fresh per-item eval store from the pack (the old flow pointed ``ingest.asset_dir`` here; that
+key is gone). Until then the pack serves ``read.asset_evidence: cached`` only through an Engine
+whose records and documents slots are this pack.
 
 Phase ``download`` fetches only each turn's own URI (size/type checks, no off-site redirect),
 caches the bytes by content hash and records failures explicitly (``availability: unavailable``
@@ -36,8 +42,8 @@ for _p in (HERE, HERE.parent / "src"):
 from memspine.services.assets import (
     AssetAdapter,
     AssetEntry,
-    AssetRegistry,
     HttpAssetFetcher,
+    SqlAssetRegistry,
     asset_id_for,
     parse_attachments,
 )
@@ -46,7 +52,7 @@ from memspine.services.vision import NoopVision, OllamaVision
 DEFAULT_MIME = ("image/jpeg", "image/png", "image/gif", "image/webp")
 
 
-def iter_assets(items: Iterable[Any]) -> Iterator[AssetEntry]:
+def iter_assets(items: Iterable[Any], namespace: str = "eval") -> Iterator[AssetEntry]:
     """Every attachment of every turn of every item, with the engine's asset id."""
     for item in items:
         for turn in item.history:
@@ -56,6 +62,7 @@ def iter_assets(items: Iterable[Any]) -> Iterator[AssetEntry]:
                     asset_id=asset_id_for(str(turn.turn_id), ref.uri),
                     source_turn_id=str(turn.turn_id),
                     uri=ref.uri,
+                    namespace=namespace,
                     kind=ref.kind,
                     caption=ref.caption,
                     search_hint=ref.search_hint,
@@ -74,37 +81,37 @@ async def precompute(
 ) -> dict[str, Any]:
     """Register, then download and/or describe. Returns the counts and timing."""
     started = time.monotonic()
-    ids: list[str] = []
+    ids: list[tuple[str, str]] = []
     for entry in entries:
         if limit is not None and len(ids) >= limit:
             break
-        adapter.registry.register(entry)
-        ids.append(entry.asset_id)
+        await adapter.registry.register(entry)
+        ids.append((entry.namespace, entry.asset_id))
     if retry_failed:
-        for aid in ids:
-            e = adapter.registry.get(aid)
+        for ns, aid in ids:
+            e = await adapter.registry.get(ns, aid)
             if e is not None and e.availability == "unavailable":
                 e.availability, e.error = "unfetched", None
-                adapter.registry.update(e)
+                await adapter.registry.update(e)
     timing: dict[str, float] = {}
     if phase in ("download", "all"):
         t0 = time.monotonic()
         sem = asyncio.Semaphore(max(1, concurrency))
 
-        async def one(aid: str) -> None:
+        async def one(ns: str, aid: str) -> None:
             async with sem:
-                await adapter.download(aid)
+                await adapter.download(ns, aid)
 
-        await asyncio.gather(*(one(a) for a in ids))
+        await asyncio.gather(*(one(ns, a) for ns, a in ids))
         timing["download_s"] = round(time.monotonic() - t0, 2)
     if phase in ("describe", "all"):
         t0 = time.monotonic()
-        for n, aid in enumerate(ids, 1):  # sequential: one vision call at a time
-            await adapter.describe(aid)
+        for n, (ns, aid) in enumerate(ids, 1):  # sequential: one vision call at a time
+            await adapter.describe(ns, aid)
             if log and n % 25 == 0:
                 log(f"described {n}/{len(ids)}")
         timing["describe_s"] = round(time.monotonic() - t0, 2)
-    rows = [adapter.registry.get(a) for a in ids]
+    rows = [await adapter.registry.get(ns, a) for ns, a in ids]
     done = [r for r in rows if r is not None]
     hashes = {r.content_hash for r in done if r.content_hash}
     reasons: dict[str, int] = {}
@@ -130,7 +137,22 @@ async def precompute(
     }
 
 
-def build_adapter(args: argparse.Namespace) -> AssetAdapter:
+async def open_pack(asset_dir: Path) -> tuple[SqlAssetRegistry, Any, Any]:
+    """The pack's registry (``assets.db``) and documents store (``documents/``), plus the
+    async engine to dispose at the end."""
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from memspine.clients.fs import FilesystemConnector, FilesystemSpec
+    from memspine.services.documents.filesystem import FilesystemDocumentStore
+
+    asset_dir.mkdir(parents=True, exist_ok=True)
+    engine = create_async_engine(f"sqlite+aiosqlite:///{asset_dir / 'assets.db'}")
+    connector = FilesystemConnector(FilesystemSpec(str(asset_dir / "documents")))
+    await connector.open()
+    return SqlAssetRegistry(engine), FilesystemDocumentStore(connector), engine
+
+
+async def build_adapter(args: argparse.Namespace) -> tuple[AssetAdapter, Any]:
     from memspine.clients.http import HttpConnector, HttpSpec
 
     asset_dir = Path(args.asset_dir)
@@ -142,14 +164,16 @@ def build_adapter(args: argparse.Namespace) -> AssetAdapter:
         if args.phase == "download"
         else OllamaVision(args.vision_model, http, args.vision_url, timeout=args.vision_timeout)
     )
-    return AssetAdapter(
-        AssetRegistry(asset_dir),
+    registry, documents, engine = await open_pack(asset_dir)
+    adapter = AssetAdapter(
+        registry,
         HttpAssetFetcher(DEFAULT_MIME, http),
         vision,
-        asset_dir,
+        documents,
         max_bytes=args.max_bytes,
         timeout=args.timeout,
     )
+    return adapter, engine
 
 
 def load_items(args: argparse.Namespace) -> Iterable[Any]:
@@ -165,6 +189,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dataset", default="locomo")
     ap.add_argument("--data-path", required=True)
     ap.add_argument("--asset-dir", default=str(HERE / "runs" / "_asset_cache"))
+    ap.add_argument("--namespace", default="eval", help="the eval run's namespace")
     ap.add_argument("--phase", choices=("download", "describe", "all"), default="all")
     ap.add_argument("--vision-model", default="qwen2.5vl:3b")
     ap.add_argument("--vision-url", default="http://127.0.0.1:11434")
@@ -175,18 +200,23 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--retry-failed", action="store_true")
     ap.add_argument("--limit", type=int, default=None, help="first N attachments only")
     args = ap.parse_args(argv)
-    adapter = build_adapter(args)
-    report = asyncio.run(
-        precompute(
-            iter_assets(load_items(args)),
-            adapter,
-            phase=args.phase,
-            concurrency=args.concurrency,
-            retry_failed=args.retry_failed,
-            limit=args.limit,
-            log=lambda m: print(m, file=sys.stderr),
-        )
-    )
+
+    async def run() -> dict[str, Any]:
+        adapter, engine = await build_adapter(args)
+        try:
+            return await precompute(
+                iter_assets(load_items(args), args.namespace),
+                adapter,
+                phase=args.phase,
+                concurrency=args.concurrency,
+                retry_failed=args.retry_failed,
+                limit=args.limit,
+                log=lambda m: print(m, file=sys.stderr),
+            )
+        finally:
+            await engine.dispose()
+
+    report = asyncio.run(run())
     print(json.dumps(report, indent=2))
     return 0
 

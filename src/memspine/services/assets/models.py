@@ -28,11 +28,15 @@ class AssetRef:
 
 @dataclass(slots=True)
 class AssetEntry:
-    """Registry row: identity (immutable after ingest) plus what resolving it produced."""
+    """Registry row: identity (immutable after ingest) plus what resolving it produced.
+
+    Rows are keyed by ``(namespace, asset_id)``: the namespace of the record that carried the
+    attachment, so erasing a namespace or a record removes its rows (RM-113 item 18)."""
 
     asset_id: str
     source_turn_id: str
     uri: str
+    namespace: str = ""
     kind: str = "image"
     caption: str | None = None
     search_hint: str | None = None

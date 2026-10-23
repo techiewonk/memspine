@@ -1,11 +1,19 @@
-"""Asset adapter and attachment registration for the write path (F-09)."""
+"""Asset adapter and attachment registration for the write path (F-09).
+
+RM-113 item 18: the registry is a table of the records database (the storage's async engine),
+the downloaded bytes go to ``storage.documents``. A records store without SQL keeps the rows in
+process memory (logged once)."""
 
 from __future__ import annotations
 
 from collections.abc import (
     Mapping,
+    Sequence,
 )
+from pathlib import Path
 from typing import Any
+
+import structlog
 
 from memspine.observability import tap
 
@@ -13,10 +21,34 @@ from memspine.observability import tap
 DEFAULT_VISION_MODEL = "qwen2.5vl:3b"
 DEFAULT_VISION_URL = "http://localhost:11434"
 
+_log = structlog.get_logger("memspine.assets")
+
+
+def _asset_registry(eng: Any) -> Any:
+    """The Engine's asset registry: SQL tables of the records database when the records store
+    is SQL, else an in-process registry. An injected adapter (``set_asset_adapter``) brings
+    its own."""
+    if eng._assets is not None:
+        return eng._assets.registry
+    if eng._asset_rows is None:
+        from memspine.services.assets import MemoryAssetRegistry, SqlAssetRegistry
+
+        engine = getattr(eng._sql, "engine", None)
+        if engine is not None:
+            eng._asset_rows = SqlAssetRegistry(engine)
+        else:
+            if eng._config().ingest.assets == "on":
+                _log.warning(
+                    "asset.registry_in_memory",
+                    detail="the records store has no SQL database: asset rows live in this process",
+                )
+            eng._asset_rows = MemoryAssetRegistry()
+    return eng._asset_rows
+
 
 def _asset_adapter(eng: Any) -> Any:
     if eng._assets is None:
-        from memspine.services.assets import AssetAdapter, AssetRegistry, HttpAssetFetcher
+        from memspine.services.assets import AssetAdapter, HttpAssetFetcher
         from memspine.services.vision import NoopVision, OllamaVision
 
         config = eng._config()
@@ -33,10 +65,10 @@ def _asset_adapter(eng: Any) -> Any:
                 timeout=slot.timeout_s,
             )
         eng._assets = AssetAdapter(
-            AssetRegistry(cfg.asset_dir),
+            _asset_registry(eng),
             HttpAssetFetcher(tuple(cfg.asset_allowed_mime), http),
             vision,
-            cfg.asset_dir,
+            eng._documents,  # RM-113 item 18: the bytes go to storage.documents (or nowhere)
             max_bytes=cfg.asset_max_bytes,
             timeout=cfg.asset_timeout_s,
         )
@@ -58,28 +90,68 @@ def _attachment_refs(
     return [(ref, asset_id_for(source, ref.uri)) for ref in refs]
 
 
-def _register_assets(
+async def _register_assets(
     eng: Any,
     refs: list[tuple[Any, str]],
     turn: Mapping[str, Any],
     index: int,
     session_id: str | None,
+    namespace: str,
     record_id: str,
 ) -> None:
     from memspine.services.assets import AssetEntry
 
     source = str(turn.get("turn_id") or f"{session_id or 'nosession'}:{index}")
-    adapter = eng._asset_adapter()
+    registry = eng._asset_adapter().registry
     tap.event("write.assets.registered", n=len(refs), id=record_id)
     for ref, aid in refs:
-        adapter.registry.register(
+        await registry.register(
             AssetEntry(
                 asset_id=aid,
                 source_turn_id=source,
                 uri=ref.uri,
+                namespace=namespace,
                 kind=ref.kind,
                 caption=ref.caption,
                 search_hint=ref.search_hint,
                 record_id=record_id,
             )
         )
+
+
+async def _erase_assets(eng: Any, namespace: str, record_ids: Sequence[str] | None) -> int:
+    """Erasure hook (RM-113 item 18): drop the asset rows of ``record_ids`` (every row of the
+    namespace when None) and the stored bytes no remaining row of the namespace references.
+    Returns the number of rows removed. Runs even with ``ingest.assets`` off: rows written by
+    an earlier configuration go too."""
+    registry = _asset_registry(eng)
+    if record_ids is None:
+        gone = await registry.erase_namespace(namespace)
+    else:
+        gone = await registry.erase_records(namespace, record_ids)
+    documents = eng._documents
+    if documents is not None and record_ids is not None:
+        for digest in sorted({e.content_hash for e in gone if e.content_hash}):
+            if await registry.hash_in_use(namespace, digest):
+                continue
+            head = await documents.head(namespace, digest)
+            if head is not None and not head.record_ids:  # another record still references it
+                await documents.delete(namespace, digest)
+    if gone:
+        tap.event("write.assets.erased", n=len(gone))
+    return len(gone)
+
+
+async def _import_asset_dir(eng: Any, directory: str | Path, namespace: str | None) -> Any:
+    """RM-113 item 18: the one-time import of a pre-item-18 asset directory."""
+    from memspine.services.assets.legacy import import_asset_dir
+
+    storage = eng._require_started()
+
+    async def namespace_of(record_ids: Sequence[str]) -> Mapping[str, str]:
+        found = await storage.get_records(list(dict.fromkeys(record_ids))) if record_ids else {}
+        return {rid: record.namespace for rid, record in found.items()}
+
+    return await import_asset_dir(
+        directory, _asset_registry(eng), eng._documents, namespace_of, namespace=namespace
+    )

@@ -127,11 +127,15 @@ class MemspineConfig(ConfigModel):
     @model_validator(mode="after")
     def _asset_keys_agree(self) -> MemspineConfig:
         """E04: ``read.asset_evidence`` needs the identities ``ingest.assets`` registers, and
-        ``fetch`` needs a directory to cache the downloaded bytes by content hash."""
+        ``fetch`` needs ``storage.documents`` to keep the downloaded bytes by content hash
+        (RM-113 item 18)."""
         if self.read.asset_evidence != "off" and self.ingest.assets != "on":
             raise ConfigError("read.asset_evidence needs ingest.assets: on")
-        if self.read.asset_evidence == "fetch" and not self.ingest.asset_dir:
-            raise ConfigError("read.asset_evidence: fetch needs ingest.asset_dir (the cache)")
+        if self.read.asset_evidence == "fetch" and self.storage.documents is None:
+            raise ConfigError(
+                "read.asset_evidence: fetch needs storage.documents (the downloaded bytes are "
+                "kept there by content hash)"
+            )
         if self.runtime.environment == "production" and self.deployment.id is None:
             raise ConfigError("runtime.environment=production requires deployment.id")
         return self

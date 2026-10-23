@@ -45,8 +45,8 @@ POSTGRES_TREE = Path(pg_migrations.__file__).parent / "alembic"
 
 def test_both_trees_have_a_single_head() -> None:
     assert len(ScriptDirectory(str(SQLITE_TREE)).get_heads()) == 1
-    # RM-111 WP5: the side tables (sleep leases, cost ledger, dead letters) are the head in both.
-    assert pg_migrations.heads() == ["pg_rm111_side_tables"]
+    # RM-113 item 18: the asset registry table is the head in both (after the WP5 side tables).
+    assert pg_migrations.heads() == ["pg_rm113_asset_registry"]
 
 
 def test_postgres_tree_mirrors_the_sqlite_revision_count() -> None:
@@ -54,7 +54,7 @@ def test_postgres_tree_mirrors_the_sqlite_revision_count() -> None:
         return len(list(ScriptDirectory(str(tree)).walk_revisions()))
 
     # Provider-contract and projector-binding revisions are mirrored in both trees.
-    assert count(SQLITE_TREE) == count(POSTGRES_TREE) == 15
+    assert count(SQLITE_TREE) == count(POSTGRES_TREE) == 16
 
 
 def test_storage_profile_module_is_gone() -> None:

@@ -11,7 +11,6 @@ import precompute_assets as pa
 from memspine.services.assets import (
     AssetAdapter,
     AssetFetchError,
-    AssetRegistry,
     FetchedAsset,
     asset_id_for,
 )
@@ -57,8 +56,29 @@ def _items() -> list[SimpleNamespace]:
     ]
 
 
-def _adapter(tmp: Path, fetcher: FakeFetcher, vision: FakeVision) -> AssetAdapter:
-    return AssetAdapter(AssetRegistry(tmp), fetcher, vision, tmp)
+def _run(tmp: Path, fetcher: FakeFetcher, vision: FakeVision, **kwargs: object) -> dict:
+    """One precompute run over the pack in ``tmp`` (``assets.db`` + ``documents/``)."""
+
+    async def go() -> dict:
+        registry, documents, engine = await pa.open_pack(tmp)
+        try:
+            adapter = AssetAdapter(registry, fetcher, vision, documents)
+            return await pa.precompute(pa.iter_assets(_items()), adapter, **kwargs)  # type: ignore[arg-type]
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(go())
+
+
+def _get(tmp: Path, asset_id: str) -> object:
+    async def go() -> object:
+        registry, _, engine = await pa.open_pack(tmp)
+        try:
+            return await registry.get("eval", asset_id)
+        finally:
+            await engine.dispose()
+
+    return asyncio.run(go())
 
 
 def test_iter_assets_uses_engine_asset_ids() -> None:
@@ -68,52 +88,30 @@ def test_iter_assets_uses_engine_asset_ids() -> None:
 
 def test_download_then_describe_is_resumable_and_idempotent(tmp_path: Path) -> None:
     fetcher, vision = FakeFetcher({"https://i/dead.jpg"}), FakeVision()
-    adapter = _adapter(tmp_path, fetcher, vision)
-    r1 = asyncio.run(pa.precompute(pa.iter_assets(_items()), adapter, phase="download"))
+    r1 = _run(tmp_path, fetcher, vision, phase="download")
     assert (r1["images"], r1["downloaded"], r1["failed"], r1["described"]) == (3, 2, 1, 0)
     assert r1["failure_reasons"] == {"http_404": 1} and vision.calls == 0
-    # second run, new adapter on the same dir: no fetch at all (failure is final)
+    # second run, new adapter on the same pack: no fetch at all (failure is final)
     fetcher2 = FakeFetcher()
-    r2 = asyncio.run(
-        pa.precompute(pa.iter_assets(_items()), _adapter(tmp_path, fetcher2, vision), phase="all")
-    )
+    r2 = _run(tmp_path, fetcher2, vision, phase="all")
     assert fetcher2.calls == [] and (r2["downloaded"], r2["failed"], r2["described"]) == (2, 1, 2)
     assert vision.calls == 2
-    r3 = asyncio.run(
-        pa.precompute(pa.iter_assets(_items()), _adapter(tmp_path, fetcher2, vision), phase="all")
-    )
+    r3 = _run(tmp_path, fetcher2, vision, phase="all")
     assert vision.calls == 2 and r3["described"] == 2 and "total_s" in r3["timing_s"]
-    entry = AssetRegistry(tmp_path).get(asset_id_for("D1:2", "https://i/a.jpg"))
-    assert entry and entry.evidence_status == "ok" and entry.content_hash
+    entry = _get(tmp_path, asset_id_for("D1:2", "https://i/a.jpg"))
+    assert entry and entry.evidence_status == "ok" and entry.content_hash  # type: ignore[attr-defined]
+    assert (tmp_path / "assets.db").is_file() and (tmp_path / "documents").is_dir()
 
 
 def test_retry_failed_refetches_only_failures(tmp_path: Path) -> None:
     f = FakeFetcher({"https://i/dead.jpg"})
-    asyncio.run(
-        pa.precompute(
-            pa.iter_assets(_items()), _adapter(tmp_path, f, FakeVision()), phase="download"
-        )
-    )
+    _run(tmp_path, f, FakeVision(), phase="download")
     f2 = FakeFetcher()
-    r = asyncio.run(
-        pa.precompute(
-            pa.iter_assets(_items()),
-            _adapter(tmp_path, f2, FakeVision()),
-            phase="download",
-            retry_failed=True,
-        )
-    )
+    r = _run(tmp_path, f2, FakeVision(), phase="download", retry_failed=True)
     assert f2.calls == ["https://i/dead.jpg"] and r["failed"] == 0 and r["downloaded"] == 3
 
 
 def test_limit_and_describe_without_download_does_nothing(tmp_path: Path) -> None:
     vision = FakeVision()
-    r = asyncio.run(
-        pa.precompute(
-            pa.iter_assets(_items()),
-            _adapter(tmp_path, FakeFetcher(), vision),
-            phase="describe",
-            limit=2,
-        )
-    )
+    r = _run(tmp_path, FakeFetcher(), vision, phase="describe", limit=2)
     assert r["images"] == 2 and r["described"] == 0 and vision.calls == 0

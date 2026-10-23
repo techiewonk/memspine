@@ -6,8 +6,6 @@
 # Never add a line; inject a connector instead. Delete a line when its call is gone.
 
 # --- services/** (adapters)
-memspine/services/assets/registry.py sqlite3.connect -- RM-113 item 18: assets registry moves to records/documents slots
-
 
 # --- providers/** (factories: should borrow a connector, not build engines)
 

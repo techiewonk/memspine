@@ -139,6 +139,9 @@ async def erase_namespace(
         documents = getattr(eng, "_documents", None)
         if documents is not None:  # ADR-081: every document of the namespace goes too
             await documents.erase_namespace(ns)
+        erase_assets = getattr(eng, "_erase_assets", None)
+        if erase_assets is not None:  # RM-113 item 18: the namespace's asset rows go too
+            await erase_assets(ns, None)
         drop = getattr(eng._vector, "drop_namespace", None)
         if drop is not None:  # I4: per-namespace tables: the user's table goes too
             await drop(ns)
@@ -258,6 +261,10 @@ async def _forget_many(
     documents = getattr(eng, "_documents", None)
     if documents is not None:
         await documents.erase_records(ns, ids)
+    # RM-113 item 18: the erased records' asset rows go too (and bytes no row references).
+    erase_assets = getattr(eng, "_erase_assets", None)
+    if erase_assets is not None:
+        await erase_assets(ns, ids)
     # The vector delete only marks rows deleted; the purge drops their bytes
     # and the older table versions that still return them (verify_forget
     # reports vector history unproven when it did not run).

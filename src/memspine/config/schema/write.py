@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, model_validator
 
 from memspine.config.schema.base import ConfigModel
+from memspine.exceptions import ConfigError
 
 
 class WriteConfig(ConfigModel):
@@ -354,15 +356,13 @@ class IngestConfig(ConfigModel):
     """E04 attachment handling at write time. Off by default: a message's ``attachments`` are
     ignored exactly as before. On: each attachment's identity (source turn, original URI,
     source caption, availability) is registered and the record is tagged ``asset:<id>``;
-    nothing is downloaded at ingest."""
+    nothing is downloaded at ingest. RM-113 item 18: the registry rows are a table of the
+    records database (``storage.records``) and the downloaded bytes go to
+    ``storage.documents`` by content hash (``read.asset_evidence: fetch`` needs that slot)."""
 
     model_config = ConfigDict(extra="forbid")
 
     assets: Literal["off", "on"] = "off"
-    #: Cache directory (gitignored in the eval harness): ``registry.sqlite`` and the
-    #: downloaded bytes under ``blobs/`` by content hash. None: registry in memory, no blobs
-    #: (so ``read.asset_evidence: fetch`` is refused at start).
-    asset_dir: str | None = None
     asset_max_bytes: int = Field(default=5_000_000, ge=1)
     asset_timeout_s: float = Field(default=15.0, gt=0.0)
     asset_allowed_mime: list[str] = Field(
@@ -373,10 +373,18 @@ class IngestConfig(ConfigModel):
     @model_validator(mode="before")
     @classmethod
     def _reject_moved(cls, value: Any) -> Any:
-        """ADR-082: ``asset_vision*`` moved to ``model.vision``."""
+        """ADR-082: ``asset_vision*`` moved to ``model.vision``. RM-113 item 18 (ADR-081):
+        ``asset_dir`` is gone (no alias, ADR-068)."""
         from memspine.config.schema.model import MOVED_INGEST_KEYS, reject_model_moved_keys
 
         reject_model_moved_keys(value, "ingest", MOVED_INGEST_KEYS)
+        if isinstance(value, Mapping) and "asset_dir" in value:
+            raise ConfigError(
+                "config key 'ingest.asset_dir' was removed (ADR-081, RM-113 item 18): the asset "
+                "registry is a table of storage.records and downloaded bytes go to "
+                "storage.documents; import an existing directory once with "
+                "Engine.import_asset_dir(path)"
+            )
         return value
 
 

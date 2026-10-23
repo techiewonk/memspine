@@ -216,16 +216,6 @@
      "screen_ids": []
     },
     {
-     "key": "ingest.asset_dir",
-     "default": null,
-     "type": "str | None",
-     "description": "E04: cache directory (gitignored in the harness): `registry.sqlite` and the downloaded bytes under `blobs/` by content hash. Null: in-memory registry, no blobs; `read.asset_evidence: fetch` is then refused.",
-     "effect": "Cache directory (gitignored in the harness): `registry.sqlite` and the downloaded bytes under `blobs/` by content hash.",
-     "rebuild": true,
-     "rebuild_scope": "ingest",
-     "screen_ids": []
-    },
-    {
      "key": "ingest.asset_max_bytes",
      "default": 5000000,
      "type": "int",
@@ -255,7 +245,7 @@
      "key": "ingest.assets",
      "default": "off",
      "type": "Literal['off', 'on']",
-     "description": "E04: a message's `attachments` (`[{\"uri\", \"caption\", \"search_hint\", \"kind\"}]`, plus `turn_id` for the source id) are ignored when off. On: each attachment's identity (source turn, original URI, source caption, availability) goes to the asset registry and the record is tagged `asset:<id>`. Nothing is downloaded at ingest.",
+     "description": "E04: a message's `attachments` (`[{\"uri\", \"caption\", \"search_hint\", \"kind\"}]`, plus `turn_id` for the source id) are ignored when off. On: each attachment's identity (source turn, original URI, source caption, availability) goes to the asset registry and the record is tagged `asset:<id>`. Nothing is downloaded at ingest. RM-113 item 18: the registry is the `asset_registry` table of the records database (`storage.records`: encrypted with it under SQLCipher, shared on Postgres; one row per namespace and asset id); downloaded bytes go to `storage.documents` by content hash, referenced by the record that carried the attachment, so a hard forget or `erase_namespace` removes the rows and the bytes. A records store without SQL keeps the rows in process memory. `ingest.asset_dir` was removed (rejected naming `storage.records` and `storage.documents`, no alias); import an existing `registry.sqlite` + `blobs/` directory once with `Engine.import_asset_dir(path, namespace=None)` (idempotent: a content digest is recorded in `side_file_imports`; the files are renamed `*.imported`; a row takes the namespace of its record, else `namespace`, else it is skipped).",
      "effect": "A message's `attachments` (`[{\"uri\", \"caption\", \"search_hint\", \"kind\"}]`, plus `turn_id` for the source id) are ignored when off.",
      "rebuild": true,
      "rebuild_scope": "ingest",
@@ -7489,7 +7479,7 @@
      "key": "read.asset_evidence",
      "default": "off",
      "type": "Literal['off', 'cached', 'fetch']",
-     "description": "E04: image evidence for a question that needs what a picture shows (generic cue: what / which / who / where plus an object, title or place word, or \"in the photo\"). Needs `ingest.assets: on`. `cached`: only evidence already computed (no network, no model); a retrieved turn with an unresolved attachment gets an explicit \"unavailable\" line. `fetch`: also downloads the turn's own referenced URI once and describes it through the vision port (needs `ingest.asset_dir`). The line is `[image evidence asset:<hash>, turn <id>; …] <description>`; the source's search hint is never used.",
+     "description": "E04: image evidence for a question that needs what a picture shows (generic cue: what / which / who / where plus an object, title or place word, or \"in the photo\"). Needs `ingest.assets: on`. `cached`: only evidence already computed (no network, no model); a retrieved turn with an unresolved attachment gets an explicit \"unavailable\" line. `fetch`: also downloads the turn's own referenced URI once and describes it through the vision port (needs `storage.documents`, where the bytes are kept by content hash; refused at config time without it). The line is `[image evidence asset:<hash>, turn <id>; …] <description>`; the source's search hint is never used.",
      "effect": "Image evidence for a question that needs what a picture shows (generic cue: what / which / who / where plus an object, title or place word, or \"in the photo\").",
      "rebuild": false,
      "rebuild_scope": "",

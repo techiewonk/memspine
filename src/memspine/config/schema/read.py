@@ -1117,7 +1117,7 @@ class ReadConfig(ConfigModel):
     #: E04: image evidence for a question that needs what a picture shows (requires
     #: ``ingest.assets: on`` at write time). ``cached``: use only evidence already computed
     #: (no network, no model). ``fetch``: also download the turn's own referenced URI once and
-    #: describe it through the vision port (needs ``ingest.asset_dir``). Off: unchanged.
+    #: describe it through the vision port (needs ``storage.documents``). Off: unchanged.
     asset_evidence: Literal["off", "cached", "fetch"] = "off"
     #: E04: at most this many assets are resolved for one read.
     asset_max_per_read: int = Field(default=2, ge=1)

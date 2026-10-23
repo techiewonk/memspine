@@ -206,9 +206,10 @@ reads only the config and the descriptors:
   associative memory and `documents` when set.
 - `multi_node`: every built data slot must be `cluster`, except a `process` cache (`memory`
   only memoises deterministic embeddings and extractions). Host-local features are rejected:
-  `workers.runner: temporal` (Resonate journal), `embedding.pin_profile` (pin file) and
-  `ingest.asset_dir` with `ingest.assets: on` (asset registry and blob cache, until item 18
-  moves it). The error lists the cluster providers registered for the slot.
+  `workers.runner: temporal` (Resonate journal) and `embedding.pin_profile` (pin file);
+  `ingest.assets: on` is rejected only with a records store that has no SQL tables (the asset
+  registry is a table of the records database since RM-113 item 18). The error lists the
+  cluster providers registered for the slot.
 - `multi_process`: `:memory:` records are rejected. A single-writer host-local store is allowed
   only with `deployment.writer: true`; every other process fails at start (read-only opening
   is not offered). **Writer designation:** `deployment.writer` (default false), normally set
@@ -246,8 +247,9 @@ fsync}}`.
 - Erasure: the hard path of `trust/pipeline/erasure.py::_forget_many` (hard forget, cascade,
   `erase_subject`, erasure v2 and re-derive all go through it) calls `erase_records(ns, ids)`,
   which drops those references and deletes documents left with none; `erase_namespace` deletes
-  every document of the namespace. Nothing in the engine writes documents yet; callers use
-  `engine.documents`. Removing a file is a logical delete, not physical-erasure proof.
+  every document of the namespace. The E04 asset adapter writes downloaded attachment bytes
+  (RM-113 item 18); other callers use `engine.documents`. Removing a file is a logical delete,
+  not physical-erasure proof.
 - Conformance: `tests/unit/services/documents/test_documents_conformance.py`, parametrized by
   provider name; the `mongodb` case skips until its descriptor registers, `s3` and `weaviate`
   run live when `MEMSPINE_TEST_S3_URL` / `MEMSPINE_TEST_WEAVIATE_URL` are set.
@@ -301,7 +303,20 @@ locality `cluster`, needs `deployment.id`.
   result-window limit applies.
 - Live evidence (2026-10-23): conformance 19/19 for each provider on MinIO
   (`cgr.dev/chainguard/minio`) and Weaviate (`cr.weaviate.io/semitechnologies/weaviate`).
-- Not done: the asset registry (`services/assets/registry.py`, a sqlite3 sidecar plus a blob
-  directory) still owns its files; moving it onto `storage.records` (registry rows) and
-  `storage.documents` (blobs) is RM-113 item 18. Until then `ingest.asset_dir` is a host-local
-  feature that `multi_node` rejects.
+- Asset registry (RM-113 item 18, done 2026-10-23): the rows are the `asset_registry` table of
+  the records database (Alembic `rm113_asset_registry` / `pg_rm113_asset_registry`; key
+  `(namespace, asset_id)`; encrypted with the database under SQLCipher, shared on Postgres),
+  reached through the `AssetRegistry` port (`services/assets/registry.py`; SQL adapter
+  `services/assets/sql_registry.py` over the storage's async engine; an in-process adapter for
+  a records store without SQL). Downloaded bytes go to `storage.documents` by content hash with
+  the carrying record as reference; `read.asset_evidence: fetch` is refused at config time
+  without that slot. Erasure: `_forget_many` (hard) deletes the erased records' rows and any
+  stored bytes no remaining row references, after `erase_records`; `erase_namespace` deletes
+  every row of the namespace. `ingest.asset_dir` is removed and rejected naming
+  `storage.records` and `storage.documents` (ADR-068, no alias); because the old directory
+  path is no longer in the config, the one-time import is explicit:
+  `Engine.import_asset_dir(path, namespace=None)` copies `registry.sqlite` rows and `blobs/`
+  bytes, records a content digest in `side_file_imports` (kind `assets`) in the rows'
+  transaction and renames both to `*.imported` (bytes stay in place without a documents slot).
+  The legacy file is read through `clients/sqlite/files.py`; no `sqlite3.connect` remains in
+  `services/`.

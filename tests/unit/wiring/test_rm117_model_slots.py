@@ -359,7 +359,14 @@ def test_route_and_read_providers_must_be_implemented() -> None:
 
 
 def _asset_engine(cfg: MemspineConfig) -> Any:
-    return SimpleNamespace(_assets=None, _config=lambda: cfg, _http_connector=lambda: object())
+    return SimpleNamespace(
+        _assets=None,
+        _asset_rows=None,
+        _sql=None,
+        _documents=None,
+        _config=lambda: cfg,
+        _http_connector=lambda: object(),
+    )
 
 
 def test_vision_null_is_noop() -> None:

@@ -260,7 +260,9 @@ async def apply_turns(
             if role == "assistant" and not record.quarantined:
                 conv_stamper.note_assistant(record.record_id, content)
         if asset_refs:
-            eng._register_assets(asset_refs, turn, i, effective_session, record.record_id)
+            await eng._register_assets(
+                asset_refs, turn, i, effective_session, record.namespace, record.record_id
+            )
         if correction is not None and not record.quarantined:
             await eng._apply_correction(record.namespace, record, correction, records)
         records.append(record)

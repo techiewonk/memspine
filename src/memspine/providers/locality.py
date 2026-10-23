@@ -15,8 +15,11 @@ Rules (``docs/STORAGE_SLOTS_MIGRATION_PLAN.md`` section 3):
 - ``multi_node``: every data slot that is built must be ``cluster``. The one exception is a
   ``process`` cache (``memory``): it only memoises deterministic embeddings and extractions,
   so a per-node copy cannot diverge. Host-local features are rejected too: the Resonate step
-  journal (``workers.runner: temporal``), the embedding pin file (``model.embedding.pin_preset``)
-  and the asset directory (``ingest.asset_dir`` with ``ingest.assets: on``).
+  journal (``workers.runner: temporal``) and the embedding pin file
+  (``model.embedding.pin_preset``). The asset registry is a table of the records database and
+  its bytes are in ``storage.documents`` (RM-113 item 18), so both follow their slot's rule; a
+  records store without SQL keeps asset rows in process memory, so ``ingest.assets: on`` is
+  rejected with one.
 - ``multi_process``: a ``process`` records store (``:memory:``) is rejected (each process
   would hold a private database). A single-writer host-local store (Tantivy, LadybugDB,
   filesystem documents) is allowed only in the process with ``deployment.writer: true``;
@@ -66,6 +69,8 @@ _SLOT_KIND: dict[str, str] = {
     "cache": "cache_backends",
     "documents": "document_stores",
 }
+#: Records providers whose database holds the asset registry tables (RM-113 item 18).
+_SQL_RECORDS = frozenset({"sqlite", "postgres"})
 
 
 class DeploymentLocalityError(ConfigError):
@@ -225,11 +230,13 @@ def validate_deployment_locality(
                 "model.embedding.pin_preset: false (every node must run the same embedding "
                 "config)"
             )
-        if config.ingest.assets == "on" and config.ingest.asset_dir:
+        records_provider = config.storage.records.provider
+        if config.ingest.assets == "on" and records_provider not in _SQL_RECORDS:
             errors.append(
-                f"{prefix}ingest.asset_dir is a host-local asset registry and blob cache; unset "
-                "it (in-memory registry per process) until the asset registry moves to "
-                "storage.records/documents (RM-113 item 18)"
+                f"{prefix}ingest.assets: on keeps its registry in the records database, and "
+                f"storage.records provider {records_provider!r} has no SQL tables (the rows "
+                "would live in each process); use storage.records provider postgres or "
+                "ingest.assets: off"
             )
     needs_base = [
         item

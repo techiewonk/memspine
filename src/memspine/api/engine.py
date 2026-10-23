@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import dataclasses
+import os
 import threading
 import uuid
 from collections import Counter
@@ -465,6 +466,8 @@ class Engine:
         self._entity_vocab: dict[str, tuple[int, frozenset[str]]] = {}
         #: E04 / E03: the asset adapter and the external-evidence broker, built on first use
         self._assets: Any = None
+        #: RM-113 item 18: the asset registry (records database tables), built on first use
+        self._asset_rows: Any = None
         self._external: Any = None
         self._external_provider: Any = None
         self._http: Any = None  # RM-113: shared HTTP connector (see _http_connector)
@@ -1888,15 +1891,36 @@ class Engine:
     ) -> list[tuple[Any, str]]:
         return ingest_assets._attachment_refs(self, turn, index, session_id)
 
-    def _register_assets(
+    async def _register_assets(
         self,
         refs: list[tuple[Any, str]],
         turn: Mapping[str, Any],
         index: int,
         session_id: str | None,
+        namespace: str,
         record_id: str,
     ) -> None:
-        return ingest_assets._register_assets(self, refs, turn, index, session_id, record_id)
+        await ingest_assets._register_assets(
+            self, refs, turn, index, session_id, namespace, record_id
+        )
+
+    def _asset_registry(self) -> Any:
+        return ingest_assets._asset_registry(self)
+
+    async def _erase_assets(self, namespace: str, record_ids: Sequence[str] | None) -> int:
+        return await ingest_assets._erase_assets(self, namespace, record_ids)
+
+    async def import_asset_dir(
+        self, directory: str | os.PathLike[str], *, namespace: str | None = None
+    ) -> Any:
+        """RM-113 item 18: import a pre-item-18 asset directory (the old ``ingest.asset_dir``:
+        ``registry.sqlite`` plus ``blobs/``) once. Rows go to the asset registry in the records
+        database, bytes to ``storage.documents`` (left in place without that slot); the files
+        are renamed ``*.imported``. Idempotent (a content digest is recorded). A row takes the
+        namespace of the record that carried it, else ``namespace``; without either it is
+        skipped. Returns an ``AssetImportResult`` (None when the directory has no registry)."""
+        self._require_started()
+        return await ingest_assets._import_asset_dir(self, os.fspath(directory), namespace)
 
     async def _asset_overlay(
         self,

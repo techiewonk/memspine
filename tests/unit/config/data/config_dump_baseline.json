@@ -76,7 +76,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -737,7 +736,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "1d073695ed7bb924fabfd6b2257dd04fd7b6242e373804a4f046b150147f92da",
+ "json_schema_sha256": "94dc0f7b5cbbde36dc9574d1a2d241cb195c63f74439f94b904e7b132ff166d2",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -817,7 +816,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -1587,7 +1585,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -2355,7 +2352,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -3123,7 +3119,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -3891,7 +3886,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -4659,7 +4653,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -5427,7 +5420,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -6208,7 +6200,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -6993,7 +6984,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -7761,7 +7751,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -8529,7 +8518,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -9297,7 +9285,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -10065,7 +10052,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -10833,7 +10819,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -11601,7 +11586,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -12369,7 +12353,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -13137,7 +13120,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -13918,7 +13900,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -14691,7 +14672,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -15445,7 +15425,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -16213,7 +16192,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -16989,7 +16967,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -17774,7 +17751,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -18550,7 +18526,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -19318,7 +19293,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -20100,7 +20074,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"
@@ -20871,7 +20844,6 @@
     "image/gif",
     "image/webp"
    ],
-   "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
    "assets": "off"

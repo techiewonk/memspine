@@ -72,7 +72,6 @@ No tunable keys.
 |---|---|---|---|---|---|
 | `firewall.tag_assistant_claims` | `false` | bool | Tag assistant turns `assistant_claim`, a proposal rather than an observed fact. | - | - |
 | `ingest.asset_allowed_mime` | `["image/jpeg", "image/png", "image/gif", "image/webp"]` | list[str] | Types accepted; the bytes are sniffed and must agree with the declared type (`mime_mismatch`), a cross-host redirect fails (`redirected_offsite`). | ingest | - |
-| `ingest.asset_dir` | `null` | str \| None | Cache directory (gitignored in the harness): `registry.sqlite` and the downloaded bytes under `blobs/` by content hash. | ingest | - |
 | `ingest.asset_max_bytes` | `5000000` | int ge 1 | A larger download fails explicitly (`too_large`). | ingest | - |
 | `ingest.asset_timeout_s` | `15.0` | float gt 0.0 | Download timeout in seconds. | ingest | - |
 | `ingest.assets` | `off` | off \\| on | A message's `attachments` (`[{"uri", "caption", "search_hint", "kind"}]`, plus `turn_id` for the source id) are ignored when off. | ingest | - |

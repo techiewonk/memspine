@@ -450,7 +450,7 @@ def test_migration_head_and_columns(tmp_path: Path) -> None:
     from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
 
     script = ScriptDirectory.from_config(alembic_config(tmp_path / "x.db"))
-    assert script.get_heads() == ["rm111_side_tables"]
+    assert script.get_heads() == ["rm113_asset_registry"]
     bindings = script.get_revision("projector_bindings")
     assert bindings is not None and bindings.down_revision == "provider_changes"
     rev = script.get_revision("w202_stamping")

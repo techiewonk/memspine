@@ -988,7 +988,7 @@ async def _asset_overlay(
             ]
             lines: list[str] = []
             for aid in ids[:budget]:
-                entry = await adapter.resolve(aid, allow_network=mode == "fetch")
+                entry = await adapter.resolve(ns, aid, allow_network=mode == "fetch")
                 if entry is None:
                     continue
                 budget -= 1
