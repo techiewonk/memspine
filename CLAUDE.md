@@ -6,7 +6,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix. Get the current test count with `uv run pytest --collect-only -q` (evals add `evals/tests`); `ruff` + `mypy --strict` are the gate. **81 ADRs** (ADR-001…ADR-083; 038 and 045 unassigned; ADR-029/030/031 *proposed*), decision register through D-107. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current task/status lives only in `docs/PROVIDER_TODO.md` (see below). The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix. Get the current test count with `uv run pytest --collect-only -q` (evals add `evals/tests`); `ruff` + `mypy --strict` are the gate. **83 ADRs** (ADR-001…ADR-085; 038 and 045 unassigned; ADR-029/030/031 *proposed*), decision register through D-109. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current task/status lives only in `docs/PROVIDER_TODO.md` (see below). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Single live task/status tracker
 
@@ -14,7 +14,7 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 
 ## Read these first (in order)
 
-1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-107), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
+1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-109), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
 2. `docs/UNIMEM_V2_REWORK_PROPOSAL.md` — architecture rationale (why, and the evidence base).
 3. `docs/DEPENDENCY_ANALYSIS.md` + `docs/PACKAGE_CATALOG.md` — why each dependency was chosen; every candidate package with "does what".
 
@@ -30,7 +30,7 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 - **Profiles stay green.** Preserve `simple` retrieval behaviour while applying the accepted breaking provider schema. No legacy configuration aliases or compatibility modules (ADR-068); `core` is the bare reference used by mechanics tests.
 - **Hard-fail clearly (D-10).** Missing service → `MissingServiceError` naming the extra to install, unless `strict_services: false`.
 
-## Locked defaults (decision register — see plan for D-01…D-107)
+## Locked defaults (decision register — see plan for D-01…D-109)
 
 | Area | Default | Notes |
 |------|---------|-------|
@@ -89,7 +89,7 @@ uv run ruff check . && uv run ruff format --check .
 ## How to work here
 
 1. **Find the phase.** Work follows P0→P7 (see plan §5). Confirm which phase a task belongs to; don't build P4 before P1's contracts exist.
-2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-107. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
+2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-109. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
 3. **Keep the core slim and `simple` green.** Guard both in every PR.
 4. **Update docs with the code.** If you change a contract, update the structure plan + this file in the same change.
 
@@ -136,3 +136,5 @@ D-105 / ADR-081 (RM-111 WP1-WP3/WP5/WP7 landed): data providers live in one `sto
 D-106 / ADR-082 (RM-117 landed 2026-10-23): model providers move to one `model` block: `model.embedding`, `model.llm.<role>`, `model.rerank` (chain + typed behaviour), `model.extraction.<consumer>`, `model.decider.<consumer>`, `model.vision`, `model.placement`. Each slot is `{provider, typed common keys, settings}` (settings = provider-owned JSON). No named profiles; identical settings share weights (weights key ignores consumer-only fields). The old keys (`embedding`, `llm.roles`, `models.*`, `decision.provider`, `read.rerank*`, `read.decider*`, `ingest.asset_vision*`) are rejected naming the new key; `scripts/migrate_config_keys_adr082.py` migrates configs. Every LLM slot states `timeout_s`. Follow-ups are RM-118. See docs/MODEL_SLOTS_MIGRATION_PLAN.md.
 
 D-107 / ADR-083 (RM-119 landed 2026-10-23): the `mongodb` provider may launch a local mongod (`launch.mode: managed`, exact version pin, explicit port, download only with `download: true` and SHA-256 verification, one-member replica set on loopback, host-local). Default stays `external`; SQLite + filesystem remain the embedded default.
+
+D-108 / ADR-084 and D-109 / ADR-085 (accepted designs, planned as RM-123 / RM-124, not implemented; plan docs/FASTEMBED_LITELLM_REPLACEMENT_PLAN.md): fastembed is replaced by an own `onnx` embedder and cross-encoder (embedder id `embed:<model>`, parity-certified models keep their vector space), and litellm by an own OpenAI-compatible httpx client (presets ollama/vllm/lmstudio/llamacpp_server, Bedrock on boto3, optional `[anyllm]`). Until they land, the Embedder and LLM rows of the defaults table still describe fastembed and litellm.

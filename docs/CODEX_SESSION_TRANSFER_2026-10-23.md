@@ -14,9 +14,9 @@ context only:
 |---|---|
 | Working checkout | `C:\Users\hembad\Documents\GitHub\memspine-restructure`, a git worktree of `C:\Users\hembad\Documents\GitHub\memspine` |
 | Branch | `restructure`, pushed to `origin/restructure` (github.com/techiewonk/memspine) |
-| Head at hand-off | `6d75b5c5`, plus this note's commit. The working tree is clean. |
+| Head at hand-off | the latest `origin/restructure` commit (this note was last updated with the ADR-084/085 planning commit). The working tree is clean. |
 | Commits in this session | 125 since `7f15d26d`. The list of key commits per task is in section 5. |
-| Work in flight | One background agent is upgrading `huggingface-hub` to 2.x in its own worktree (`worktree-agent-ae9c7e9f093e6056b` under `memspine\.claude\worktrees\`). Its result is not merged. If it was not merged when you start, check that branch, then cherry-pick it or redo it (task T-07). |
+| Work in flight | None. The Hub 2.x attempt finished: it is blocked by fastembed and litellm (merged as `4fbd6af2`). The owner chose to replace both: planned only, see ADR-084/085 and the task transfer T-08/T-09. |
 
 ## 2. Rules that hold for every change
 
@@ -80,7 +80,9 @@ These are owner decisions and CLAUDE.md rules. Keep them exactly.
 | D-107 / ADR-083 | `docs/adr/ADR-083-managed-local-mongod.md` | Opt-in `launch.mode: managed` for the MongoDB provider. It downloads only with consent and SHA-256 checks, runs as a one-member replica set on loopback, and is host-local. |
 | Graph backends | RM-96 | Work on one graph backend at a time; a deployment runs one graph client. |
 | Local MongoDB | RM-112 spike, `docs/provider_verification/rm112-local-mongo-options-2026-10-23.md` | Only the official `mongod` works; PoloDB, Mongita, MontyDB, pymongo_inmemory and FerretDB are rejected. The library-based local default stays SQLite records plus filesystem documents. |
-| Dependencies | RM-02 | uv ≥ 0.13.1 (0.13.5 installed). The 15 bumps landed and the audit reports 0 outdated. The `[decider]` Hub `<2` cap is being upgraded (T-07). |
+| Dependencies | RM-02 | uv ≥ 0.13.1 (0.13.5 installed). The 15 bumps landed and the audit reports 0 outdated. Hub 2.x is blocked by fastembed 0.9.0 and litellm 1.106.2 (both `<2.0`). |
+| D-108 / ADR-084 (planned) | `docs/adr/ADR-084-own-onnx-embedder-and-reranker.md` | Own `onnx` embedder and cross-encoder replace fastembed. The embedder id becomes `embed:<model>`, and parity-certified models keep their vector space (stores are adopted without re-embedding). Build: RM-123. |
+| D-109 / ADR-085 (planned) | `docs/adr/ADR-085-own-openai-compatible-client-and-anyllm-extra.md` | Own OpenAI-compatible httpx client (presets ollama/vllm/lmstudio/llamacpp_server), Bedrock on boto3, optional `[anyllm]`, litellm removed. Build: RM-124. |
 
 ## 5. What landed (by register ID; details and evidence are in each row)
 
