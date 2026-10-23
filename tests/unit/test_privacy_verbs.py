@@ -35,6 +35,9 @@ def _engine(**extra: Any) -> Engine:
         "read": {"hybrid": False},
         "memories": {"semantic": {"enabled": True}},
     }
+    model = extra.pop("model", None)
+    if model is not None:  # merge per slot: an override never drops the hash embedder
+        base["model"] = {**base["model"], **model}
     base.update(extra)
     return Engine(**base)
 
