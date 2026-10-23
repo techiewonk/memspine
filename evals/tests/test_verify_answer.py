@@ -74,7 +74,7 @@ def test_flag_off_builds_the_unchanged_reader(
 ) -> None:
     from memspine_evals.experiments import C01Config, build_reader_and_judge
 
-    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "openai_compatible", SimpleNamespace())
     base: dict[str, Any] = {"mode": "qa", "bedrock": bedrock, "max_model_calls": 5}
     off, _, _ = build_reader_and_judge(C01Config(**base, qa_prompt="dated"))
     on, _, _ = build_reader_and_judge(C01Config(**base, qa_prompt="dated", verify_answer=True))

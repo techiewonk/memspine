@@ -17,7 +17,7 @@ sys.path.insert(0, str(HERE))
 
 from memspine_evals.bedrock import (
     CallBudget,
-    LiteLLMReader,
+    OpenAICompatReader,
     bedrock_engine_config,
     load_aws_credentials,
 )
@@ -55,7 +55,7 @@ async def main() -> None:
         )
         print("top hit:", hits[0][0].content[:60], "| view trust", round(hits[0][0].trust, 3))
         budget = CallBudget(max_calls=3)
-        reader = LiteLLMReader(budget, max_tokens=60)
+        reader = OpenAICompatReader(budget, max_tokens=60)
         context = "\n".join(record.content for record, _ in hits)
         ans = await reader.answer("How do I fix VPN error 809?", context)
         print("qwen3 answer:", ans.text[:160])

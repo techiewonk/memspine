@@ -19,7 +19,7 @@ __all__ = ["TRANSIENT_ERRORS", "retry_transient"]
 
 _log = get_logger(__name__)
 
-#: Exception class names treated as transient (litellm's mapped classes plus the
+#: Exception class names treated as transient (openai_compat's mapped classes plus the
 #: underlying transport ones), matched by name so no provider SDK is imported here.
 TRANSIENT_ERRORS = frozenset(
     {
@@ -34,13 +34,15 @@ TRANSIENT_ERRORS = frozenset(
         "ConnectionError",
         "ConnectionResetError",
         "TimeoutError",
+        "HttpError",
+        "HttpTimeout",
         "ThrottlingException",
     }
 )
 
 
 #: Message fragments that mark a permanent failure even under a transient class name
-#: (litellm wraps an expired-credential 403 in APIConnectionError).
+#: (openai_compat wraps an expired-credential 403 in APIConnectionError).
 _PERMANENT_HINTS = (
     "token included in the request is expired",
     "expiredtoken",

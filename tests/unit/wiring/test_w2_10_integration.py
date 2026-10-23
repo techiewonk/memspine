@@ -387,9 +387,9 @@ async def engine(monkeypatch: pytest.MonkeyPatch, llm: Any, **write: Any) -> Eng
             "embedding": {"provider": "hash", "settings": {}},
             "llm": {
                 "window_extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 60.0,
-                    "settings": {"model": "fake/window"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "fake/window"},
                 }
             },
         },

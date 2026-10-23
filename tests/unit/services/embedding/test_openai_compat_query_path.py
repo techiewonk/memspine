@@ -1,8 +1,7 @@
-"""LiteLLM embedder: requested dimensions and asymmetric query/document types."""
+"""OpenAICompat embedder: requested dimensions and asymmetric query/document types."""
 
 from __future__ import annotations
 
-import sys
 import types
 from typing import Any
 
@@ -10,7 +9,7 @@ import pytest
 
 from memspine.services.cache.semantic import CachedEmbedding
 from memspine.services.embedding.base import embed_queries
-from memspine.services.embedding.litellm import LiteLLMEmbedding
+from memspine.services.embedding.openai_compat import OpenAICompatEmbedding
 
 
 @pytest.fixture
@@ -23,20 +22,23 @@ def calls(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
         data = [{"embedding": [tag] * 4} for _ in kwargs["input"]]
         return types.SimpleNamespace(data=data)
 
-    monkeypatch.setitem(sys.modules, "litellm", types.SimpleNamespace(aembedding=aembedding))
+    from scripts.model_transport_stub import install_transport, transport_stub
+
+    install_transport(monkeypatch)
+    monkeypatch.setattr(transport_stub, "aembedding", aembedding)
     return seen
 
 
 async def test_defaults_send_no_new_parameters(calls: list[dict[str, Any]]) -> None:
-    emb = LiteLLMEmbedding("bedrock/cohere.embed-v4:0", 4, request_timeout_s=30)
+    emb = OpenAICompatEmbedding("bedrock/cohere.embed-v4:0", 4, request_timeout_s=30)
     await emb.embed(["doc"])
     await embed_queries(emb, ["q"])
     assert all("dimensions" not in c and "input_type" not in c for c in calls)
-    assert emb.embedder_id == "litellm:bedrock/cohere.embed-v4:0"  # identity unchanged
+    assert emb.embedder_id == "openai_compatible:bedrock/cohere.embed-v4:0"  # identity unchanged
 
 
 async def test_requested_dims_and_input_types(calls: list[dict[str, Any]]) -> None:
-    emb = LiteLLMEmbedding(
+    emb = OpenAICompatEmbedding(
         "bedrock/cohere.embed-v4:0",
         4,
         request_timeout_s=30,
@@ -54,7 +56,7 @@ async def test_requested_dims_and_input_types(calls: list[dict[str, Any]]) -> No
 async def test_cache_keeps_query_and_document_vectors_apart(calls: list[dict[str, Any]]) -> None:
     from memspine.services.cache.base import MemoryKV  # in-process KV
 
-    emb = LiteLLMEmbedding(
+    emb = OpenAICompatEmbedding(
         "bedrock/cohere.embed-v4:0",
         4,
         request_timeout_s=30,

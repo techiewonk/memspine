@@ -23,7 +23,7 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any
 
-from .bedrock import QWEN3_32B, CallBudget, litellm_chat, parse_price
+from .bedrock import QWEN3_32B, CallBudget, openai_compat_chat, parse_price
 from .judge_prompts import JUDGE_SUITES, RoutedLLMJudge
 
 __all__ = ["load_answers", "main", "summarise"]
@@ -184,7 +184,7 @@ def main(argv: list[str] | None = None) -> int:
         prices_per_mtok={m: (i, o) for m, i, o in map(parse_price, args.price)} or None,
         max_usd=args.max_usd,
     )
-    chat = litellm_chat(budget, model=args.model, max_tokens=MAX_TOKENS)
+    chat = openai_compat_chat(budget, model=args.model, max_tokens=MAX_TOKENS)
     out_dir.mkdir(parents=True, exist_ok=True)
     asyncio.run(_grade_all(rows, suites, chat, args.model, out, done, args.concurrency))
 

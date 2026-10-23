@@ -1,6 +1,6 @@
 """Screening: the disk cache of paid calls, retrieval-only runs, and screen_compare.
 
-Every test runs offline: the stub LiteLLM transport and the hash embedder.
+Every test runs offline: the stub OpenAICompat transport and the hash embedder.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ from memspine_evals.datasets.synthetic import SyntheticDataset
 from memspine_evals.experiments import C01Config, run_c0_1
 from memspine_evals.results import read_run
 from memspine_evals.screen import coverage, coverage_summary, normalise_evidence
-from memspine_evals.stub_llm import install_stub_litellm
+from memspine_evals.stub_llm import install_stub_openai_compat
 
 #: fast offline engine with LLM roles at write time: hash embeddings, fact mining on
 MINING = {
@@ -117,16 +117,18 @@ def test_embed_keys_cover_model_input_type_and_dimensions() -> None:
 
 def test_completion_hit_and_miss_accounting(tmp_path: Path) -> None:
     async def go() -> list[Any]:
-        import litellm
+        from memspine_evals.model_transport import HarnessEndpoint
+
+        openai_compat = HarnessEndpoint()
 
         replies = []
         for _ in range(3):
             replies.append(
-                await litellm.acompletion(model=QWEN3_32B, messages=MESSAGES, max_tokens=32)
+                await openai_compat.acompletion(model=QWEN3_32B, messages=MESSAGES, max_tokens=32)
             )
         return replies
 
-    with install_stub_litellm() as stub, install_call_cache(tmp_path) as cache:
+    with install_stub_openai_compat() as stub, install_call_cache(tmp_path) as cache:
         first, second, _third = asyncio.run(go())
     assert sum(stub.calls.values()) == 1  # only the miss reached the provider
     assert cache.stats.chat_misses == 1 and cache.stats.chat_hits == 2
@@ -139,19 +141,21 @@ def test_completion_hit_and_miss_accounting(tmp_path: Path) -> None:
     saved = cache.stats.usd_saved({QWEN3_32B: (1e6, 0.0)})
     assert saved == pytest.approx(hit_in)
     # the cache persists: a new process (a fresh CallCache) on the same dir hits
-    with install_stub_litellm() as stub2, install_call_cache(tmp_path) as cache2:
+    with install_stub_openai_compat() as stub2, install_call_cache(tmp_path) as cache2:
         asyncio.run(go())
     assert sum(stub2.calls.values()) == 0 and cache2.stats.chat_hits == 3
 
 
 def test_non_zero_temperature_is_never_cached(tmp_path: Path) -> None:
     async def go() -> None:
-        import litellm
+        from memspine_evals.model_transport import HarnessEndpoint
+
+        openai_compat = HarnessEndpoint()
 
         for _ in range(2):
-            await litellm.acompletion(model="m", messages=MESSAGES, temperature=0.7)
+            await openai_compat.acompletion(model="m", messages=MESSAGES, temperature=0.7)
 
-    with install_stub_litellm() as stub, install_call_cache(tmp_path) as cache:
+    with install_stub_openai_compat() as stub, install_call_cache(tmp_path) as cache:
         asyncio.run(go())
     assert sum(stub.calls.values()) == 2
     assert cache.stats.uncacheable == 2 and cache.stats.chat_hits == cache.stats.chat_misses == 0
@@ -159,17 +163,19 @@ def test_non_zero_temperature_is_never_cached(tmp_path: Path) -> None:
 
 def test_reader_scope_bypasses_unless_cache_reader(tmp_path: Path) -> None:
     async def go() -> None:
-        import litellm
+        from memspine_evals.model_transport import HarnessEndpoint
+
+        openai_compat = HarnessEndpoint()
 
         with reader_scope():
             for _ in range(2):
-                await litellm.acompletion(model="m", messages=MESSAGES, temperature=0)
+                await openai_compat.acompletion(model="m", messages=MESSAGES, temperature=0)
 
-    with install_stub_litellm() as stub, install_call_cache(tmp_path / "a") as cache:
+    with install_stub_openai_compat() as stub, install_call_cache(tmp_path / "a") as cache:
         asyncio.run(go())
     assert sum(stub.calls.values()) == 2 and cache.stats.bypassed == 2
     with (
-        install_stub_litellm() as stub,
+        install_stub_openai_compat() as stub,
         install_call_cache(tmp_path / "b", cache_reader=True) as cache,
     ):
         asyncio.run(go())
@@ -178,9 +184,11 @@ def test_reader_scope_bypasses_unless_cache_reader(tmp_path: Path) -> None:
 
 def test_embedding_batches_split_into_hits_and_misses(tmp_path: Path) -> None:
     async def embed(texts: list[str]) -> list[list[float]]:
-        import litellm
+        from memspine_evals.model_transport import HarnessEndpoint
 
-        response = await litellm.aembedding(
+        openai_compat = HarnessEndpoint()
+
+        response = await openai_compat.aembedding(
             model="bedrock/cohere.embed-v4:0",
             input=texts,
             dimensions=64,
@@ -188,7 +196,7 @@ def test_embedding_batches_split_into_hits_and_misses(tmp_path: Path) -> None:
         )
         return [list(item["embedding"]) for item in response.data]
 
-    with install_stub_litellm() as stub, install_call_cache(tmp_path) as cache:
+    with install_stub_openai_compat() as stub, install_call_cache(tmp_path) as cache:
         first = asyncio.run(embed(["alpha beta", "gamma"]))
         mixed = asyncio.run(embed(["gamma", "delta", "alpha beta"]))
     assert stub.embeddings == 3  # alpha beta, gamma, then only delta
@@ -257,7 +265,7 @@ def _retrieval_only(**extra: Any) -> C01Config:
 
 def test_retrieval_only_rows_carry_coverage_and_call_no_model(tmp_path: Path) -> None:
     dataset = SyntheticDataset(n_items=2, turns_per_item=12, facts_per_item=3)
-    with install_stub_litellm() as stub:
+    with install_stub_openai_compat() as stub:
         asyncio.run(run_c0_1(dataset, _retrieval_only(), tmp_path, run_id="ro"))
     assert sum(stub.calls.values()) == 0 and stub.embeddings == 0
     rows = _rows(tmp_path, "ro--memspine")
@@ -281,7 +289,7 @@ def test_retrieval_only_rows_carry_coverage_and_call_no_model(tmp_path: Path) ->
 def test_retrieval_only_matches_the_qa_read(tmp_path: Path) -> None:
     """The read path is the QA run's: same retrieved ids and context per question."""
     dataset = SyntheticDataset(n_items=1, turns_per_item=12, facts_per_item=3)
-    with install_stub_litellm():
+    with install_stub_openai_compat():
         asyncio.run(run_c0_1(dataset, _retrieval_only(), tmp_path, run_id="ro"))
         asyncio.run(
             run_c0_1(
@@ -318,14 +326,14 @@ def test_cached_engine_roles_make_a_rerun_free(tmp_path: Path) -> None:
         prices_per_mtok=((QWEN3_32B, 1.0, 2.0),),
     )
     config = type(config)(**{**config.__dict__, "memspine_config": MINING})
-    with install_stub_litellm() as first:
+    with install_stub_openai_compat() as first:
         asyncio.run(run_c0_1(dataset, config, tmp_path, run_id="fill"))
     filled = _summary(tmp_path, "fill--memspine")
     assert sum(first.calls.values()) >= 1
     assert filled["cache_misses"] >= 1 and filled["loop_model_calls"] >= 1
     assert first.calls["reader"] == 0 and first.calls["harness_judge"] == 0
 
-    with install_stub_litellm() as second:
+    with install_stub_openai_compat() as second:
         asyncio.run(run_c0_1(dataset, config, tmp_path, run_id="screen"))
     summary = _summary(tmp_path, "screen--memspine")
     assert sum(second.calls.values()) == 0, dict(second.calls)
@@ -359,7 +367,7 @@ def test_cache_never_serves_reader_or_judge_by_default(tmp_path: Path) -> None:
     )
     n = sum(len(item.queries) for item in dataset.items())
     for run_id in ("a", "b"):
-        with install_stub_litellm() as stub:
+        with install_stub_openai_compat() as stub:
             asyncio.run(run_c0_1(dataset, config, tmp_path, run_id=run_id))
         assert stub.calls["reader"] == n
     summary = _summary(tmp_path, "b--verbatim-bm25")

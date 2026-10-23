@@ -65,7 +65,7 @@
   },
   "llm": {
    "window_extract": {
-    "provider": "litellm",
+    "provider": "openai_compatible",
     "timeout_s": 180.0,
     "settings": {
      "model": "stub/window"

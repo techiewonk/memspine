@@ -33,7 +33,9 @@ def request(deployment: str) -> ChangeRequest:
             deployment_id=deployment, owner_id=deployment, resource_class="model_config"
         ),
         target_config_ref=TargetConfigRef(
-            provider="litellm", config_id="target", semantic_fingerprint="target-fingerprint"
+            provider="openai_compatible",
+            config_id="target",
+            semantic_fingerprint="target-fingerprint",
         ),
         requested_strategy="forward_only",
         actor="test",

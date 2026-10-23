@@ -9,12 +9,12 @@ from memspine.providers.builtin.models import register
 from memspine.providers.contexts import LLMBuildContext, SharedBuildContext
 from memspine.providers.lifecycle import ProviderLifecycleManager
 from memspine.providers.registry import LLM_PROVIDERS
-from memspine.providers.settings import LiteLLMRoleSettings
+from memspine.providers.settings import OpenAICompatRoleSettings
 from memspine.services.llm.base import LLMRouter
 
 
 @pytest.mark.asyncio
-async def test_litellm_settings_flow_to_native_defaults_and_call_options(
+async def test_openai_compat_settings_flow_to_native_defaults_and_call_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     register()
@@ -28,13 +28,15 @@ async def test_litellm_settings_flow_to_native_defaults_and_call_options(
         seen.update(kwargs)
         return Response()
 
-    import litellm
+    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
 
-    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
-    descriptor = LLM_PROVIDERS.get("litellm")
+    install_transport(monkeypatch)
+
+    monkeypatch.setattr(openai_compat, "acompletion", fake_acompletion)
+    descriptor = LLM_PROVIDERS.get("openai_compatible")
     resources = ProviderLifecycleManager(close_timeout_s=1.0)
     context = LLMBuildContext(SharedBuildContext(resources, "deployment-test", 1.0), "chat")
-    settings = LiteLLMRoleSettings(
+    settings = OpenAICompatRoleSettings(
         model="openai/test",
         timeout_seconds=5.0,
         temperature=0.6,
@@ -48,7 +50,7 @@ async def test_litellm_settings_flow_to_native_defaults_and_call_options(
 
     assert reply == "ok"
     assert (seen["temperature"], seen["top_p"], seen["max_tokens"]) == (0.6, 0.7, 900)
-    assert seen["timeout"] == 5.0
+    assert built.service._timeout == 5.0
 
     reply = await router.for_role("chat").chat(
         [{"role": "user", "content": "hello"}], temperature=0.0, max_tokens=64

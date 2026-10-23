@@ -59,15 +59,17 @@ async def test_one_file_backed_message_reaches_derived_offline_and_retrieval(
 
 
 @pytest.mark.asyncio
-async def test_litellm_transport_is_restored_after_success_and_failure(
+async def test_openai_compat_transport_is_restored_after_success_and_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import litellm
+    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
 
-    before = (litellm.acompletion, litellm.aembedding, litellm.arerank)
+    install_transport(monkeypatch)
+
+    before = (openai_compat.acompletion, openai_compat.aembedding, openai_compat.arerank)
     paths_before = tuple(sys.path)
     await trace_module.run_trace(tmp_path / "success.sqlite")
-    assert (litellm.acompletion, litellm.aembedding, litellm.arerank) == before
+    assert (openai_compat.acompletion, openai_compat.aembedding, openai_compat.arerank) == before
     assert tuple(sys.path) == paths_before
 
     def fail_catalog(_rows: list[dict]) -> list[dict]:
@@ -77,7 +79,7 @@ async def test_litellm_transport_is_restored_after_success_and_failure(
         scoped.setattr(trace_module, "_safe_provider_rows", fail_catalog)
         with pytest.raises(RuntimeError, match="intentional trace failure"):
             await trace_module.run_trace(tmp_path / "failure.sqlite")
-    assert (litellm.acompletion, litellm.aembedding, litellm.arerank) == before
+    assert (openai_compat.acompletion, openai_compat.aembedding, openai_compat.arerank) == before
     assert tuple(sys.path) == paths_before
 
 

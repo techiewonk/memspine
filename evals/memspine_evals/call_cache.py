@@ -1,6 +1,6 @@
-"""A content-addressed disk cache for paid LiteLLM calls (screening runs).
+"""A content-addressed disk cache for paid OpenAICompat calls (screening runs).
 
-``install_call_cache(path)`` wraps ``litellm.acompletion`` and ``litellm.aembedding``
+``install_call_cache(path)`` wraps ``openai_compat.acompletion`` and ``openai_compat.aembedding``
 (whatever they are at the time: the real transport, or :mod:`.stub_llm` in tests) with
 a SQLite cache, so a second run that sends the same request is served from disk at $0.
 
@@ -230,7 +230,7 @@ class CacheStats:
 
 
 def _response(content: str, finish_reason: str, model: str | None) -> Any:
-    """A LiteLLM-shaped completion reply (what the engine adapter and readers read)."""
+    """A OpenAICompat-shaped completion reply (what the engine adapter and readers read)."""
     return SimpleNamespace(
         choices=[
             SimpleNamespace(
@@ -393,18 +393,50 @@ class CallCache:
 
 
 @contextmanager
-def install_call_cache(cache_dir: str | Path, cache_reader: bool = False) -> Iterator[CallCache]:
-    """Wrap LiteLLM's completion and embedding entry points with a disk cache for the
-    duration of the block (the rerank entry point is left alone)."""
-    import litellm
+def wrap_call_cache(cache: CallCache) -> Iterator[CallCache]:
+    """Cache connector calls in a task-local binding, preserving concurrent callers."""
+    from unittest.mock import patch
+    from memspine.clients.openai_compat import OpenAICompatConnector
+    from .model_transport import object_reply, json_reply
 
-    cache = CallCache(cache_dir, cache_reader=cache_reader)
-    saved = (litellm.acompletion, litellm.aembedding)
-    cache._inner_completion, cache._inner_embedding = saved
-    litellm.acompletion = cache.acompletion
-    litellm.aembedding = cache.aembedding
-    try:
+    current: contextvars.ContextVar[Any] = contextvars.ContextVar("cache_connector")
+    chat = OpenAICompatConnector.acompletion
+    embed = OpenAICompatConnector.aembedding
+
+    async def inner_chat(**kwargs: Any) -> Any:
+        return object_reply(await chat(current.get(), **kwargs))
+
+    async def inner_embed(**kwargs: Any) -> Any:
+        return object_reply(await embed(current.get(), **kwargs))
+
+    cache._inner_completion, cache._inner_embedding = inner_chat, inner_embed
+
+    async def completion(connector: Any, **kwargs: Any) -> Any:
+        token = current.set(connector)
+        try:
+            return json_reply(await cache.acompletion(**kwargs))
+        finally:
+            current.reset(token)
+
+    async def embedding(connector: Any, **kwargs: Any) -> Any:
+        token = current.set(connector)
+        try:
+            return json_reply(await cache.aembedding(**kwargs))
+        finally:
+            current.reset(token)
+
+    with (
+        patch.object(OpenAICompatConnector, "acompletion", completion),
+        patch.object(OpenAICompatConnector, "aembedding", embedding),
+    ):
         yield cache
+
+
+@contextmanager
+def install_call_cache(cache_dir: str | Path, cache_reader: bool = False) -> Iterator[CallCache]:
+    cache = CallCache(cache_dir, cache_reader=cache_reader)
+    try:
+        with wrap_call_cache(cache):
+            yield cache
     finally:
-        litellm.acompletion, litellm.aembedding = saved
         cache.close()

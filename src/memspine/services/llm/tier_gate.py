@@ -19,7 +19,7 @@ matches (whitespace runs, ``\\n``/``\\t``/``\\r`` escapes and case all compare e
 A provider counts as **local** when its model id is ``llamacpp/...`` (in process),
 or its ``api_base`` host is a loopback/local name (``localhost``, ``127.0.0.1``,
 ``::1``, ``0.0.0.0``, ``*.local``, or one of ``consent.local_hosts``), or it is an
-``ollama``/``ollama_chat`` model with no ``api_base`` (LiteLLM's localhost default).
+``ollama``/``ollama_chat`` model with no ``api_base`` (OpenAICompat's localhost default).
 Everything else (``openai/``, ``anthropic/``, ``bedrock/``, ``vertex_ai/``,
 ``azure/``, a hosted ``vllm``) is remote.
 """
@@ -74,14 +74,22 @@ def is_local_binding(
     if provider == "llamacpp":
         return True
     api_base = settings.get("api_base")
-    if provider in ("ollama", "vllm"):
-        # RM-113 descriptors over the LiteLLM connector: local exactly when the server is
+    if provider in ("ollama", "vllm", "lmstudio", "llamacpp_server"):
+        # RM-113 descriptors over the OpenAICompat connector: local exactly when the server is
         # (Ollama defaults to http://localhost:11434).
-        base = api_base if isinstance(api_base, str) else "http://localhost:11434"
+        base = (
+            api_base
+            if isinstance(api_base, str)
+            else {
+                "ollama": "http://localhost:11434",
+                "lmstudio": "http://localhost:1234",
+                "llamacpp_server": "http://localhost:8080",
+            }.get(provider, "")
+        )
         if provider == "vllm" and not isinstance(api_base, str):
             return False
         return is_local_provider("", base, local_hosts)
-    if provider != "litellm":
+    if provider != "openai_compatible":
         return False  # bedrock and plugins: remote unless proven otherwise
     model = settings.get("model")
     return isinstance(model, str) and is_local_provider(

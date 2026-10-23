@@ -45,11 +45,10 @@ def _offline_transport() -> Iterator[None]:
     added_paths = [path for path in scoped_paths if path not in sys.path]
     sys.path[:0] = added_paths
     try:
-        import litellm
-        from memspine_evals.stub_llm import install_stub_litellm
+        from memspine_evals.stub_llm import install_stub_openai_compat
 
-        with install_stub_litellm():
-            original = litellm.acompletion
+        with install_stub_openai_compat() as openai_compat:
+            original = openai_compat.acompletion
 
             async def window_aware(**kwargs: Any) -> Any:
                 reply = _offline_window_reply(kwargs.get("messages") or [])
@@ -69,13 +68,13 @@ def _offline_transport() -> Iterator[None]:
                     model=kwargs.get("model"),
                 )
 
-            litellm.acompletion = window_aware
+            openai_compat.acompletion = window_aware
             try:
                 yield
             finally:
-                # Restore the scoped stub first; install_stub_litellm then restores the
+                # Restore the scoped stub first; install_stub_openai_compat then restores the
                 # exact process-wide transport functions that existed on entry.
-                litellm.acompletion = original
+                openai_compat.acompletion = original
     finally:
         # Imports made by the offline flow can also reorder the repo path. Restore
         # the exact entry state so the caller's paths and their order are preserved.

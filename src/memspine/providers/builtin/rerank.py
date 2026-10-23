@@ -19,7 +19,7 @@ from memspine.config.schema.providers import (
     OnnxRerankerSettings,
     FlashrankRerankerSettings,
     JinaRerankerSettings,
-    LiteLLMRerankerSettings,
+    OpenAICompatRerankerSettings,
     Qwen3RerankerSettings,
 )
 from memspine.providers.contexts import SharedBuildContext
@@ -54,18 +54,20 @@ def _flashrank(settings: FlashrankRerankerSettings, registry: ResourceRegistry |
     )
 
 
-def _litellm(settings: LiteLLMRerankerSettings, _registry: ResourceRegistry | None) -> Any:
-    from memspine.clients.litellm import LiteLLMConnector, LiteLLMSpec
-    from memspine.services.rerank.litellm import LiteLLMReranker
+def _openai_compat(
+    settings: OpenAICompatRerankerSettings, _registry: ResourceRegistry | None
+) -> Any:
+    from memspine.clients.openai_compat import OpenAICompatConnector, OpenAICompatSpec
+    from memspine.services.rerank.openai_compat import OpenAICompatReranker
 
-    return LiteLLMReranker(
+    return OpenAICompatReranker(
         settings.model,
         request_timeout_s=settings.request_timeout_s,
-        connector=LiteLLMConnector(
-            LiteLLMSpec(
+        connector=OpenAICompatConnector(
+            OpenAICompatSpec(
                 api_base=settings.api_base,
                 api_key=settings.api_key,
-                aws_region=settings.aws_region,
+                api_key_env=settings.api_key_env,
                 timeout_s=settings.request_timeout_s,
             )
         ),
@@ -158,7 +160,7 @@ _RERANKERS: tuple[
         (DependencyRequirement("package", "flashrank"),),
         "rerank",
     ),
-    ("litellm", LiteLLMRerankerSettings, _litellm, (), None),
+    ("openai_compatible", OpenAICompatRerankerSettings, _openai_compat, (), None),
     (
         "qwen3",
         Qwen3RerankerSettings,
@@ -199,6 +201,6 @@ def register() -> None:
                 service_manifest=CapabilityManifest(
                     name, "rerank", provides=("rerank",), extra=extra
                 ),
-                requires_deployment_id=name == "litellm",
+                requires_deployment_id=name == "openai_compatible",
             ),
         )

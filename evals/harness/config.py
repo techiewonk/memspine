@@ -203,7 +203,7 @@ class ModelConfig(_Frozen):
     """
 
     provider: str
-    """``ollama`` | ``openai_compatible`` | ``bedrock`` | ``litellm`` | ``llama_cpp`` …"""
+    """``ollama`` | ``openai_compatible`` | ``bedrock`` | ``openai_compat`` | ``llama_cpp`` …"""
 
     model: str
     api_base: str | None = None

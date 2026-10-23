@@ -85,19 +85,19 @@ def _engine() -> Engine:
             "embedding": {"provider": "hash", "settings": {}},
             "llm": {
                 "sufficiency": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "openai/gpt-4o"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "openai/gpt-4o"},
                 },
                 "verify_answer": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "openai/gpt-4o"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "openai/gpt-4o"},
                 },
                 "summarize": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "ollama/llama3"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/llama3"},
                 },
             },
         },

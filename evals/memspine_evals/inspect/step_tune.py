@@ -627,27 +627,27 @@ class TuneMixin:
             object.__setattr__(p, "version", self._shipped[pid]["version"] + 1)
 
     def _install_prompt_hook(self) -> None:
-        """Wrap ``litellm.acompletion`` once: a call whose messages are a code-constant prompt gets the edited text."""
-        import litellm
+        """Wrap ``openai_compat.acompletion`` once: a call whose messages are a code-constant prompt gets the edited text."""
+        from memspine.clients.openai_compat import OpenAICompatConnector as openai_compat
 
         from memspine.prompts import structured as S
 
-        inner = litellm.acompletion
+        inner = openai_compat.acompletion
         owner = self
 
-        async def hooked(**kwargs: Any) -> Any:
+        async def hooked(connector: Any, **kwargs: Any) -> Any:
             ov = owner.prompt_overrides
             if ov:
                 msgs = kwargs.get("messages") or []
                 new = owner._edit_messages(S, msgs, ov)
                 if new is not None:
                     kwargs = {**kwargs, "messages": new}
-            return await inner(**kwargs)
+            return await inner(connector, **kwargs)
 
-        litellm.acompletion = hooked
+        openai_compat.acompletion = hooked
 
         def restore() -> None:
-            litellm.acompletion = inner
+            openai_compat.acompletion = inner
 
         self._stack.callback(restore)
         self._prompt_hook_on = True

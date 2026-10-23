@@ -101,19 +101,19 @@ async def test_permission_error_from_plugin_builder_propagates() -> None:
 def test_startup_validation_checks_shared_provider_identity_without_building() -> None:
     with pytest.raises(ConfigError, match="deployment.id is required"):
         validate_reranker_settings(
-            "litellm",
+            "openai_compatible",
             {"model": "cohere/rerank-v3.5", "request_timeout_s": 5.0},
             explicit_deployment_id=False,
         )
 
     validated = validate_reranker_settings(
-        "litellm",
+        "openai_compatible",
         {"model": "cohere/rerank-v3.5", "request_timeout_s": 5.0},
         explicit_deployment_id=True,
     )
     assert validated is not None
     descriptor, typed = validated
-    assert descriptor.ref == ProviderRef("rerank", "litellm")
+    assert descriptor.ref == ProviderRef("rerank", "openai_compatible")
     assert isinstance(typed, BaseModel)
     assert typed.request_timeout_s == 5.0
 
@@ -134,7 +134,7 @@ async def test_engine_start_rejects_shared_reranker_before_builder_invocation(
     from memspine.providers.registry import get_registry
 
     registry = get_registry("rerankers")
-    descriptor = registry.get("litellm")
+    descriptor = registry.get("openai_compatible")
     called = False
 
     class NeverBuild:
@@ -145,7 +145,7 @@ async def test_engine_start_rejects_shared_reranker_before_builder_invocation(
 
     monkeypatch.setitem(
         registry._items,
-        "litellm",
+        "openai_compatible",
         ProviderDescriptor(
             ref=descriptor.ref,
             settings_model=descriptor.settings_model,
@@ -167,8 +167,12 @@ async def test_engine_start_rejects_shared_reranker_before_builder_invocation(
             "rerank": {
                 "chain": [
                     {
-                        "provider": "litellm",
-                        "settings": {"model": "cohere/rerank-v3.5", "request_timeout_s": 5.0},
+                        "provider": "openai_compatible",
+                        "settings": {
+                            "api_base": "http://test.invalid/v1",
+                            "model": "cohere/rerank-v3.5",
+                            "request_timeout_s": 5.0,
+                        },
                     }
                 ]
             },

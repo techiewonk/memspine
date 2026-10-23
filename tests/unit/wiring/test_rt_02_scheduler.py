@@ -599,9 +599,9 @@ async def test_engine_flag_on_gives_the_same_facts_and_releases_the_gate(
                 "embedding": {"provider": "hash", "settings": {}},
                 "llm": {
                     "window_extract": {
-                        "provider": "litellm",
+                        "provider": "openai_compatible",
                         "timeout_s": 20.0,
-                        "settings": {"model": "fake/window"},
+                        "settings": {"api_base": "http://test.invalid/v1", "model": "fake/window"},
                     }
                 },
             },

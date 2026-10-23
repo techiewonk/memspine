@@ -70,7 +70,11 @@ def _satisfy(need: Need) -> dict:
     if need.path.startswith("model.llm."):
         return _nest(
             need.path,
-            {"provider": "litellm", "timeout_s": 30.0, "settings": {"model": "fake/model"}},
+            {
+                "provider": "openai_compatible",
+                "timeout_s": 30.0,
+                "settings": {"api_base": "http://test.invalid/v1", "model": "fake/model"},
+            },
         )
     if need.path == "model.rerank.chain":
         return _nest(need.path, [{"provider": "onnx", "settings": {}}])

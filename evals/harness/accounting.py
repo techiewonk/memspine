@@ -237,7 +237,7 @@ class TokenUsage:
     def from_usage_mapping(cls, usage: Mapping[str, Any], *, calls: int = 1) -> TokenUsage:
         """Read exact usage from a provider response's ``usage`` block.
 
-        Accepts the OpenAI/litellm-normalised shape (``prompt_tokens`` /
+        Accepts the OpenAI/openai_compat-normalised shape (``prompt_tokens`` /
         ``completion_tokens``, cache hits nested under ``prompt_tokens_details``) and the
         Anthropic shape (``input_tokens`` / ``output_tokens``, where cache-read and
         cache-creation tokens are counted *outside* ``input_tokens`` and so are added

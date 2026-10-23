@@ -35,7 +35,7 @@
         }
       },
       "embedding": {
-        "provider": "litellm",
+        "provider": "openai_compatible",
         "model": "bedrock/cohere.embed-v4:0",
         "dim": 1024,
         "aws_region": "us-east-1",

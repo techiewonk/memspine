@@ -6,7 +6,7 @@ For each arm: (1) the engine config is validated against the schema and every po
 (`rehearsal.validate_engine_config`); (2) the arm's config is run through the real harness
 (`run_c0_1`, retrieval-only) on ONE small synthetic LoCoMo-format conversation, with the sleep cycle on
 (`memspine_build_sleep`, the run.sh flag `--memspine-build-sleep`) and every LLM role answered by an offline
-stand-in at the LiteLLM transport (`stub_llm`), so the roles, prompts, `/no_think` switch, parsing and call
+stand-in at the OpenAICompat transport (`stub_llm`), so the roles, prompts, `/no_think` switch, parsing and call
 accounting are the real ones. Only the machine-bound parts of the arm are swapped for the smoke: the embedder
 (`hash`) and the reranker (off); every key the arm adds on top of `scr-pool-protect-jina` is left as written.
 It then reads the engine's read forensics and checks that the arm's stage ran and its leg or block appears.
@@ -105,9 +105,9 @@ _CAP = re.compile(r"(?<![.!?]\s)(?<!^)\b([A-Z][a-z]{2,}(?:'s Web)?)\b")
 
 
 def make_stub() -> Any:
-    from memspine_evals.stub_llm import StubLiteLLM, _content_lines
+    from memspine_evals.stub_llm import StubOpenAICompat, _content_lines
 
-    class SmokeLLM(StubLiteLLM):
+    class SmokeLLM(StubOpenAICompat):
         prompts: Counter[str] = Counter()  # first words of each user prompt, per caller kind
 
         def classify(self, messages: list[dict[str, Any]]) -> str:
@@ -208,7 +208,7 @@ async def run_arm(arm_id: str, workdir: Path, data: Path) -> dict[str, Any]:
     from memspine_evals.datasets import LoCoMoDataset
     from memspine_evals.experiments import C01Config, run_c0_1
     from memspine_evals.rehearsal import validate_engine_config
-    from memspine_evals.stub_llm import install_stub_litellm
+    from memspine_evals.stub_llm import install_stub_openai_compat
 
     arm = json.loads((HERE / "arms" / f"{arm_id}.json").read_text(encoding="utf-8"))
     validate_engine_config(arm)  # the arm exactly as it will run
@@ -243,7 +243,7 @@ async def run_arm(arm_id: str, workdir: Path, data: Path) -> dict[str, Any]:
         max_model_calls=1000,
     )
     try:
-        with install_stub_litellm(stub):
+        with install_stub_openai_compat(stub):
             await run_c0_1(ds, config, workdir, run_id=arm_id)
     finally:
         ms.MemspineSystem.build = original_build  # type: ignore[method-assign]

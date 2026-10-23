@@ -1,6 +1,6 @@
 """G2b/G3: engine LLM roles for the memspine arm, the price table and the dollar cap.
 
-Every test runs on the stub LiteLLM transport: no request leaves the process.
+Every test runs on the stub OpenAICompat transport: no request leaves the process.
 """
 
 from __future__ import annotations
@@ -30,7 +30,7 @@ from memspine_evals.experiments import (
 )
 from memspine_evals.results import read_run
 from memspine_evals.runner import ModelCallBudgetExceeded
-from memspine_evals.stub_llm import StubLiteLLM, install_stub_litellm
+from memspine_evals.stub_llm import StubOpenAICompat, install_stub_openai_compat
 
 #: Engine overrides for fast offline engines: hash embeddings, mining on.
 MINING = {
@@ -69,9 +69,9 @@ def test_merge_binds_every_engine_role_and_keeps_explicit_ones() -> None:
         "model": {
             "llm": {
                 "extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "ollama/llama3"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/llama3"},
                 }
             }
         },
@@ -81,14 +81,18 @@ def test_merge_binds_every_engine_role_and_keeps_explicit_ones() -> None:
     roles = merged["model"]["llm"]
     assert set(roles) == set(ENGINE_LLM_ROLES)
     assert roles["extract"] == {
-        "provider": "litellm",
+        "provider": "openai_compatible",
         "timeout_s": 30.0,
-        "settings": {"model": "ollama/llama3"},
+        "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/llama3"},
     }  # the caller's binding wins
     assert roles["reflect"] == {
-        "provider": "litellm",
+        "provider": "openai_compatible",
         "timeout_s": 180.0,
-        "settings": {"model": QWEN3_32B, "aws_region": "eu-west-1"},
+        "settings": {
+            "api_base": "http://test.invalid/v1",
+            "model": QWEN3_32B,
+            "aws_region": "eu-west-1",
+        },
     }
     assert merged["read"] == {"x": 1}
     assert list(explicit["model"]["llm"]) == ["extract"]  # not mutated
@@ -157,9 +161,9 @@ def test_dollar_cap_needs_prices_and_bedrock() -> None:
         "model": {
             "llm": {
                 "extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "openai/unpriced"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "openai/unpriced"},
                 }
             }
         }
@@ -209,7 +213,7 @@ def test_tiny_max_usd_stops_early_with_unattempted_rows(tmp_path: Path) -> None:
         prices_per_mtok=((QWEN3_32B, 1000.0, 1000.0),),  # inflated so a few calls hit the cap
         max_usd=2.0,
     )
-    with install_stub_litellm() as stub, pytest.raises(BudgetExceeded):
+    with install_stub_openai_compat() as stub, pytest.raises(BudgetExceeded):
         asyncio.run(run_c0_1(dataset, config, tmp_path, run_id="cap"))
     rows = _rows(tmp_path, "cap--verbatim-bm25")
     statuses = [r["status"] for r in rows]
@@ -237,7 +241,7 @@ def test_engine_calls_are_charged_and_capped(tmp_path: Path) -> None:
         prices_per_mtok=((QWEN3_32B, 1e6, 1e6),),  # every engine token costs $1
         max_usd=1.0,
     )
-    with install_stub_litellm() as stub, pytest.raises(BudgetExceeded):
+    with install_stub_openai_compat() as stub, pytest.raises(BudgetExceeded):
         asyncio.run(run_c0_1(dataset, config, tmp_path, run_id="eng"))
     assert stub.calls["extract_session"] >= 1
     rows = _rows(tmp_path, "eng--memspine")
@@ -266,7 +270,7 @@ def test_engine_prompt_usage_is_attributed_per_stage(tmp_path: Path) -> None:
         memspine_build_sleep=True,
         max_model_calls=1000,
     )
-    with install_stub_litellm():
+    with install_stub_openai_compat():
         asyncio.run(run_c0_1(dataset, config, tmp_path, run_id="cpc"))
     summary = _summary(tmp_path, "cpc--memspine")
     prompts = summary["engine_prompt_usage"]["K"]
@@ -288,7 +292,7 @@ def test_engine_calls_count_against_the_call_cap(tmp_path: Path) -> None:
         memspine_build_sleep=True,
         max_model_calls=0,
     )
-    with install_stub_litellm(), pytest.raises(ModelCallBudgetExceeded):
+    with install_stub_openai_compat(), pytest.raises(ModelCallBudgetExceeded):
         asyncio.run(run_c0_1(dataset, config, tmp_path, run_id="calls"))
     assert {r["status"] for r in _rows(tmp_path, "calls--memspine")} == {"unattempted"}
 
@@ -300,7 +304,7 @@ def test_engine_llm_without_call_cap_is_refused(tmp_path: Path) -> None:
 
 
 def test_stub_mimics_qwen3_thinking() -> None:
-    stub = StubLiteLLM()
+    stub = StubOpenAICompat()
 
     async def go(content: str) -> str:
         reply = await stub.acompletion(messages=[{"role": "user", "content": content}])

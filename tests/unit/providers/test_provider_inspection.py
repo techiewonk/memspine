@@ -20,7 +20,7 @@ def test_inspection_preserves_logical_bindings_and_does_not_probe() -> None:
 
     result = BuildResult(
         object(),
-        ProviderRef("llm", "litellm"),
+        ProviderRef("llm", "openai_compatible"),
         (),
         frozenset({"llm"}),
         health_probe=forbidden_probe,

@@ -19,9 +19,9 @@ def test_all_kinds_exist() -> None:
 
 
 def test_builtin_names_match_config_values() -> None:
-    assert _names("embedders") == ("onnx", "hash", "static", "litellm", "st")
-    assert _names("rerankers") == ("onnx", "flashrank", "litellm", "qwen3", "jina")
-    assert _names("llm_providers") == ("litellm", "ollama", "vllm", "bedrock", "llamacpp")
+    assert _names("embedders") == ("onnx", "hash", "static", "openai_compatible", "st")
+    assert _names("rerankers") == ("onnx", "flashrank", "openai_compatible", "qwen3", "jina")
+    assert _names("llm_providers") == ("openai_compatible", "ollama", "vllm", "bedrock", "llamacpp")
     assert _names("extractors") == ("gliner2",)
     assert _names("deciders") == ("heuristic", "opendecider", "gliner2")
     assert set(_names("vector_stores")) == {"lancedb", "pgvector", "weaviate"}
@@ -57,7 +57,7 @@ def test_rerank_modes_come_from_the_registry() -> None:
     from memspine.providers.rerank import register_reranker, rerank_modes
 
     modes = rerank_modes()
-    assert modes[:6] == ("off", "onnx", "flashrank", "litellm", "qwen3", "jina")
+    assert modes[:6] == ("off", "onnx", "flashrank", "openai_compatible", "qwen3", "jina")
     from memspine.providers.contracts import BuildResult, ProviderRef
     from memspine.providers.registry import ProviderDescriptor
     from memspine.providers.settings import EmptySettings

@@ -53,7 +53,7 @@ def _operation_record() -> OperationRecord:
         resource_class="model_config",
     )
     config_ref = TargetConfigRef(
-        provider="litellm", config_id="bench-config", semantic_fingerprint="target-digest"
+        provider="openai_compatible", config_id="bench-config", semantic_fingerprint="target-digest"
     )
     request = ChangeRequest(
         category="llm",

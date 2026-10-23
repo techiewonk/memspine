@@ -13,7 +13,7 @@
  },
  "model": {
   "embedding": {"provider": "hash", "settings": {}},
-  "llm": {"window_extract": {"provider": "litellm", "timeout_s": 180.0, "settings": {"model": "stub/window"}}},
+  "llm": {"window_extract": {"provider": "openai_compatible", "timeout_s": 180.0, "settings": {"model": "stub/window"}}},
   "rerank": {"chain": []}
  },
  "deployment": {"id": "inspect-demo"}

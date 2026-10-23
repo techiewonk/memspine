@@ -124,10 +124,10 @@ def test_config_defaults_off_and_unknown_keys_refused() -> None:
         }
     )
     # ADR-082: structured recovery is typed inside each model.llm.<role> slot.
-    slot = LLMSlot(provider="litellm", timeout_s=30.0)
+    slot = LLMSlot(provider="openai_compatible", timeout_s=30.0)
     assert slot.structured.retry_on_error is False
     assert slot.structured.constrained_retry is False
     assert cfg.model.llm == {}
     with pytest.raises(ValueError):
-        LLMSlot(provider="litellm", timeout_s=30.0, structured={"bogus": True})  # type: ignore[arg-type]
+        LLMSlot(provider="openai_compatible", timeout_s=30.0, structured={"bogus": True})  # type: ignore[arg-type]
     assert StructuredOptions() == structured._OPTIONS

@@ -6,7 +6,7 @@ records each call's input and output tokens here under the prompt's
 loop stage (the CPC metric) instead of only per role.
 
 Token counts come from the provider's own usage report when it gives one
-(LiteLLM's ``usage``); otherwise they are estimated at
+(OpenAICompat's ``usage``); otherwise they are estimated at
 :data:`~memspine.config.constants.TOKEN_ESTIMATE_CHARS_PER_TOKEN` characters per
 token, and the call is counted as estimated. The ledger is in-process only: it
 is not persisted and starts empty with every router.

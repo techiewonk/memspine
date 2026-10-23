@@ -37,9 +37,9 @@ from memspine.providers.recovery import (
 )
 from memspine.providers.settings import (
     EmptySettings,
-    LiteLLMRoleSettings,
     LlamaCppRoleSettings,
     Neo4jSettings,
+    OpenAICompatRoleSettings,
     ProjectionSwitchSettings,
     ProviderServicesSettings,
     StrictSettings,
@@ -59,9 +59,9 @@ __all__ = [
     "LifecycleCloseReport",
     "LifecycleManager",
     "LifecycleState",
-    "LiteLLMRoleSettings",
     "LlamaCppRoleSettings",
     "Neo4jSettings",
+    "OpenAICompatRoleSettings",
     "ProbeStatus",
     "ProjectionPlacement",
     "ProjectionSwitchSettings",

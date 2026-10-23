@@ -1,7 +1,7 @@
 """Exercise real offline GLiNER through Engine message ingestion and window flush.
 
 The GLiNER model is loaded from a complete local Hugging Face snapshot. The window
-compiler uses a deterministic synthetic supported-claim LiteLLM fixture; no generative
+compiler uses a deterministic synthetic supported-claim OpenAICompat fixture; no generative
 model endpoint is contacted. All database and projection files live in a temporary directory.
 
 From the repository root, with ``PYTHONPATH=src``::
@@ -143,17 +143,13 @@ def _offline_window_transport(counter: dict[str, int]) -> Iterator[None]:
     if scoped_evals not in sys.path:
         sys.path.insert(0, scoped_evals)
     try:
-        import litellm
-
         stub_module = importlib.import_module("memspine_evals.stub_llm")
-        install_stub_litellm = stub_module.install_stub_litellm
+        install_stub_openai_compat = stub_module.install_stub_openai_compat
     finally:
         sys.path[:] = original_path
 
-    with install_stub_litellm():
-        import litellm
-
-        original_completion = litellm.acompletion
+    with install_stub_openai_compat() as openai_compat:
+        original_completion = openai_compat.acompletion
 
         async def fixture_completion(**kwargs: Any) -> Any:
             counter["used"] += 1
@@ -178,11 +174,11 @@ def _offline_window_transport(counter: dict[str, int]) -> Iterator[None]:
                 model=kwargs.get("model"),
             )
 
-        litellm.acompletion = fixture_completion
+        openai_compat.acompletion = fixture_completion
         try:
             yield
         finally:
-            litellm.acompletion = original_completion
+            openai_compat.acompletion = original_completion
 
 
 def _model_dump(value: Any) -> dict[str, Any]:
@@ -350,9 +346,9 @@ def _engine_config(database: Path, snapshot: Path) -> dict[str, Any]:
             "embedding": {"provider": "hash", "settings": {"dim": 64}},
             "llm": {
                 "window_extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "stub/window"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "stub/window"},
                 }
             },
             "extraction": {

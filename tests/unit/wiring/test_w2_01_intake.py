@@ -270,9 +270,9 @@ async def _windowed(db: Path, outbox: bool) -> Engine:
             "embedding": {"provider": "hash", "settings": {}},
             "llm": {
                 "window_extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 60.0,
-                    "settings": {"model": "stub/window"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "stub/window"},
                 }
             },
         },

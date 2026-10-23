@@ -46,7 +46,7 @@ model:                          # ADR-082: one slot per model category
   rerank:
     chain: []                   # reranking is opt-in per requirement; to enable, e.g.:
     # chain:
-    #   - {provider: onnx, settings: {}}   # local cross-encoder (or flashrank | qwen3 | litellm)
+    #   - {provider: onnx, settings: {}}   # local cross-encoder (or flashrank | qwen3 | openai_compat)
     # keep: 10                  # ... then keep the best 10
 
 prompts:

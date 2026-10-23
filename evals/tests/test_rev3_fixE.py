@@ -1,7 +1,7 @@
 """Review-3 fixer E: crash-safe spend (C-2), credentials (C-3), chunked resume (C-4),
 rerank audit (C-5), service prices (C-6), error rows (C-7), plan/rehearsal drift (C-8).
 
-Everything runs offline: fakes or the stub LiteLLM transport, no request leaves.
+Everything runs offline: fakes or the stub OpenAICompat transport, no request leaves.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from memspine_evals.bedrock import CallBudget, LiteLLMReader, parse_service_price
+from memspine_evals.bedrock import CallBudget, OpenAICompatReader, parse_service_price
 from memspine_evals.contracts import DepositResult, ReaderAnswer, Turn
 from memspine_evals.credentials import CredentialsInvalid, is_auth_error, preflight_aws
 from memspine_evals.datasets.synthetic import SyntheticDataset
@@ -226,7 +226,7 @@ def test_preflight_refuses_rejected_or_expired_credentials() -> None:
         )
 
 
-class _FlakyLiteLLM:
+class _FlakyOpenAICompat:
     def __init__(self, errors: list[Exception]) -> None:
         self.errors = errors
         self.calls = 0
@@ -244,18 +244,20 @@ class _FlakyLiteLLM:
 
 
 class APIConnectionError(Exception):
-    """Named like litellm's transient class (the retry matches by class name)."""
+    """Named like openai_compat's transient class (the retry matches by class name)."""
 
 
 def test_reader_retries_transient_errors_but_not_auth() -> None:
-    reader = LiteLLMReader(CallBudget(max_calls=10), model="m", retry_base_delay=0.0)
-    flaky = _FlakyLiteLLM([APIConnectionError("Server disconnected"), APIConnectionError("again")])
-    reader._litellm = flaky
+    reader = OpenAICompatReader(CallBudget(max_calls=10), model="m", retry_base_delay=0.0)
+    flaky = _FlakyOpenAICompat(
+        [APIConnectionError("Server disconnected"), APIConnectionError("again")]
+    )
+    reader._openai_compat = flaky
     answer = asyncio.run(reader.answer("q", "c"))
     assert answer.text == "ok" and flaky.calls == 3
     assert reader.budget.calls == 1  # one reservation covers the retries
-    expired = _FlakyLiteLLM([APIConnectionError(EXPIRED)])
-    reader._litellm = expired
+    expired = _FlakyOpenAICompat([APIConnectionError(EXPIRED)])
+    reader._openai_compat = expired
     with pytest.raises(APIConnectionError):
         asyncio.run(reader.answer("q", "c"))
     assert expired.calls == 1
@@ -345,7 +347,7 @@ def test_rehearsing_r_cohere_stubs_the_rerank(tmp_path: Path) -> None:
     assert report.ok, report.problems
     assert report.stub_calls.get("rerank", 0) >= 1
     (measure,) = report.systems
-    assert measure.rerank["mode"] == "litellm" and measure.rerank["calls"] >= 1
+    assert measure.rerank["mode"] == "openai_compatible" and measure.rerank["calls"] >= 1
     assert measure.rerank["rerank_unavailable"] is False
     _, rows, _ = read_run(tmp_path / "rehearsal-R-cohere--memspine" / "results.jsonl")
     assert any(r["meta"].get("reranked") for r in rows)
@@ -356,7 +358,7 @@ class _RerankMetaSystem(VerbatimSystem):
 
     async def query(self, text: str, budget_tokens: int, top_k: int) -> Any:
         context = await super().query(text, budget_tokens, top_k)
-        meta = {**context.meta, "rerank_mode": "litellm", "reranked": False,
+        meta = {**context.meta, "rerank_mode": "openai_compatible", "reranked": False,
                 "rerank_calls": 1, "rerank_failures": 1}  # fmt: skip
         return type(context)(
             text=context.text, tokens=context.tokens, evidence=context.evidence,
@@ -377,7 +379,15 @@ def test_a_reranker_that_never_ran_is_flagged(tmp_path: Path) -> None:
 RERANK = {
     "model": {
         "rerank": {
-            "chain": [{"provider": "litellm", "settings": {"model": "cohere.rerank-v3-5:0"}}]
+            "chain": [
+                {
+                    "provider": "openai_compatible",
+                    "settings": {
+                        "api_base": "http://test.invalid/v1",
+                        "model": "cohere.rerank-v3-5:0",
+                    },
+                }
+            ]
         }
     }
 }
@@ -400,7 +410,13 @@ def test_dollar_cap_refuses_an_unpriced_reranker() -> None:
 def test_dollar_cap_refuses_an_unpriced_cloud_embedder() -> None:
     embed = {
         "model": {
-            "embedding": {"provider": "litellm", "settings": {"model": "bedrock/cohere.embed-v4:0"}}
+            "embedding": {
+                "provider": "openai_compatible",
+                "settings": {
+                    "api_base": "http://test.invalid/v1",
+                    "model": "bedrock/cohere.embed-v4:0",
+                },
+            }
         }
     }
     with pytest.raises(ValueError, match=re.escape("embed:bedrock/cohere.embed-v4:0")):

@@ -10,7 +10,7 @@ from memspine import Engine
 from memspine.prompts.base import PromptFormat
 from memspine.prompts.models import ExtractedFacts
 from memspine.services.llm.base import LLMRouter
-from memspine.services.llm.litellm import LiteLLMLLM, strip_think
+from memspine.services.llm.openai_compat import OpenAICompatLLM, strip_think
 from memspine.services.llm.structured import _parse_payload
 
 QWEN = "bedrock/converse/qwen.qwen3-32b-v1:0"
@@ -39,7 +39,9 @@ class _Response:
 
 
 def _capture(monkeypatch: pytest.MonkeyPatch, reply: str) -> list[dict[str, Any]]:
-    import litellm
+    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+
+    install_transport(monkeypatch)
 
     seen: list[dict[str, Any]] = []
 
@@ -47,7 +49,7 @@ def _capture(monkeypatch: pytest.MonkeyPatch, reply: str) -> list[dict[str, Any]
         seen.append(kwargs)
         return _Response(reply, _Usage(11, 7))
 
-    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    monkeypatch.setattr(openai_compat, "acompletion", fake_acompletion)
     return seen
 
 
@@ -59,8 +61,8 @@ async def test_no_think_suffix_added_for_qwen3_only(monkeypatch: pytest.MonkeyPa
         {"role": "assistant", "content": "a"},
         {"role": "user", "content": "second"},
     ]
-    await LiteLLMLLM(QWEN).chat(messages)
-    await LiteLLMLLM("openai/gpt-4o").chat(messages)
+    await OpenAICompatLLM(QWEN).chat(messages)
+    await OpenAICompatLLM("openai/gpt-4o").chat(messages)
     qwen_sent, gpt_sent = seen[0]["messages"], seen[1]["messages"]
     assert qwen_sent[-1]["content"] == "second /no_think"
     assert qwen_sent[1]["content"] == "first"  # only the LAST user message
@@ -73,12 +75,14 @@ async def test_no_think_on_ollama_sends_think_false(monkeypatch: pytest.MonkeyPa
     """Ollama ignores the /no_think suffix for Qwen3.5 (empty content after max_tokens of reasoning, 2026-10-12):
     the adapter also sends Ollama's own ``think=False``; other providers never get the key."""
     seen = _capture(monkeypatch, "ok")
-    await LiteLLMLLM("ollama/qwen3.5:9b").chat([{"role": "user", "content": "q"}])
-    await LiteLLMLLM("ollama_chat/qwen3.5:9b", no_think=True).chat(
+    await OpenAICompatLLM("qwen3.5:9b", provider="ollama").chat([{"role": "user", "content": "q"}])
+    await OpenAICompatLLM("qwen3.5:9b", provider="ollama", no_think=True).chat(
         [{"role": "user", "content": "q"}]
     )
-    await LiteLLMLLM("ollama/qwen3.5:9b", no_think=False).chat([{"role": "user", "content": "q"}])
-    await LiteLLMLLM(QWEN).chat([{"role": "user", "content": "q"}])
+    await OpenAICompatLLM("qwen3.5:9b", provider="ollama", no_think=False).chat(
+        [{"role": "user", "content": "q"}]
+    )
+    await OpenAICompatLLM(QWEN).chat([{"role": "user", "content": "q"}])
     assert seen[0]["think"] is False and seen[1]["think"] is False
     assert "think" not in seen[2]  # thinking explicitly allowed
     assert "think" not in seen[3]  # not an Ollama provider: the suffix alone
@@ -86,9 +90,9 @@ async def test_no_think_on_ollama_sends_think_false(monkeypatch: pytest.MonkeyPa
 
 async def test_no_think_explicit_override(monkeypatch: pytest.MonkeyPatch) -> None:
     seen = _capture(monkeypatch, "ok")
-    await LiteLLMLLM(QWEN, no_think=False).chat([{"role": "user", "content": "q"}])
-    await LiteLLMLLM("ollama/llama3", no_think=True).chat([{"role": "user", "content": "q"}])
-    await LiteLLMLLM(QWEN).chat([{"role": "user", "content": "q /no_think"}])
+    await OpenAICompatLLM(QWEN, no_think=False).chat([{"role": "user", "content": "q"}])
+    await OpenAICompatLLM("ollama/llama3", no_think=True).chat([{"role": "user", "content": "q"}])
+    await OpenAICompatLLM(QWEN).chat([{"role": "user", "content": "q /no_think"}])
     assert seen[0]["messages"][-1]["content"] == "q"
     assert seen[1]["messages"][-1]["content"] == "q /no_think"
     assert seen[2]["messages"][-1]["content"] == "q /no_think"  # never doubled
@@ -130,12 +134,14 @@ async def test_quoted_think_tag_survives_non_thinking_model(
 ) -> None:
     reply = "Write </think> to end a block."
     _capture(monkeypatch, reply)
-    assert await LiteLLMLLM("openai/gpt-4o").chat([{"role": "user", "content": "q"}]) == reply
+    assert await OpenAICompatLLM("openai/gpt-4o").chat([{"role": "user", "content": "q"}]) == reply
 
 
 async def test_think_block_stripped_for_every_model(monkeypatch: pytest.MonkeyPatch) -> None:
     _capture(monkeypatch, "<think>hmm</think>\nhello")
-    assert await LiteLLMLLM("openai/gpt-4o").chat([{"role": "user", "content": "q"}]) == "hello"
+    assert (
+        await OpenAICompatLLM("openai/gpt-4o").chat([{"role": "user", "content": "q"}]) == "hello"
+    )
 
 
 async def test_structured_parse_after_stripping(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -144,14 +150,14 @@ async def test_structured_parse_after_stripping(monkeypatch: pytest.MonkeyPatch)
         "facts:\n  - entity: ana\n    attribute: city\n    value: Ana lives in Lyon\n"
     )
     _capture(monkeypatch, raw)
-    reply = await LiteLLMLLM(QWEN).chat([{"role": "user", "content": "extract"}])
+    reply = await OpenAICompatLLM(QWEN).chat([{"role": "user", "content": "extract"}])
     parsed = ExtractedFacts.model_validate(_parse_payload(reply, PromptFormat.YAML))
     assert [f.value for f in parsed.facts] == ["Ana lives in Lyon"]
 
 
 async def test_usage_totals_and_router_tokens(monkeypatch: pytest.MonkeyPatch) -> None:
     _capture(monkeypatch, "ok")
-    llm = LiteLLMLLM(QWEN)
+    llm = OpenAICompatLLM(QWEN)
     router = LLMRouter({"extract": llm})
     await router.for_role("extract").chat([{"role": "user", "content": "q"}])
     await router.for_role("extract").chat([{"role": "user", "content": "q"}])
@@ -176,6 +182,7 @@ async def test_router_estimates_tokens_without_usage() -> None:
 
 
 async def test_engine_binds_no_think_from_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    _capture(monkeypatch, "<think>x</think>fine")
     eng = Engine(
         dotenv_path=None,
         deployment={"id": "unit-test"},
@@ -188,16 +195,24 @@ async def test_engine_binds_no_think_from_config(monkeypatch: pytest.MonkeyPatch
         model={
             "embedding": {"provider": "hash", "settings": {}},
             "llm": {
-                "extract": {"provider": "litellm", "timeout_s": 30.0, "settings": {"model": QWEN}},
-                "chat": {
-                    "provider": "litellm",
+                "extract": {
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": QWEN, "no_think": False},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": QWEN},
+                },
+                "chat": {
+                    "provider": "openai_compatible",
+                    "timeout_s": 30.0,
+                    "settings": {
+                        "api_base": "http://test.invalid/v1",
+                        "model": QWEN,
+                        "no_think": False,
+                    },
                 },
                 "judge": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "openai/gpt-4o"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "openai/gpt-4o"},
                 },
             },
         },
@@ -238,7 +253,7 @@ def _fake_llama(monkeypatch: pytest.MonkeyPatch, reply: str) -> list[list[dict[s
 
 
 async def test_llama_cpp_strips_think_and_parses(monkeypatch: pytest.MonkeyPatch) -> None:
-    """B-7: the in-process provider strips a think block like the LiteLLM one."""
+    """B-7: the in-process provider strips a think block like the OpenAICompat one."""
     from memspine.services.llm.llamacpp import LlamaCppLLM
 
     _fake_llama(monkeypatch, "<think>x</think>facts: []")

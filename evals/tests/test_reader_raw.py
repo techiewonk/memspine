@@ -107,10 +107,10 @@ def test_raw_reply_is_capped_and_flagged() -> None:
 
 
 @pytest.mark.parametrize("extract", [False, True])
-def test_litellm_reader_sets_raw_text_only_when_extracting(extract: bool) -> None:
+def test_openai_compat_reader_sets_raw_text_only_when_extracting(extract: bool) -> None:
     from types import SimpleNamespace
 
-    from memspine_evals.bedrock import CallBudget, LiteLLMReader
+    from memspine_evals.bedrock import CallBudget, OpenAICompatReader
 
     async def acompletion(**kwargs: object) -> object:
         message = SimpleNamespace(content=REPLY)
@@ -118,10 +118,10 @@ def test_litellm_reader_sets_raw_text_only_when_extracting(extract: bool) -> Non
             usage=None, choices=[SimpleNamespace(message=message, finish_reason="stop")]
         )
 
-    reader = LiteLLMReader(
+    reader = OpenAICompatReader(
         CallBudget(max_calls=3), model="m", prompt=QA_PROMPTS["dated3"], extract_answer=extract
     )
-    reader._litellm = SimpleNamespace(acompletion=acompletion)  # type: ignore[assignment]
+    reader._openai_compat = SimpleNamespace(acompletion=acompletion)  # type: ignore[assignment]
     out = asyncio.run(reader.answer("Which pets?", "ctx"))
     assert out.raw_text == (REPLY if extract else None)
     assert out.text == ("a dog, a cat" if extract else REPLY)

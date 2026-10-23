@@ -32,16 +32,16 @@ def test_role_requires_explicit_provider_and_catalogue_llm_requires_timeout() ->
     with pytest.raises(ValidationError, match="provider"):
         LLMSlot(timeout_s=30.0, settings={"model": "ollama/model"})  # type: ignore[call-arg]
     with pytest.raises(ValidationError, match="timeout_s"):
-        LLMSlot(provider="litellm", settings={"model": "ollama/model"})  # type: ignore[call-arg]
+        LLMSlot(provider="openai_compatible", settings={"model": "ollama/model"})  # type: ignore[call-arg]
     with pytest.raises(ValidationError, match="explicit provider"):
         ModelDecl(id="ollama/model", kind="llm", timeout_seconds=30.0)
     with pytest.raises(ValidationError, match="explicit timeout_seconds"):
-        ModelDecl(id="ollama/model", kind="llm", provider="litellm")
+        ModelDecl(id="ollama/model", kind="llm", provider="openai_compatible")
     with pytest.raises(ValidationError):
-        ModelDecl(id="ollama/model", kind="llm", provider="litellm", timeout_seconds=True)
+        ModelDecl(id="ollama/model", kind="llm", provider="openai_compatible", timeout_seconds=True)
     assert (
         ModelDecl(
-            id="ollama/model", kind="llm", provider="litellm", timeout_seconds=13.0
+            id="ollama/model", kind="llm", provider="openai_compatible", timeout_seconds=13.0
         ).timeout_seconds
         == 13.0
     )

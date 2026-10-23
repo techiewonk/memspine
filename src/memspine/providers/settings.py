@@ -103,13 +103,23 @@ class _LLMGenerationSettings(StrictSettings):
     max_tokens: int = Field(default=2048, ge=1)
 
 
-class LiteLLMRoleSettings(_LLMGenerationSettings):
-    """Native settings for one LiteLLM-backed role."""
+class OpenAICompatRoleSettings(_LLMGenerationSettings):
+    """Native settings for one OpenAICompat-backed role."""
 
     api_base: str | None = None
     api_key: SecretStr | None = None
-    aws_region: str | None = None
+    api_key_env: str | None = None
+    supports_json_schema: bool = True
+    supports_grammar: bool = False
     no_think: bool | None = None
+
+
+class AnyLLMRoleSettings(_LLMGenerationSettings):
+    upstream_provider: str = Field(min_length=1)
+    api_key_env: str | None = None
+    api_base: str | None = None
+    no_think: bool | None = None
+    supports_json_schema: bool = False
 
 
 def _bare_model(model: str, routes: tuple[str, ...], provider: str) -> str:
@@ -125,7 +135,7 @@ def _bare_model(model: str, routes: tuple[str, ...], provider: str) -> str:
 
 
 class OllamaRoleSettings(_LLMGenerationSettings):
-    """RM-113: an Ollama server through the LiteLLM connector (route ``ollama_chat/``)."""
+    """RM-113: an Ollama server through the OpenAICompat connector (route ``ollama_chat/``)."""
 
     api_base: str = Field(default="http://localhost:11434", min_length=1)
     no_think: bool | None = None
@@ -137,7 +147,7 @@ class OllamaRoleSettings(_LLMGenerationSettings):
 
 
 class VllmRoleSettings(_LLMGenerationSettings):
-    """RM-113: a vLLM OpenAI-compatible server through the LiteLLM connector
+    """RM-113: a vLLM OpenAI-compatible server through the OpenAICompat connector
     (route ``hosted_vllm/``). ``api_base`` is the server URL (e.g. ``http://host:8000/v1``)."""
 
     api_base: str = Field(min_length=1)
@@ -151,7 +161,7 @@ class VllmRoleSettings(_LLMGenerationSettings):
 
 
 class BedrockRoleSettings(_LLMGenerationSettings):
-    """RM-113: AWS Bedrock through the LiteLLM connector (route ``bedrock/``); credentials
+    """RM-113: AWS Bedrock through the OpenAICompat connector (route ``bedrock/``); credentials
     come from the boto3 credential chain, ``aws_region`` selects the region."""
 
     aws_region: str | None = None

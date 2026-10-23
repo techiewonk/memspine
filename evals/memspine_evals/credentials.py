@@ -35,7 +35,7 @@ __all__ = [
     "preflight_aws",
 ]
 
-#: Exception class names that mean the credential itself is bad (litellm's mapped
+#: Exception class names that mean the credential itself is bad (openai_compat's mapped
 #: classes, botocore's error codes as exception names, boto's missing-credential errors).
 AUTH_ERROR_NAMES = frozenset(
     {
@@ -53,7 +53,7 @@ AUTH_ERROR_NAMES = frozenset(
     }
 )
 
-#: Message fragments of the same failures. litellm wraps an expired-token 403 in an
+#: Message fragments of the same failures. openai_compat wraps an expired-token 403 in an
 #: ``APIConnectionError``, so the class alone is not enough.
 _AUTH_HINTS = (
     "security token included in the request is expired",

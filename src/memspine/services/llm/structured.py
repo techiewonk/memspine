@@ -8,7 +8,7 @@ I69: every call is counted per prompt version (:func:`structured_stats`): clean 
 repaired parses (strict parse failed, the repair net rescued it), validation failures and
 LLM errors. Opt-in (``llm.structured``, both default off): ``retry_on_error`` re-prompts
 ONCE with the validation error appended; ``constrained_retry`` additionally asks the
-backend for JSON-schema constrained decoding (``response_format`` json_schema; LiteLLM
+backend for JSON-schema constrained decoding (``response_format`` json_schema; OpenAICompat
 maps it to Ollama ``format`` and OpenAI-compatible servers) on that retry only, so the
 YAML token saving of the happy path is kept.
 """

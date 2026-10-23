@@ -54,20 +54,20 @@ MODULES: dict[str, str] = {
     # embedding: services/embedding/<provider name>.py
     "memspine.services.embedding.fastembed_local": "memspine.services.embedding.fastembed",
     "memspine.services.embedding.hash_local": "memspine.services.embedding.hash",
-    "memspine.services.embedding.litellm_embed": "memspine.services.embedding.litellm",
+    "memspine.services.embedding.openai_compat_embed": "memspine.services.embedding.openai_compat",
     "memspine.services.embedding.st_local": "memspine.services.embedding.st",
     "memspine.services.embedding.static_local": "memspine.services.embedding.static",
     # embedding profiles are pure model metadata: they stay in models
     "memspine.services.embedding.profiles": "memspine.models.embedding_profiles",
     # llm
-    "memspine.services.llm.litellm_llm": "memspine.services.llm.litellm",
+    "memspine.services.llm.openai_compat_llm": "memspine.services.llm.openai_compat",
     "memspine.services.llm.llama_cpp": "memspine.services.llm.llamacpp",
     "memspine.models.runtime.escalation": "memspine.services.llm.escalation",
     # rerank (the second factory collapses into the descriptor module)
     "memspine.services.rerank.fastembed_rerank": "memspine.services.rerank.fastembed",
     "memspine.services.rerank.flashrank_rerank": "memspine.services.rerank.flashrank",
     "memspine.services.rerank.jina_rerank": "memspine.services.rerank.jina",
-    "memspine.services.rerank.litellm_rerank": "memspine.services.rerank.litellm",
+    "memspine.services.rerank.openai_compat_rerank": "memspine.services.rerank.openai_compat",
     "memspine.services.rerank.qwen3_rerank": "memspine.services.rerank.qwen3",
     "memspine.services.rerank.factory": "memspine.providers.builtin.rerank",
     # decider (owner naming 2026-10-23: the slot is model.decider, not "decision")

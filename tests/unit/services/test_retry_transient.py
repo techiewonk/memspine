@@ -8,7 +8,7 @@ from memspine.services import _retry
 from memspine.services._retry import retry_transient
 
 
-class APIConnectionError(Exception):  # same name as litellm's mapped class
+class APIConnectionError(Exception):  # same name as openai_compat's mapped class
     pass
 
 
@@ -57,7 +57,7 @@ async def test_gives_up_after_the_last_attempt(monkeypatch: pytest.MonkeyPatch) 
 
 
 async def test_expired_credentials_are_not_retried() -> None:
-    # litellm wraps an expired-token 403 in APIConnectionError; retrying only burns time.
+    # openai_compat wraps an expired-token 403 in APIConnectionError; retrying only burns time.
     calls = 0
 
     async def expired() -> str:
@@ -72,7 +72,7 @@ async def test_expired_credentials_are_not_retried() -> None:
     assert calls == 1
 
 
-class RateLimitError(Exception):  # same name as litellm's mapped class
+class RateLimitError(Exception):  # same name as openai_compat's mapped class
     pass
 
 

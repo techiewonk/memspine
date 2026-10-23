@@ -671,7 +671,7 @@ async def _acall(fn: Callable[..., Any], *args: Any, **kwargs: Any) -> Any:
 
 
 def _parse_model(spec: str, api_base: str | None, seed: int) -> ModelConfig:
-    """``provider/model`` -> :class:`ModelConfig` (the LiteLLM id shape)."""
+    """``provider/model`` -> :class:`ModelConfig` (the OpenAICompat id shape)."""
     provider, sep, model = spec.partition("/")
     if not sep or not provider or not model:
         raise HarnessError(

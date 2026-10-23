@@ -1,4 +1,4 @@
-"""LLM port: router, LiteLLM provider (mocked), json repair, llama.cpp guard."""
+"""LLM port: router, OpenAICompat provider (mocked), json repair, llama.cpp guard."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import pytest
 
 from memspine.exceptions import ConfigError, LLMError, MissingServiceError
 from memspine.services.llm.base import LLMRouter, lenient_json
-from memspine.services.llm.litellm import LiteLLMLLM
+from memspine.services.llm.openai_compat import OpenAICompatLLM
 
 
 class _Msg:
@@ -26,8 +26,10 @@ class _Response:
         self.choices = [_Choice(content)]
 
 
-async def test_litellm_chat_passes_model_and_options(monkeypatch: pytest.MonkeyPatch) -> None:
-    import litellm
+async def test_openai_compat_chat_passes_model_and_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+
+    install_transport(monkeypatch)
 
     seen: dict[str, Any] = {}
 
@@ -35,21 +37,23 @@ async def test_litellm_chat_passes_model_and_options(monkeypatch: pytest.MonkeyP
         seen.update(kwargs)
         return _Response("hello from the cloud")
 
-    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
-    llm = LiteLLMLLM("bedrock/anthropic.claude-3", aws_region="us-east-1", api_base="http://x")
+    monkeypatch.setattr(openai_compat, "acompletion", fake_acompletion)
+    llm = OpenAICompatLLM("test-model", api_base="http://x")
     reply = await llm.chat([{"role": "user", "content": "hi"}], temperature=0.2)
     assert reply == "hello from the cloud"
-    assert seen["model"] == "bedrock/anthropic.claude-3"
-    assert seen["aws_region_name"] == "us-east-1"
-    assert seen["api_base"] == "http://x"
+    assert seen["model"] == "test-model"
     assert seen["temperature"] == 0.2  # extra options forwarded
     assert seen["top_p"] == 1.0
     assert seen["max_tokens"] == 2048
-    assert llm.provider_id == "litellm:bedrock/anthropic.claude-3"
+    assert llm.provider_id == "openai_compatible:test-model"
 
 
-async def test_litellm_native_defaults_and_call_options(monkeypatch: pytest.MonkeyPatch) -> None:
-    import litellm
+async def test_openai_compat_native_defaults_and_call_options(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+
+    install_transport(monkeypatch)
 
     seen: dict[str, Any] = {}
 
@@ -57,8 +61,8 @@ async def test_litellm_native_defaults_and_call_options(monkeypatch: pytest.Monk
         seen.update(kwargs)
         return _Response("answer")
 
-    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
-    llm = LiteLLMLLM(
+    monkeypatch.setattr(openai_compat, "acompletion", fake_acompletion)
+    llm = OpenAICompatLLM(
         "openai/test",
         temperature=0.4,
         top_p=0.8,
@@ -73,26 +77,30 @@ async def test_litellm_native_defaults_and_call_options(monkeypatch: pytest.Monk
     assert (seen["temperature"], seen["top_p"], seen["max_tokens"]) == (0.0, 0.8, 64)
 
 
-async def test_litellm_wraps_provider_errors(monkeypatch: pytest.MonkeyPatch) -> None:
-    import litellm
+async def test_openai_compat_wraps_provider_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+
+    install_transport(monkeypatch)
 
     async def boom(**_kwargs: Any) -> _Response:
         raise RuntimeError("429 rate limited")
 
-    monkeypatch.setattr(litellm, "acompletion", boom)
-    llm = LiteLLMLLM("openai/gpt-4o")
-    with pytest.raises(LLMError, match="litellm chat failed"):
+    monkeypatch.setattr(openai_compat, "acompletion", boom)
+    llm = OpenAICompatLLM("openai/gpt-4o")
+    with pytest.raises(LLMError, match="openai_compat chat failed"):
         await llm.chat([{"role": "user", "content": "hi"}])
 
 
-async def test_litellm_empty_content_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    import litellm
+async def test_openai_compat_empty_content_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+
+    install_transport(monkeypatch)
 
     async def none_content(**_kwargs: Any) -> _Response:
         return _Response(None)
 
-    monkeypatch.setattr(litellm, "acompletion", none_content)
-    llm = LiteLLMLLM("openai/gpt-4o")
+    monkeypatch.setattr(openai_compat, "acompletion", none_content)
+    llm = OpenAICompatLLM("openai/gpt-4o")
     with pytest.raises(LLMError, match="empty content"):
         await llm.chat([{"role": "user", "content": "hi"}])
 
@@ -131,11 +139,13 @@ def test_llama_cpp_without_extra_names_the_fix() -> None:
         builtins.__import__ = real_import
 
 
-async def test_litellm_unanswered_request_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_openai_compat_unanswered_request_times_out(monkeypatch: pytest.MonkeyPatch) -> None:
     """A request the server accepts but never answers ends in LLMError, never a silent hang (f-gc3, 2026-10-12)."""
     import asyncio
 
-    import litellm
+    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+
+    install_transport(monkeypatch)
 
     from memspine.services import _retry
 
@@ -146,9 +156,9 @@ async def test_litellm_unanswered_request_times_out(monkeypatch: pytest.MonkeyPa
     ticks = iter(
         range(0, 10_000, 100)
     )  # each clock read jumps 100 s: no retry fits the total deadline
-    monkeypatch.setattr(litellm, "acompletion", never)
+    monkeypatch.setattr(openai_compat, "acompletion", never)
     monkeypatch.setattr(_retry, "_clock", lambda: float(next(ticks)))
-    llm = LiteLLMLLM("ollama/test-model", timeout_seconds=0.01)
+    llm = OpenAICompatLLM("ollama/test-model", timeout_seconds=0.01)
     with pytest.raises(LLMError, match="test-model") as err:
         await asyncio.wait_for(llm.chat([{"role": "user", "content": "hi"}]), timeout=5)
     assert isinstance(err.value.__cause__, TimeoutError)

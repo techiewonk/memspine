@@ -69,10 +69,10 @@ from memspine.config.schema.providers import (
     JinaRerankerSettings,
     LadybugSettings,
     LanceDBSettings,
-    LiteLLMEmbeddingSettings,
-    LiteLLMRerankerSettings,
     MemoryCacheSettings,
     Neo4jSettings,
+    OpenAICompatEmbeddingSettings,
+    OpenAICompatRerankerSettings,
     PgvectorSettings,
     PostgresSettings,
     ProviderSettings,
@@ -123,7 +123,7 @@ from memspine.config.schema.storage import (
     VectorSlotConfig,
 )
 from memspine.config.schema.write import DataShapeConfig, IngestConfig, WriteConfig
-from memspine.providers.settings import LiteLLMRoleSettings, LlamaCppRoleSettings
+from memspine.providers.settings import LlamaCppRoleSettings, OpenAICompatRoleSettings
 
 __all__ = [
     "AuditConfig",
@@ -166,9 +166,6 @@ __all__ = [
     "LadybugSettings",
     "LanceDBSettings",
     "LexicalSlotConfig",
-    "LiteLLMEmbeddingSettings",
-    "LiteLLMRerankerSettings",
-    "LiteLLMRoleSettings",
     "LlamaCppRoleSettings",
     "MemoryCacheSettings",
     "MemoryTypeConfig",
@@ -181,6 +178,9 @@ __all__ = [
     "Neo4jSettings",
     "ObservabilityConfig",
     "OfflineConfig",
+    "OpenAICompatEmbeddingSettings",
+    "OpenAICompatRerankerSettings",
+    "OpenAICompatRoleSettings",
     "OpenDeciderSettings",
     "OpenSearchSettings",
     "PgvectorSettings",

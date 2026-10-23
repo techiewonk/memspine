@@ -375,19 +375,19 @@ async def test_engine_binds_the_batched_prompts() -> None:
             "embedding": {"provider": "hash", "settings": {}},
             "llm": {
                 "extract_edges": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "ollama/llama3"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/llama3"},
                 },
                 "resolve_entity": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "ollama/llama3"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/llama3"},
                 },
                 "summarize_entity": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "ollama/llama3"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/llama3"},
                 },
             },
         },

@@ -5412,7 +5412,7 @@ class Engine:
     def model_usage(self) -> dict[str, dict[str, Any]]:
         """Per-role LLM spend since ``start()``: ``{"model", "calls", "prompt", "completion"}``.
 
-        Token counts are the provider's own usage report where it gives one (LiteLLM),
+        Token counts are the provider's own usage report where it gives one (OpenAICompat),
         else a four-characters-per-token estimate. Roles never called are omitted.
         """
         return admin.model_usage(self)

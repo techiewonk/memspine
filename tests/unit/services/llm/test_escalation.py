@@ -13,7 +13,7 @@ from memspine.config.schema import MemspineConfig
 from memspine.observability import tap
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.lifecycle import ProviderLifecycleManager
-from memspine.providers.settings import LiteLLMRoleSettings
+from memspine.providers.settings import OpenAICompatRoleSettings
 from memspine.runtime import container
 from memspine.services.llm import base as llm_base
 from memspine.services.llm.base import LLMRouter
@@ -163,19 +163,19 @@ async def test_provider_identity_fingerprints_full_chain_and_effective_policy() 
 async def test_named_profile_identity_includes_normalized_endpoint_settings_without_secrets() -> (
     None
 ):
-    ref = ProviderRef(category="llm", name="litellm")
+    ref = ProviderRef(category="llm", name="openai_compatible")
 
     def profiled(
         api_base: str, temperature: float, api_key: str = "private-api-key"
     ) -> ProfiledLLM:
-        settings = LiteLLMRoleSettings(
+        settings = OpenAICompatRoleSettings(
             model="openai/shared-model",
             timeout_seconds=30.0,
             temperature=temperature,
             api_base=api_base,
             api_key=SecretStr(api_key),
         )
-        provider = _Fake("litellm:openai/shared-model", ["unused"])
+        provider = _Fake("openai_compatible:openai/shared-model", ["unused"])
         return ProfiledLLM(provider, profiled_provider_identity(ref, settings, provider))
 
     original = profiled("https://one.example/v1", 0.2)
@@ -364,15 +364,23 @@ async def test_target_remote_candidate_is_individually_privacy_gated(
         model={
             "llm": {
                 "chat": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30,
-                    "settings": {"model": "ollama/local", "max_tokens": 20},
+                    "settings": {
+                        "api_base": "http://test.invalid/v1",
+                        "model": "ollama/local",
+                        "max_tokens": 20,
+                    },
                     "escalation": {
                         "targets": [
                             {
-                                "provider": "litellm",
+                                "provider": "openai_compatible",
                                 "timeout_s": 30,
-                                "settings": {"model": "openai/remote", "max_tokens": 7},
+                                "settings": {
+                                    "api_base": "http://test.invalid/v1",
+                                    "model": "openai/remote",
+                                    "max_tokens": 7,
+                                },
                             },
                             {
                                 "provider": "missing-provider-plugin",
@@ -444,19 +452,19 @@ async def test_equal_slots_reuse_one_provider_and_slots_satisfy_tier_role(
         model={
             "llm": {
                 "extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30,
-                    "settings": {"model": "ollama/shared"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/shared"},
                 },
                 "chat": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30,
-                    "settings": {"model": "ollama/shared"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/shared"},
                 },
                 "window_extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30,
-                    "settings": {"model": "ollama/reasoning"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/reasoning"},
                 },
             },
             "placement": {"tiers_v2": True},

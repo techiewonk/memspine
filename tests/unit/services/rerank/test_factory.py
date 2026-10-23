@@ -19,7 +19,7 @@ from memspine.providers.settings import EmptySettings
 def test_rerank_modes_is_off_plus_registry() -> None:
     modes = rerank_modes()
     assert modes[0] == "off"
-    assert {"onnx", "flashrank", "litellm"} <= set(modes)  # the shipped providers
+    assert {"onnx", "flashrank", "openai_compatible"} <= set(modes)  # the shipped providers
 
 
 async def test_off_builds_none() -> None:
@@ -31,10 +31,10 @@ async def test_unknown_mode_fails_explicitly() -> None:
         await build_reranker(RerankSettings(mode="bogus"))
 
 
-async def test_litellm_without_model_fails_typed_settings_validation() -> None:
+async def test_openai_compat_without_model_fails_typed_settings_validation() -> None:
     with pytest.raises(ConfigError, match=r"invalid model\.rerank\.chain\[\]\.settings"):
         await build_reranker(
-            RerankSettings(mode="litellm", model=None), explicit_deployment_id=True
+            RerankSettings(mode="openai_compatible", model=None), explicit_deployment_id=True
         )
 
 

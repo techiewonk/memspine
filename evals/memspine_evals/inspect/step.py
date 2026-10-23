@@ -574,17 +574,17 @@ class StepSession(TuneMixin):
     def _install_transport(self) -> None:
         if self.mode == "arm":
             return
-        import litellm
 
-        from ..stub_llm import install_stub_litellm
+        from ..stub_llm import install_stub_openai_compat
 
         if self.mode == "live":
             if self.cache_dir:
                 self._install_replay(live=True)
             return
-        stub = self._stack.enter_context(install_stub_litellm())
+        stub = self._stack.enter_context(install_stub_openai_compat())
         self.stub = stub
-        inner = litellm.acompletion
+        openai_compat = stub
+        inner = openai_compat.acompletion
 
         async def window_aware(**kwargs: Any) -> Any:
             reply = _offline_window_reply(kwargs.get("messages") or [])
@@ -604,26 +604,18 @@ class StepSession(TuneMixin):
                 model=kwargs.get("model"),
             )
 
-        litellm.acompletion = window_aware
+        openai_compat.acompletion = window_aware
         if self.mode == "replay":
             if not self.cache_dir:
                 raise SystemExit("--replay-cache needs --cache-dir (the recorded call cache)")
             self._install_replay(live=False)
 
     def _install_replay(self, live: bool) -> None:
-        import litellm
+        from ..call_cache import wrap_call_cache
 
         cache = _make_replay(self.cache_dir or Path("."), live)
-        saved = (litellm.acompletion, litellm.aembedding)
-        cache._inner_completion, cache._inner_embedding = saved
-        litellm.acompletion = cache.acompletion
-        litellm.aembedding = cache.aembedding
-
-        def restore() -> None:
-            litellm.acompletion, litellm.aembedding = saved
-            cache.close()
-
-        self._stack.callback(restore)
+        self._stack.callback(cache.close)
+        self._stack.enter_context(wrap_call_cache(cache))
         self._cache = cache
 
     def _write_manifest(self) -> None:

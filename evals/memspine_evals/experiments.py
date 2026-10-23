@@ -97,7 +97,7 @@ class C01Config:
     include_memspine: bool = False
     max_items: int | None = None
     max_model_calls: int | None = None
-    #: D23 "Qwen3 protocol": reader AND judge are Bedrock Qwen3 via LiteLLM,
+    #: D23 "Qwen3 protocol": reader AND judge are Bedrock Qwen3 via OpenAICompat,
     #: sharing one CallBudget capped at ``max_model_calls``.
     bedrock: bool = False
     #: Engine overrides for the memspine arm (e.g. Cohere embed-v4 at 1024-d).
@@ -417,18 +417,18 @@ def engine_llm_models(config: C01Config) -> set[str]:
 
 
 def paid_services(config: C01Config) -> list[tuple[str, str]]:
-    """C-6: the memspine arm's paid cloud services, as ``(kind, model)``: a LiteLLM
-    embedder (``embed``) and a LiteLLM reranker (``rerank``). Local ones are free."""
+    """C-6: the memspine arm's paid cloud services, as ``(kind, model)``: a OpenAICompat
+    embedder (``embed``) and a OpenAICompat reranker (``rerank``). Local ones are free."""
     if not config.include_memspine:
         return []
     engine = memspine_engine_config(config) or {}
     out: list[tuple[str, str]] = []
     model = dict(engine.get("model") or {})  # ADR-082: the model slots
     embedding = dict(model.get("embedding") or {})
-    if embedding.get("provider") == "litellm":
+    if embedding.get("provider") == "openai_compatible":
         out.append(("embed", str((embedding.get("settings") or {}).get("model") or "")))
     for stage in dict(model.get("rerank") or {}).get("chain") or []:
-        if isinstance(stage, dict) and stage.get("provider") == "litellm":
+        if isinstance(stage, dict) and stage.get("provider") == "openai_compatible":
             out.append(("rerank", str((stage.get("settings") or {}).get("model") or "")))
     return out
 
@@ -725,7 +725,7 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
     # #34: a reasoning prompt's reader keeps the final answer and gets room to reason.
     reasoning = config.qa_prompt in REASONING_QA_PROMPTS
     if config.bedrock:
-        from .bedrock import CallBudget, LiteLLMReader, litellm_chat
+        from .bedrock import CallBudget, OpenAICompatReader, openai_compat_chat
 
         if config.max_model_calls is None:
             raise ValueError("bedrock qa needs max_model_calls (the D23 budget cap)")
@@ -735,7 +735,7 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             max_usd=config.max_usd,
             service_prices=service_price_table(config),
         )
-        bedrock_reader = LiteLLMReader(
+        bedrock_reader = OpenAICompatReader(
             budget,
             model=QWEN3_32B,
             temperature=0.0,
@@ -751,22 +751,22 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             )
         judge = build_judge(
             config,
-            litellm_chat(budget, model=QWEN3_32B),
+            openai_compat_chat(budget, model=QWEN3_32B),
             QWEN3_32B,
             judge_id=f"qwen3-32b-{config.judge_prompt}",
         )
         if config.verify_answer:
             bedrock_reader = with_verifier(
-                bedrock_reader, litellm_chat(budget, model=QWEN3_32B, max_tokens=192)
+                bedrock_reader, openai_compat_chat(budget, model=QWEN3_32B, max_tokens=192)
             )
 
         def make_bedrock_sibling(prompt: str) -> Any:
-            return LiteLLMReader(
+            return OpenAICompatReader(
                 budget, model=QWEN3_32B, temperature=0.0, max_tokens=512, prompt=prompt
             )
 
         def make_bedrock_chat() -> Any:
-            return litellm_chat(budget, model=QWEN3_32B, max_tokens=900)
+            return openai_compat_chat(budget, model=QWEN3_32B, max_tokens=900)
 
         return (
             with_post_steps(bedrock_reader, config, make_bedrock_sibling, make_bedrock_chat),

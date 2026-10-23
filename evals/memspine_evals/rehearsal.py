@@ -4,7 +4,7 @@
 
 Each arm of the plan runs end to end on one LoCoMo conversation (or its first N
 questions) exactly as the paid run would: the Bedrock reader and judge, the engine
-with every LLM role bound to Qwen3, the call and dollar budgets. Only LiteLLM's
+with every LLM role bound to Qwen3, the call and dollar budgets. Only OpenAICompat's
 transport is replaced (:mod:`.stub_llm`), so nothing leaves the process.
 
 Per arm it checks that
@@ -36,7 +36,7 @@ from typing import Any
 
 from .bedrock import QWEN3_32B, parse_price
 from .experiments import C01Config, run_c0_1
-from .stub_llm import StubLiteLLM, install_stub_litellm
+from .stub_llm import StubOpenAICompat, install_stub_openai_compat
 
 __all__ = [
     "ArmReport",
@@ -299,9 +299,9 @@ async def rehearse_arm(
         report.problems.append(f"config does not parse: {type(exc).__name__}: {exc}")
         return report
     run_id = f"rehearsal-{arm['id']}".replace("+", "_")
-    stub = StubLiteLLM()
+    stub = StubOpenAICompat()
     try:
-        with install_stub_litellm(stub):
+        with install_stub_openai_compat(stub):
             await run_c0_1(dataset, config, out_dir, run_id=run_id)
     except Exception as exc:
         report.ok = False

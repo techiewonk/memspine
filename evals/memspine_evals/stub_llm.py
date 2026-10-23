@@ -1,7 +1,7 @@
-"""An offline stand-in for LiteLLM's transport, for rehearsals and tests (G5).
+"""An offline stand-in for OpenAICompat's transport, for rehearsals and tests (G5).
 
-``install_stub_litellm()`` replaces ``litellm.acompletion``, ``litellm.aembedding`` and
-``litellm.arerank`` (C-5: a cloud reranker such as Cohere on Bedrock) with
+``install_stub_openai_compat()`` replaces ``openai_compat.acompletion``, ``openai_compat.aembedding`` and
+``openai_compat.arerank`` (C-5: a cloud reranker such as Cohere on Bedrock) with
 deterministic local functions. Everything above the transport runs for real:
 the reader and judge, the call and dollar budgets, the engine's LLM roles with their
 ``/no_think`` switch and think stripping, structured parsing, and the token ledger.
@@ -30,7 +30,7 @@ from contextlib import contextmanager
 from types import SimpleNamespace
 from typing import Any
 
-__all__ = ["StubLiteLLM", "install_stub_litellm"]
+__all__ = ["StubOpenAICompat", "install_stub_openai_compat"]
 
 _LINE_DATE = re.compile(r"\[(\d{4}-\d{2}-\d{2})\]")
 _NUMBERED = re.compile(r"^\s*\[(\d+)\]", re.M)
@@ -53,7 +53,7 @@ def _quote(text: str) -> str:
     return '"' + text.replace("\\", " ").replace('"', "'")[:160] + '"'
 
 
-class StubLiteLLM:
+class StubOpenAICompat:
     """The stub transport. ``calls`` counts completions per detected caller kind."""
 
     def __init__(self, think_unless_no_think: bool = True) -> None:
@@ -236,16 +236,50 @@ class StubLiteLLM:
 
 
 @contextmanager
-def install_stub_litellm(stub: StubLiteLLM | None = None) -> Iterator[StubLiteLLM]:
-    """Swap LiteLLM's network entry points for ``stub`` for the duration of the block."""
-    import litellm
+def install_stub_openai_compat(stub: StubOpenAICompat | None = None) -> Iterator[StubOpenAICompat]:
+    """Install an HTTP MockTransport; all model traffic is answered without sockets."""
+    import json
+    from unittest.mock import patch
 
-    stub = stub or StubLiteLLM()
-    saved = (litellm.acompletion, litellm.aembedding, litellm.arerank)
-    litellm.acompletion = stub.acompletion
-    litellm.aembedding = stub.aembedding
-    litellm.arerank = stub.arerank
-    try:
+    import httpx
+
+    from memspine.clients.http import HttpConnector, HttpSpec
+    from memspine.clients.openai_compat import OpenAICompatConnector
+
+    stub = stub or StubOpenAICompat()
+
+    def plain(value: Any) -> Any:
+        if isinstance(value, SimpleNamespace):
+            return {key: plain(item) for key, item in vars(value).items()}
+        if isinstance(value, dict):
+            return {key: plain(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [plain(item) for item in value]
+        return value
+
+    async def respond(request: httpx.Request) -> httpx.Response:
+        kwargs = json.loads(request.content)
+        path = request.url.path
+        if path.endswith("/embeddings"):
+            payload = plain(await stub.aembedding(**kwargs))
+        elif path.endswith("/rerank"):
+            payload = plain(await stub.arerank(**kwargs))
+        else:
+            payload = plain(await stub.acompletion(**kwargs))
+            if path == "/api/chat":
+                payload = {
+                    "message": payload["choices"][0]["message"],
+                    "prompt_eval_count": payload["usage"]["prompt_tokens"],
+                    "eval_count": payload["usage"]["completion_tokens"],
+                }
+        return httpx.Response(200, json=payload)
+
+    original = OpenAICompatConnector.__init__
+
+    def initialize(self: Any, spec: Any, *, http: Any = None) -> None:
+        # A new pool per connector keeps loop ownership and tenant lifetimes independent.
+        original(self, spec, http=HttpConnector(HttpSpec(transport=httpx.MockTransport(respond))))
+        self._owns_http = True
+
+    with patch.object(OpenAICompatConnector, "__init__", initialize):
         yield stub
-    finally:
-        litellm.acompletion, litellm.aembedding, litellm.arerank = saved

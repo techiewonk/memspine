@@ -104,9 +104,9 @@ def _overrides(name: str, db: str | Path) -> dict[str, Any]:
             "embedding": {"provider": "hash", "settings": {}},
             "llm": {
                 "window_extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 10.0,
-                    "settings": {"model": "stub/window"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "stub/window"},
                 }
             },
         },

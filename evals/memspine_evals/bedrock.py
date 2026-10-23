@@ -3,7 +3,7 @@
 Titan v2 remains available as an alternative embedder.
 
 Credentials come from the repo's ``.env``, but **only the AWS keys are exported**
-to the process (boto3/LiteLLM read them from the environment). Nothing else in
+to the process (boto3/OpenAICompat read them from the environment). Nothing else in
 ``.env`` is loaded — it may hold unrelated production secrets.
 
 Every call goes through a :class:`CallBudget`, a hard cap that raises before the
@@ -45,20 +45,20 @@ __all__ = [
     "TITAN_V2_DIM",
     "BudgetExceeded",
     "CallBudget",
-    "LiteLLMReader",
+    "OpenAICompatReader",
     "aws_region_from_env",
     "bedrock_engine_config",
     "cached_prompt_tokens",
     "engine_llm_config",
     "estimate_prompt_tokens",
-    "litellm_chat",
+    "openai_compat_chat",
     "load_aws_credentials",
     "merge_engine_llm_roles",
     "parse_price",
     "parse_service_price",
 ]
 
-#: LiteLLM model ids, verified on-demand in us-east-1 on 2026-09-30.
+#: OpenAICompat model ids, verified on-demand in us-east-1 on 2026-09-30.
 QWEN3_32B = "bedrock/converse/qwen.qwen3-32b-v1:0"
 QWEN3_NEXT_80B = "bedrock/converse/qwen.qwen3-next-80b-a3b"
 #: Default embedder: Cohere v4 requested at 1024 dims (Matryoshka; 256/512/1024/1536
@@ -140,13 +140,17 @@ def aws_region_from_env(default: str = "us-east-1") -> str:
 def engine_llm_config(
     model: str, region: str, roles: tuple[str, ...] = ENGINE_LLM_ROLES
 ) -> dict[str, Any]:
-    """``model.llm`` slots (ADR-082) binding every engine role to one LiteLLM model in
+    """``model.llm`` slots (ADR-082) binding every engine role to one OpenAICompat model in
     ``region``."""
     return {
         role: {
-            "provider": "litellm",
+            "provider": "openai_compatible",
             "timeout_s": 180.0,
-            "settings": {"model": model, "aws_region": region},
+            "settings": {
+                "api_base": "http://test.invalid/v1",
+                "model": model,
+                "aws_region": region,
+            },
         }
         for role in roles
     }
@@ -252,12 +256,16 @@ def bedrock_engine_config(
         settings["document_input_type"] = "search_document"
     return {
         "model": {
-            "embedding": {"provider": "litellm", "settings": settings},
+            "embedding": {"provider": "openai_compatible", "settings": settings},
             "llm": {
                 role: {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": llm_timeout_seconds,
-                    "settings": {"model": llm_model, "aws_region": region},
+                    "settings": {
+                        "api_base": "http://test.invalid/v1",
+                        "model": llm_model,
+                        "aws_region": region,
+                    },
                 }
                 for role in roles
             },
@@ -400,7 +408,7 @@ async def _retry_transient(
 
 
 def cached_prompt_tokens(usage: Any) -> int:
-    """C9': cache-served input tokens from a LiteLLM usage block, 0 if unreported.
+    """C9': cache-served input tokens from a OpenAICompat usage block, 0 if unreported.
 
     OpenAI-style providers report ``prompt_tokens_details.cached_tokens``;
     Anthropic/Bedrock-style ones ``cache_read_input_tokens``.
@@ -417,8 +425,8 @@ def cached_prompt_tokens(usage: Any) -> int:
         return 0
 
 
-class LiteLLMReader:
-    """Reader over any LiteLLM model (Bedrock Qwen3 by default), budget-capped."""
+class OpenAICompatReader:
+    """Reader over any OpenAICompat model (Bedrock Qwen3 by default), budget-capped."""
 
     makes_model_calls = True
 
@@ -435,7 +443,7 @@ class LiteLLMReader:
         retry_base_delay: float = 1.0,
         extract_answer: bool = False,
     ) -> None:
-        import litellm
+        from .model_transport import HarnessEndpoint
 
         #: #34: ``answer`` keeps only the final answer of a reasoning prompt.
         self.extract_answer = extract_answer
@@ -443,14 +451,13 @@ class LiteLLMReader:
         self.retry_attempts = max(1, int(retry_attempts))
         self.retry_base_delay = retry_base_delay
 
-        litellm.suppress_debug_info = True
-        self._litellm = litellm
+        self._openai_compat = HarnessEndpoint()
         self.budget = budget
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.prompt = prompt
-        self.reader_id = reader_id or f"litellm:{model}"
+        self.reader_id = reader_id or f"openai_compatible:{model}"
         # Qwen3 thinks by default and AWS documents no switch; Qwen's model card
         # documents the /no_think soft switch. Default ON for qwen3 models, so a
         # reader's token budget is not spent on hidden reasoning.
@@ -485,7 +492,7 @@ class LiteLLMReader:
         # reservation covers the retries: a failed attempt returned no tokens); an
         # expired or invalid credential is not, and the runner stops the run on it.
         response = await _retry_transient(
-            lambda: self._litellm.acompletion(
+            lambda: self._openai_compat.acompletion(
                 model=self.model,
                 messages=messages,
                 temperature=self.temperature,
@@ -531,19 +538,19 @@ class LiteLLMReader:
         return replace(reply, text=final_answer(reply.text), raw_text=reply.text)
 
 
-def litellm_chat(
+def openai_compat_chat(
     budget: CallBudget, model: str = QWEN3_32B, temperature: float = 0.0, max_tokens: int = 96
 ) -> Any:
     """A bare ``async (prompt) -> str`` callable for ``LLMJudge``, budget-capped."""
     # 96 tokens: the LoCoMo judge format emits a JSON label; 16 truncated it.
-    reader = LiteLLMReader(budget, model=model, temperature=temperature, max_tokens=max_tokens)
+    reader = OpenAICompatReader(budget, model=model, temperature=temperature, max_tokens=max_tokens)
 
     async def chat(prompt: str, system: str | None = None) -> str:
         return (await reader.complete(prompt, system=system)).text
 
     # R3-11: the judge records these in its spec.
     chat.params = {  # type: ignore[attr-defined]
-        "endpoint": "litellm",
+        "endpoint": "openai_compatible",
         "temperature": temperature,
         "max_tokens": max_tokens,
         "no_think": reader.no_think,

@@ -66,7 +66,7 @@ def rerank_stats(eng: Any) -> dict[str, Any]:
 def model_usage(eng: Any) -> dict[str, dict[str, Any]]:
     """Per-role LLM spend since ``start()``: ``{"model", "calls", "prompt", "completion"}``.
 
-    Token counts are the provider's own usage report where it gives one (LiteLLM),
+    Token counts are the provider's own usage report where it gives one (OpenAICompat),
     else a four-characters-per-token estimate. Roles never called are omitted.
     """
     if eng._llm is None:

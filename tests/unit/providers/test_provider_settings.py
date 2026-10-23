@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from memspine.config.schema.providers import SqliteSettings
 from memspine.providers.settings import (
     EmptySettings,
-    LiteLLMRoleSettings,
+    OpenAICompatRoleSettings,
     LlamaCppRoleSettings,
     Neo4jSettings,
     ProviderServicesSettings,
@@ -55,12 +55,12 @@ def test_provider_timeouts_are_required_finite_and_allow_explicit_none_startup()
 def test_enabled_llm_role_requires_an_explicit_positive_request_timeout() -> None:
     base = {"model": "openai/example", "api_key": "${secret:OPENAI_API_KEY}"}
     with pytest.raises(ValidationError):
-        LiteLLMRoleSettings.model_validate(base)
-    settings = LiteLLMRoleSettings.model_validate({**base, "timeout_seconds": 30.0})
+        OpenAICompatRoleSettings.model_validate(base)
+    settings = OpenAICompatRoleSettings.model_validate({**base, "timeout_seconds": 30.0})
     assert settings.timeout_seconds == 30.0
     assert (settings.temperature, settings.top_p, settings.max_tokens) == (0.2, 1.0, 2048)
     with pytest.raises(ValidationError):
-        LiteLLMRoleSettings.model_validate({**base, "timeout_seconds": float("inf")})
+        OpenAICompatRoleSettings.model_validate({**base, "timeout_seconds": float("inf")})
 
 
 def test_llm_adapters_have_distinct_native_generation_and_runtime_settings() -> None:
@@ -75,7 +75,7 @@ def test_llm_adapters_have_distinct_native_generation_and_runtime_settings() -> 
     with pytest.raises(ValidationError):
         LlamaCppRoleSettings(model="openai/model", timeout_seconds=4.0)
     with pytest.raises(ValidationError):
-        LiteLLMRoleSettings(
+        OpenAICompatRoleSettings(
             model="openai/model",
             timeout_seconds=4.0,
             n_ctx=8192,

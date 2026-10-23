@@ -899,7 +899,16 @@ def test_r4_6_dense_same_embedder_and_matched_budget_arms(
     with pytest.raises(ValueError, match="onnx"):
         experiments.memspine_embedding_model(
             experiments.C01Config(
-                memspine_config={"model": {"embedding": {"provider": "litellm", "settings": {}}}}
+                memspine_config={
+                    "model": {
+                        "embedding": {
+                            "provider": "openai_compatible",
+                            "settings": {
+                                "api_base": "http://test.invalid/v1",
+                            },
+                        }
+                    }
+                }
             )
         )
 

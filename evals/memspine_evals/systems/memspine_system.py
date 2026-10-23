@@ -463,17 +463,19 @@ class MemspineSystem:
         return dict(stats()) if callable(stats) else None
 
     def _embed_model(self) -> str | None:
-        """C-6: the paid (LiteLLM) embedder's model id, None for a local one."""
+        """C-6: the paid (OpenAICompat) embedder's model id, None for a local one."""
         embedding = dict((self.config.get("model") or {}).get("embedding") or {})
         settings = dict(embedding.get("settings") or {})
-        return str(settings.get("model")) if embedding.get("provider") == "litellm" else None
+        return (
+            str(settings.get("model")) if embedding.get("provider") == "openai_compatible" else None
+        )
 
     def _rerank_model(self) -> str | None:
-        """C-6: the paid (LiteLLM) reranker's model id, None for a local one or none."""
+        """C-6: the paid (OpenAICompat) reranker's model id, None for a local one or none."""
         chain = ((self.config.get("model") or {}).get("rerank") or {}).get("chain") or []
         first = dict(chain[0]) if chain else {}  # ADR-082: the first chain entry is primary
         settings = dict(first.get("settings") or {})
-        return str(settings.get("model")) if first.get("provider") == "litellm" else None
+        return str(settings.get("model")) if first.get("provider") == "openai_compatible" else None
 
     def _embed_services(self, texts: list[str]) -> dict[str, float]:
         """C-6: estimated embedding tokens for ``texts`` (the harness token counter; the

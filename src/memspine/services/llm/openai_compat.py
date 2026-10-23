@@ -1,19 +1,7 @@
-"""Unified LLM provider via LiteLLM (D-07/D-33/D-39): cloud + OpenAI-compatible
-local behind one adapter (supersedes the hand-rolled ``OpenAICompatLLM``).
+"""Chat service over an injected model connector (ADR-085).
 
-The litellm ``model`` string carries the provider — ``openai/gpt-4o``,
-``ollama/llama3`` (local; set ``api_base``), ``bedrock/anthropic.claude-...``
-(set ``aws_region`` or rely on the boto3 credential chain), ``vertex_ai/...``,
-``azure/...``, or any of litellm's 100+ providers. litellm is a core dep now
-(amends D-03/D-33) but imported lazily on first ``chat`` so a default engine
-with no LLM role never pays its multi-second import cost.
-
-Qwen3 thinks by default and emits a ``<think>...</think>`` block before its
-answer: the block costs output tokens and breaks YAML/JSON parsing of the
-structured roles. The adapter appends Qwen's documented ``/no_think`` soft
-switch to the last user message (on by default for ``qwen3`` model ids). A
-think block that leads a reply is stripped for every model; the repair rules
-for unclosed or stray tags apply only to thinking models (see ``strip_think``).
+Preserves bounded retries, Qwen no-thinking rules and per-call/lifetime token usage.
+Transport and server dialect translation belong to clients, not this adapter.
 """
 
 from __future__ import annotations
@@ -22,11 +10,11 @@ import asyncio
 import re
 from typing import Any
 
-from memspine.clients.litellm import LiteLLMConnector, LiteLLMSpec
+from memspine.clients.openai_compat import OpenAICompatConnector, OpenAICompatSpec
 from memspine.exceptions import LLMError
 from memspine.services._retry import retry_transient
 
-__all__ = ["LiteLLMLLM", "default_no_think", "strip_think"]
+__all__ = ["OpenAICompatLLM", "default_no_think", "strip_think"]
 
 _THINK_BLOCK = re.compile(r"<think>.*?</think>", re.S)
 _LEADING_THINK = re.compile(r"^\s*<think>.*?</think>", re.S)
@@ -61,7 +49,7 @@ def strip_think(text: str, *, lenient: bool = False) -> str:
     return cleaned.strip() if cleaned != text else text
 
 
-#: litellm provider prefixes served by Ollama, which takes ``think=False`` to switch reasoning off.
+#: openai_compat provider prefixes served by Ollama, which takes ``think=False`` to switch reasoning off.
 _OLLAMA_PREFIXES = frozenset({"ollama", "ollama_chat"})
 
 
@@ -77,8 +65,8 @@ def _with_no_think(messages: list[dict[str, str]]) -> list[dict[str, str]]:
     return out
 
 
-class LiteLLMLLM:
-    """``connector`` is the injected transport (the ``litellm``/``ollama``/``vllm``/``bedrock``
+class OpenAICompatLLM:
+    """``connector`` is the injected transport (the ``openai_compat``/``ollama``/``vllm``/``bedrock``
     descriptors build it); without one, ``api_base``/``api_key``/``aws_region`` describe a
     private connector for standalone use."""
 
@@ -86,21 +74,22 @@ class LiteLLMLLM:
         self,
         model: str,
         *,
-        connector: LiteLLMConnector | None = None,
-        api_base: str | None = None,
+        connector: Any = None,
+        api_base: str | None = "http://localhost:8000/v1",
         api_key: str | None = None,
-        aws_region: str | None = None,
         timeout_seconds: float = 60.0,
         no_think: bool | None = None,
         temperature: float = 0.2,
         top_p: float = 1.0,
         max_tokens: int = 2048,
-        provider: str = "litellm",
+        provider: str = "openai_compatible",
     ) -> None:
         self._model = model
-        self._connector = connector or LiteLLMConnector(
-            LiteLLMSpec(api_base=api_base, api_key=api_key, aws_region=aws_region)
+        self._connector = connector or OpenAICompatConnector(
+            OpenAICompatSpec(api_base=api_base, api_key=api_key)
         )
+        self.supports_json_schema = True
+        self.supports_grammar = False
         self._provider = provider
         self._timeout = timeout_seconds
         self._generation_defaults = {
@@ -131,7 +120,7 @@ class LiteLLMLLM:
             "timeout": self._timeout,
             **self._generation_defaults,
         }
-        if self.no_think and self._model.split("/", 1)[0] in _OLLAMA_PREFIXES:
+        if self.no_think and self._provider == "ollama":
             # Ollama ignores the ``/no_think`` suffix for Qwen3.5: the model reasons until max_tokens and the
             # content comes back empty (86% of window calls failed, 2026-10-12). Its own switch works.
             kwargs["think"] = False
@@ -146,16 +135,19 @@ class LiteLLMLLM:
                 ),
                 what=f"chat:{self._model}",
             )
-            content = response.choices[0].message.content
+            content = response["choices"][0]["message"].get("content")
         except Exception as exc:
-            raise LLMError(f"litellm chat failed for model {self._model!r}: {exc}") from exc
-        usage = getattr(response, "usage", None)
-        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or 0)
-        completion_tokens = int(getattr(usage, "completion_tokens", 0) or 0)
+            raise LLMError(f"openai_compat chat failed for model {self._model!r}: {exc}") from exc
+        usage = response.get("usage")
+        prompt_tokens = int((usage or {}).get("prompt_tokens", 0) or 0)
+        completion_tokens = int((usage or {}).get("completion_tokens", 0) or 0)
         self.usage_totals[0] += prompt_tokens
         self.usage_totals[1] += completion_tokens
         self.last_usage = (prompt_tokens, completion_tokens) if usage is not None else None
         if content is None:
-            raise LLMError(f"litellm returned empty content for model {self._model!r}")
+            raise LLMError(f"openai_compat returned empty content for model {self._model!r}")
         lenient = self.no_think or default_no_think(self._model)
         return strip_think(str(content), lenient=lenient)
+
+    async def aclose(self) -> None:
+        await self._connector.close()

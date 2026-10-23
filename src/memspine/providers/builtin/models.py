@@ -1,13 +1,13 @@
 """Built-in LLM and embedding descriptors (slots ``model.llm`` and ``model.embedding``).
 
 Each builder maps typed settings to a connector (``clients.weights.<lib>`` for local weights,
-``clients.litellm`` for remote endpoints) and injects it into the adapter (RM-113). Local
+``clients.openai_compat`` for remote endpoints) and injects it into the adapter (RM-113). Local
 weights come from the process registry when an Engine builds them (ADR-079 / RM-73) and the
 Engine lifecycle releases its lease. Rerank descriptors live in ``builtin/rerank.py``,
 extraction in ``builtin/extraction.py`` and deciders in ``builtin/decider.py``.
 
 The ``ollama``, ``vllm`` and ``bedrock`` LLM providers are their own descriptors over the
-LiteLLM connector; the route (``ollama_chat/``, ``hosted_vllm/``, ``bedrock/``) is fixed by
+OpenAICompat connector; the route (``ollama_chat/``, ``hosted_vllm/``, ``bedrock/``) is fixed by
 the descriptor, never inferred from a model-name prefix (ADR-068).
 """
 
@@ -21,7 +21,7 @@ from pydantic import BaseModel
 
 from memspine.config.schema.providers import (
     HashEmbeddingSettings,
-    LiteLLMEmbeddingSettings,
+    OpenAICompatEmbeddingSettings,
     OnnxEmbeddingSettings,
     SentenceTransformersEmbeddingSettings,
     StaticEmbeddingSettings,
@@ -35,10 +35,11 @@ from memspine.providers.contracts import (
 )
 from memspine.providers.registry import EMBEDDERS, LLM_PROVIDERS, ProviderDescriptor
 from memspine.providers.settings import (
+    AnyLLMRoleSettings,
     BedrockRoleSettings,
-    LiteLLMRoleSettings,
     LlamaCppRoleSettings,
     OllamaRoleSettings,
+    OpenAICompatRoleSettings,
     VllmRoleSettings,
 )
 from memspine.providers.shared import ResourceRegistry
@@ -56,7 +57,11 @@ class _SyncBuilder:
 
     async def build(self, settings: Any, ctx: Any) -> BuildResult[Any]:
         service = self.factory(settings, ctx)
-        return BuildResult(service, self.ref, (), self.capabilities)
+        close = getattr(service, "aclose", None)
+        refs = ()
+        if isinstance(ctx, LLMBuildContext) and callable(close):
+            refs = (ctx.shared.resources.own(ctx.resource_key or f"llm:{ctx.role}", close),)
+        return BuildResult(service, self.ref, refs, self.capabilities)
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,24 +189,25 @@ def _embed_static(settings: StaticEmbeddingSettings, registry: ResourceRegistry 
     )
 
 
-def _embed_litellm(settings: LiteLLMEmbeddingSettings, _registry: ResourceRegistry | None) -> Any:
+def _embed_openai_compat(
+    settings: OpenAICompatEmbeddingSettings, _registry: ResourceRegistry | None
+) -> Any:
     if settings.dim is None:
-        raise _missing_dim("litellm")
-    from memspine.clients.litellm import LiteLLMConnector, LiteLLMSpec
-    from memspine.services.embedding.litellm import LiteLLMEmbedding
+        raise _missing_dim("openai_compatible")
+    from memspine.clients.openai_compat import OpenAICompatConnector, OpenAICompatSpec
+    from memspine.services.embedding.openai_compat import OpenAICompatEmbedding
 
-    return LiteLLMEmbedding(
+    return OpenAICompatEmbedding(
         settings.model,
         settings.dim,
         request_timeout_s=settings.request_timeout_s,
         request_dimensions=settings.request_dimensions,
         query_input_type=settings.query_input_type,
         document_input_type=settings.document_input_type,
-        connector=LiteLLMConnector(
-            LiteLLMSpec(
+        connector=OpenAICompatConnector(
+            OpenAICompatSpec(
                 api_base=settings.api_base,
                 api_key=settings.api_key,
-                aws_region=settings.aws_region,
                 timeout_s=settings.request_timeout_s,
             )
         ),
@@ -231,25 +237,29 @@ def _embed_st(
     )
 
 
-# -- llm (LiteLLM connector) -------------------------------------------------------------------
+# -- llm (OpenAICompat connector) -------------------------------------------------------------------
 
 
-def _litellm_llm(
+def _openai_compat_llm(
     route_model: str,
     settings: Any,
     *,
     provider: str,
     api_base: str | None = None,
     api_key: str | None = None,
-    aws_region: str | None = None,
 ) -> Any:
-    from memspine.clients.litellm import LiteLLMConnector, LiteLLMSpec
-    from memspine.services.llm.litellm import LiteLLMLLM
+    from memspine.clients.openai_compat import OpenAICompatConnector, OpenAICompatSpec
+    from memspine.services.llm.openai_compat import OpenAICompatLLM
 
-    return LiteLLMLLM(
+    return OpenAICompatLLM(
         route_model,
-        connector=LiteLLMConnector(
-            LiteLLMSpec(api_base=api_base, api_key=api_key, aws_region=aws_region)
+        connector=OpenAICompatConnector(
+            OpenAICompatSpec(
+                api_base=api_base,
+                api_key=api_key,
+                api_key_env=getattr(settings, "api_key_env", None),
+                family=provider,
+            )
         ),
         timeout_seconds=settings.timeout_seconds,
         no_think=settings.no_think,
@@ -264,26 +274,25 @@ def _secret(value: Any) -> str | None:
     return value.get_secret_value() if value is not None else None
 
 
-def _llm_litellm(settings: LiteLLMRoleSettings, _ctx: Any) -> Any:
-    return _litellm_llm(
+def _llm_openai_compat(settings: OpenAICompatRoleSettings, _ctx: Any) -> Any:
+    return _openai_compat_llm(
         settings.model,
         settings,
-        provider="litellm",
+        provider="openai_compatible",
         api_base=settings.api_base,
         api_key=_secret(settings.api_key),
-        aws_region=settings.aws_region,
     )
 
 
 def _llm_ollama(settings: OllamaRoleSettings, _ctx: Any) -> Any:
-    return _litellm_llm(
-        f"ollama_chat/{settings.model}", settings, provider="ollama", api_base=settings.api_base
+    return _openai_compat_llm(
+        settings.model, settings, provider="ollama", api_base=settings.api_base
     )
 
 
 def _llm_vllm(settings: VllmRoleSettings, _ctx: Any) -> Any:
-    return _litellm_llm(
-        f"hosted_vllm/{settings.model}",
+    return _openai_compat_llm(
+        settings.model,
         settings,
         provider="vllm",
         api_base=settings.api_base,
@@ -291,10 +300,62 @@ def _llm_vllm(settings: VllmRoleSettings, _ctx: Any) -> Any:
     )
 
 
-def _llm_bedrock(settings: BedrockRoleSettings, _ctx: Any) -> Any:
-    return _litellm_llm(
-        f"bedrock/{settings.model}", settings, provider="bedrock", aws_region=settings.aws_region
+def _llm_lmstudio(settings: OpenAICompatRoleSettings, _ctx: Any) -> Any:
+    return _openai_compat_llm(
+        settings.model,
+        settings,
+        provider="lmstudio",
+        api_base=settings.api_base or "http://localhost:1234/v1",
+        api_key=_secret(settings.api_key),
     )
+
+
+def _llm_llamacpp_server(settings: OpenAICompatRoleSettings, _ctx: Any) -> Any:
+    return _openai_compat_llm(
+        settings.model,
+        settings,
+        provider="llamacpp_server",
+        api_base=settings.api_base or "http://localhost:8080/v1",
+        api_key=_secret(settings.api_key),
+    )
+
+
+def _llm_bedrock(settings: BedrockRoleSettings, _ctx: Any) -> Any:
+    from memspine.clients.bedrock import BedrockConnector, BedrockSpec
+    from memspine.services.llm.openai_compat import OpenAICompatLLM
+
+    service = OpenAICompatLLM(
+        settings.model,
+        connector=BedrockConnector(BedrockSpec(settings.aws_region, settings.timeout_seconds)),
+        timeout_seconds=settings.timeout_seconds,
+        no_think=settings.no_think,
+        temperature=settings.temperature,
+        top_p=settings.top_p,
+        max_tokens=settings.max_tokens,
+        provider="bedrock",
+    )
+    service.supports_json_schema = False
+    return service
+
+
+def _llm_anyllm(settings: AnyLLMRoleSettings, _ctx: Any) -> Any:
+    from memspine.clients.anyllm import AnyLLMConnector
+    from memspine.services.llm.openai_compat import OpenAICompatLLM
+
+    service = OpenAICompatLLM(
+        settings.model,
+        connector=AnyLLMConnector(
+            settings.upstream_provider, api_key_env=settings.api_key_env, api_base=settings.api_base
+        ),
+        timeout_seconds=settings.timeout_seconds,
+        no_think=settings.no_think,
+        temperature=settings.temperature,
+        top_p=settings.top_p,
+        max_tokens=settings.max_tokens,
+        provider="anyllm",
+    )
+    service.supports_json_schema = settings.supports_json_schema
+    return service
 
 
 def _register(
@@ -354,10 +415,10 @@ def _embedding_target_identity(name: str) -> Callable[[Any], dict[str, Any]]:
             "embedder_id": f"static:{settings.model}",
             "dimension": settings.dim,
         }
-    if name == "litellm":
+    if name == "openai_compatible":
         return lambda settings: {
             "embedder_id": (
-                f"litellm:{settings.model}"
+                f"openai_compatible:{settings.model}"
                 + (f"@{settings.dim}" if settings.request_dimensions else "")
                 + (
                     f"[{settings.document_input_type}|{settings.query_input_type}]"
@@ -388,10 +449,63 @@ def register() -> None:
         ],
         ...,
     ] = (
-        (LLM_PROVIDERS, "llm", "litellm", LiteLLMRoleSettings, _llm_litellm, "llm", True, (), None),
+        (
+            LLM_PROVIDERS,
+            "llm",
+            "openai_compatible",
+            OpenAICompatRoleSettings,
+            _llm_openai_compat,
+            "llm",
+            True,
+            (),
+            None,
+        ),
         (LLM_PROVIDERS, "llm", "ollama", OllamaRoleSettings, _llm_ollama, "llm", True, (), None),
         (LLM_PROVIDERS, "llm", "vllm", VllmRoleSettings, _llm_vllm, "llm", True, (), None),
-        (LLM_PROVIDERS, "llm", "bedrock", BedrockRoleSettings, _llm_bedrock, "llm", True, (), None),
+        (
+            LLM_PROVIDERS,
+            "llm",
+            "bedrock",
+            BedrockRoleSettings,
+            _llm_bedrock,
+            "llm",
+            True,
+            (DependencyRequirement("package", "boto3"),),
+            "aws",
+        ),
+        (
+            LLM_PROVIDERS,
+            "llm",
+            "anyllm",
+            AnyLLMRoleSettings,
+            _llm_anyllm,
+            "llm",
+            True,
+            (DependencyRequirement("package", "any_llm"),),
+            "anyllm",
+        ),
+        (
+            LLM_PROVIDERS,
+            "llm",
+            "lmstudio",
+            OpenAICompatRoleSettings,
+            _llm_lmstudio,
+            "llm",
+            True,
+            (),
+            None,
+        ),
+        (
+            LLM_PROVIDERS,
+            "llm",
+            "llamacpp_server",
+            OpenAICompatRoleSettings,
+            _llm_llamacpp_server,
+            "llm",
+            True,
+            (),
+            None,
+        ),
         (
             EMBEDDERS,
             "embedding",
@@ -428,9 +542,9 @@ def register() -> None:
         (
             EMBEDDERS,
             "embedding",
-            "litellm",
-            LiteLLMEmbeddingSettings,
-            _embed_litellm,
+            "openai_compatible",
+            OpenAICompatEmbeddingSettings,
+            _embed_openai_compat,
             "embedding",
             True,
             (),

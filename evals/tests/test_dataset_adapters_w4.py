@@ -145,7 +145,7 @@ def test_mab_fact_consolidation_runs_offline_with_stub_llm(tmp_path: Path) -> No
     from memspine_evals.provenance import RunProtocol
     from memspine_evals.readers import ContextOnlyReader
     from memspine_evals.runner import EvalRunner, RunConfig
-    from memspine_evals.stub_llm import install_stub_litellm
+    from memspine_evals.stub_llm import install_stub_openai_compat
     from memspine_evals.systems.memspine_system import MemspineSystem
 
     data = tmp_path / "Conflict_Resolution.parquet"
@@ -173,7 +173,7 @@ def test_mab_fact_consolidation_runs_offline_with_stub_llm(tmp_path: Path) -> No
         finally:
             await system.close()
 
-    with install_stub_litellm() as stub:
+    with install_stub_openai_compat() as stub:
         summary = asyncio.run(run_and_close())
     assert sum(stub.calls.values()) == 0 and summary.model_calls == 0
     assert summary.n_queries == 1 and summary.n_errors == 0

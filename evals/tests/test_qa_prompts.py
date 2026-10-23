@@ -128,10 +128,10 @@ def test_openai_compat_reader_extracts_only_when_asked(extract: bool) -> None:
     assert reader.describe().get("extract_answer", False) is extract
 
 
-def test_litellm_reader_extracts_in_answer_not_in_complete() -> None:
+def test_openai_compat_reader_extracts_in_answer_not_in_complete() -> None:
     from types import SimpleNamespace
 
-    from memspine_evals.bedrock import CallBudget, LiteLLMReader
+    from memspine_evals.bedrock import CallBudget, OpenAICompatReader
     from memspine_evals.readers import DATED3_QA_PROMPT
 
     async def acompletion(**kwargs: object) -> object:
@@ -140,10 +140,10 @@ def test_litellm_reader_extracts_in_answer_not_in_complete() -> None:
             usage=None, choices=[SimpleNamespace(message=message, finish_reason="stop")]
         )
 
-    reader = LiteLLMReader(
+    reader = OpenAICompatReader(
         CallBudget(max_calls=3), model="m", prompt=DATED3_QA_PROMPT, extract_answer=True
     )
-    reader._litellm = SimpleNamespace(acompletion=acompletion)  # type: ignore[assignment]
+    reader._openai_compat = SimpleNamespace(acompletion=acompletion)  # type: ignore[assignment]
     assert asyncio.run(reader.answer("How does dance feel?", "ctx")).text == "magical"
     # The judge path (complete) is never post-processed.
     assert asyncio.run(reader.complete("x")).text.endswith("Answer: magical")
@@ -161,7 +161,7 @@ def test_build_reader_wires_the_reasoning_prompts(
 
     from memspine_evals.experiments import C01Config, build_reader_and_judge
 
-    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "openai_compatible", SimpleNamespace())
     config = C01Config(
         mode="qa", bedrock=bedrock, max_model_calls=5, qa_prompt=qa_prompt, categories=(1, 2, 3, 4)
     )
@@ -200,7 +200,7 @@ def test_describe_records_the_answer_extractor_only_when_extracting(
 
     from memspine_evals.experiments import C01Config, build_reader_and_judge
 
-    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "openai_compatible", SimpleNamespace())
     config = C01Config(
         mode="qa", bedrock=bedrock, max_model_calls=5, qa_prompt=qa_prompt, categories=(1, 2, 3, 4)
     )

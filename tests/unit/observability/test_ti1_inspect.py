@@ -137,9 +137,9 @@ async def _engine(
             "embedding": {"provider": "hash", "settings": {}},
             "llm": {
                 "window_extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "fake/window"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "fake/window"},
                 }
             },
             "rerank": {"chain": []},
@@ -460,14 +460,14 @@ async def test_read_side_events(monkeypatch) -> None:
         model={
             "llm": {
                 "window_extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "fake/window"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "fake/window"},
                 },
                 "plan": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "fake/plan"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "fake/plan"},
                 },
             },
             "rerank": {"chain": []},

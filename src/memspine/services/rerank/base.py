@@ -2,7 +2,7 @@
 
 Adapters: ``onnx_rerank`` (ONNX ``TextCrossEncoder``, rides the core
 onnx dependency when the installed version ships rerankers) and
-``flashrank_rerank`` (``[rerank]`` extra), ``litellm_rerank`` (cloud endpoints) and
+``flashrank_rerank`` (``[rerank]`` extra), ``openai_compat_rerank`` (cloud endpoints) and
 ``qwen3_rerank`` (Qwen3-Reranker, ``[st]`` extra). The engine treats an unavailable
 adapter as a skipped stage (one info log), never a failed retrieval.
 

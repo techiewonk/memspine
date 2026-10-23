@@ -50,9 +50,9 @@ def _config(**offline: Any) -> dict[str, Any]:
             "embedding": {"provider": "hash", "settings": {}},
             "llm": {
                 "session_close": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "fake/close"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "fake/close"},
                 }
             },
         },

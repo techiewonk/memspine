@@ -538,7 +538,7 @@ async def check_event_time() -> bool:
 
 async def check_c2_query_input_type() -> bool:
     from memspine.services.embedding.base import embed_queries
-    from memspine.services.embedding.litellm import LiteLLMEmbedding
+    from memspine.services.embedding.openai_compat import OpenAICompatEmbedding
 
     calls: list[dict[str, Any]] = []
 
@@ -546,10 +546,10 @@ async def check_c2_query_input_type() -> bool:
         calls.append(kwargs)
         return SimpleNamespace(data=[{"embedding": [0.0] * 4} for _ in kwargs["input"]])
 
-    saved = sys.modules.get("litellm")
-    sys.modules["litellm"] = types.SimpleNamespace(aembedding=aembedding)  # type: ignore[assignment]
+    saved = sys.modules.get("openai_compatible")
+    sys.modules["openai_compatible"] = types.SimpleNamespace(aembedding=aembedding)  # type: ignore[assignment]
     try:
-        emb = LiteLLMEmbedding(
+        emb = OpenAICompatEmbedding(
             "bedrock/cohere.embed-v4:0",
             4,
             query_input_type="search_query",
@@ -559,9 +559,9 @@ async def check_c2_query_input_type() -> bool:
         await embed_queries(emb, ["q"])
     finally:
         if saved is None:
-            sys.modules.pop("litellm", None)
+            sys.modules.pop("openai_compatible", None)
         else:
-            sys.modules["litellm"] = saved
+            sys.modules["openai_compatible"] = saved
     return [c.get("input_type") for c in calls] == ["search_document", "search_query"]
 
 

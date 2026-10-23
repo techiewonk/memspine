@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from memspine.clients.litellm import LiteLLMConnector, LiteLLMSpec
+from memspine.clients.openai_compat import OpenAICompatConnector, OpenAICompatSpec
 from memspine.clients.weights.shared import PrivateWeightRegistry, SharedWeights
 from memspine.providers.contexts import ExtractionBuildContext, SharedBuildContext
 from memspine.providers.lifecycle import ProviderLifecycleManager
@@ -45,7 +45,7 @@ def test_model_slot_categories() -> None:
     assert _descriptor("deciders", "heuristic").declared_capabilities == {"decider", "decide"}
 
 
-# -- llm: ollama / vllm / bedrock are their own descriptors over the litellm connector --------
+# -- llm: ollama / vllm / bedrock are their own descriptors over the openai_compat connector --------
 
 
 @pytest.mark.parametrize(
@@ -54,23 +54,16 @@ def test_model_slot_categories() -> None:
         (
             "ollama",
             {"model": "qwen3:8b", "timeout_seconds": 30.0},
-            "ollama_chat/qwen3:8b",
+            "qwen3:8b",
             "http://localhost:11434",
-            "ollama:ollama_chat/qwen3:8b",
+            "ollama:qwen3:8b",
         ),
         (
             "vllm",
             {"model": "Qwen/Qwen3-8B", "timeout_seconds": 30.0, "api_base": "http://gpu:8000/v1"},
-            "hosted_vllm/Qwen/Qwen3-8B",
+            "Qwen/Qwen3-8B",
             "http://gpu:8000/v1",
-            "vllm:hosted_vllm/Qwen/Qwen3-8B",
-        ),
-        (
-            "bedrock",
-            {"model": "anthropic.claude-x", "timeout_seconds": 30.0, "aws_region": "eu-west-1"},
-            "bedrock/anthropic.claude-x",
-            None,
-            "bedrock:bedrock/anthropic.claude-x",
+            "vllm:Qwen/Qwen3-8B",
         ),
     ],
 )
@@ -82,7 +75,9 @@ async def test_llm_route_is_fixed_by_the_descriptor(
     api_base: str | None,
     provider_id: str,
 ) -> None:
-    import litellm
+    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+
+    install_transport(monkeypatch)
 
     seen: dict[str, Any] = {}
 
@@ -97,14 +92,14 @@ async def test_llm_route_is_fixed_by_the_descriptor(
         seen.update(kwargs)
         return _Response()
 
-    monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
+    monkeypatch.setattr(openai_compat, "acompletion", fake_acompletion)
     descriptor = _descriptor("llm_providers", name)
     assert descriptor.requires_deployment_id
     built = await descriptor.builder.build(validate_settings(descriptor, settings), None)
     assert built.service.provider_id == provider_id
     assert await built.service.chat([{"role": "user", "content": "hi"}]) == "ok"
     assert seen["model"] == route
-    assert seen.get("api_base") == api_base
+    assert built.service._connector.spec.api_base == api_base
     if name == "bedrock":
         assert seen["aws_region_name"] == "eu-west-1"
 
@@ -130,24 +125,21 @@ def test_locality_of_the_new_llm_providers() -> None:
     assert not is_local_binding("bedrock", {"model": "m"})
 
 
-# -- the litellm connector --------------------------------------------------------------------
+# -- the openai_compat connector --------------------------------------------------------------------
 
 
-async def test_litellm_connector_owns_transport_and_hides_the_key() -> None:
-    connector = LiteLLMConnector(
-        LiteLLMSpec(api_base="http://localhost:4000", api_key="sk-secret", aws_region="us-east-1")
+async def test_openai_compat_connector_owns_transport_and_hides_the_key() -> None:
+    connector = OpenAICompatConnector(
+        OpenAICompatSpec(api_base="http://localhost:4000", api_key="sk-secret")
     )
-    assert connector.request_kwargs(timeout_s=3.0) == {
-        "timeout": 3.0,
-        "api_base": "http://localhost:4000",
-        "api_key": "sk-secret",
-        "aws_region_name": "us-east-1",
-    }
     identity = connector.identity()
     assert "sk-secret" not in repr(identity) and identity["auth"]
     assert "sk-secret" not in repr(connector.spec)
     assert connector.locality() == "host"
-    assert LiteLLMConnector(LiteLLMSpec(api_base="https://api.example")).locality() == "cluster"
+    assert (
+        OpenAICompatConnector(OpenAICompatSpec(api_base="https://api.example")).locality()
+        == "cluster"
+    )
     assert await connector.health() is True
     await connector.close()
     await connector.close()  # idempotent

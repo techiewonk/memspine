@@ -3,7 +3,7 @@
 Import-guarded: constructing without the extra raises MissingServiceError
 naming the fix (D-10). Inference runs in a worker thread (the lib is sync).
 
-Thinking control matches the LiteLLM adapter: ``no_think`` (on by default for
+Thinking control matches the OpenAICompat adapter: ``no_think`` (on by default for
 ``qwen3`` model files) appends the ``/no_think`` soft switch to the last user
 message, and every reply goes through ``strip_think`` (B-7).
 
@@ -25,7 +25,7 @@ from memspine.clients.weights.llama_cpp import LlamaCppSpec, load_native
 from memspine.clients.weights.llama_cpp import NativeLlama as _NativeLlama
 from memspine.clients.weights.shared import SharedWeights
 from memspine.exceptions import LLMError
-from memspine.services.llm.litellm import _with_no_think, default_no_think, strip_think
+from memspine.services.llm.openai_compat import _with_no_think, default_no_think, strip_think
 
 __all__ = ["LlamaCppLLM"]
 

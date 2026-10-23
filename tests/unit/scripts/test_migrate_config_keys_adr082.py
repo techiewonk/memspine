@@ -123,7 +123,10 @@ def test_embedding_profile_wins_over_embedder_profile() -> None:
 
 
 def test_llm_roles_become_model_llm() -> None:
-    role = {"provider": "litellm", "settings": {"model": "ollama/q"}}
+    role = {
+        "provider": "openai_compatible",
+        "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/q"},
+    }
     out, _ = mig({"llm": {"roles": {"extract": role, "judge": role}}})
     assert out == {"model": {"llm": {"extract": role, "judge": role}}}
 
@@ -135,8 +138,12 @@ def test_llm_binding_and_profile_expand_inline() -> None:
                 "profiles": {
                     "small": {
                         "kind": "llm",
-                        "provider": "litellm",
-                        "settings": {"m": 1, "timeout_seconds": 30.0},
+                        "provider": "openai_compatible",
+                        "settings": {
+                            "api_base": "http://test.invalid/v1",
+                            "m": 1,
+                            "timeout_seconds": 30.0,
+                        },
                     }
                 },
                 "bindings": {"chat": "small"},
@@ -144,7 +151,15 @@ def test_llm_binding_and_profile_expand_inline() -> None:
         }
     )
     assert out == {
-        "model": {"llm": {"chat": {"provider": "litellm", "timeout_s": 30.0, "settings": {"m": 1}}}}
+        "model": {
+            "llm": {
+                "chat": {
+                    "provider": "openai_compatible",
+                    "timeout_s": 30.0,
+                    "settings": {"api_base": "http://test.invalid/v1", "m": 1},
+                }
+            }
+        }
     }
     assert notes == []
 
@@ -155,15 +170,23 @@ def test_llm_settings_timeout_seconds_becomes_slot_timeout_s() -> None:
             "llm": {
                 "roles": {
                     "extract": {
-                        "provider": "litellm",
-                        "settings": {"model": "ollama/q", "timeout_seconds": 60.0},
+                        "provider": "openai_compatible",
+                        "settings": {
+                            "api_base": "http://test.invalid/v1",
+                            "model": "ollama/q",
+                            "timeout_seconds": 60.0,
+                        },
                     }
                 }
             }
         }
     )
     slot = out["model"]["llm"]["extract"]
-    assert slot == {"provider": "litellm", "timeout_s": 60.0, "settings": {"model": "ollama/q"}}
+    assert slot == {
+        "provider": "openai_compatible",
+        "timeout_s": 60.0,
+        "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/q"},
+    }
     assert list(slot) == ["provider", "timeout_s", "settings"]
     assert notes == []
     again = copy.deepcopy(out)
@@ -179,14 +202,18 @@ def test_llm_slot_without_timeout_is_reported() -> None:
 def test_python_llm_timeout_is_hoisted() -> None:
     value = py_value(
         """
-        cfg = {"llm": {"roles": {"extract": {"provider": "litellm",
-            "settings": {"model": "m", "timeout_seconds": 5.0}}}}}
+        cfg = {"llm": {"roles": {"extract": {"provider": "openai_compatible",
+            "settings": {"api_base": "http://test.invalid/v1", "model": "m", "timeout_seconds": 5.0}}}}}
         """
     )
     assert value == {
         "model": {
             "llm": {
-                "extract": {"provider": "litellm", "timeout_s": 5.0, "settings": {"model": "m"}}
+                "extract": {
+                    "provider": "openai_compatible",
+                    "timeout_s": 5.0,
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "m"},
+                }
             }
         }
     }
@@ -269,13 +296,21 @@ def test_escalation_targets_expand_to_inline_slots() -> None:
                 "profiles": {
                     "small": {
                         "kind": "llm",
-                        "provider": "litellm",
-                        "settings": {"model": "9b", "timeout_seconds": 60.0},
+                        "provider": "openai_compatible",
+                        "settings": {
+                            "api_base": "http://test.invalid/v1",
+                            "model": "9b",
+                            "timeout_seconds": 60.0,
+                        },
                     },
                     "big": {
                         "kind": "llm",
-                        "provider": "litellm",
-                        "settings": {"model": "27b", "timeout_seconds": 120.0},
+                        "provider": "openai_compatible",
+                        "settings": {
+                            "api_base": "http://test.invalid/v1",
+                            "model": "27b",
+                            "timeout_seconds": 120.0,
+                        },
                     },
                 },
                 "bindings": {"extract": "small"},
@@ -296,15 +331,15 @@ def test_escalation_targets_expand_to_inline_slots() -> None:
         "model": {
             "llm": {
                 "extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 60.0,
-                    "settings": {"model": "9b"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "9b"},
                     "escalation": {
                         "targets": [
                             {
-                                "provider": "litellm",
+                                "provider": "openai_compatible",
                                 "timeout_s": 120.0,
-                                "settings": {"model": "27b"},
+                                "settings": {"api_base": "http://test.invalid/v1", "model": "27b"},
                             }
                         ],
                         "triggers": ["error", "invalid_json"],
@@ -355,7 +390,12 @@ def test_catalogue_kinds_renamed_and_timeout_unchanged() -> None:
         {
             "models": {
                 "catalogue": [
-                    {"id": "q", "kind": "llm", "provider": "litellm", "timeout_seconds": 30.0},
+                    {
+                        "id": "q",
+                        "kind": "llm",
+                        "provider": "openai_compatible",
+                        "timeout_seconds": 30.0,
+                    },
                     {"id": "r", "kind": "reranker", "family": "jina"},
                     {"id": "e", "kind": "embedder", "profile": "gpu"},
                 ]
@@ -366,7 +406,12 @@ def test_catalogue_kinds_renamed_and_timeout_unchanged() -> None:
         "model": {
             "placement": {
                 "catalogue": [
-                    {"id": "q", "kind": "llm", "provider": "litellm", "timeout_seconds": 30.0},
+                    {
+                        "id": "q",
+                        "kind": "llm",
+                        "provider": "openai_compatible",
+                        "timeout_seconds": 30.0,
+                    },
                     {"id": "r", "kind": "rerank", "family": "jina"},
                     {"id": "e", "kind": "embedding", "profile": "gpu"},
                 ]
@@ -523,9 +568,18 @@ def test_decider_keys_without_selector_are_left() -> None:
 
 
 def test_read_rerank_with_settings_becomes_chain() -> None:
-    out, _ = mig({"read": {"rerank": "litellm", "rerank_settings": {"model": "cohere"}}})
+    out, _ = mig({"read": {"rerank": "openai_compatible", "rerank_settings": {"model": "cohere"}}})
     assert out == {
-        "model": {"rerank": {"chain": [{"provider": "litellm", "settings": {"model": "cohere"}}]}}
+        "model": {
+            "rerank": {
+                "chain": [
+                    {
+                        "provider": "openai_compatible",
+                        "settings": {"api_base": "http://test.invalid/v1", "model": "cohere"},
+                    }
+                ]
+            }
+        }
     }
 
 
@@ -711,7 +765,7 @@ def test_python_kwargs_keep_untouched_entries_and_comments() -> None:
         eng = Engine(
             template="core",
             # extraction role
-            llm={"roles": {"extract": {"provider": "litellm"}}},
+            llm={"roles": {"extract": {"provider": "openai_compatible"}}},
             read={"top_k": 5, "rerank": "onnx"},  # keep me
             strict_services=False,
         )
@@ -724,7 +778,7 @@ def test_python_kwargs_keep_untouched_entries_and_comments() -> None:
     call = ast.parse(out).body[0].value  # type: ignore[attr-defined]
     kwargs = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords if kw.arg != "template"}
     assert kwargs["model"] == {
-        "llm": {"extract": {"provider": "litellm"}},
+        "llm": {"extract": {"provider": "openai_compatible"}},
         "rerank": {"chain": [{"provider": "onnx", "settings": {}}]},
     }
     assert "llm" not in kwargs
@@ -834,7 +888,7 @@ def test_python_env_names() -> None:
         env = {
             "MEMSPINE_READ__RERANK_BLEND": "0.3",
             "MEMSPINE_EMBEDDING__SETTINGS__region": "a",
-            "MEMSPINE_LLM__ROLES__EXTRACT__PROVIDER": "litellm",
+            "MEMSPINE_LLM__ROLES__EXTRACT__PROVIDER": "openai_compatible",
             "MEMSPINE_READ__CANDIDATE_POOL": "4",
         }
         """
@@ -941,7 +995,7 @@ YAML_TEXT = """\
 # deployment config
 llm:
   roles:
-    extract: {provider: litellm, settings: {model: ollama/q}}
+    extract: {provider: openai_compat, settings: {model: ollama/q}}
   structured: {retry_on_error: true}
 read:
   planner: decision   # stays
@@ -961,8 +1015,8 @@ def test_yaml_round_trip(tmp_path: Path) -> None:
         "model": {
             "llm": {
                 "extract": {
-                    "provider": "litellm",
-                    "settings": {"model": "ollama/q"},
+                    "provider": "openai_compatible",
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/q"},
                     "structured": {"retry_on_error": True},
                 }
             },
@@ -998,7 +1052,7 @@ def test_env_file(tmp_path: Path) -> None:
 PY_CASE = """\
 eng = Engine(
     template="core",
-    llm={"roles": {"extract": {"provider": "litellm"}}, "structured": {"retry_on_error": True}},
+    llm={"roles": {"extract": {"provider": "openai_compatible"}}, "structured": {"retry_on_error": True}},
     models={"profiles": {"g": GLINER_JSON}, "bindings": {"gliner_semantic": "g"}, "tiers_v2": True},
     read={"top_k": 5, "rerank_v2": True, "rerank_blend": 0.5, "decider": "heuristic"},
     ingest={"asset_vision": "ollama"},

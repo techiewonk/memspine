@@ -4,7 +4,7 @@ Pre-registration: ``evals/prereg/G8a_wrapper_threshold.md``. Read it before chan
 anything here; the grid, metrics and decision rule are fixed there.
 
 Two measurements per threshold ``t``, both offline (hash embedder, in-memory store, no
-model calls; the stub LiteLLM transport is installed so an accidental call fails loudly):
+model calls; the stub OpenAICompat transport is installed so an accidental call fails loudly):
 
 1. **Injection pass-through** PT(t): each fixture below is written into a fresh engine
    with the role and channel it has in the existing tests, then ``Engine.read`` is asked
@@ -481,11 +481,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     global CACHE_DIR
     CACHE_DIR = args.cache_dir
-    from memspine_evals.stub_llm import install_stub_litellm
+    from memspine_evals.stub_llm import install_stub_openai_compat
 
     if args.cell:
         item, _source = _load_item(args.locomo)
-        with install_stub_litellm() as stub:
+        with install_stub_openai_compat() as stub:
             got = asyncio.run(_delivered(item, float(args.cell[1]), args.cell[0]))
         if sum(stub.calls.values()) or stub.embeddings:
             raise SystemExit("G8a offline arm made a model call; the run is void")
@@ -493,7 +493,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         args.cell_out.write_text(json.dumps(rows), encoding="utf-8")
         return 0
     deliver = _in_process if args.in_process else _isolated
-    with install_stub_litellm() as stub:
+    with install_stub_openai_compat() as stub:
         rows, meta = asyncio.run(sweep(args.locomo, deliver=deliver))
     if sum(stub.calls.values()) or stub.embeddings:
         raise SystemExit("G8a offline arm made a model call; the run is void")

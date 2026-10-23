@@ -31,12 +31,12 @@ dependencies = [
     "pyyaml>=6.0.3",             # config layering / templates / prompt packs (D-11/D-12/D-43)
     "httpx>=0.28.1",             # clients/http: OpenAI-compatible local LLM surface (D-39/D-46)
     "lancedb>=0.40.0",           # sole vector store + native quantization (D-09, amends D-03 — ADR-021)
-    "litellm>=1.105.1",           # unified cloud+local LLM/embedding/rerank gateway (D-33, amends D-03/D-39 — ADR-024)
     "tantivy>=0.26.2",           # default lexical/BM25 leg — standalone, backend-independent (D-25, amends D-03; hybrid is default-on since A3)
     "dishka>=1.10.1,<2",         # dependency injection: app / job / request scopes (F-08, ARCHITECTURE section 8)
 ]
 
 [project.optional-dependencies]
+anyllm = ["any-llm-sdk>=1.0,<2"]  # ADR-085; install provider SDK extras separately
 # NOTE(ADR-034): ladybug (the maintained, MIT-licensed Kùzu fork; Kùzu itself was
 # archived on 2025-10-10) is the graph engine for graph features. Pinned to one
 # minor: the embedded storage format and Cypher surface move between minors.
@@ -199,8 +199,6 @@ module = [
     "boto3.*",
     "botocore",
     "botocore.*",
-    "litellm",
-    "litellm.*",
     "psycopg",
     "psycopg.*",
     "flashrank",

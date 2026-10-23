@@ -182,6 +182,12 @@ def reject_model_moved_keys(value: Any, area: str, keys: tuple[str, ...]) -> Non
 
 
 def _check_provider(value: str) -> str:
+    if value == "litellm":
+        raise ValueError(
+            "litellm was removed: use openai_compatible or anyllm; "
+            "ollama/llama3 becomes {provider: ollama, settings: {model: llama3}}; "
+            "bedrock/<model> becomes {provider: bedrock, settings: {model: <model>}}"
+        )
     if not value.strip() or value != value.strip():
         raise ValueError("provider must be non-empty and have no surrounding whitespace")
     if value == "fastembed":
@@ -375,7 +381,7 @@ THINKING_ROLES: frozenset[str] = frozenset({"judge", "reflect"})
 
 class LLMSlot(ModelSlot):
     """``model.llm.<role>``: one role's provider, deadline, structured recovery, thinking budget
-    and escalation ladder. For ``provider=litellm``, ``settings.model`` is a LiteLLM model id."""
+    and escalation ladder. For ``provider=openai_compat``, ``settings.model`` is a OpenAICompat model id."""
 
     timeout_s: float = _timeout()
     structured: StructuredConfig = Field(default_factory=StructuredConfig)
@@ -599,7 +605,7 @@ TierName = Literal["none", "small-local", "worker", "frontier"]
 
 class ModelDecl(ConfigModel):
     """MD-01: one model the deployment declares, with the memory it needs. The device plan is
-    computed from these declared sizes alone (no GPU, no download). ``id`` is the LiteLLM model id
+    computed from these declared sizes alone (no GPU, no download). ``id`` is the OpenAICompat model id
     for an ``llm``; ``provider`` selects the adapter independently. ``family`` names a reranker.
     Catalogue entries are declarations, not slots (``timeout_seconds`` stays here)."""
 

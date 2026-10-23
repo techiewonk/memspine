@@ -20,7 +20,7 @@ model:
   llm:
     # A role that is not listed is off. LLM slots require an explicit timeout_s.
     window_extract:
-      provider: litellm
+      provider: openai_compatible
       timeout_s: 5.0
       structured: {retry_on_error: true, constrained_retry: false}
       escalation:
@@ -30,7 +30,7 @@ model:
         timeout_s: 10.0
         max_tokens_per_attempt: 256
         targets:
-          - provider: litellm
+          - provider: openai_compatible
             timeout_s: 8.0
             settings: {model: openai/local-reasoning, api_base: http://localhost:8001/v1}
       settings:
@@ -39,11 +39,11 @@ model:
         temperature: 0.0
         max_tokens: 256
     chat:
-      provider: litellm
+      provider: openai_compatible
       timeout_s: 5.0
       settings: {model: openai/local-fast, api_base: http://localhost:8000/v1}
     judge:
-      provider: litellm
+      provider: openai_compatible
       timeout_s: 8.0
       thinking: 512          # thinking budget: judge / reflect only (P-15)
       settings: {model: openai/local-reasoning, api_base: http://localhost:8001/v1}

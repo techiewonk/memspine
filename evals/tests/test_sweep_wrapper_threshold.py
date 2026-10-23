@@ -51,10 +51,10 @@ def test_decision_rule_refuses_when_nothing_is_eligible() -> None:
 
 def test_offline_sweep_runs_on_the_fixture_with_no_model_calls() -> None:
     pytest.importorskip("memspine")
-    from memspine_evals.stub_llm import install_stub_litellm
+    from memspine_evals.stub_llm import install_stub_openai_compat
 
     mod = _module()
-    with install_stub_litellm() as stub:
+    with install_stub_openai_compat() as stub:
         rows, meta = asyncio.run(mod.sweep(None, grid=(0.0, 0.4)))
     assert sum(stub.calls.values()) == 0
     assert "FIXTURE" in meta["utility_source"]

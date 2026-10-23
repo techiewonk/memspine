@@ -41,7 +41,12 @@ def _config(**overrides: Any) -> MemspineConfig:
 
 
 def _llm(model: str = "ollama/qwen3.5:9b", **extra: Any) -> dict[str, Any]:
-    return {"provider": "litellm", "timeout_s": 60.0, "settings": {"model": model}, **extra}
+    return {
+        "provider": "openai_compatible",
+        "timeout_s": 60.0,
+        "settings": {"api_base": "http://test.invalid/v1", "model": model},
+        **extra,
+    }
 
 
 # ---------------------------------------------------------------------------- old keys
@@ -151,9 +156,13 @@ def test_llm_slot_settings_timeout_points_at_timeout_s() -> None:
             model={
                 "llm": {
                     "extract": {
-                        "provider": "litellm",
+                        "provider": "openai_compatible",
                         "timeout_s": 5.0,
-                        "settings": {"model": "m", "timeout_seconds": 5.0},
+                        "settings": {
+                            "api_base": "http://test.invalid/v1",
+                            "model": "m",
+                            "timeout_seconds": 5.0,
+                        },
                     }
                 }
             }
@@ -226,9 +235,12 @@ def test_sample_from_the_adr_validates() -> None:
                         "max_tokens_per_attempt": 2048,
                         "targets": [
                             {
-                                "provider": "litellm",
+                                "provider": "openai_compatible",
                                 "timeout_s": 120.0,
-                                "settings": {"model": "ollama/qwen3.5:27b"},
+                                "settings": {
+                                    "api_base": "http://test.invalid/v1",
+                                    "model": "ollama/qwen3.5:27b",
+                                },
                             }
                         ],
                     },
@@ -321,14 +333,29 @@ def test_placement_thinking_and_an_explicit_slot_are_one_place_per_role() -> Non
 
 def test_llm_slot_requires_an_explicit_timeout() -> None:
     with pytest.raises(ValidationError, match="timeout_s"):
-        _config(model={"llm": {"chat": {"provider": "litellm", "settings": {"model": "m"}}}})
+        _config(
+            model={
+                "llm": {
+                    "chat": {
+                        "provider": "openai_compatible",
+                        "settings": {"api_base": "http://test.invalid/v1", "model": "m"},
+                    }
+                }
+            }
+        )
 
 
 def _escalation(**policy: Any) -> dict[str, Any]:
     return {
         "timeout_s": 3.0,
         "max_tokens_per_attempt": 128,
-        "targets": [{"provider": "litellm", "timeout_s": 9.0, "settings": {"model": "b"}}],
+        "targets": [
+            {
+                "provider": "openai_compatible",
+                "timeout_s": 9.0,
+                "settings": {"api_base": "http://test.invalid/v1", "model": "b"},
+            }
+        ],
         **policy,
     }
 
@@ -337,7 +364,11 @@ def test_escalation_targets_are_bounded_unique_and_differ_from_the_primary() -> 
     ok = _config(model={"llm": {"extract": _llm("a", escalation=_escalation())}})
     extract = llm_slot(ok, "extract")
     assert extract is not None and isinstance(extract.escalation, EscalationPolicy)
-    target = {"provider": "litellm", "timeout_s": 9.0, "settings": {"model": "b"}}
+    target = {
+        "provider": "openai_compatible",
+        "timeout_s": 9.0,
+        "settings": {"api_base": "http://test.invalid/v1", "model": "b"},
+    }
     invalid = [
         _escalation(targets=[{**target, "settings": {"model": "a"}}]),  # same as primary
         _escalation(targets=[target, {**target, "timeout_s": 20.0}]),  # duplicate model

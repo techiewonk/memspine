@@ -29,7 +29,7 @@ from memspine.services.llm.base import LLMRouter, ThinkingCapped
 
 SMALL = ModelDecl(
     id="ollama/small-3b",
-    provider="litellm",
+    provider="openai_compatible",
     tier="small-local",
     vram_mb=2500,
     ram_mb=3000,
@@ -38,7 +38,7 @@ SMALL = ModelDecl(
 )
 NINE = ModelDecl(
     id="ollama/nine-b",
-    provider="litellm",
+    provider="openai_compatible",
     tier="worker",
     vram_mb=6500,
     ram_mb=7000,
@@ -47,7 +47,11 @@ NINE = ModelDecl(
     timeout_seconds=60.0,
 )
 BIG = ModelDecl(
-    id="openai/frontier", provider="litellm", tier="frontier", hosted=True, timeout_seconds=60.0
+    id="openai/frontier",
+    provider="openai_compatible",
+    tier="frontier",
+    hosted=True,
+    timeout_seconds=60.0,
 )
 RTX = GpuDecl(name="NVIDIA GeForce RTX 5080", vram_mb=16303)
 
@@ -144,9 +148,9 @@ async def test_default_is_off_and_config_roles_resolve_as_before(
         model={
             "llm": {
                 "extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 60.0,
-                    "settings": {"model": "ollama/x"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/x"},
                 }
             },
             "placement": {"catalogue": [NINE]},
@@ -304,9 +308,9 @@ async def test_explicit_llm_roles_win_over_the_plan(stub_providers: list[_Stub])
         model=_model(
             llm={
                 "extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 60.0,
-                    "settings": {"model": "ollama/pinned"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/pinned"},
                 }
             },
             catalogue=[NINE],
@@ -327,7 +331,7 @@ def test_placement_never_exceeds_the_vram_budget() -> None:
         llms = [
             ModelDecl(
                 id=f"ollama/m{i}",
-                provider="litellm",
+                provider="openai_compatible",
                 tier=rng.choice(["small-local", "worker", "frontier"]),
                 vram_mb=rng.randint(500, 14000),
                 ram_mb=rng.randint(500, 14000),
@@ -473,7 +477,7 @@ def test_thinking_is_off_by_default_for_every_role() -> None:
 def test_catalogue_generation_defaults_are_forwarded_only_when_explicit() -> None:
     declared = ModelDecl(
         id="openai/example",
-        provider="litellm",
+        provider="openai_compatible",
         tier="worker",
         vram_mb=6000,
         timeout_seconds=30.0,
@@ -540,7 +544,11 @@ def test_capped_thinking_only_for_judge_and_reflect() -> None:
 
 def test_capped_thinking_needs_a_model_that_can_think() -> None:
     plain = ModelDecl(
-        id="ollama/plain-9b", provider="litellm", tier="worker", vram_mb=6000, timeout_seconds=60.0
+        id="ollama/plain-9b",
+        provider="openai_compatible",
+        tier="worker",
+        vram_mb=6000,
+        timeout_seconds=60.0,
     )
     r = resolve_models(_models(catalogue=[plain], gpus=[RTX]), thinking={"judge": 512})
     res = resolve_role(r, "judge")
@@ -563,7 +571,7 @@ async def test_explicit_slot_thinking_and_placement_thinking_cap_their_own_roles
     """RM-118: an explicit judge slot keeps its own budget; the planned reflect role takes
     ``model.placement.thinking``."""
     judge_slot = {
-        "provider": "litellm",
+        "provider": "openai_compatible",
         "timeout_s": 30.0,
         "thinking": 128,
         "settings": {"model": "ollama/explicit-judge"},

@@ -40,7 +40,9 @@ def fixture_change() -> tuple[ChangePlan, OperationRecord, ModelRevisionResult]:
             target_fingerprint="target-digest",
         ),
         target_config_ref=TargetConfigRef(
-            provider="litellm", config_id="config-reference", semantic_fingerprint="target-digest"
+            provider="openai_compatible",
+            config_id="config-reference",
+            semantic_fingerprint="target-digest",
         ),
         source_completeness=source,
     )

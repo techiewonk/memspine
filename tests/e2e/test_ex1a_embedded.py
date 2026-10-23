@@ -178,14 +178,14 @@ def _overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[s
             "embedding": {"provider": "hash"},
             "llm": {
                 "window_extract": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 60.0,
-                    "settings": {"model": "stub/window"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "stub/window"},
                 },
                 "session_close": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 60.0,
-                    "settings": {"model": "stub/close"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "stub/close"},
                 },
             },
         },

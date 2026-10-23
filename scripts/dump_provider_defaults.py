@@ -79,7 +79,7 @@ def render() -> str:
             "```python",
             "from memspine.providers import provider_settings_reference",
             "print(provider_settings_reference('embedding', 'onnx'))",
-            "print(provider_settings_reference('llm', 'litellm'))",
+            "print(provider_settings_reference('llm', 'openai_compatible'))",
             "```",
             "",
         ]

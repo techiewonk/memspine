@@ -141,7 +141,7 @@ def _old_describe(reader: Any, bedrock: bool) -> dict[str, Any]:
 
 
 def _build(monkeypatch: pytest.MonkeyPatch, bedrock: bool, qa_prompt: str) -> Any:
-    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "openai_compatible", SimpleNamespace())
     config = C01Config(
         mode="qa", bedrock=bedrock, max_model_calls=5, qa_prompt=qa_prompt, categories=(1, 2, 3, 4)
     )
@@ -231,10 +231,10 @@ def test_openai_reader_fixed_prompt_has_no_variant() -> None:
 
 
 @pytest.mark.parametrize("question", [TEMPORAL, INFERENCE, PLAIN])
-def test_litellm_reader_sends_the_routed_variant(
+def test_openai_compat_reader_sends_the_routed_variant(
     monkeypatch: pytest.MonkeyPatch, question: str
 ) -> None:
-    from memspine_evals.bedrock import CallBudget, LiteLLMReader
+    from memspine_evals.bedrock import CallBudget, OpenAICompatReader
 
     sent: list[str] = []
 
@@ -245,9 +245,11 @@ def test_litellm_reader_sends_the_routed_variant(
             usage=None, choices=[SimpleNamespace(message=message, finish_reason="stop")]
         )
 
-    monkeypatch.setitem(sys.modules, "litellm", SimpleNamespace())
-    reader = LiteLLMReader(CallBudget(max_calls=3), model="m", prompt=ROUTED_QA_PROMPTS["routed"])
-    reader._litellm = SimpleNamespace(acompletion=acompletion)  # type: ignore[assignment]
+    monkeypatch.setitem(sys.modules, "openai_compatible", SimpleNamespace())
+    reader = OpenAICompatReader(
+        CallBudget(max_calls=3), model="m", prompt=ROUTED_QA_PROMPTS["routed"]
+    )
+    reader._openai_compat = SimpleNamespace(acompletion=acompletion)  # type: ignore[assignment]
     out = asyncio.run(reader.answer(question, "[2023-05-08] x"))
     shape = qa_shape(question)
     assert out.prompt_variant == shape

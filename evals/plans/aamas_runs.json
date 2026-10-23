@@ -35,7 +35,7 @@
         }
       },
       "embedding": {
-        "provider": "litellm",
+        "provider": "openai_compatible",
         "model": "bedrock/cohere.embed-v4:0",
         "dim": 1024,
         "aws_region": "us-east-1",
@@ -499,7 +499,7 @@
           "assembly": {
             "relative_floor": 0.3
           },
-          "rerank": "litellm",
+          "rerank": "openai_compatible",
           "rerank_model": "bedrock/arn:aws:bedrock:us-east-1::foundation-model/cohere.rerank-v3-5:0",
           "candidate_pool": 3,
           "rerank_date_prefix": true,

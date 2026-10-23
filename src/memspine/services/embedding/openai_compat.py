@@ -1,26 +1,21 @@
-"""Cloud/remote embeddings via LiteLLM (D-08 cloud path): OpenAI, Bedrock,
-Vertex, Cohere, etc. behind the same ``EmbeddingService`` port.
+"""Remote embedding adapter over an injected connector (ADR-085).
 
-``dim`` is **required from config**: a remote embedder's dimension is not
-discoverable without a live call, and the vector store needs it to build its
-table (LanceDB reads ``embedder.dim`` on first upsert). E4 quantization is off
-(``manifest.quantization=None``) — a remote model's tolerance is unknown, so the
-exact float32 path is used (never a guessed capability, D-10). litellm is
-imported lazily on first ``embed``.
+Dimensions are configured before any model call. Query/document input types and
+requested dimensions contribute to the vector-space identity.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from memspine.clients.litellm import LiteLLMConnector, LiteLLMSpec
+from memspine.clients.openai_compat import OpenAICompatConnector, OpenAICompatSpec
 from memspine.services._retry import retry_transient
 from memspine.services.embedding.base import EmbedderManifest
 
-__all__ = ["LiteLLMEmbedding"]
+__all__ = ["OpenAICompatEmbedding"]
 
 
-class LiteLLMEmbedding:
+class OpenAICompatEmbedding:
     def __init__(
         self,
         model: str,
@@ -28,18 +23,19 @@ class LiteLLMEmbedding:
         *,
         api_base: str | None = None,
         api_key: str | None = None,
-        aws_region: str | None = None,
         request_timeout_s: float,
         request_dimensions: bool = False,
         query_input_type: str | None = None,
         document_input_type: str | None = None,
-        connector: LiteLLMConnector | None = None,
+        connector: Any = None,
+        provider: str = "openai_compatible",
     ) -> None:
         self._model = model
+        self._provider = provider
         self._dim = dim
         # The factory injects the transport; standalone use describes a private one.
-        self._connector = connector or LiteLLMConnector(
-            LiteLLMSpec(api_base=api_base, api_key=api_key, aws_region=aws_region)
+        self._connector = connector or OpenAICompatConnector(
+            OpenAICompatSpec(api_base=api_base, api_key=api_key)
         )
         self._request_timeout_s = request_timeout_s
         self._request_dimensions = request_dimensions
@@ -53,7 +49,7 @@ class LiteLLMEmbedding:
         suffix = f"@{self._dim}" if self._request_dimensions else ""
         if self._query_input_type or self._document_input_type:
             suffix += f"[{self._document_input_type}|{self._query_input_type}]"
-        return f"litellm:{self._model}{suffix}"
+        return f"{self._provider}:{self._model}{suffix}"
 
     @property
     def dim(self) -> int:
@@ -79,7 +75,12 @@ class LiteLLMEmbedding:
         response = await retry_transient(
             lambda: self._connector.aembedding(**kwargs), what=f"embed:{self._model}"
         )
-        vectors = [list(map(float, item["embedding"])) for item in response.data]
+        vectors = [list(map(float, item["embedding"])) for item in response["data"]]
         if any(len(vector) != self._dim for vector in vectors):
-            raise ValueError("LiteLLM output dimension differs from model.embedding.settings.dim")
+            raise ValueError(
+                "OpenAICompat output dimension differs from model.embedding.settings.dim"
+            )
         return vectors
+
+    async def aclose(self) -> None:
+        await self._connector.close()

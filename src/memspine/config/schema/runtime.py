@@ -75,7 +75,7 @@ class SharedHttpPoolConfig(_SharedResourcesModel):
     """Connection-pool options for HTTP/Bolt clients memspine constructs itself (ADR-079).
 
     Honoured by OpenSearch (pool size), Weaviate (session pool size) and Neo4j (driver pool
-    size; ``keepalive_s`` = liveness-check idle time). LiteLLM and OpenAI-compatible model
+    size; ``keepalive_s`` = liveness-check idle time). OpenAICompat and OpenAI-compatible model
     servers use the library's process-global client and ignore them."""
 
     max_connections: int = Field(default=constants.SHARED_HTTP_MAX_CONNECTIONS, ge=1)

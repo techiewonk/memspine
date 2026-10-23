@@ -34,8 +34,8 @@ SENTENCE_TRANSFORMERS_MODEL_DIMS = {
     "sentence-transformers/all-MiniLM-L6-v2": 384,
     "Qwen/Qwen3-Embedding-0.6B": 1024,
 }
-LITELLM_MODEL_DIMS = {
-    "openai/text-embedding-3-small": 1536,
+OPENAI_COMPAT_MODEL_DIMS = {
+    "text-embedding-3-small": 1536,
     "openai/text-embedding-3-large": 3072,
     "openai/text-embedding-ada-002": 1536,
 }
@@ -343,29 +343,29 @@ class StaticEmbeddingSettings(StrictSettings):
         return self
 
 
-class LiteLLMEmbeddingSettings(StrictSettings):
-    model: str = "openai/text-embedding-3-small"
+class OpenAICompatEmbeddingSettings(StrictSettings):
+    model: str = "text-embedding-3-small"
     dim: int = Field(default=1536, ge=1)
     api_base: str | None = None
     api_key: str | None = None
-    aws_region: str | None = None
+    api_key_env: str | None = None
     request_dimensions: bool = False
     query_input_type: str | None = None
     document_input_type: str | None = None
     request_timeout_s: float = Field(gt=0)
 
     @model_validator(mode="after")
-    def _dimension_matches_known_model(self) -> LiteLLMEmbeddingSettings:
-        known_dim = LITELLM_MODEL_DIMS.get(self.model)
+    def _dimension_matches_known_model(self) -> OpenAICompatEmbeddingSettings:
+        known_dim = OPENAI_COMPAT_MODEL_DIMS.get(self.model)
         if "dim" not in self.model_fields_set:
             if known_dim is None:
                 raise ValueError(
-                    "settings.dim is required for LiteLLM models without known dimensions"
+                    "settings.dim is required for OpenAICompat models without known dimensions"
                 )
             object.__setattr__(self, "dim", known_dim)
         elif known_dim is not None and self.dim != known_dim and not self.request_dimensions:
             raise ValueError(
-                "settings.dim conflicts with the known LiteLLM model dimension unless request_dimensions is enabled"
+                "settings.dim conflicts with the known OpenAICompat model dimension unless request_dimensions is enabled"
             )
         return self
 
@@ -413,11 +413,11 @@ class FlashrankRerankerSettings(StrictSettings):
     model: str | None = None
 
 
-class LiteLLMRerankerSettings(StrictSettings):
+class OpenAICompatRerankerSettings(StrictSettings):
     model: str = Field(min_length=1)
     api_base: str | None = None
     api_key: str | None = None
-    aws_region: str | None = None
+    api_key_env: str | None = None
     request_timeout_s: float = Field(gt=0)
 
 

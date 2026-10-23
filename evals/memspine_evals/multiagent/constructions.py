@@ -572,7 +572,7 @@ def record_is_live(record: Any) -> bool:
     return not record.quarantined
 
 
-# ── LLM agents (Bedrock Qwen3 via LiteLLM): measured, not assumed, behaviour ──
+# ── LLM agents (Bedrock Qwen3 via OpenAICompat): measured, not assumed, behaviour ──
 
 AGENT_PROMPT = (
     "You are {name}, an IT help-desk agent on a team. Use the team notes below to answer the "

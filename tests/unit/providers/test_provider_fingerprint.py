@@ -1,11 +1,11 @@
 from pydantic import SecretStr
 
 from memspine.providers.engine_changes import resolved_config_fingerprint
-from memspine.providers.settings import LiteLLMRoleSettings
+from memspine.providers.settings import OpenAICompatRoleSettings
 
 
 def test_masked_credentials_still_change_the_target_fingerprint():
-    first = LiteLLMRoleSettings(
+    first = OpenAICompatRoleSettings(
         model="openai/test", timeout_seconds=30.0, api_key=SecretStr("secret-a")
     )
     second = first.model_copy(update={"api_key": SecretStr("secret-b")})

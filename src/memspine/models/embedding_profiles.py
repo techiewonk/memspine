@@ -94,7 +94,7 @@ class EmbeddingProfile:
         # provider configuration and must follow a selected profile.
         if self.provider != "hash":
             settings["model"] = self.model_id
-        if self.provider in {"onnx", "hash", "st", "litellm"}:
+        if self.provider in {"onnx", "hash", "st", "openai_compatible"}:
             settings["dim"] = self.dim
         if self.provider in {"onnx", "st"}:
             settings["query_instruction"] = self.query_instruction

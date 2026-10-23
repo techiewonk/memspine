@@ -4,7 +4,7 @@
         --price bedrock/converse/qwen.qwen3-32b-v1:0=0.15,0.60
 
 See ``memspine_evals.rehearsal`` for what is checked and how the projection is made.
-No network: LiteLLM's transport is replaced by a local stub.
+No network: OpenAICompat's transport is replaced by a local stub.
 """
 
 from __future__ import annotations

@@ -1,4 +1,4 @@
-"""LiteLLM embedding + rerank adapters and engine prefix-routing (Phase 4)."""
+"""OpenAICompat embedding + rerank adapters and engine prefix-routing (Phase 4)."""
 
 from __future__ import annotations
 
@@ -9,9 +9,9 @@ from pydantic import ValidationError
 
 from memspine import Engine
 from memspine.exceptions import ConfigError
-from memspine.services.embedding.litellm import LiteLLMEmbedding
-from memspine.services.llm.litellm import LiteLLMLLM
-from memspine.services.rerank.litellm import LiteLLMReranker
+from memspine.services.embedding.openai_compat import OpenAICompatEmbedding
+from memspine.services.llm.openai_compat import OpenAICompatLLM
+from memspine.services.rerank.openai_compat import OpenAICompatReranker
 
 # ── embedding adapter ─────────────────────────────────────────────────────────
 
@@ -21,8 +21,10 @@ class _EmbedResponse:
         self.data = [{"embedding": v, "index": i} for i, v in enumerate(vectors)]
 
 
-async def test_litellm_embedding_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
-    import litellm
+async def test_openai_compat_embedding_round_trips(monkeypatch: pytest.MonkeyPatch) -> None:
+    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+
+    install_transport(monkeypatch)
 
     seen: dict[str, Any] = {}
 
@@ -30,14 +32,14 @@ async def test_litellm_embedding_round_trips(monkeypatch: pytest.MonkeyPatch) ->
         seen.update(kwargs)
         return _EmbedResponse([[0.1, 0.2], [0.3, 0.4]])
 
-    monkeypatch.setattr(litellm, "aembedding", fake_aembedding)
-    emb = LiteLLMEmbedding(
+    monkeypatch.setattr(openai_compat, "aembedding", fake_aembedding)
+    emb = OpenAICompatEmbedding(
         "openai/text-embedding-3-small", dim=2, api_key="sk", request_timeout_s=30
     )
     out = await emb.embed(["a", "b"])
     assert out == [[0.1, 0.2], [0.3, 0.4]]
     assert seen["model"] == "openai/text-embedding-3-small" and seen["input"] == ["a", "b"]
-    assert emb.dim == 2 and emb.embedder_id == "litellm:openai/text-embedding-3-small"
+    assert emb.dim == 2 and emb.embedder_id == "openai_compatible:openai/text-embedding-3-small"
     assert emb.manifest.quantization is None  # E4 off for cloud embedders
 
 
@@ -49,8 +51,12 @@ class _RerankResponse:
         self.results = results
 
 
-async def test_litellm_rerank_maps_scores_to_input_order(monkeypatch: pytest.MonkeyPatch) -> None:
-    import litellm
+async def test_openai_compat_rerank_maps_scores_to_input_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+
+    install_transport(monkeypatch)
 
     async def fake_arerank(**_kwargs: Any) -> _RerankResponse:
         # returned out of order, by descending relevance
@@ -58,8 +64,8 @@ async def test_litellm_rerank_maps_scores_to_input_order(monkeypatch: pytest.Mon
             [{"index": 1, "relevance_score": 0.9}, {"index": 0, "relevance_score": 0.1}]
         )
 
-    monkeypatch.setattr(litellm, "arerank", fake_arerank)
-    reranker = LiteLLMReranker("cohere/rerank-english-v3.0", request_timeout_s=30)
+    monkeypatch.setattr(openai_compat, "arerank", fake_arerank)
+    reranker = OpenAICompatReranker("cohere/rerank-english-v3.0", request_timeout_s=30)
     scores = await reranker.rerank("q", ["doc-a", "doc-b"])
     assert scores == [0.1, 0.9]  # realigned to input order
     assert await reranker.rerank("q", []) == []
@@ -68,7 +74,7 @@ async def test_litellm_rerank_maps_scores_to_input_order(monkeypatch: pytest.Mon
 # ── engine prefix routing ─────────────────────────────────────────────────────
 
 
-async def test_engine_routes_litellm_model_prefix() -> None:
+async def test_engine_routes_openai_compat_model_prefix() -> None:
     eng = Engine(
         dotenv_path=None,
         deployment={"id": "unit-test"},
@@ -82,9 +88,9 @@ async def test_engine_routes_litellm_model_prefix() -> None:
             "embedding": {"provider": "hash", "settings": {}},
             "llm": {
                 "chat": {
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "timeout_s": 30.0,
-                    "settings": {"model": "openai/gpt-4o"},
+                    "settings": {"api_base": "http://test.invalid/v1", "model": "openai/gpt-4o"},
                 }
             },
         },
@@ -92,8 +98,8 @@ async def test_engine_routes_litellm_model_prefix() -> None:
     await eng.start()
     try:
         provider = eng._llm.provider("chat")  # type: ignore[union-attr]
-        assert isinstance(provider, LiteLLMLLM)
-        assert provider.provider_id == "litellm:openai/gpt-4o"
+        assert isinstance(provider, OpenAICompatLLM)
+        assert provider.provider_id == "openai_compatible:openai/gpt-4o"
     finally:
         await eng.stop()
 
@@ -110,21 +116,27 @@ async def test_engine_empty_model_raises() -> None:
         },
         model={
             "embedding": {"provider": "hash", "settings": {}},
-            "llm": {"chat": {"provider": "litellm", "timeout_s": 30.0, "settings": {"model": ""}}},
+            "llm": {
+                "chat": {
+                    "provider": "openai_compatible",
+                    "timeout_s": 30.0,
+                    "settings": {"api_base": "http://test.invalid/v1", "model": ""},
+                }
+            },
         },
     )
-    with pytest.raises(ConfigError, match=r"invalid settings for llm\.litellm.*model"):
+    with pytest.raises(ConfigError, match=r"invalid settings for llm\.openai_compat.*model"):
         await eng.start()
     await eng.stop()
 
 
-async def test_litellm_embedder_requires_dim() -> None:
-    from memspine.config.schema.providers import LiteLLMEmbeddingSettings
+async def test_openai_compat_embedder_requires_dim() -> None:
+    from memspine.config.schema.providers import OpenAICompatEmbeddingSettings
 
-    known = LiteLLMEmbeddingSettings(request_timeout_s=30.0)
+    known = OpenAICompatEmbeddingSettings(request_timeout_s=30.0)
     assert known.dim == 1536
     with pytest.raises(ValidationError, match=r"settings\.dim is required"):
-        LiteLLMEmbeddingSettings(
+        OpenAICompatEmbeddingSettings(
             model="custom/embedding-model-with-unknown-dimension",
             request_timeout_s=30.0,
         )
@@ -140,8 +152,9 @@ async def test_litellm_embedder_requires_dim() -> None:
         },
         model={
             "embedding": {
-                "provider": "litellm",
+                "provider": "openai_compatible",
                 "settings": {
+                    "api_base": "http://test.invalid/v1",
                     "model": "custom/embedding-model-with-unknown-dimension",
                     "request_timeout_s": 30.0,
                 },
@@ -149,15 +162,15 @@ async def test_litellm_embedder_requires_dim() -> None:
         },
         memories={"semantic": {"enabled": True}},
     )
-    with pytest.raises(ConfigError, match=r"invalid settings for embedding\.litellm"):
+    with pytest.raises(ConfigError, match=r"invalid settings for embedding\.openai_compat"):
         await eng.start()
     await eng.stop()
 
 
-async def test_read_rerank_litellm_accepted_at_start() -> None:
-    """A1 regression: a litellm model.rerank.chain entry (ADR-024) must pass the startup
+async def test_read_rerank_openai_compat_accepted_at_start() -> None:
+    """A1 regression: a openai_compat model.rerank.chain entry (ADR-024) must pass the startup
     validator — it used to raise ConfigError because the validator tuple
-    predated the litellm rerank branch. The reranker itself loads lazily."""
+    predated the openai_compat rerank branch. The reranker itself loads lazily."""
     eng = Engine(
         dotenv_path=None,
         deployment={"id": "unit-test"},
@@ -172,8 +185,9 @@ async def test_read_rerank_litellm_accepted_at_start() -> None:
             "rerank": {
                 "chain": [
                     {
-                        "provider": "litellm",
+                        "provider": "openai_compatible",
                         "settings": {
+                            "api_base": "http://test.invalid/v1",
                             "model": "cohere/rerank-english-v3.0",
                             "request_timeout_s": 30.0,
                         },

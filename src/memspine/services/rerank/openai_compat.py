@@ -1,39 +1,34 @@
-"""Cloud reranker via LiteLLM (E8, D-51): Cohere / Bedrock / Together rerank
-endpoints behind the same ``Reranker`` port. The rerank ``model`` comes from
-``model.rerank.chain[].settings.model`` (e.g. ``cohere/rerank-english-v3.0``,
-``bedrock/amazon.rerank-v1:0``). litellm returns a relevance score per document;
-we map them back to input order (missing indices score 0.0). The transport (endpoint,
-key, region) is the injected :class:`~memspine.clients.litellm.LiteLLMConnector`.
-"""
+"""Remote reranking adapter: relevance scores restored to document input order."""
 
 from __future__ import annotations
 
 from typing import Any
 
-from memspine.clients.litellm import LiteLLMConnector, LiteLLMSpec
+from memspine.clients.openai_compat import OpenAICompatConnector, OpenAICompatSpec
 from memspine.services._retry import retry_transient
 
-__all__ = ["LiteLLMReranker"]
+__all__ = ["OpenAICompatReranker"]
 
 
-class LiteLLMReranker:
+class OpenAICompatReranker:
     def __init__(
         self,
         model: str,
         *,
         api_base: str | None = None,
         api_key: str | None = None,
-        aws_region: str | None = None,
         request_timeout_s: float,
-        connector: LiteLLMConnector | None = None,
+        connector: Any = None,
+        provider: str = "openai_compatible",
     ) -> None:
         self._model = model
+        self._provider = provider
         # The factory injects the transport; standalone use describes a private one.
-        self._connector = connector or LiteLLMConnector(
-            LiteLLMSpec(api_base=api_base, api_key=api_key, aws_region=aws_region)
+        self._connector = connector or OpenAICompatConnector(
+            OpenAICompatSpec(api_base=api_base, api_key=api_key)
         )
         self._request_timeout_s = request_timeout_s
-        self.reranker_id = f"litellm:{model}"
+        self.reranker_id = f"{provider}:{model}"
 
     async def rerank(self, query: str, documents: list[str]) -> list[float]:
         if not documents:
@@ -49,6 +44,9 @@ class LiteLLMReranker:
             lambda: self._connector.arerank(**kwargs), what=f"rerank:{self._model}"
         )
         scores = [0.0] * len(documents)
-        for item in response.results:
+        for item in response["results"]:
             scores[int(item["index"])] = float(item["relevance_score"])
         return scores
+
+    async def aclose(self) -> None:
+        await self._connector.close()

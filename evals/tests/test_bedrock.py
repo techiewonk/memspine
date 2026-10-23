@@ -72,8 +72,9 @@ def test_call_budget_blocks_before_the_call() -> None:
 def test_engine_config_defaults_to_cohere_v4_and_qwen3() -> None:
     cfg = bedrock_engine_config("us-east-1")["model"]  # ADR-082: the model slots
     assert cfg["embedding"] == {
-        "provider": "litellm",
+        "provider": "openai_compatible",
         "settings": {
+            "api_base": "http://test.invalid/v1",
             "model": COHERE_EMBED_V4,
             "dim": COHERE_EMBED_V4_DIM,
             "aws_region": "us-east-1",
@@ -108,10 +109,10 @@ def test_judge_parser_handles_locomo_label_and_explanations() -> None:
 
 
 def test_qwen3_reader_disables_thinking_by_default() -> None:
-    from memspine_evals.bedrock import LiteLLMReader
+    from memspine_evals.bedrock import OpenAICompatReader
 
-    assert LiteLLMReader(CallBudget(1)).no_think is True
-    assert LiteLLMReader(CallBudget(1), model="bedrock/other").no_think is False
+    assert OpenAICompatReader(CallBudget(1)).no_think is True
+    assert OpenAICompatReader(CallBudget(1), model="bedrock/other").no_think is False
 
 
 def test_cached_prompt_tokens_reads_both_usage_shapes() -> None:
@@ -132,11 +133,11 @@ def test_cached_prompt_tokens_reads_both_usage_shapes() -> None:
 
 
 def test_n12_judge_chat_sends_the_system_message() -> None:
-    """N12: OmniMemEval's judge is a (system, user) pair; the LiteLLM chat sends both."""
+    """N12: OmniMemEval's judge is a (system, user) pair; the OpenAICompat chat sends both."""
     import asyncio
     from types import SimpleNamespace
 
-    from memspine_evals.bedrock import LiteLLMReader
+    from memspine_evals.bedrock import OpenAICompatReader
 
     sent: list[list[dict[str, str]]] = []
 
@@ -147,8 +148,8 @@ def test_n12_judge_chat_sends_the_system_message() -> None:
             usage=None, choices=[SimpleNamespace(message=message, finish_reason="stop")]
         )
 
-    reader = LiteLLMReader(CallBudget(max_calls=2), model="m", no_think=False)
-    reader._litellm = SimpleNamespace(acompletion=acompletion)  # type: ignore[assignment]
+    reader = OpenAICompatReader(CallBudget(max_calls=2), model="m", no_think=False)
+    reader._openai_compat = SimpleNamespace(acompletion=acompletion)  # type: ignore[assignment]
     asyncio.run(reader.complete("grade this", system="You are a grader."))
     asyncio.run(reader.complete("plain"))
     assert sent[0] == [

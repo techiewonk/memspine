@@ -1,0 +1,43 @@
+"""Optional any-llm connector: official provider SDKs behind the [anyllm] extra."""
+
+from __future__ import annotations
+
+import os
+from typing import Any
+
+from memspine.exceptions import MissingServiceError
+
+
+class AnyLLMConnector:
+    def __init__(
+        self, provider: str, *, api_key_env: str | None = None, api_base: str | None = None
+    ) -> None:
+        self.provider = provider
+        self.api_key_env = api_key_env
+        self.api_base = api_base
+        self._client: Any = None
+
+    async def open(self) -> None:
+        if self._client is None:
+            try:
+                from any_llm import AnyLLM
+            except ImportError:
+                raise MissingServiceError("anyllm", "anyllm") from None
+            options = {}
+            if self.api_key_env:
+                options["api_key"] = os.environ.get(self.api_key_env)
+            if self.api_base:
+                options["api_base"] = self.api_base
+            self._client = AnyLLM.create(self.provider, **options)
+
+    async def acompletion(self, **kwargs: Any) -> dict[str, Any]:
+        await self.open()
+        response = await self._client.acompletion(**kwargs)
+        return response.model_dump()
+
+    async def close(self) -> None:
+        if self._client is not None:
+            close = getattr(self._client, "aclose", None)
+            if close:
+                await close()
+            self._client = None

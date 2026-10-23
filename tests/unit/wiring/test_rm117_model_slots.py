@@ -434,7 +434,11 @@ async def test_escalation_targets_are_inline_slots(monkeypatch: pytest.MonkeyPat
         return result
 
     monkeypatch.setattr(container, "_build_provider", build)
-    small = {"provider": "litellm", "timeout_s": 20, "settings": {"model": "ollama/small"}}
+    small = {
+        "provider": "openai_compatible",
+        "timeout_s": 20,
+        "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/small"},
+    }
     config = _cfg(
         model={
             "llm": {
@@ -444,9 +448,12 @@ async def test_escalation_targets_are_inline_slots(monkeypatch: pytest.MonkeyPat
                     "escalation": {
                         "targets": [
                             {
-                                "provider": "litellm",
+                                "provider": "openai_compatible",
                                 "timeout_s": 90,
-                                "settings": {"model": "ollama/big"},
+                                "settings": {
+                                    "api_base": "http://test.invalid/v1",
+                                    "model": "ollama/big",
+                                },
                             }
                         ],
                         "triggers": ["empty"],
@@ -485,7 +492,7 @@ def test_tiered_role_config_is_an_llm_slot() -> None:
             "catalogue": [
                 {
                     "id": "ollama/qwen3.5:9b",
-                    "provider": "litellm",
+                    "provider": "openai_compatible",
                     "tier": "worker",
                     "timeout_seconds": 45,
                     "vram_mb": 7000,

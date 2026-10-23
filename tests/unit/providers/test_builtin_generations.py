@@ -11,7 +11,7 @@ from memspine import Engine
 from memspine.config.loader import load_config
 from memspine.config.schema.providers import (
     HashEmbeddingSettings,
-    LiteLLMEmbeddingSettings,
+    OpenAICompatEmbeddingSettings,
     OnnxEmbeddingSettings,
     SentenceTransformersEmbeddingSettings,
     StaticEmbeddingSettings,
@@ -244,19 +244,21 @@ def test_builtin_embedding_defaults_are_model_specific() -> None:
         SentenceTransformersEmbeddingSettings(model="organization/model")
     assert SentenceTransformersEmbeddingSettings(model="organization/model", dim=768).dim == 768
 
-    litellm_defaults = LiteLLMEmbeddingSettings(request_timeout_s=10.0)
-    assert (litellm_defaults.model, litellm_defaults.dim) == (
-        "openai/text-embedding-3-small",
+    openai_compat_defaults = OpenAICompatEmbeddingSettings(request_timeout_s=10.0)
+    assert (openai_compat_defaults.model, openai_compat_defaults.dim) == (
+        "text-embedding-3-small",
         1536,
     )
     assert (
-        LiteLLMEmbeddingSettings(model="openai/text-embedding-3-large", request_timeout_s=10.0).dim
+        OpenAICompatEmbeddingSettings(
+            model="openai/text-embedding-3-large", request_timeout_s=10.0
+        ).dim
         == 3072
     )
     with pytest.raises(ValidationError, match="settings.dim is required"):
-        LiteLLMEmbeddingSettings(model="custom/provider-model", request_timeout_s=10.0)
+        OpenAICompatEmbeddingSettings(model="custom/provider-model", request_timeout_s=10.0)
     assert (
-        LiteLLMEmbeddingSettings(
+        OpenAICompatEmbeddingSettings(
             model="custom/provider-model", dim=1024, request_timeout_s=10.0
         ).dim
         == 1024
