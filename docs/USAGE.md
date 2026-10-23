@@ -12,7 +12,7 @@ For *what* each feature is, see [`FEATURES.md`](./FEATURES.md).
 ## Install
 
 The **core** install is slim — SQLite storage + Tantivy BM25, **LanceDB vector** (ADR-021),
-fastembed embeddings, inline workers. Add capabilities as extras.
+onnx embeddings, inline workers. Add capabilities as extras.
 
 ```bash
 # Users:
@@ -65,7 +65,7 @@ engine = Engine(
         "vector": {"provider": "lancedb", "settings": {}},
     },
     model={
-        "embedding": {"provider": "hash"},     # deterministic, offline; default is "fastembed"
+        "embedding": {"provider": "hash"},     # deterministic, offline; default is "onnx"
         "rerank": {"chain": []},               # [] = no reranker (the default)
     },
     memories={
@@ -1033,7 +1033,7 @@ storage:
 model:
   rerank:
     chain:                     # [] (default) = off; the first entry that builds and works wins
-      - {provider: fastembed, settings: {}}   # fastembed | flashrank [rerank] | litellm | jina [st] | qwen3 [st]
+      - {provider: onnx, settings: {}}   # onnx | flashrank [rerank] | litellm | jina [st] | qwen3 [st]
     # - {provider: litellm, settings: {model: cohere/rerank-english-v3.0}}
 ```
 
@@ -1044,7 +1044,7 @@ counterpart of the `storage` slots. One slot per category:
 
 | Slot | What it selects | Off when |
 |---|---|---|
-| `model.embedding` | the embedder (`fastembed` default, `hash`, `static`, `litellm`, `st`) | never (always built) |
+| `model.embedding` | the embedder (`onnx` default, `hash`, `static`, `litellm`, `st`) | never (always built) |
 | `model.llm.<role>` | the LLM of one prompt role (`extract`, `judge`, `chat`, ...) | the role is not listed |
 | `model.rerank` | a reranker chain plus the rerank behaviour keys | `chain: []` (default) |
 | `model.extraction.<consumer>` | a GLiNER (or other extraction) model for `semantic`, `prepass`, `topic`, `sensitivity` | the consumer is not listed |
@@ -1086,7 +1086,7 @@ the slots: `embedding`, `rerank`, `extraction`, `lexical`, `llm`, `decider`, `vi
 ```yaml
 model:
   embedding:
-    provider: fastembed
+    provider: onnx
     batch_size: 32
     settings: {model: BAAI/bge-small-en-v1.5}
   llm:
@@ -1110,7 +1110,7 @@ model:
   rerank:
     chain:
       - {provider: jina, settings: {}}
-      - {provider: fastembed, settings: {}}
+      - {provider: onnx, settings: {}}
     pool: 64
     floor: minmax
   extraction:
@@ -1271,8 +1271,8 @@ in the schema — or if the schema gains a key not documented here.
 | `model.embedding.batch_size` | `32` | G9: most texts per embedding call when `ingest_messages` embeds its turns up front (Cohere on Bedrock: up to 96). |
 | `model.embedding.migrate_preset` | `false` | MD-02 (was `embedding.migrate_profile`): accept a preset change on open (the pin is replaced, the old hash kept as `previous`). Needs `model.embedding.versioned_spaces`; run `VersionedSpaceStore.reembed` (F-03) to move the old records. |
 | `model.embedding.pin_preset` | `false` | MD-02 (was `embedding.pin_profile`): write the resolved embedding preset (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different one. Off = nothing written or checked. In-memory stores pin nothing. |
-| `model.embedding.preset` | `null` | MD-02 (was `embedding.profile` and `models.embedder_profile`): a shipped embedding preset that fills provider, model, dim and query instruction. `gpu` = Qwen3-Embedding-0.6B, 1024 dims, bf16 on CUDA, with the evals retrieval instruction (`[st]`); `cpu_multilingual` = paraphrase-multilingual-MiniLM-L12-v2 (ONNX, 384 dims, fastembed). Null (`auto`) = the slot fields are used as written. |
-| `model.embedding.provider` | `fastembed` | D-08: `fastembed` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud; `settings.dim` required) \| `st` (sentence-transformers, `[st]`). |
+| `model.embedding.preset` | `null` | MD-02 (was `embedding.profile` and `models.embedder_profile`): a shipped embedding preset that fills provider, model, dim and query instruction. `gpu` = Qwen3-Embedding-0.6B, 1024 dims, bf16 on CUDA, with the evals retrieval instruction (`[st]`); `cpu_multilingual` = paraphrase-multilingual-MiniLM-L12-v2 (ONNX, 384 dims, onnx). Null (`auto`) = the slot fields are used as written. |
+| `model.embedding.provider` | `onnx` | D-08: `onnx` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud; `settings.dim` required) \| `st` (sentence-transformers, `[st]`). |
 | `model.embedding.settings` | `{}` | Provider-owned settings (model id, dim, api_base, ...), validated by the selected provider's descriptor. |
 | `model.embedding.versioned_spaces` | `false` | F-03 (P-25 C): version the vector space. Each vector belongs to a space (embedder model, dim, dtype, query instruction, normalisation); after an embedder change new writes go to the new space, reads query only a namespace's active space, and `reembed` builds the new space in batches and switches atomically. Off = one table per embedder, unchanged. |
 | `model.extraction.prepass` | `null` | ADR-082 (was the `gliner_prepass` binding): the GLiNER slot of `write.prepass: gliner` (which raises naming this slot when it is absent). `{provider: gliner2, settings}`; the model needs task `entities`. |
@@ -1302,7 +1302,7 @@ in the schema — or if the schema gains a key not documented here.
 | `model.placement.tiers_v2` | `false` | MD-01 (P-01, P-02, P-03, P-15, P-19). Roles with no `model.llm.<role>` slot resolve through tier, placement and fallback; an explicit slot wins. A role no model serves gets no provider. Taps: `models.resolve`, `models.placement`, `models.rerank_chain`. `describe()["models"]` holds the plan. |
 | `model.rerank.balanced` | `false` | GR-15 (Graphiti's balanced shortlist): the pool cut before reranking takes each leg's best remaining hit in turn (vector, lexical, then the extra legs), so one leg cannot fill the pool. |
 | `model.rerank.blend` | `null` | N41: null = the reranker's relevance replaces the retrieval score. A weight `w` in [0, 1] blends them: `w * rerank + (1 - w) * retrieval`, each min-max normalised over the candidates. |
-| `model.rerank.chain` | `[]` | ADR-082 (was `read.rerank` + `read.rerank_settings` and `read.rerank_v2` + `rerank_v2_chain`): rerankers `{provider, settings}` in preference order; the first that builds and works wins, `[]` = off, one entry = a single reranker. Providers: `fastembed` (ONNX/CPU MiniLM), `flashrank` (`[rerank]`), `litellm` (`settings.model`, e.g. `cohere/rerank-english-v3.0`), `jina` (`[st]`, Jina v3.5 listwise, CC-BY-NC weights), `qwen3` (`[st]`, Qwen3-Reranker-0.6B) — E8 cross-encoder (D-51). Unscored candidates stay unscored and follow the scored ones. Tap: `read.rerank.scored`. |
+| `model.rerank.chain` | `[]` | ADR-082 (was `read.rerank` + `read.rerank_settings` and `read.rerank_v2` + `rerank_v2_chain`): rerankers `{provider, settings}` in preference order; the first that builds and works wins, `[]` = off, one entry = a single reranker. Providers: `onnx` (ONNX/CPU MiniLM), `flashrank` (`[rerank]`), `litellm` (`settings.model`, e.g. `cohere/rerank-english-v3.0`), `jina` (`[st]`, Jina v3.5 listwise, CC-BY-NC weights), `qwen3` (`[st]`, Qwen3-Reranker-0.6B) — E8 cross-encoder (D-51). Unscored candidates stay unscored and follow the scored ones. Tap: `read.rerank.scored`. |
 | `model.rerank.chunk_chars` | `null` | I9: `null` = a record longer than the reranker's context is cut and its tail dropped. N = records longer than N characters are scored in overlapping windows of N characters and take the MAX window score. |
 | `model.rerank.chunk_overlap` | `0` | I9: characters shared by neighbouring windows. |
 | `model.rerank.context` | `0` | N42: the reranker sees each candidate with this many neighbouring turns of its episodic session on each side (0–3). The stored record and the context shown to the reader are unchanged. |
@@ -1701,7 +1701,7 @@ in the schema — or if the schema gains a key not documented here.
 | `runtime.shared_resources.http.max_connections` | `100` | RM-78 (default not yet measured; verify in deployment checks): connection-pool size for HTTP/Bolt clients memspine builds: OpenSearch (aiohttp connector limit), Weaviate (HTTP session pool), Neo4j graph provider (driver pool). Not honoured by LiteLLM / OpenAI-compatible model servers (library-global client). Part of the client's sharing key. |
 | `runtime.shared_resources.idle_ttl_s` | `null` | RM-78: with `keep_warm`, close retained model weights nobody has used for this many seconds. `null` = never. Requires `keep_warm: true`. |
 | `runtime.shared_resources.keep_warm` | `true` | RM-78: model weights (embedders, rerankers, GLiNER, llama.cpp, decider) stay loaded when their last holder releases them, until process exit, so a restarted or second Engine reuses them. Connections, index handles and SQL pools still close on their last release. With `scope: engine` the retained weights close when the Engine stops. |
-| `runtime.shared_resources.max_models_per_category` | `null` | RM-78: with `keep_warm`, at most this many loaded weights per category (`model.gliner`, `model.embedding.fastembed` ...); the least recently used idle ones close first; weights in use are never closed. |
+| `runtime.shared_resources.max_models_per_category` | `null` | RM-78: with `keep_warm`, at most this many loaded weights per category (`model.gliner`, `model.embedding.onnx` ...); the least recently used idle ones close first; weights in use are never closed. |
 | `runtime.shared_resources.memory_budget_mb` | `null` | RM-78: with `keep_warm`, close the least recently used idle weights while the measured load size of all loaded weights exceeds this budget (RSS growth at load, read via `psutil` or `/proc`; an unmeasured load is not counted). Weights in use are never closed. |
 | `runtime.shared_resources.model_server` | `null` | Reserved for the opt-in local model server (RM-79). Only `null` or `"off"`; any other value is a `ConfigError`. |
 | `runtime.shared_resources.scope` | `process` | RM-78 (ADR-079, RM-80 confirmed): `process` shares connected clients and model weights with identical effective settings across every Engine in the process; `engine` gives each Engine a private registry (nothing shared, everything closes at stop). |
@@ -2000,3 +2000,27 @@ instead of confirming or refusing. It trades against abstention, so screen it wi
   detection (ADR-028, amended by ADR-043), the trust-horizon invariant (ADR-029, proposed), relevance-first
   scoring (ADR-030, proposed), and the decision port with call accounting (ADR-031,
   proposed).
+
+### ONNX models and upgrading existing stores (ADR-084)
+
+The default embedding provider is `onnx`, using ONNX Runtime and tokenizers with
+an explicit catalogue of pinned Hugging Face exports. The four embedding models
+are BGE small/base English, all-MiniLM-L6-v2, and the multilingual MiniLM preset;
+the cross-encoder is `Xenova/ms-marco-MiniLM-L-6-v2`. Unsupported models require
+complete `settings.model_spec` metadata; memspine never guesses pooling or files.
+Set `settings.local_files_only: true` for offline loading, `threads` for runtime
+threads, `providers` for installed execution providers, and `batch_size` for
+inference batches. First use downloads into the standard Hugging Face cache;
+fastembed's private cache does not automatically populate that cache.
+
+The old provider selection `fastembed` is rejected. Migrate current config files
+with `python scripts/migrate_config_keys_adr084.py PATH...` (`--dry-run` previews,
+`--check` detects pending changes). Repeat runs make no changes.
+
+Catalogue models report `embedder:<model>`. A store recording `fastembed:<model>`
+is adopted only when its model and settings match the certified reference space.
+Adoption updates identity metadata and preserves the existing physical vector
+table and values. Custom exports and changed prefixes require a controlled vector
+space change. `scripts/make_onnx_parity_fixtures.py` documents regenerating the
+reference fixtures in an isolated environment with fastembed installed.
+

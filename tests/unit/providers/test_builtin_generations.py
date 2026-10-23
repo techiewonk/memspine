@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
@@ -191,7 +192,7 @@ def test_embedding_target_identity_requires_exact_dimension_without_loading_mode
     from dataclasses import asdict
 
     from memspine.clients.weights.onnx_catalogue import CATALOGUE, model_embedder_id
-    spec = {**asdict(CATALOGUE["BAAI/bge-small-en-v1.5"]), "dim": 512}
+    spec = {**asdict(CATALOGUE["BAAI/bge-small-en-v1.5"]), "dim": 512, "additional_files": []}
     unknown = OnnxEmbeddingSettings(model="organization/private-model", model_spec=spec)
     identity = provider_target_identity(onnx, unknown)
     assert identity == {

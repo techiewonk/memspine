@@ -69,7 +69,7 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | documents | mongodb | ✅ `clients/mongodb` (one connector with the records slot) | ✅ `services/documents/mongodb.py` (GridFS bucket + `<bucket>.heads`; streamed hashing, cap and digest abort; revision CAS head merge); conformance 19/19 | ✅ `providers/builtin/documents.py`, locality cluster | ✅ | RM-112 (473c3f48) |
 | documents | weaviate | ✅ shared Weaviate connector (one client with the vector/lexical slots) | ✅ `services/documents/weaviate.py` (non-vectorized collection; head, BLOB chunk (1 MiB default, 4 MiB max) and per-record reference objects); conformance 19/19 live | ✅ `acquire()`, locality cluster, needs `deployment.id` | ✅ | RM-112 (79394028) |
 | assets (registry) | records + documents | ✅ storage's own async engine; bytes through the `DocumentStore` port | ✅ `services/assets/registry.py` (`asset_registry` table, Alembic SQLite + Postgres); no sqlite3 sidecar; `ingest.asset_dir` removed | ✅ built by the container | ✅ | RM-113 item 18 (d8540742) |
-| model.embedding | fastembed | ✅ `clients/weights/fastembed` | ✅ `services/embedding/fastembed.py` | ✅ `providers/builtin/models.py` | ✅ | F (fa543ba0) |
+| model.embedding | onnx | ✅ `clients/weights/onnx` | ✅ `services/embedding/onnx.py` | ✅ `providers/builtin/models.py` | ✅ | ADR-084; pinned catalogue, parity fixtures, metadata adoption |
 | model.embedding | sentence_transformers | ✅ `clients/weights/sentence_transformers` | ✅ `services/embedding/st.py` | ✅ | ✅ | F (fa543ba0) |
 | model.embedding | static (model2vec) | ✅ `clients/weights/model2vec` | ✅ `services/embedding/static.py` | ✅ | ✅ | F (fa543ba0) |
 | model.embedding | litellm | ✅ `clients/litellm` | ✅ `services/embedding/litellm.py` | ✅ | ✅ | F (fa543ba0) |
@@ -79,7 +79,7 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | model.llm | vllm | ✅ `clients/litellm` | ✅ `services/llm/litellm.py` | ✅ own descriptor | ✅ | F (fa543ba0) |
 | model.llm | bedrock | ✅ `clients/litellm` | ✅ `services/llm/litellm.py` | ✅ own descriptor | ✅ | F (fa543ba0) |
 | model.llm | llamacpp | ✅ `clients/weights/llama_cpp` | ✅ `services/llm/llamacpp.py` | ✅ | ✅ | F (fa543ba0) |
-| model.rerank | fastembed | ✅ `clients/weights/fastembed` | ✅ `services/rerank/fastembed.py` | ✅ one factory `providers/builtin/rerank.py` | ✅ | F (fa543ba0) |
+| model.rerank | onnx | ✅ `clients/weights/onnx` | ✅ `services/rerank/onnx.py` | ✅ one factory `providers/builtin/rerank.py` | ✅ | ADR-084; pinned catalogue, parity fixtures, metadata adoption |
 | model.rerank | flashrank | ✅ `clients/weights/flashrank` | ✅ `services/rerank/flashrank.py` | ✅ one factory | ✅ | F (fa543ba0) |
 | model.rerank | qwen3 / jina | ✅ `clients/weights/transformers` | ✅ `services/rerank/{qwen3,jina}.py` | ✅ one factory | ✅ | F (fa543ba0) |
 | model.rerank | litellm | ✅ `clients/litellm` | ✅ `services/rerank/litellm.py` | ✅ one factory | ✅ | F (fa543ba0) |
