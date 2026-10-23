@@ -9,7 +9,9 @@ a pre-item-18 ``registry.sqlite`` + ``blobs/`` directory is imported once. No ne
 from __future__ import annotations
 
 import hashlib
+import os
 import sqlite3
+import uuid
 from pathlib import Path
 from typing import Any
 
@@ -186,6 +188,52 @@ async def test_soft_forget_keeps_the_rows(tmp_path: Path) -> None:
         await eng.forget(row.record_id, namespace="a")
         assert len(await eng._asset_registry().all("a")) == 1
     finally:
+        await eng.stop()
+
+
+def _pg_url() -> str | None:
+    return os.environ.get("MEMSPINE_TEST_PG_URL") or os.environ.get("MEMSPINE_TEST_POSTGRES_URL")
+
+
+@pytest.mark.skipif(_pg_url() is None, reason="set MEMSPINE_TEST_PG_URL to a scratch Postgres")
+async def test_postgres_registry_rows_and_erasure(tmp_path: Path) -> None:
+    """The registry is a table of the Postgres records database (Alembic head), shared by two
+    Engines on it; hard forget and namespace erasure remove rows and bytes."""
+    ns = f"pg-{uuid.uuid4().hex[:8]}"
+    config = _config(tmp_path, "fetch", path=":memory:")
+    config["storage"]["records"] = {
+        "provider": "postgres",
+        "settings": {"url": _pg_url(), "connect_timeout_s": 5.0, "statement_timeout_s": 30.0},
+    }
+    config["deployment"] = {"id": "rm113-assets", "data_dir": str(tmp_path / "derived")}
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        return httpx.Response(200, headers={"content-type": "image/jpeg"}, content=JPEG)
+
+    eng = Engine(**config)
+    other = Engine(**config)
+    await eng.start()
+    await other.start()
+    try:
+        eng._http = HttpConnector(HttpSpec(transport=httpx.MockTransport(handler)))
+        eng._asset_adapter().vision = Vision()
+        assert isinstance(eng._asset_registry(), SqlAssetRegistry)
+        await eng.ingest_messages(TURNS, namespace=ns, session_id="s1")
+        out = await eng.read(QUESTION, namespace=ns, mode="retrieve", top_k=4)
+        assert "Charlotte's Web" in _evidence(out)[0] and calls == [URL]
+        (row,) = await other._asset_registry().all(ns)  # shared on the database
+        assert row.availability == "cached" and row.content_hash == DIGEST
+        await eng.forget(row.record_id, namespace=ns, hard=True)
+        assert await other._asset_registry().all(ns) == []
+        assert await eng.documents.get(ns, DIGEST) is None
+        await eng.ingest_messages(TURNS, namespace=ns, session_id="s2")
+        assert len(await eng._asset_registry().all(ns)) == 1
+        await eng.erase_namespace(ns)
+        assert await eng._asset_registry().all(ns) == []
+    finally:
+        await other.stop()
         await eng.stop()
 
 

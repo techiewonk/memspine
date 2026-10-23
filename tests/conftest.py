@@ -32,6 +32,7 @@ _PG_MODULES = (
 _PG_LIVE_ONLY_TESTS = {
     "test_provider_live_contracts": frozenset({"test_postgres_storage_contract"}),
     "test_side_tables": frozenset({"test_postgres_engine_keeps_side_tables_in_the_database"}),
+    "test_assets_slots": frozenset({"test_postgres_registry_rows_and_erasure"}),
 }
 
 
