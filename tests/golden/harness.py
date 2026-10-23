@@ -100,7 +100,7 @@ def build_engine(storage_dir: Path) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": str(storage_dir / "golden.db")},
+        storage={"records": {"provider": "sqlite", "settings": {"path": str(storage_dir / "golden.db")}}},
         model={"embedding": {"provider": "hash"}, "rerank": {"chain": []}},
         read={"record_access": False},
         memories={

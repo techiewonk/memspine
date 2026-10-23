@@ -21,7 +21,7 @@ TITLE = "Ingest: record build, stamping, roles, firewall, routing, projectors, l
 
 #: The write path with every v2 stage on, extraction through the offline stub (``stub/window``).
 CONFIG: dict[str, Any] = {
-    "read": {"rerank": "off", "record_access": False},
+    "read": {"record_access": False},
     "memories": {
         "episodic": {"enabled": True},
         "semantic": {"enabled": True, "policies": {"extract_graph": {"resolve": "rules"}}},
@@ -40,11 +40,13 @@ CONFIG: dict[str, Any] = {
         "integration_v2": True,
         "lineage_table": True,
     },
-    "llm": {
-        "roles": {
+    "model": {
+        "rerank": {"chain": []},
+        "llm": {
             "window_extract": {
                 "provider": "litellm",
-                "settings": {"model": "stub/window", "timeout_seconds": 30.0},
+                "timeout_s": 30.0,
+                "settings": {"model": "stub/window"},
             }
         }
     },

@@ -158,6 +158,9 @@ async def _engine(
             "tap": {"enabled": True, "sink": "memory"},
         },
     }
+    model = extra.pop("model", None)
+    if model is not None:  # merge per slot: an override never drops the hash embedder
+        kw["model"] = {**kw["model"], **model}
     kw.update(extra)
     eng = Engine(**kw)
     await eng.start()
