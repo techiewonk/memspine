@@ -25,6 +25,10 @@ Rules (``docs/STORAGE_SLOTS_MIGRATION_PLAN.md`` section 3):
   filesystem documents) is allowed only in the process with ``deployment.writer: true``;
   every other process fails here instead of opening it. Exactly one writer per host is the
   operator's responsibility (it cannot be proven from one process's config).
+- ADR-083: a slot that runs its own host-local server (``mongodb`` with
+  ``launch.mode: managed``) is ``host``: ``multi_node`` rejects it, and under ``multi_process``
+  only the writer may manage it; the error tells the others to use ``launch.mode: external``
+  with the writer's port (the descriptor's ``host_local_fix``).
 - Outside ``single_process`` a slot set to ``auto`` must be explicit: two processes or nodes
   with different extras installed would resolve it differently.
 - ``deployment.data_dir`` is required only when a built slot places its files beside the records
@@ -86,6 +90,10 @@ class SlotLocality:
     locality: Locality | None
     single_writer: bool
     needs_placement: bool
+    #: ADR-083: the fix text when the slot runs a host-local server of its own (a managed
+    #: ``mongod``) for this ``deployment.locality``; such a slot is writer-only under
+    #: ``multi_process``.
+    host_local_fix: str | None = None
 
 
 def _descriptor(slot: str, name: str) -> ProviderDescriptor | None:
@@ -135,6 +143,7 @@ def slot_localities(
         if descriptor is None:
             continue  # unknown names are reported by the build with the valid list
         settings = _settings(descriptor, selected)
+        fix = descriptor.host_local_fix
         out.append(
             SlotLocality(
                 slot,
@@ -142,6 +151,7 @@ def slot_localities(
                 descriptor.effective_locality(settings, records),
                 descriptor.single_writer,
                 descriptor.placement_needed(settings),
+                None if fix is None else fix(settings, config.deployment.locality),
             )
         )
     return out
@@ -202,10 +212,15 @@ def validate_deployment_locality(
                 kind = "in-process" if item.locality == "process" else "host-local"
                 errors.append(
                     f"{prefix}{where} is {kind} and cannot be shared across nodes; "
-                    f"{_cluster_alternatives(item.slot)}"
+                    f"{item.host_local_fix or _cluster_alternatives(item.slot)}"
                 )
         elif mode == "multi_process":
-            if item.slot != "cache" and item.locality == "process":
+            if item.host_local_fix is not None and not deployment.writer:
+                errors.append(
+                    f"{prefix}{where} runs a managed host-local server and this process is not "
+                    f"the designated writer: {item.host_local_fix}"
+                )
+            elif item.slot != "cache" and item.locality == "process":
                 errors.append(
                     f"{prefix}{where} is in-process (each process would hold a private copy); "
                     "use a database file or a cluster provider"

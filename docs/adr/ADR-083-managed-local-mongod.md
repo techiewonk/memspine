@@ -1,6 +1,7 @@
 # ADR-083: Opt-in managed local mongod for the MongoDB provider
 
-**Status:** Accepted (design) on 2026-10-23. Implementation is RM-119.
+**Status:** Accepted (design) on 2026-10-23. Implemented by RM-119 on 2026-10-23 (see the
+implementation notes at the end).
 **Date:** 2026-10-23
 **Deciders:** Owner ("Managed launcher (ADR)", 2026-10-23)
 **Relates to:** ADR-081 (storage slots, locality), ADR-079 (shared resources),
@@ -78,3 +79,55 @@ server setup.
   - Port-conflict and adoption cases.
   - A live test that skips unless `MEMSPINE_TEST_MONGOD_BINARY` (or an opted-in download) is
     available and runs the records and documents conformance suites against a managed server.
+
+## Implementation notes (RM-119, 2026-10-23)
+
+- **Settings.** `MongoLaunchSettings` (`config/schema/providers.py`) is `settings.launch` on
+  `storage.records` provider `mongodb` (default `{mode: external}`) and on `storage.documents`
+  provider `mongodb` (default unset: inherit the records slot's connection and launcher).
+  Validation errors name the key: `launch.version` (pattern `X.Y.Z`) and `launch.port` are
+  required with `mode: managed`; `mode: managed` without `launch.binary` requires
+  `launch.download: true`; managed-only keys under `mode: external` are refused; `settings.url`
+  must be unset with `mode: managed` (it is derived) and is required with `mode: external`.
+  One key beyond the decision: `launch.cache_dir` (default the user cache directory,
+  `%LOCALAPPDATA%\memspine\mongod` on Windows, `~/Library/Caches/memspine/mongod` on macOS,
+  `$XDG_CACHE_HOME/memspine/mongod` elsewhere), which holds `<version>/mongod[.exe]`.
+- **Launcher.** `clients/mongodb/launcher.py`, `MongodLauncher` (a `Connector`, scope `thread`,
+  locality `host`), acquired through `providers.connectors.acquire` as `records.mongod` /
+  `documents.mongod` before the `MongoConnector`, which depends on it and so closes first.
+  Registry key: (binary path, port, data_dir), replica set as a knob.
+  - Binary: explicit path (its `--version` must match `launch.version`), else the cache, else a
+    consented download. Candidate archives are on `https://fastdl.mongodb.org` only (Windows zip,
+    macOS tgz, Linux tgz per distribution from `/etc/os-release`); the digest is MongoDB's
+    published `<archive>.sha256` on the same host (smaller than the 51 MB `full.json` the spike
+    read). The archive is hashed while it streams to disk, refused on a mismatch before
+    extraction, and deleted after only `bin/mongod[.exe]` is written atomically.
+  - Start: `--replSet --bind_ip 127.0.0.1 --port --dbpath --logpath <dbpath>/mongod.log
+    --logappend [--wiredTigerCacheSizeGB]`; console output goes to `mongod.console.log`.
+    `replSetGetStatus` code 94 (NotYetInitialized) triggers the one `replSetInitiate`
+    (AlreadyInitialized is ignored); the launcher polls `hello` until `isWritablePrimary`
+    within `start_timeout_s`, terminates its process on a timeout and reports the log tail. An
+    exit with 0xC0000135 (STATUS_DLL_NOT_FOUND) names the missing VC++ runtime.
+  - Port: a listener that answers `hello` with the same `setName` is adopted and never stopped;
+    a non-mongod listener or another replica set is `MongodPortConflictError` naming the port.
+  - Close: `shutdown` (then `force: true` if refused), wait up to 8 s
+    (`MONGOD_SHUTDOWN_TIMEOUT_S`, below the 10 s lifecycle close timeout), then terminate/kill.
+  - The SSPL notice is printed to stderr once per process at the first managed open.
+- **Locality.** The descriptors resolve a managed slot to `host` (an inheriting documents slot
+  takes the records slot's locality). A new descriptor hook, `host_local_fix(settings,
+  locality)`, supplies the error text: `multi_node` rejects the slot saying to use
+  `launch.mode: external` with a shared replica set; `multi_process` without
+  `deployment.writer: true` says the other processes use `launch.mode: external` with
+  `settings.url mongodb://127.0.0.1:<port>/?directConnection=true&replicaSet=<rs>`.
+- **Tests.** `tests/unit/clients/test_mongodb_launcher.py` (fake mongod script and fake admin:
+  resolution order, consent refusal, checksum refusal, only-mongod extraction for zip and tgz,
+  official-host check, idempotent initiate, timeout, early exit, VC++ exit code, adoption, port
+  conflicts, refcounted sharing with shutdown on the last release, SSPL notice once);
+  `tests/unit/providers/test_mongodb_managed.py` (validation, locality, wiring);
+  `tests/integration/test_mongodb_managed_live.py` (live).
+- **Live evidence (Windows 11, 2026-10-23).** Consented download of 9.0.4 through the launcher:
+  989 MB archive verified and reduced to `mongod.exe` (156.6 MB), first start PRIMARY after
+  29.1 s including the download, 1.4 s from the cache. Against the managed server: records
+  conformance 20/20, documents conformance 19/19, `test_mongodb_records.py` 5/5, the RM-112
+  Engine e2e 9/9; an Engine with managed records and inheriting documents started in 1.9 s,
+  wrote, searched, forgot, stopped (port released) and restarted on the same dbpath.

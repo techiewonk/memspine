@@ -36,6 +36,9 @@ class SharedBuildContext:
 class StorageBuildContext:
     shared: SharedBuildContext
     event_log: EventLogConfig
+    #: ADR-081 ``deployment.data_dir`` (None = unset); the default base of a managed server's
+    #: dbpath (ADR-083: ``<data_dir>/mongod/<port>``).
+    data_dir: str | None = None
 
 
 @dataclass(frozen=True)
@@ -87,6 +90,8 @@ class DocumentsBuildContext:
     #: provider on the same deployment (MongoDB GridFS) can inherit its connection settings
     #: and share its connector. None outside an Engine.
     records: tuple[str, Mapping[str, JsonValue]] | None = None
+    #: ADR-081 ``deployment.data_dir`` (None = unset); see :class:`StorageBuildContext`.
+    data_dir: str | None = None
 
 
 @dataclass(frozen=True)

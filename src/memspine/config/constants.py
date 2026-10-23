@@ -963,3 +963,11 @@ DOCUMENT_S3_MAX_BYTES = 5 * 1024 * 1024 * 1024
 # default about 100 MB); 4 MiB is the configurable ceiling. Not measured.
 DOCUMENT_WEAVIATE_CHUNK_BYTES = 1024 * 1024
 DOCUMENT_WEAVIATE_MAX_CHUNK_BYTES = 4 * 1024 * 1024
+# ADR-083 / RM-119 (docs/adr/ADR-083-managed-local-mongod.md section 2): the managed local
+# mongod. The 2026-10-23 spike measured PRIMARY after about 1 s on a fresh or existing dbpath
+# (docs/provider_verification/rm112-local-mongo-options-2026-10-23.md section 1); 30 s leaves
+# room for a cold disk and a first WiredTiger recovery. A clean shutdown is bounded below the
+# default lifecycle close timeout (10 s) so a stuck server is terminated, not leaked.
+MONGOD_START_TIMEOUT_S = 30.0
+MONGOD_SHUTDOWN_TIMEOUT_S = 8.0
+MONGOD_REPLICA_SET = "rs0"

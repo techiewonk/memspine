@@ -70,16 +70,132 @@ class PostgresSettings(StrictSettings):
     statement_timeout_s: float = Field(gt=0)
 
 
+#: ``launch`` keys that only mean something with ``mode: managed`` (ADR-083).
+_MANAGED_ONLY = (
+    "version",
+    "port",
+    "data_dir",
+    "binary",
+    "download",
+    "cache_dir",
+    "replica_set",
+    "start_timeout_s",
+    "cache_size_gb",
+)
+
+
+class MongoLaunchSettings(StrictSettings):
+    """ADR-083 ``settings.launch`` of the ``mongodb`` providers: who runs the server.
+
+    ``mode: external`` (default) connects to ``settings.url``. ``mode: managed`` makes memspine
+    start and own a local ``mongod`` (a one-member replica set bound to 127.0.0.1):
+
+    - ``version``: required exact pin (``9.0.4``), never "latest";
+    - ``port``: required, never picked implicitly;
+    - ``data_dir``: the dbpath (default ``<deployment.data_dir>/mongod/<port>``);
+    - ``binary``: an existing ``mongod`` executable; without it ``download: true`` is required
+      (consent to fetch MongoDB Community Server, SSPL, from fastdl.mongodb.org, verified
+      against the published SHA-256);
+    - ``cache_dir``: where a downloaded ``mongod`` is kept (default: the user cache directory,
+      ``<cache>/memspine/mongod/<version>/``);
+    - ``replica_set`` (default ``rs0``), ``start_timeout_s`` (wait for PRIMARY),
+      ``cache_size_gb`` (optional WiredTiger cache cap).
+    """
+
+    mode: Literal["external", "managed"] = "external"
+    version: str | None = Field(default=None, pattern=r"^\d+\.\d+\.\d+$")
+    port: int | None = Field(default=None, ge=1, le=65535)
+    data_dir: str | None = Field(default=None, min_length=1)
+    binary: str | None = Field(default=None, min_length=1)
+    download: bool = False
+    cache_dir: str | None = Field(default=None, min_length=1)
+    replica_set: str = Field(
+        default=constants.MONGOD_REPLICA_SET, min_length=1, pattern=r"^[A-Za-z0-9_\-]+$"
+    )
+    start_timeout_s: float = Field(default=constants.MONGOD_START_TIMEOUT_S, gt=0)
+    cache_size_gb: float | None = Field(default=None, ge=0.25)
+
+    @model_validator(mode="after")
+    def _mode_rules(self) -> MongoLaunchSettings:
+        if self.mode == "external":
+            stray = [
+                key
+                for key in _MANAGED_ONLY
+                if key in self.model_fields_set and (key != "download" or self.download)
+            ]
+            if stray:
+                raise ValueError(
+                    f"mongodb settings.launch.{stray[0]} applies only to launch.mode: managed "
+                    "(launch.mode is external: memspine connects to settings.url)"
+                )
+            return self
+        if self.version is None:
+            raise ValueError(
+                "mongodb settings.launch.version is required with launch.mode: managed "
+                "(an exact pin such as 9.0.4; never latest)"
+            )
+        if self.port is None:
+            raise ValueError(
+                "mongodb settings.launch.port is required with launch.mode: managed (memspine "
+                "never picks a port implicitly)"
+            )
+        if self.binary is None and not self.download:
+            raise ValueError(
+                "mongodb settings.launch.mode: managed needs settings.launch.binary (a path to "
+                "an existing mongod) or settings.launch.download: true (consent to download "
+                f"MongoDB Community Server {self.version}, SSPL licensed, from "
+                "fastdl.mongodb.org)"
+            )
+        return self
+
+    @property
+    def managed(self) -> bool:
+        return self.mode == "managed"
+
+    def managed_url(self) -> str:
+        """The loopback URL of the managed server (ADR-083 section 4)."""
+        return (
+            f"mongodb://127.0.0.1:{self.port}/?directConnection=true&replicaSet={self.replica_set}"
+        )
+
+
 class MongoRecordsSettings(StrictSettings):
     """``storage.records`` provider ``mongodb`` (RM-112, ``[mongodb]``): a replica set or a
-    sharded cluster (multi-document transactions; a standalone server is refused at start)."""
+    sharded cluster (multi-document transactions; a standalone server is refused at start).
 
-    url: str = Field(min_length=1, description="mongodb:// or mongodb+srv:// URL")
+    ``url`` is required with ``launch.mode: external`` (the default) and must be unset with
+    ``launch.mode: managed``, where it is derived from ``launch.port`` (ADR-083)."""
+
+    url: str | None = Field(
+        default=None, min_length=1, description="mongodb:// or mongodb+srv:// URL"
+    )
     database: str = Field(default="memspine", min_length=1)
     collection_prefix: str = ""
     connect_timeout_s: float = Field(default=10.0, gt=0)
     server_selection_timeout_s: float = Field(default=10.0, gt=0)
     operation_timeout_s: float | None = Field(default=30.0, gt=0)
+    launch: MongoLaunchSettings = Field(default_factory=MongoLaunchSettings)
+
+    @model_validator(mode="after")
+    def _url_or_launch(self) -> MongoRecordsSettings:
+        if self.launch.managed and self.url is not None:
+            raise ValueError(
+                "mongodb settings.url must be unset with settings.launch.mode: managed (the "
+                "URL is derived from settings.launch.port)"
+            )
+        if not self.launch.managed and self.url is None:
+            raise ValueError(
+                "mongodb settings.url is required (or set settings.launch.mode: managed to "
+                "let memspine run a local mongod)"
+            )
+        return self
+
+    @property
+    def effective_url(self) -> str:
+        """``url``, or the managed server's loopback URL."""
+        if self.url is not None:
+            return self.url
+        return self.launch.managed_url()
 
 
 class MongoDocumentsSettings(StrictSettings):
@@ -87,7 +203,9 @@ class MongoDocumentsSettings(StrictSettings):
 
     Unset connection fields come from the ``storage.records`` MongoDB settings, so both slots on
     one deployment share one connector; ``url`` is required when the records store is not
-    MongoDB."""
+    MongoDB. ``launch`` (ADR-083) unset inherits the records slot's launcher with its URL; a
+    managed ``launch`` here derives the URL from its port (the same server as a managed records
+    slot when both name the same binary, port and data_dir: one ``mongod`` is shared)."""
 
     url: str | None = Field(default=None, min_length=1)
     database: str | None = Field(default=None, min_length=1)
@@ -96,6 +214,21 @@ class MongoDocumentsSettings(StrictSettings):
     connect_timeout_s: float | None = Field(default=None, gt=0)
     server_selection_timeout_s: float | None = Field(default=None, gt=0)
     operation_timeout_s: float | None = Field(default=None, gt=0)
+    launch: MongoLaunchSettings | None = None
+
+    @model_validator(mode="after")
+    def _url_or_launch(self) -> MongoDocumentsSettings:
+        if self.launch is not None and self.launch.managed and self.url is not None:
+            raise ValueError(
+                "mongodb documents settings.url must be unset with settings.launch.mode: "
+                "managed (the URL is derived from settings.launch.port)"
+            )
+        if self.launch is not None and not self.launch.managed and self.url is None:
+            raise ValueError(
+                "mongodb documents settings.launch.mode: external needs settings.url (or "
+                "remove settings.launch to inherit the storage.records connection)"
+            )
+        return self
 
 
 class LanceDBSettings(StrictSettings):

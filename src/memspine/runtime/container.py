@@ -879,7 +879,7 @@ async def build_storage(config: MemspineConfig, wiring: Wiring) -> RecordsStore:
         wiring,
         descriptor,
         settings,
-        StorageBuildContext(shared, config.event_log),
+        StorageBuildContext(shared, config.event_log, data_dir=config.deployment.data_dir),
     )
     if not isinstance(result, StorageBuildResult):
         raise ConfigError(
@@ -923,6 +923,7 @@ async def build_documents(config: MemspineConfig, wiring: Wiring) -> DocumentSto
             shared_build_context(config, wiring),
             _storage_placement(config, wiring),
             records=(config.storage.records.provider, config.storage.records.settings),
+            data_dir=config.deployment.data_dir,
         ),
         result_key="documents",
     )

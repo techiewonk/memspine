@@ -323,6 +323,13 @@ class ProviderDescriptor:
     #: (``<base>.lance`` etc.), so it needs ``deployment.data_dir`` when the records store is not
     #: a file. A callable decides from the settings (an explicit path needs no base).
     needs_placement: bool | Callable[[BaseModel], bool] = field(default=False, kw_only=True)
+    #: ADR-083: ``(settings, deployment.locality) -> fix text`` when these settings make the
+    #: provider run a host-local server of its own (a managed ``mongod``), else None. A non-None
+    #: result is printed by the ``multi_node`` rejection and makes the slot writer-only under
+    #: ``multi_process``. Pure: never opens anything.
+    host_local_fix: Callable[[BaseModel, str], str | None] | None = field(
+        default=None, kw_only=True
+    )
 
     def __post_init__(self) -> None:
         expected_kind = _CATEGORY_TO_KIND.get(self.ref.category)
@@ -354,6 +361,8 @@ class ProviderDescriptor:
             raise TypeError("resolve_locality must be callable")
         if not isinstance(self.single_writer, bool):
             raise TypeError("single_writer must be a bool")
+        if self.host_local_fix is not None and not callable(self.host_local_fix):
+            raise TypeError("host_local_fix must be callable")
 
     def effective_locality(self, settings: BaseModel, records: Locality) -> Locality | None:
         """This provider's locality for ``settings`` (ADR-081 WP6); None = undeclared."""

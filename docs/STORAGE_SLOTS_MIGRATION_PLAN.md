@@ -365,3 +365,15 @@ database, connect_timeout_s, server_selection_timeout_s, operation_timeout_s}}`.
 the RM-112 cases for the added port methods; `tests/unit/providers/test_records_features.py`;
 `tests/e2e/test_mongodb_engine.py` (Engine write, search, read, forget and sleep on a replica set,
 documents sharing the connector, refusals).
+
+**Managed local server (ADR-083, RM-119, 2026-10-23).** Both MongoDB providers accept
+`settings.launch`: `mode: external` (default, `settings.url` as above) or `mode: managed`, where
+memspine starts or adopts a loopback one-member replica set (`version` and `port` required,
+`data_dir` default `<deployment.data_dir>/mongod/<port>`, `binary` or `download: true`,
+`cache_dir`, `replica_set`, `start_timeout_s`, `cache_size_gb`) and derives `settings.url`.
+The launcher (`clients/mongodb/launcher.py`) is a registry-shared connector keyed by (binary,
+port, data_dir) that the `MongoConnector` depends on; a documents slot without `url` or `launch`
+inherits the records slot's launcher, so one server backs both. A managed slot resolves to
+`host` locality: `multi_node` rejects it and `multi_process` allows it only with
+`deployment.writer: true` (descriptor hook `host_local_fix`). Live on Windows with 9.0.4: records
+conformance 20/20, documents 19/19, Engine e2e 9/9. Details: ADR-083 implementation notes.

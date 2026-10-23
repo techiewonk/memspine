@@ -13,6 +13,13 @@ Two descriptors share one connector type:
 
 Both are ``cluster`` locality and need a replica set or a sharded cluster (the connector refuses
 a standalone ``mongod`` at open). pymongo is imported only inside ``build``.
+
+ADR-083 (RM-119): ``settings.launch.mode: managed`` makes the slot start (or adopt) a local
+``mongod`` through :class:`~memspine.clients.mongodb.launcher.MongodLauncher`, acquired from the
+process registry before the connector (which depends on it, so it closes first). A managed slot
+is ``host`` locality: ``multi_node`` rejects it and under ``multi_process`` only the writer may
+manage it. A documents slot that inherits the records connection also inherits its launcher; the
+registry key (binary, port, data_dir) makes both slots share one server.
 """
 
 from __future__ import annotations
@@ -23,19 +30,34 @@ from typing import TYPE_CHECKING, Any, cast
 
 from pydantic import BaseModel, JsonValue
 
-from memspine.clients.mongodb import MongoConnector, MongoSpec
-from memspine.config.schema.providers import MongoDocumentsSettings, MongoRecordsSettings
+from memspine.clients.mongodb import MongoConnector, MongodLauncher, MongodSpec, MongoSpec
+from memspine.config import constants
+from memspine.config.schema.providers import (
+    MongoDocumentsSettings,
+    MongoLaunchSettings,
+    MongoRecordsSettings,
+)
 from memspine.exceptions import ConfigError, MissingServiceError
 from memspine.providers.connectors import acquire
-from memspine.providers.contexts import DocumentsBuildContext, StorageBuildContext
+from memspine.providers.contexts import (
+    DocumentsBuildContext,
+    SharedBuildContext,
+    StorageBuildContext,
+)
 from memspine.providers.contracts import (
     BuildResult,
     DependencyRequirement,
     ProjectionPlacement,
     ProviderRef,
+    ResourceRef,
     StorageBuildResult,
 )
-from memspine.providers.registry import DOCUMENT_STORES, STORAGE_BACKENDS, ProviderDescriptor
+from memspine.providers.registry import (
+    DOCUMENT_STORES,
+    STORAGE_BACKENDS,
+    Locality,
+    ProviderDescriptor,
+)
 from memspine.services.base import CapabilityManifest
 from memspine.store.events import EventLogMode
 
@@ -46,8 +68,10 @@ if TYPE_CHECKING:
 __all__ = [
     "DOCUMENTS_CAPABILITIES",
     "RECORDS_CAPABILITIES",
+    "documents_launch",
     "documents_spec",
     "mongo_spec",
+    "mongod_spec",
     "register",
 ]
 
@@ -72,9 +96,10 @@ _DEFAULTS = MongoRecordsSettings(url="mongodb://unused")
 
 
 def mongo_spec(settings: MongoRecordsSettings) -> MongoSpec:
-    """The connector spec of a ``storage.records`` MongoDB slot."""
+    """The connector spec of a ``storage.records`` MongoDB slot (a managed slot connects to
+    its loopback server)."""
     return MongoSpec(
-        url=settings.url,
+        url=settings.effective_url,
         database=settings.database,
         connect_timeout_s=settings.connect_timeout_s,
         server_selection_timeout_s=settings.server_selection_timeout_s,
@@ -82,21 +107,74 @@ def mongo_spec(settings: MongoRecordsSettings) -> MongoSpec:
     )
 
 
+def mongod_spec(
+    launch: MongoLaunchSettings, data_dir: str | None, *, slot: str = "storage.records"
+) -> MongodSpec:
+    """The launcher spec of a managed slot (ADR-083 section 2): ``launch.data_dir``, else
+    ``<deployment.data_dir>/mongod/<port>``."""
+    if not launch.managed or launch.version is None or launch.port is None:
+        raise ConfigError(f"{slot}.settings.launch.mode is not managed")
+    if launch.data_dir is not None:
+        dbpath = launch.data_dir
+    elif data_dir is not None:
+        dbpath = str(Path(data_dir) / "mongod" / str(launch.port))
+    else:
+        raise ConfigError(
+            f"{slot}.settings.launch.mode: managed needs a dbpath: set "
+            f"{slot}.settings.launch.data_dir or deployment.data_dir (the default is "
+            "<deployment.data_dir>/mongod/<port>)"
+        )
+    return MongodSpec(
+        version=launch.version,
+        port=launch.port,
+        data_dir=dbpath,
+        binary=launch.binary,
+        download=launch.download,
+        cache_dir=launch.cache_dir,
+        replica_set=launch.replica_set,
+        start_timeout_s=launch.start_timeout_s,
+        cache_size_gb=launch.cache_size_gb,
+        shutdown_timeout_s=constants.MONGOD_SHUTDOWN_TIMEOUT_S,
+    )
+
+
+def _records_base(records: tuple[str, Mapping[str, Any]] | None) -> MongoRecordsSettings | None:
+    if records is not None and records[0] == "mongodb":
+        return MongoRecordsSettings.model_validate(dict(records[1]))
+    return None
+
+
+def documents_launch(
+    settings: MongoDocumentsSettings, records: tuple[str, Mapping[str, Any]] | None
+) -> tuple[MongoLaunchSettings, str] | None:
+    """The managed launch a documents slot needs and the slot that configures it: its own
+    ``launch``, else (no ``url``, no ``launch``) the records slot's managed launch; None when
+    the server is external."""
+    if settings.launch is not None:
+        return (settings.launch, "storage.documents") if settings.launch.managed else None
+    base = _records_base(records)
+    if settings.url is None and base is not None and base.launch.managed:
+        return base.launch, "storage.records"
+    return None
+
+
 def documents_spec(
     settings: MongoDocumentsSettings, records: tuple[str, Mapping[str, Any]] | None
 ) -> MongoSpec:
     """The connector spec of a ``storage.documents`` MongoDB slot: its own fields, else the
     records slot's MongoDB settings (so both slots share one connector), else the defaults."""
-    base: MongoRecordsSettings | None = None
-    if records is not None and records[0] == "mongodb":
-        base = MongoRecordsSettings.model_validate(dict(records[1]))
-    url = settings.url or (base.url if base is not None else None)
+    base = _records_base(records)
+    url: str | None
+    if settings.launch is not None and settings.launch.managed:
+        url = settings.launch.managed_url()
+    else:
+        url = settings.url or (base.effective_url if base is not None else None)
     if url is None:
         raise ConfigError(
             "storage.documents provider 'mongodb' needs settings.url: storage.records is not "
             "MongoDB, so there is no records deployment to share"
         )
-    inherit = base if base is not None and url == base.url else _DEFAULTS
+    inherit = base if base is not None and url == base.effective_url else _DEFAULTS
     return MongoSpec(
         url=url,
         database=settings.database or inherit.database,
@@ -110,6 +188,58 @@ def documents_spec(
             else inherit.operation_timeout_s
         ),
     )
+
+
+def _records_locality(settings: BaseModel, records: Locality) -> Locality:
+    """ADR-083 section 5: a managed server is host-local; an external one is a cluster."""
+    if isinstance(settings, MongoRecordsSettings) and settings.launch.managed:
+        return "host"
+    return "cluster"
+
+
+def _documents_locality(settings: BaseModel, records: Locality) -> Locality:
+    if not isinstance(settings, MongoDocumentsSettings):
+        return "cluster"
+    if settings.launch is not None:
+        return "host" if settings.launch.managed else "cluster"
+    if settings.url is None:  # the records slot's server (managed: host, external: cluster)
+        return records
+    return "cluster"
+
+
+def _managed_fix(launch: MongoLaunchSettings | None, slot: str, mode: str) -> str | None:
+    if launch is None or not launch.managed:
+        return None
+    if mode == "multi_node":
+        return (
+            f"a managed mongod binds 127.0.0.1 on one host; use {slot}.settings.launch.mode: "
+            f"external with {slot}.settings.url naming a replica set every node reaches"
+        )
+    return (
+        f"only the process with deployment.writer: true may use {slot}.settings.launch.mode: "
+        f"managed; the other processes use {slot}.settings.launch.mode: external with "
+        f"{slot}.settings.url {launch.managed_url()} (the writer's port)"
+    )
+
+
+def _records_fix(settings: BaseModel, mode: str) -> str | None:
+    if not isinstance(settings, MongoRecordsSettings):
+        return None
+    return _managed_fix(settings.launch, "storage.records", mode)
+
+
+def _documents_fix(settings: BaseModel, mode: str) -> str | None:
+    if not isinstance(settings, MongoDocumentsSettings):
+        return None
+    return _managed_fix(settings.launch, "storage.documents", mode)
+
+
+async def _acquire_launcher(
+    ctx: SharedBuildContext, spec: MongodSpec, resource_id: str
+) -> ResourceRef:
+    """Start (or adopt) the managed server, shared through the registry (ADR-079)."""
+    _launcher, ref = await acquire(ctx, MongodLauncher, spec, resource_id=resource_id)
+    return ref
 
 
 def mongodb_placement(
@@ -135,7 +265,7 @@ def _records_target(settings: BaseModel) -> dict[str, JsonValue]:
 def _documents_target(settings: BaseModel) -> dict[str, JsonValue]:
     if not isinstance(settings, MongoDocumentsSettings):
         raise TypeError("mongodb documents target identity requires MongoDocumentsSettings")
-    if settings.url is None:  # the records slot's deployment, whose identity it records
+    if settings.url is None and settings.launch is None:  # the records slot's deployment
         return {
             "inherits": "storage.records",
             "database": settings.database,
@@ -159,9 +289,20 @@ class MongoRecordsBuilder:
             from memspine.services.storage.mongodb import MongoRecordsStore
         except ImportError as exc:
             raise MissingServiceError("storage:mongodb", extra="mongodb") from exc
+        refs: tuple[ResourceRef, ...] = ()
+        if settings.launch.managed:  # ADR-083: the local server first; the connector needs it
+            refs = (
+                await _acquire_launcher(
+                    ctx.shared, mongod_spec(settings.launch, ctx.data_dir), "records.mongod"
+                ),
+            )
         # Engines on one deployment share the client (ADR-079); the registry lease owns its close.
         connector, ref = await acquire(
-            ctx.shared, MongoConnector, mongo_spec(settings), resource_id="records"
+            ctx.shared,
+            MongoConnector,
+            mongo_spec(settings),
+            resource_id="records",
+            depends_on=tuple(r.resource_id for r in refs),
         )
         service = MongoRecordsStore(
             connector,
@@ -177,7 +318,7 @@ class MongoRecordsBuilder:
         return StorageBuildResult(
             service,
             ProviderRef("storage", "mongodb"),
-            (ref,),
+            (*refs, ref),
             RECORDS_CAPABILITIES,
             None,  # no SQL access: the service is the whole records port
             health_probe=probe,
@@ -193,8 +334,23 @@ class MongoDocumentsBuilder:
         except ImportError as exc:
             raise MissingServiceError("documents:mongodb", extra="mongodb") from exc
         spec = documents_spec(settings, ctx.records)
+        refs: tuple[ResourceRef, ...] = ()
+        managed = documents_launch(settings, ctx.records)
+        if managed is not None:  # ADR-083: the same (binary, port, data_dir) shares one server
+            launch, slot = managed
+            refs = (
+                await _acquire_launcher(
+                    ctx.shared, mongod_spec(launch, ctx.data_dir, slot=slot), "documents.mongod"
+                ),
+            )
         # Same spec as the records slot -> the same shared connector (one client per deployment).
-        connector, ref = await acquire(ctx.shared, MongoConnector, spec, resource_id="documents")
+        connector, ref = await acquire(
+            ctx.shared,
+            MongoConnector,
+            spec,
+            resource_id="documents",
+            depends_on=tuple(r.resource_id for r in refs),
+        )
         service = MongoDocumentStore(
             connector, bucket=settings.bucket, max_bytes=settings.max_bytes
         )
@@ -207,7 +363,7 @@ class MongoDocumentsBuilder:
         return BuildResult(
             service,
             ProviderRef("documents", "mongodb"),
-            (ref,),
+            (*refs, ref),
             DOCUMENTS_CAPABILITIES,
             health_probe=probe,
         )
@@ -229,6 +385,8 @@ def register() -> None:
                 requires_deployment_id=True,
                 target_identity=_records_target,
                 locality="cluster",
+                resolve_locality=_records_locality,
+                host_local_fix=_records_fix,
             ),
         )
     if "mongodb" not in DOCUMENT_STORES:
@@ -243,5 +401,7 @@ def register() -> None:
                 service_manifest=CapabilityManifest("mongodb", "documents", extra="mongodb"),
                 target_identity=_documents_target,
                 locality="cluster",
+                resolve_locality=_documents_locality,
+                host_local_fix=_documents_fix,
             ),
         )
