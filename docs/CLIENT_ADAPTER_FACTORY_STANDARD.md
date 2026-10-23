@@ -43,7 +43,7 @@ memory metadata cache, Tantivy writer heap and commit retries) moved from
 
 ## 2a. Live status by provider (updated after each merge; RM-113 row holds the evidence)
 
-Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`) and the RM-113 leftovers (items 6, 7, 11, 12, `8226befe`); import contracts 18 kept / 0 broken. In progress: WP6 locality + documents slot.
+Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`) and the RM-113 leftovers (items 6, 7, 11, 12, `8226befe`); import contracts 18 kept / 0 broken. WP6 locality + documents slot landed (`72855bb5`); pgvector live-tested (`d9a87db6`). Next: RM-117 model slots (ADR-082).
 ✅ done · 🔧 in progress (agent) · ⏳ queued · ⚠️ known gap
 
 | Slot | Provider | Connector | Adapter | Factory | Status | Work |
@@ -88,6 +88,9 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | model.decider | gliner2 | ✅ leases the extraction pool | ✅ `services/decider/gliner2_decision.py` | ✅ `decider` descriptor | ✅ | F (fa543ba0) |
 | model.decider | jepa (JEPA-style, joint-embedding predictive) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/jepa.py` | ⏳ future descriptor | ⏳ future | not scheduled |
 | model.decider | yolo-style (fast single-pass classifier) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/<name>.py` | ⏳ future descriptor | ⏳ future | not scheduled |
+| model.vision | ollama | ✅ `clients/http` | 🔧 `services/assets/vision.py` (moves to `services/vision/`) | ⏳ no descriptor (built inline from `ingest.asset_vision*`) | 🔧 | RM-117 |
+
+Config keys: the model.* rows are the ADR-082 slot names. The configuration still uses the old keys (`embedding`, `llm.roles`, `models.*`, `decision.provider`, `read.rerank*`, `read.decider*`, `ingest.asset_vision*`) until RM-117 moves them to `model.<slot>` ([plan](MODEL_SLOTS_MIGRATION_PLAN.md)).
 | assets | fetch / vision | ✅ `clients/http` (one pooled httpx client per Engine, no redirect following) | ✅ takes the connector; the asset registry's sqlite3 stays (item 18) | n/a | ✅ | G (7a7493b3) |
 | external | provider / wikipedia | ✅ `clients/http` | ✅ takes the connector | n/a | ✅ | G (7a7493b3) |
 | secrets | aws | ✅ `clients/aws` (boto3 session, STS health) | ✅ takes the connector | n/a | ✅ | G (7a7493b3) |
