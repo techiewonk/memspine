@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import ConfigDict, Field
+from pydantic import ConfigDict, Field, model_validator
 
 from memspine.config.schema.base import ConfigModel
 
@@ -18,7 +18,7 @@ class WriteConfig(ConfigModel):
     #: I52: grade each record none/low/medium/high with a category (``core/sensitivity.py``)
     #: and tag it ``sens:<grade>`` / ``sensc:<category>``. ``heuristic``: the fixed lexicon.
     #: ``decider``: the lexicon, raised by the decider ``sensitivity`` task when it is sure
-    #: (``read.decider: opendecider``); the decider can raise a grade, never lower it.
+    #: (``model.decider.read``); the decider can raise a grade, never lower it.
     sensitivity: Literal["off", "heuristic", "decider"] = "off"
     #: I53: ``session``: ``ingest_messages`` tags each turn ``participant:<name>`` for every
     #: speaker of the call (the turn's own speaker first; a turn's ``name``/``speaker`` key,
@@ -368,11 +368,16 @@ class IngestConfig(ConfigModel):
     asset_allowed_mime: list[str] = Field(
         default_factory=lambda: ["image/jpeg", "image/png", "image/gif", "image/webp"]
     )
-    #: ``none``: no description is produced (text-only). ``ollama``: a local vision model.
-    asset_vision: Literal["none", "ollama"] = "none"
-    asset_vision_model: str = "qwen2.5vl:3b"
-    asset_vision_url: str = "http://localhost:11434"
-    asset_vision_timeout_s: float = Field(default=120.0, gt=0.0)
+    #: The vision model that describes an asset is ``model.vision`` (ADR-082).
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_moved(cls, value: Any) -> Any:
+        """ADR-082: ``asset_vision*`` moved to ``model.vision``."""
+        from memspine.config.schema.model import MOVED_INGEST_KEYS, reject_model_moved_keys
+
+        reject_model_moved_keys(value, "ingest", MOVED_INGEST_KEYS)
+        return value
 
 
 class DataShapeConfig(ConfigModel):

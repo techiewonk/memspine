@@ -54,7 +54,7 @@ _MISSING = object()
 
 def resolve_path(config: Any, path: str) -> Any:
     """Value at a dotted path of a config object (attributes, or dict keys such as
-    ``llm.roles.sufficiency``); ``None`` when any step is absent."""
+    ``model.llm.sufficiency``); ``None`` when any step is absent."""
     node: Any = config
     for part in path.split("."):
         if node is None:
@@ -73,6 +73,8 @@ def is_active(value: Any) -> bool:
         return value.lower() not in _OFF
     if isinstance(value, (int, float)):
         return value != 0  # FU-RRPOOL: a count key (0 = off) is active when above zero
+    if isinstance(value, (list, tuple, dict, set, frozenset)):
+        return bool(value)  # ADR-082: an empty chain (``model.rerank.chain: []``) is off
     return True
 
 
@@ -126,14 +128,14 @@ REQUIRES: dict[str, tuple[Need, ...]] = {
             why="the E03 opt-in; this flag never enables lookups",
         ),
     ),
-    "read.rerank_v2_search_pool": (
-        Need("read.rerank_v2", why="the v2 reranker the wide pool feeds"),
+    "model.rerank.search_pool": (
+        Need("model.rerank.chain", why="the reranker chain the wide pool feeds"),
     ),
     "read.graph_node_search": (Need("graph.entity_embeddings", why="embedded entity names"),),
     "read.deep_v2": (
         Need(
-            "llm.roles.sufficiency",
-            alt=("llm.roles.plan",),
+            "model.llm.sufficiency",
+            alt=("model.llm.plan",),
             soft=True,
             why="unbound, the deep tier is rules-only with zero model calls (agentic_unbound)",
         ),

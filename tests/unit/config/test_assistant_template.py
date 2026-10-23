@@ -20,7 +20,7 @@ def _engine(template: str) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
 
 
@@ -92,7 +92,7 @@ async def test_engine_without_a_template_uses_assistant() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     try:
@@ -117,7 +117,7 @@ async def test_profile_simple_without_a_template_is_base(where: str) -> None:
 
     common = {
         "storage": {"records": {"settings": {"path": ":memory:"}}},
-        "embedding": {"provider": "hash"},
+        "model": {"embedding": {"provider": "hash"}},
     }
     if where == "kwargs":
         eng = Engine(dotenv_path=None, profile="simple", **common)

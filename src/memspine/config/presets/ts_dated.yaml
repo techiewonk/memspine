@@ -6,4 +6,6 @@ read:
   relative_dates_anchored: true
   temporal_leg: true
   order_by_time_for_ordering: true
-  rerank_date_prefix: true
+model:
+  rerank:
+    date_prefix: true

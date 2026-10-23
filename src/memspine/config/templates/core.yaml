@@ -33,5 +33,5 @@ memories:
   semantic:
     enabled: true
 
-llm:
-  roles: {}              # no role is bound; selected adapters supply native generation defaults
+model:
+  llm: {}                # no role is bound; selected adapters supply native generation defaults

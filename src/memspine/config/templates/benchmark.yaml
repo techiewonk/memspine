@@ -16,7 +16,7 @@
 #   - extract_graph (C2) + the graphiti write pipeline (C3): the single most
 #     expensive sleep stage
 #   - E5 assembly compression, E8 rerank and both static prefilters (D-51)
-#   - every LLM role. With `llm.roles` empty, consolidation falls back to the
+#   - every LLM role. With `model.llm` empty, consolidation falls back to the
 #     deterministic extractive summarizer (N6) and extract_graph self-skips,
 #     so the whole write path is LLM-free and same-log-same-result holds.
 #   - reorganize / Leiden communities (D-40). NOTE: there is no config switch
@@ -55,19 +55,20 @@ storage:
   cache:
     provider: memory      # in-process E3 embedding cache, zero-dep core (D-03)
 
-embedding:
-  provider: fastembed             # ONNX on CPU — torch never enters core (D-08)
-  settings:
-    model: BAAI/bge-small-en-v1.5  # pinned: an unpinned embedder is an unpinned number
-
-llm:
-  roles: {}            # no role bound => no LLM call; provider defaults apply only when bound
+model:
+  embedding:
+    provider: fastembed             # ONNX on CPU — torch never enters core (D-08)
+    settings:
+      model: BAAI/bge-small-en-v1.5  # pinned: an unpinned embedder is an unpinned number
+  llm: {}              # no role bound => no LLM call; provider defaults apply only when bound
+  rerank:
+    chain: []          # E8 rerank off
 
 read:
   hybrid: true                    # BM25 leg + RRF fusion (D-25/ADR-019); core
                                   # Tantivy, no extra. `hybrid: false` is the
                                   # ablation row, not the default.
-  rerank: "off"                   # E8. Quoted: bare `off` is YAML 1.1 false.
+
   static_prefilter: false         # E8 lexical-overlap gate
   static_embedding_prefilter: false   # E4 model2vec gate ([static])
   compression:

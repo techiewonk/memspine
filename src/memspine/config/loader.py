@@ -24,6 +24,7 @@ from pydantic import ValidationError
 from memspine.config import constants, presets
 from memspine.config.schema import MemspineConfig
 from memspine.config.schema.base import ConfigInputError, validate_config_input
+from memspine.config.schema.model import MOVED_ROOTS
 from memspine.exceptions import ConfigError
 
 __all__ = [
@@ -72,14 +73,11 @@ def _provider_settings_resets(
     options to strict validation. Same-provider layers retain ordinary deep
     merge behavior.
     """
+    # Storage (ADR-081) and model (ADR-082) slots all use ``{provider, settings}``; a list of
+    # slots (``model.rerank.chain``, escalation targets) is replaced whole by a layer.
     reset: set[str] = set()
     if "provider" in overlay and overlay.get("provider") != base.get("provider"):
         reset.add(f"{prefix}settings" if prefix else "settings")
-
-    # Read's reranker binding uses explicit pair names (storage slots use provider/settings).
-    for selector, settings_key in (("rerank", "rerank_settings"),):
-        if selector in overlay and overlay.get(selector) != base.get(selector):
-            reset.add(f"{prefix}{settings_key}")
 
     for key, value in overlay.items():
         base_value = base.get(key)
@@ -189,7 +187,9 @@ def _env_layer(env: Mapping[str, str]) -> dict[str, Any]:
     strict (``extra="forbid"``) schema. Values that are not valid YAML scalars
     fall back to the raw string rather than raising a parser error.
     """
-    known_roots = set(MemspineConfig.model_fields)
+    # ADR-082: a removed model root (``MEMSPINE_EMBEDDING__...``) still enters the layer, so
+    # it is rejected naming its new key instead of being silently ignored.
+    known_roots = set(MemspineConfig.model_fields) | set(MOVED_ROOTS)
     layer: dict[str, Any] = {}
     for key, raw in env.items():
         if not key.startswith(_ENV_PREFIX):

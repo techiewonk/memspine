@@ -191,7 +191,7 @@ _CONFIGS = {
     "sqlite": (
         {
             "storage": {"records": {"settings": {"path": "data/mem.db", "busy_timeout_s": 5.0}}},
-            "embedding": {"provider": "hash"},
+            "model": {"embedding": {"provider": "hash"}},
         },
         "local",
         Path("data/mem.db"),
@@ -209,7 +209,7 @@ _CONFIGS = {
                     },
                 }
             },
-            "embedding": {"provider": "hash"},
+            "model": {"embedding": {"provider": "hash"}},
         },
         "dep-1",
         Path("/srv/memspine") / "memspine",

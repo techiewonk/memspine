@@ -916,9 +916,11 @@ SHARED_WARMUP_TIMEOUT_S = 120.0
 #: at equal memory; owner kept 2 (within 1.5% of best, robust as warm targets grow).
 SHARED_WARMUP_CONCURRENCY = 2
 #: Warm-up target categories, in warm-up order.
+#: ADR-082 item 13: named after the model slots (``embedding``, ``rerank``, ``extraction``,
+#: ``llm``, ``decider``, ``vision``) plus the ``lexical`` index.
 SHARED_WARMUP_CATEGORIES: Final[
-    tuple[Literal["embedder", "reranker", "gliner", "lexical", "llm", "decider"], ...]
-] = ("embedder", "reranker", "gliner", "lexical", "llm", "decider")
+    tuple[Literal["embedding", "rerank", "extraction", "lexical", "llm", "decider", "vision"], ...]
+] = ("embedding", "rerank", "extraction", "lexical", "llm", "decider", "vision")
 #: Owner-fixed (ADR-079 RM-80 table): weights stay loaded for the process life, no TTL.
 SHARED_KEEP_WARM = True
 #: SQLAlchemy pool defaults applied to the async and shared sync engines (ADR-079 addendum).
@@ -936,7 +938,7 @@ SHARED_HTTP_KEEPALIVE_S = 30.0
 
 # RM-106 (ADR-080 decisions 9 and 12; docs/USAGE.md "Topical domains"): the opt-in GLiNER
 # topic tagger. A classification hit sets a domain only at or above this confidence (the
-# default of ``models.topic.min_confidence``); an unscored hit never does. Not measured: no
+# default of ``model.extraction.topic.min_confidence``); an unscored hit never does. Not measured: no
 # labelled topic set exists yet, so 0.5 is the classification midpoint, not a tuned value.
 TOPIC_MIN_CONFIDENCE = 0.5
 #: Texts whose topic result one tagger keeps (LRU), so a sleep-cycle recompile does not

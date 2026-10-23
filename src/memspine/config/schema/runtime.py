@@ -50,7 +50,8 @@ class ServiceSwitchesConfig(_StrictRuntimeModel):
     cache: CacheSwitchConfig = Field(default_factory=CacheSwitchConfig)
 
 
-WarmupCategory = Literal["embedder", "reranker", "gliner", "lexical", "llm", "decider"]
+#: ADR-082 item 13: the categories follow the model slots (plus the lexical index).
+WarmupCategory = Literal["embedding", "rerank", "extraction", "lexical", "llm", "decider", "vision"]
 
 
 class _SharedResourcesModel(ConfigModel):

@@ -8,5 +8,7 @@ read:
   temporal_leg_mentions: false
   temporal_leg_event_dates: false
   order_by_time_for_ordering: false
-  rerank_date_prefix: false
   skip_defaulted_dates: true
+model:
+  rerank:
+    date_prefix: false

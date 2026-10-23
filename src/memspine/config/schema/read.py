@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from pydantic import ConfigDict, Field, JsonValue, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from memspine.config import constants
 from memspine.config.schema.base import ConfigModel
@@ -26,9 +26,8 @@ class ReadConfig(ConfigModel):
     ``AssemblyPolicy.bind``; per-namespace overrides ride the D-14
     policy-override channel later.
 
-    - ``rerank``: ``off`` (default) | ``fastembed`` (ONNX cross-encoder) |
-      ``flashrank`` (``[rerank]`` extra) — E8 rerank stage over the candidate
-      set, fed concat_background text (D-42 §5).
+    - The E8 rerank stage and its behaviour keys are ``model.rerank`` (ADR-082); the read
+      decider is ``model.decider.read``.
     - ``static_prefilter``: cheap lexical-overlap gate before rerank/score (E8).
     - ``static_embedding_prefilter``: E4 model2vec static-embedding gate
       (``[static]``) that narrows the candidate set with cheap static cosine
@@ -51,7 +50,7 @@ class ReadConfig(ConfigModel):
       Only consulted when ``hybrid`` is on (the default); with ``hybrid: false``
       no store is built. There is intentionally **no lexical-only reranking** — the fused
       RRF result is reranked (when enabled) by the E8 cross-encoder stage
-      (``rerank`` above), which scores the query against fused candidates from
+      (``model.rerank``), which scores the query against fused candidates from
       *both* legs, so a second BM25 pass would add nothing.
     - ``compression``: options for the E5 assembly-stage ``CompressionPolicy``
       binding (``{"assembly": true, "assembly_stage": [...]}``); the master
@@ -62,9 +61,6 @@ class ReadConfig(ConfigModel):
 
     scoring: dict[str, Any] = Field(default_factory=dict)
     assembly: dict[str, Any] = Field(default_factory=dict)
-    rerank: str = "off"  # off | fastembed | flashrank | litellm
-    #: Provider constructor options. The selected descriptor validates the object.
-    rerank_settings: dict[str, JsonValue] = Field(default_factory=dict)
     static_prefilter: bool = False
     static_embedding_prefilter: bool = False
     hybrid: bool = True  # v0.2 A3: default-on hybrid retrieval (D-25, ADR-019)
@@ -120,15 +116,6 @@ class ReadConfig(ConfigModel):
     #: H13: an extra BM25 leg over the question's core terms (interrogative and
     #: function words removed), fused by RRF. Needs the lexical store (hybrid).
     core_terms_leg: bool = False
-    #: H18: run the reranker only when ``top_k`` is at most this (reranking helps
-    #: most when few of many candidates are kept, and can hurt abstention when
-    #: many are). None = always rerank when a reranker is configured.
-    rerank_max_top_k: int | None = Field(default=None, ge=1)
-    #: G5b: with a reranker and ``candidate_pool > 1``, keep only the best
-    #: ``rerank_keep`` candidates after reranking, before assembly fills the budget,
-    #: so a wider pool sharpens the ranking instead of growing the context.
-    #: None = keep the whole pool (unchanged).
-    rerank_keep: int | None = Field(default=None, ge=1)
     #: H15: replay windows stay inside the hit's topic segment (lexical-cohesion
     #: boundaries within a session), so neighbours from another topic are not replayed.
     replay_topic_segments: bool = False
@@ -172,22 +159,6 @@ class ReadConfig(ConfigModel):
     #: routed behaviour; the ``assistant`` template pins ``replay`` (combo-A, LoCoMo:
     #: compose routing measured -2.1, replay is the base of every winning arm).
     default_mode: Literal["auto", "full", "replay", "retrieve", "compose"] = "auto"
-    #: Hindsight: prefix reranker inputs with ``[Date: YYYY-MM-DD]``.
-    rerank_date_prefix: bool = False
-    #: N41 (Dakera): None (unchanged) = the reranker's relevance replaces the retrieval
-    #: score; a weight in [0, 1] blends them: ``w * rerank + (1 - w) * retrieval``,
-    #: each min-max normalised over the candidates.
-    rerank_blend: float | None = Field(default=None, ge=0.0, le=1.0)
-    #: N41 confidence gate: when the reranker's best raw score is below this, it is
-    #: not confident any candidate answers, and the retrieval order is kept. None = off.
-    rerank_gate: float | None = None
-    #: N42 (MemMachine): the reranker sees each candidate with this many neighbouring
-    #: turns of its session on each side, so a short reply is judged with its question.
-    #: 0 = the candidate alone (unchanged).
-    rerank_context: int = Field(default=0, ge=0, le=3)
-    #: GR-15 (Graphiti balanced shortlist): with a reranker on, the pool cut before
-    #: reranking takes each leg's best hits in turn, so one leg cannot fill it.
-    rerank_balanced: bool = False
     #: I75a (leg-protected pool): each leg's top-N hits are guaranteed a slot in the pool sent to
     #: the reranker even when their fused (RRF) rank falls outside the pool size; the rest is
     #: filled by RRF. The pool grows by at most ``legs * N``. 0 = off (unchanged).
@@ -228,37 +199,9 @@ class ReadConfig(ConfigModel):
     lift_before_rerank: bool = False
     #: R3-08: at most this many source turns replace one derived hit.
     lift_max_turns: int = Field(default=2, ge=1, le=8)
-    #: R3-07 (LIB-42, Q5/Q6): rerank every read through a licence fallback chain
-    #: (``rerank_v2_chain``,
-    #: first buildable and working wins; none = unscored, never 0) over a pool capped at
-    #: ``rerank_v2_pool`` (64). A candidate the reranker did not score stays unscored: it
-    #: follows every
-    #: scored one and is never given 0.0. Bypasses the ``rerank_max_top_k`` gate; ``read.rerank`` is
-    #: ignored while on. Off (default) = the single configured reranker, unchanged.
-    rerank_v2: bool = False
-    #: R3-07: reranker modes in preference order (Jina v3.5, Qwen3-Reranker-0.6B, MiniLM on CPU).
-    #: Drop ``jina`` to avoid its CC-BY-NC weights.
-    rerank_v2_chain: list[str] = Field(default_factory=lambda: ["jina", "qwen3", "fastembed"])
-    rerank_v2_pool: int = Field(default=64, ge=1, le=256)
-    #: FU-RRPOOL (INV-FILLER): ``search()`` fetched only ``top_k`` candidates, so ``rerank_v2``
-    #: could only reorder those; filler turns pushed the evidence out and it never came back.
-    #: > 0 (needs ``rerank_v2``): ``search`` fetches ``max(top_k, rerank_v2_search_pool)``,
-    #: reranks them, then cuts to ``top_k``. FX-READPATH: ``assemble`` / ``read`` (replay
-    #: included) honour it too: the assembly search fetches ``max(top_k x candidate_pool, N)``
-    #: before the rerank and cuts back to ``top_k x candidate_pool`` (never widened twice:
-    #: a pool <= that count changes nothing). 0 (default) = off. Capped by ``rerank_v2_pool`` at
-    #: the reranker.
-    rerank_v2_search_pool: int = Field(default=0, ge=0, le=256)
     #: G-10 (Graphiti MMR): None = off; a lambda in [0, 1] reorders the final hits by
     #: maximal marginal relevance on embeddings (1 = relevance only, 0 = diversity only).
     mmr_lambda: float | None = Field(default=None, ge=0.0, le=1.0)
-    #: I9: None (default, unchanged) = a long record is cut by the reranker's own context
-    #: limit (the tail is dropped). N = records longer than N characters are scored in
-    #: overlapping windows of N characters and take the max window score, so a long assistant
-    #: turn is judged on its best passage. ``rerank_chunk_overlap`` = characters shared by
-    #: neighbouring windows.
-    rerank_chunk_chars: int | None = Field(default=None, ge=64)
-    rerank_chunk_overlap: int = Field(default=0, ge=0)
     #: I7: a source with no timestamps (ConvoMem, PrefEval, LaMP shapes) gets
     #: ``valid_from`` = the write clock, so every rendered line would show today's date. On:
     #: a write whose event time was not supplied is tagged `ts_defaulted`, and the date
@@ -279,16 +222,14 @@ class ReadConfig(ConfigModel):
     #: month names, set nouns) do not fire on text a cheap script/stopword check judges
     #: non-English; they fail closed. Off: unchanged.
     language_guard: Literal["off", "on"] = "off"
-    #: Agent Zero: skip the reranker for ordering questions (first / latest / ...).
-    skip_rerank_for_ordering: bool = False
     #: H22 (Mastra): with ``render: dated``, mark long gaps ("[3 weeks later]").
     gap_markers: bool = False
     #: P4 (JustMem COMPOSE): the compose read adds up to two answer-free rewrites
     #: from the ``query_rewrite`` LLM role (``@compose`` prompt). Needs the role bound.
     compose_rewrites: bool = False
     #: H24: how ``read(mode="auto")`` picks a mode once full context does not fit:
-    #: ``rules`` (deterministic cues), ``decision`` (the decision provider chooses
-    #: among compose / replay / retrieve) or ``llm`` (G2a: one ``plan`` role call
+    #: ``rules`` (deterministic cues), ``decision`` (the ``model.decider.route`` slot chooses
+    #: among compose / replay / retrieve; required) or ``llm`` (G2a: one ``plan`` role call
     #: returns a ReadPlan; lookup/replay read by replay, aggregate by compose with
     #: the plan's subqueries as extra probes). Rules on any failure.
     planner: Literal["rules", "decision", "llm"] = "rules"
@@ -399,15 +340,6 @@ class ReadConfig(ConfigModel):
     #: The decider's relevance check will replace the overlap test through
     #: ``Engine._profile_line_relevant``; until then it is the interface seam.
     profile_relevance_gate: Literal["off", "overlap"] = "off"
-    #: RETRIEVAL_GAPS finding 3: a reranked candidate list is min-max normalised
-    #: (best 1.0, worst 0.0), so ``assembly.relative_floor`` then drops on average half
-    #: of the hits (and their replay windows) however relevant the reranker found them.
-    #: ``minmax`` = unchanged. ``skip`` = reranked reads do not apply the relative
-    #: floor (the reranker, ``rerank_keep`` and the budget bound the context instead);
-    #: a read the reranker did not score (off, gated, failed) still applies it. A
-    #: ``raw`` mode was left out: reranker outputs are only calibrated 0-1 for some
-    #: models, and the floor would still multiply the composite score.
-    rerank_floor: Literal["minmax", "skip"] = "minmax"
     #: H16: for ordering questions ("first", "latest", "most recent", ...) present
     #: the assembled volatile records in event-time order instead of score order.
     order_by_time_for_ordering: bool = False
@@ -1100,18 +1032,6 @@ class ReadConfig(ConfigModel):
     #: When the ledger call fires: ``event_questions`` (default; a date / duration / count
     #: question, or one that uses the grammar of plans and outcomes) or ``always``.
     event_ledger_trigger: Literal["event_questions", "always"] = "event_questions"
-    #: I28: the optional decider for read-path decisions. ``heuristic`` (default) = the
-    #: existing regexes and rules, byte-identical. ``opendecider`` asks OpenDecider-nano
-    #: (``[decider]`` extra) at the decision points named in ``decider_tasks``; a decision
-    #: below ``decider_min_confidence``, or any failure, keeps the heuristic answer. Every
-    #: decision is recorded in ``search_forensics`` under ``decisions``.
-    decider: Literal["heuristic", "opendecider"] = "heuristic"
-    decider_model: str = "manjunathshiva/opendecider-nano"
-    #: CPU by default: the GPU is usually shared with the reader.
-    decider_device: Literal["cpu", "cuda", "mps", "auto"] = "cpu"
-    decider_tasks: list[
-        Literal["list_mode", "bridge_hop", "about_target", "needs_more_evidence"]
-    ] = Field(default_factory=lambda: ["list_mode", "bridge_hop"])  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     #: I29: whether retrieved memories are injected at all. ``off`` (default): always, as
     #: today. (The ``decider`` form measured LoCoMo 81.6 -> 59.2 and is retired, G-22.)
     #: ``store_calibrated``: the
@@ -1176,32 +1096,20 @@ class ReadConfig(ConfigModel):
     #: as before. Raw scores are model-specific; prefer ``relevance_gate: store_calibrated``
     #: for a portable cut.
     abstain_on_raw: bool = False
-    decider_min_confidence: float = Field(default=0.5, ge=0.5, le=1.0)
     #: I52: graded-sensitivity read bar. ``off`` (default): every retrieved memory is
     #: eligible as today. ``on``: a record graded ``medium`` or ``high`` at write time
     #: (``write.sensitivity``; the W16 ``sensitive:*`` tags count as a grade too) is injected
     #: only when the question is about its category, names its subject (medium) or shares
     #: enough content words with it (1 for medium, 2 for high). ``decider``: as ``on``, and
     #: when the question names no sensitive topic the ``sensitivity_scope`` decider task may
-    #: open the gate (it never closes it). See ``core/sensitivity.py``.
+    #: open the gate (it never closes it; needs ``model.decider.read``). See
+    #: ``core/sensitivity.py``.
     sensitivity_gate: Literal["off", "on", "decider"] = "off"
     #: I48: records tagged ``src:inferred`` (``write.inferred``) are used only once they
     #: have ``inferred_min_support`` distinct supporting user turns. ``off`` (default): used
     #: as any record.
     inferred_gate: Literal["off", "on"] = "off"
     inferred_min_support: int = Field(default=2, ge=1)
-    #: CPU speed (I38). Intra-op threads of the model; 0 = the physical cores. With
-    #: ``decider_workers`` > 1 each worker gets ``cores // workers``.
-    decider_threads: int = Field(default=0, ge=0)
-    #: ``torch`` (default, fp32 as the model was evaluated) | ``onnx`` (the published 8-bit
-    #: ONNX build through ONNX Runtime, CPU only; needs ``onnxruntime``).
-    decider_backend: Literal["torch", "onnx"] = "torch"
-    #: Concurrent decision calls (a bounded thread pool). 1 keeps the engine path as it is.
-    decider_workers: int = Field(default=1, ge=1)
-    #: torch weights dtype. ``float32`` (default) is how the model was evaluated;
-    #: ``bfloat16`` was about 1.5x faster on this 16-core CPU and agreed on 300 of 300
-    #: decisions (max probability difference 0.0075).
-    decider_dtype: Literal["float32", "bfloat16"] = "float32"
     #: N06 (plan v3.2, EverMemOS clusters / HyperMem hyperedges, read-time variant): the
     #: embedding neighbourhoods of the top two hits, across sessions, join the search
     #: as RRF legs (two embeds and two vector queries per read). Off: unchanged.
@@ -1327,10 +1235,13 @@ class ReadConfig(ConfigModel):
     @model_validator(mode="before")
     @classmethod
     def _reject_moved(cls, value: Any) -> Any:
-        """ADR-081: the lexical provider selection moved to ``storage.lexical``."""
+        """ADR-081: the lexical provider moved to ``storage.lexical``; ADR-082: the reranker
+        and the read decider moved to ``model.rerank`` / ``model.decider.read``."""
+        from memspine.config.schema.model import MOVED_READ_KEYS, reject_model_moved_keys
         from memspine.config.schema.storage import reject_moved_keys
 
         reject_moved_keys(value, "read", ("lexical_provider", "lexical_settings"))
+        reject_model_moved_keys(value, "read", MOVED_READ_KEYS)
         return value
 
     @model_validator(mode="after")

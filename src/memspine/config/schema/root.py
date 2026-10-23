@@ -14,14 +14,15 @@ from memspine.config.schema.economy import EconomyConfig
 from memspine.config.schema.firewall import FirewallConfig
 from memspine.config.schema.integrity import IntegrityConfig
 from memspine.config.schema.isolation import IsolationConfig
-from memspine.config.schema.llm import (
-    DecisionConfig,
-    EmbeddingConfig,
+from memspine.config.schema.llm import PromptsConfig, WorkersConfig
+from memspine.config.schema.model import (
+    MOVED_ROOTS,
+    OFFLINE_ONLY,
+    REQUIRED_TASK,
     GlinerSettings,
-    LLMConfig,
-    ModelsConfig,
-    PromptsConfig,
-    WorkersConfig,
+    ModelConfig,
+    ModelSlot,
+    reject_model_moved_keys,
 )
 from memspine.config.schema.observability import ObservabilityConfig
 from memspine.config.schema.offline import OfflineConfig
@@ -44,7 +45,6 @@ from memspine.config.schema.storage import (
 from memspine.config.schema.write import DataShapeConfig, IngestConfig, WriteConfig
 from memspine.core.registry import validate_types
 from memspine.exceptions import ConfigError
-from memspine.prompts.roles import CATALOGUE_ROLE, PROMPT_ROLES
 from memspine.schemas.public.plugins import CapabilityManifest
 from memspine.store.scope import validate_namespace
 
@@ -80,17 +80,16 @@ class MemspineConfig(ConfigModel):
     #: ADR-081: deployment identity, locality and the host-local data directory.
     deployment: DeploymentConfig = Field(default_factory=DeploymentConfig)
     #: ADR-081: one slot per data category (records, vector, lexical, graph, graph_mirror,
-    #: cache, documents). Service providers (embedding, llm, models) stay outside.
+    #: cache, documents). Model providers live in ``model``.
     storage: StorageConfig = Field(default_factory=StorageConfig)
-    embedding: EmbeddingConfig = Field(default_factory=EmbeddingConfig)
+    #: ADR-082: one slot per model category (embedding, llm.<role>, rerank,
+    #: extraction.<consumer>, decider.<consumer>, vision) plus device placement.
+    model: ModelConfig = Field(default_factory=ModelConfig)
     graph: GraphConfig = Field(default_factory=GraphConfig)
-    llm: LLMConfig = Field(default_factory=LLMConfig)
-    models: ModelsConfig = Field(default_factory=ModelsConfig)
     read: ReadConfig = Field(default_factory=ReadConfig)
     write: WriteConfig = Field(default_factory=WriteConfig)
     offline: OfflineConfig = Field(default_factory=OfflineConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
-    decision: DecisionConfig = Field(default_factory=DecisionConfig)
     integrity: IntegrityConfig = Field(default_factory=IntegrityConfig)
     firewall: FirewallConfig = Field(default_factory=FirewallConfig)
     isolation: IsolationConfig = Field(default_factory=IsolationConfig)
@@ -115,8 +114,12 @@ class MemspineConfig(ConfigModel):
     @model_validator(mode="before")
     @classmethod
     def _reject_moved_roots(cls, value: Any) -> Any:
-        """ADR-081: ``vector`` and ``cache`` moved under ``storage``; no aliases (ADR-068)."""
+        """ADR-081: ``vector`` and ``cache`` moved under ``storage``; ADR-082: ``embedding``,
+        ``llm``, ``models`` and ``decision`` moved under ``model``. No aliases (ADR-068)."""
         reject_moved_keys(value, "", ("vector", "cache"))
+        reject_model_moved_keys(value, "", MOVED_ROOTS)
+        if isinstance(value, Mapping) and isinstance(value.get("model"), Mapping):
+            ModelConfig.reject_null(value["model"])
         if isinstance(value, Mapping) and isinstance(value.get("storage"), Mapping):
             StorageConfig.reject_moved_and_null(value["storage"])
         return value
@@ -141,111 +144,58 @@ class MemspineConfig(ConfigModel):
         return self
 
     @model_validator(mode="after")
-    def _model_profile_bindings_are_valid(self) -> MemspineConfig:
-        """Validate profile references and capabilities without loading any provider SDK."""
-        gliner_roles = {
-            "gliner_decision": "classification",
-            "gliner_semantic": "entities",
-            "gliner_prepass": "entities",
-            # RM-91 (d): opt-in topic tags for topical domains; inert unless bound
-            "gliner_topic": "classification",
-            # RM-99: opt-in sensitivity detector; active whenever bound, offline only.
-            "gliner_sensitivity": "entities",
+    def _model_slots_agree(self) -> MemspineConfig:
+        """ADR-082 / plan section 2: each consumer's slot exposes the task it needs, the
+        offline-only consumers load local files only, and an active consumer has its slot."""
+        extraction = self.model.extraction
+        decider = self.model.decider
+        slots: dict[str, tuple[str, ModelSlot | None]] = {
+            "semantic": ("model.extraction.semantic", extraction.semantic),
+            "prepass": ("model.extraction.prepass", extraction.prepass),
+            "topic": ("model.extraction.topic", extraction.topic),
+            "sensitivity": ("model.extraction.sensitivity", extraction.sensitivity),
+            "route": ("model.decider.route", decider.route),
+            "read": ("model.decider.read", decider.read),
         }
-        llm_roles = set(PROMPT_ROLES) | set(CATALOGUE_ROLE)
-        valid_roles = llm_roles | set(gliner_roles)
-        tasks_by_role: dict[str, set[str]] = {}
-        for profile_name in self.models.profiles:
-            if not profile_name.strip() or profile_name != profile_name.strip():
+        for consumer, (path, slot) in slots.items():
+            if slot is None:
+                continue
+            if slot.provider == "gliner2":
+                gliner = GlinerSettings.model_validate(slot.settings)
+                task = REQUIRED_TASK[consumer]
+                if task not in gliner.tasks:
+                    raise ConfigError(f"{path} needs a gliner2 model with task {task!r}")
+                local_only = gliner.local_files_only
+            else:
+                local_only = slot.settings.get("local_files_only") is True
+            if consumer in OFFLINE_ONLY and not local_only:
                 raise ConfigError(
-                    "models.profiles keys must be non-empty names without surrounding whitespace"
+                    f"{path} is offline only: it needs settings.local_files_only: true"
                 )
-        for role, profile_name in self.models.bindings.items():
-            if role not in valid_roles:
-                raise ConfigError(f"models.bindings has unknown role {role!r}")
-            profile = self.models.profiles.get(profile_name)
-            if profile is None:
-                raise ConfigError(
-                    f"models.bindings.{role} references unknown profile {profile_name!r}"
-                )
-            expected_kind = "gliner" if role in gliner_roles else "llm"
-            if profile.kind != expected_kind:
-                raise ConfigError(
-                    f"models.bindings.{role} requires a {expected_kind} profile; "
-                    f"{profile_name!r} is {profile.kind}"
-                )
-            if role in self.llm.roles:
-                raise ConfigError(
-                    f"LLM role {role!r} cannot be configured in both llm.roles and models.bindings"
-                )
-            if profile.kind == "gliner":
-                tasks_by_role[role] = set(GlinerSettings.model_validate(profile.settings).tasks)
-
-        for role, policy in self.models.escalation.items():
-            if role not in llm_roles:
-                raise ConfigError(f"models.escalation has unknown LLM role {role!r}")
-            primary_name = self.models.bindings.get(role)
-            if primary_name is None:
-                raise ConfigError(
-                    f"models.escalation.{role} requires a primary LLM profile in models.bindings"
-                )
-            primary = self.models.profiles[primary_name]
-            if primary.kind != "llm":
-                raise ConfigError(f"models.escalation.{role} primary profile must be kind llm")
-            for target in policy.targets:
-                target_profile = self.models.profiles.get(target)
-                if target_profile is None:
-                    raise ConfigError(
-                        f"models.escalation.{role} references unknown target profile {target!r}"
-                    )
-                if target_profile.kind != "llm":
-                    raise ConfigError(
-                        f"models.escalation.{role} target {target!r} must be kind llm"
-                    )
-                if target == primary_name:
-                    raise ConfigError(
-                        f"models.escalation.{role} target {target!r} is already the primary profile"
-                    )
 
         semantic = self.memories.get("semantic")
         semantic_mode = (
             semantic.policies.get("entity_extraction", "off") if semantic is not None else "off"
         )
-        active_consumers = {
-            "gliner_decision": self.decision.provider == "gliner2",
-            "gliner_semantic": semantic_mode == "gliner",
-            "gliner_prepass": self.write.prepass == "gliner",
-            "gliner_sensitivity": "gliner_sensitivity" in self.models.bindings,
-            # RM-106: the topic tagger is active whenever bound
-            "gliner_topic": "gliner_topic" in self.models.bindings,
+        active = {
+            "semantic": (
+                semantic_mode == "gliner",
+                "memories.semantic.policies.entity_extraction: gliner",
+            ),
+            "prepass": (self.write.prepass == "gliner", "write.prepass: gliner"),
         }
-        # ADR-080 decision 12: both opt-in roles are offline only.
-        for offline_role in ("gliner_sensitivity", "gliner_topic"):
-            offline_profile = self.models.bindings.get(offline_role)
-            if (
-                offline_profile is not None
-                and not GlinerSettings.model_validate(
-                    self.models.profiles[offline_profile].settings
-                ).local_files_only
-            ):
-                raise ConfigError(
-                    f"models.bindings.{offline_role} is offline only: its GLiNER profile "
-                    "needs local_files_only: true"
-                )
-        for role, active in active_consumers.items():
-            if active:
-                tasks = tasks_by_role.get(role)
-                required_task = gliner_roles[role]
-                if tasks is None or required_task not in tasks:
-                    raise ConfigError(
-                        f"active GLiNER consumer {role!r} needs a bound GLiNER profile "
-                        f"with task {required_task!r}"
-                    )
-                profile_name = self.models.bindings[role]
-                if self.models.profiles[profile_name].provider != "gliner2":
-                    raise ConfigError(
-                        f"active GLiNER consumer {role!r} requires provider 'gliner2'"
-                    )
+        for consumer, (on, switch) in active.items():
+            path, slot = slots[consumer]
+            if not on:
+                continue
+            if slot is None:
+                raise ConfigError(f"{switch} needs {path} (a gliner2 slot)")
+            if slot.provider != "gliner2":
+                raise ConfigError(f"{switch} needs {path}.provider: gliner2")
+        if self.read.planner == "decision" and decider.route is None:
+            raise ConfigError("read.planner: decision needs model.decider.route")
+        if self.read.sensitivity_gate == "decider" and decider.read is None:
+            raise ConfigError("read.sensitivity_gate: decider needs model.decider.read")
         return self
 
     @field_validator("memories")

@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from memspine.config.loader import load_config
 from memspine.config.schema.base import ConfigModel
+from memspine.config.schema.model import RerankConfig
 from memspine.config.schema.offline import OfflineConfig
 from memspine.config.schema.read import ReadConfig
 from memspine.config.schema.write import DataShapeConfig
@@ -68,11 +69,11 @@ def test_environment_scalar_parser_keeps_numeric_environment_values_valid() -> N
 
 @pytest.mark.parametrize(
     ("field", "value"),
-    [("rerank_max_top_k", "8"), ("rerank_blend", "0.5")],
+    [("max_top_k", "8"), ("blend", "0.5")],
 )
 def test_optional_numeric_fields_do_not_accept_strings(field: str, value: str) -> None:
     with pytest.raises(ValidationError):
-        ReadConfig.model_validate({field: value})
+        RerankConfig.model_validate({field: value})
 
 
 def test_optional_boolean_field_does_not_accept_string() -> None:
@@ -81,9 +82,9 @@ def test_optional_boolean_field_does_not_accept_string() -> None:
 
 
 def test_optional_scalar_fields_accept_none() -> None:
-    config = ReadConfig.model_validate({"rerank_max_top_k": None, "rerank_blend": None})
-    assert config.rerank_max_top_k is None
-    assert config.rerank_blend is None
+    config = RerankConfig.model_validate({"max_top_k": None, "blend": None})
+    assert config.max_top_k is None
+    assert config.blend is None
     assert DataShapeConfig.model_validate({"has_timestamps": None}).has_timestamps is None
 
 

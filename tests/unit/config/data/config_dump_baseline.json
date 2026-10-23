@@ -22,9 +22,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -35,15 +32,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -91,10 +79,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -123,38 +107,60 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {},
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -302,18 +308,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -484,26 +478,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": false,
    "role_aware": false,
@@ -522,7 +496,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -648,12 +621,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -763,7 +737,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "38a2d45f9e503629ef26153264167767111e90fdd9896bc5b4066fe7f88dd3ba",
+ "json_schema_sha256": "71e66cde9c10beb8ff83a8f2ae5901e4a01e67a12cea257b9e9641139a52bd4c",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -787,9 +761,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -800,15 +771,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -858,10 +820,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -890,13 +848,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -917,30 +868,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -1094,18 +1074,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -1276,26 +1244,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -1318,7 +1266,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "perspective",
@@ -1444,12 +1391,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -1585,9 +1533,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -1598,15 +1543,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -1654,10 +1590,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -1686,13 +1618,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -1711,30 +1636,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -1888,18 +1842,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -2070,26 +2012,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -2112,7 +2034,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -2238,12 +2159,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -2379,9 +2301,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -2392,15 +2311,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -2448,10 +2358,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -2480,13 +2386,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -2505,30 +2404,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": 2000,
+    "chunk_overlap": 200,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -2682,18 +2610,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -2864,26 +2780,6 @@
    "replay_window_unit": "tokens",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": 2000,
-   "rerank_chunk_overlap": 200,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -2906,7 +2802,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -3032,12 +2927,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -3173,9 +3069,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -3186,15 +3079,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -3242,10 +3126,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -3274,13 +3154,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -3299,30 +3172,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -3476,18 +3378,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -3658,26 +3548,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -3700,7 +3570,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -3826,12 +3695,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -3967,9 +3837,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -3980,15 +3847,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -4036,10 +3894,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -4068,13 +3922,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -4093,30 +3940,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -4270,18 +4146,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -4452,26 +4316,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -4494,7 +4338,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -4620,12 +4463,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -4761,9 +4605,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -4774,15 +4615,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -4830,10 +4662,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -4862,13 +4690,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -4887,30 +4708,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -5064,18 +4914,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -5246,26 +5084,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -5288,7 +5106,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -5414,12 +5231,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -5555,9 +5373,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -5568,15 +5383,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -5624,10 +5430,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -5656,13 +5458,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -5681,30 +5476,72 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [
+     {
+      "provider": "jina",
+      "settings": {}
+     },
+     {
+      "provider": "qwen3",
+      "settings": {}
+     },
+     {
+      "provider": "fastembed",
+      "settings": {}
+     }
+    ],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -5858,18 +5695,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -6040,26 +5865,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": true,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -6082,7 +5887,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -6208,12 +6012,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -6349,9 +6154,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -6362,15 +6164,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -6418,10 +6211,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -6450,13 +6239,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "associative": {
     "enabled": true,
@@ -6479,30 +6261,72 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [
+     {
+      "provider": "jina",
+      "settings": {}
+     },
+     {
+      "provider": "qwen3",
+      "settings": {}
+     },
+     {
+      "provider": "fastembed",
+      "settings": {}
+     }
+    ],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -6656,18 +6480,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -6838,26 +6650,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": true,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -6880,7 +6672,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -7006,12 +6797,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -7147,9 +6939,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -7160,15 +6949,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -7216,10 +6996,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -7248,13 +7024,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -7273,30 +7042,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -7450,18 +7248,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -7632,26 +7418,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -7674,7 +7440,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -7800,12 +7565,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -7941,9 +7707,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -7954,15 +7717,6 @@
    "budget": null,
    "ledger_persist": true,
    "ledger_v2": true
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -8010,10 +7764,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -8042,13 +7792,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -8067,30 +7810,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -8244,18 +8016,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -8426,26 +8186,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -8468,7 +8208,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -8594,12 +8333,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -8735,9 +8475,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -8748,15 +8485,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -8804,10 +8532,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -8836,13 +8560,6 @@
    "scope_keys_v2": true,
    "viewer_required": true
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -8861,30 +8578,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -9038,18 +8784,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -9220,26 +8954,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -9262,7 +8976,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -9388,12 +9101,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -9529,9 +9243,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -9542,15 +9253,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -9598,10 +9300,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -9630,13 +9328,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -9655,30 +9346,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": true,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -9832,18 +9552,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -10014,26 +9722,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": true,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -10056,7 +9744,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -10182,12 +9869,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -10323,9 +10011,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -10336,15 +10021,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -10392,10 +10068,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -10424,13 +10096,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -10449,30 +10114,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -10626,18 +10320,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -10808,26 +10490,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": false,
    "role_aware": false,
@@ -10850,7 +10512,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": true,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -10976,12 +10637,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -11117,9 +10779,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -11130,15 +10789,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -11186,10 +10836,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -11218,13 +10864,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -11243,30 +10882,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -11420,18 +11088,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -11602,26 +11258,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -11644,7 +11280,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -11770,12 +11405,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -11911,9 +11547,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -11924,15 +11557,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -11980,10 +11604,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -12012,13 +11632,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -12037,30 +11650,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -12214,18 +11856,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -12396,26 +12026,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -12438,7 +12048,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -12564,12 +12173,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -12705,9 +12315,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -12718,15 +12325,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -12774,10 +12372,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -12806,13 +12400,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -12831,30 +12418,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -13008,18 +12624,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -13190,26 +12794,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -13232,7 +12816,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -13358,12 +12941,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -13499,9 +13083,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -13512,17 +13093,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {
-    "model": "BAAI/bge-small-en-v1.5"
-   },
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -13570,10 +13140,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -13602,13 +13168,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "associative": {
     "enabled": true,
@@ -13634,30 +13193,61 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {
+     "model": "BAAI/bge-small-en-v1.5"
+    },
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -13813,18 +13403,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -13995,26 +13573,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -14037,7 +13595,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -14163,12 +13720,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -14306,9 +13864,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -14319,15 +13874,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -14375,10 +13921,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -14407,13 +13949,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -14437,30 +13972,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -14614,18 +14178,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -14796,26 +14348,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -14838,7 +14370,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -14964,12 +14495,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -15105,9 +14637,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -15118,15 +14647,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -15174,10 +14694,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -15206,13 +14722,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -15227,30 +14736,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -15398,18 +14936,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -15580,26 +15106,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": false,
    "role_aware": false,
@@ -15618,7 +15124,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -15744,12 +15249,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -15885,9 +15391,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -15898,15 +15401,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -15954,10 +15448,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -15986,13 +15476,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -16011,30 +15494,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -16188,18 +15700,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -16370,26 +15870,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -16412,7 +15892,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -16538,12 +16017,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -16679,9 +16159,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -16692,15 +16169,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -16748,10 +16216,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -16780,13 +16244,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "associative": {
     "enabled": true,
@@ -16813,30 +16270,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -16990,18 +16476,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -17172,26 +16646,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -17214,7 +16668,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -17340,12 +16793,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -17481,9 +16935,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -17494,15 +16945,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -17550,10 +16992,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -17582,13 +17020,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -17611,30 +17042,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -17788,18 +17248,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -17970,26 +17418,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -18012,7 +17440,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -18138,12 +17565,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -18292,9 +17720,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -18305,15 +17730,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -18361,10 +17777,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -18393,13 +17805,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -18426,30 +17831,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -18603,18 +18037,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -18785,26 +18207,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -18827,7 +18229,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -18953,12 +18354,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -19094,9 +18496,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -19107,15 +18506,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -19163,10 +18553,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -19195,13 +18581,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -19220,30 +18599,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -19397,18 +18805,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -19579,26 +18975,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -19621,7 +18997,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -19747,12 +19122,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -19888,9 +19264,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -19901,15 +19274,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": true,
@@ -19957,10 +19321,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -19989,13 +19349,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -20015,30 +19368,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -20192,18 +19574,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -20374,26 +19744,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -20416,7 +19766,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -20542,12 +19891,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -20696,9 +20046,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": "./memspine-data",
    "id": "memspine-server",
@@ -20709,15 +20056,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": false,
@@ -20765,10 +20103,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -20797,13 +20131,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -20822,30 +20149,59 @@
     "policies": {}
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -20999,18 +20355,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -21181,26 +20525,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -21223,7 +20547,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -21349,12 +20672,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }
@@ -21493,9 +20817,6 @@
    "speaker_kind": "unknown",
    "turn_length": "unknown"
   },
-  "decision": {
-   "provider": "off"
-  },
   "deployment": {
    "data_dir": null,
    "id": null,
@@ -21506,15 +20827,6 @@
    "budget": null,
    "ledger_persist": false,
    "ledger_v2": false
-  },
-  "embedding": {
-   "batch_size": 32,
-   "migrate_profile": false,
-   "pin_profile": false,
-   "profile": null,
-   "provider": "fastembed",
-   "settings": {},
-   "versioned_spaces": false
   },
   "event_log": {
    "compress": true,
@@ -21562,10 +20874,6 @@
    "asset_dir": null,
    "asset_max_bytes": 5000000,
    "asset_timeout_s": 15.0,
-   "asset_vision": "none",
-   "asset_vision_model": "qwen2.5vl:3b",
-   "asset_vision_timeout_s": 120.0,
-   "asset_vision_url": "http://localhost:11434",
    "assets": "off"
   },
   "integrity": {
@@ -21594,13 +20902,6 @@
    "scope_keys_v2": false,
    "viewer_required": false
   },
-  "llm": {
-   "roles": {},
-   "structured": {
-    "constrained_retry": false,
-    "retry_on_error": false
-   }
-  },
   "memories": {
    "episodic": {
     "enabled": true,
@@ -21621,30 +20922,59 @@
     }
    }
   },
-  "models": {
-   "allow_hosted": false,
-   "bindings": {},
-   "catalogue": [],
-   "default_rerankers": "shipped",
-   "detect_gpus": false,
-   "embedder_profile": "auto",
-   "escalation": {},
-   "gliner_max_models": 1,
-   "gpu_headroom_mb": 512,
-   "gpus": [],
-   "on_missing_model": "error",
-   "pins": {},
-   "profiles": {},
-   "ram_mb": 0,
-   "required_roles": [],
-   "rerank": "chain",
-   "role_tier": {},
-   "thinking": {},
-   "tiers_v2": false,
-   "topic": {
-    "labels": {},
-    "min_confidence": 0.5
-   }
+  "model": {
+   "decider": {
+    "read": null,
+    "route": null
+   },
+   "embedding": {
+    "batch_size": 32,
+    "migrate_preset": false,
+    "pin_preset": false,
+    "preset": null,
+    "provider": "fastembed",
+    "settings": {},
+    "versioned_spaces": false
+   },
+   "extraction": {
+    "prepass": null,
+    "semantic": null,
+    "sensitivity": null,
+    "topic": null
+   },
+   "llm": {},
+   "placement": {
+    "allow_hosted": false,
+    "catalogue": [],
+    "catalogue_rerankers": "shipped",
+    "detect_gpus": false,
+    "gpu_headroom_mb": 512,
+    "gpus": [],
+    "max_loaded_models": 1,
+    "on_missing_model": "error",
+    "pins": {},
+    "ram_mb": 0,
+    "required_roles": [],
+    "role_tier": {},
+    "tiers_v2": false
+   },
+   "rerank": {
+    "balanced": false,
+    "blend": null,
+    "chain": [],
+    "chunk_chars": null,
+    "chunk_overlap": 0,
+    "context": 0,
+    "date_prefix": false,
+    "floor": "minmax",
+    "gate": null,
+    "keep": null,
+    "max_top_k": null,
+    "pool": 64,
+    "search_pool": 0,
+    "skip_for_ordering": false
+   },
+   "vision": null
   },
   "namespaces": {},
   "observability": {
@@ -21798,18 +21128,6 @@
    "date_prior": false,
    "date_prior_boost": 1.0,
    "date_prior_days": 14,
-   "decider": "heuristic",
-   "decider_backend": "torch",
-   "decider_device": "cpu",
-   "decider_dtype": "float32",
-   "decider_min_confidence": 0.5,
-   "decider_model": "manjunathshiva/opendecider-nano",
-   "decider_tasks": [
-    "list_mode",
-    "bridge_hop"
-   ],
-   "decider_threads": 0,
-   "decider_workers": 1,
    "decompose_v2": false,
    "decompose_v2_max_entities": 3,
    "dedupe": "off",
@@ -21980,26 +21298,6 @@
    "replay_window_unit": "turns",
    "reply_links": false,
    "reply_reserve_tokens": 0,
-   "rerank": "off",
-   "rerank_balanced": false,
-   "rerank_blend": null,
-   "rerank_chunk_chars": null,
-   "rerank_chunk_overlap": 0,
-   "rerank_context": 0,
-   "rerank_date_prefix": false,
-   "rerank_floor": "minmax",
-   "rerank_gate": null,
-   "rerank_keep": null,
-   "rerank_max_top_k": null,
-   "rerank_settings": {},
-   "rerank_v2": false,
-   "rerank_v2_chain": [
-    "jina",
-    "qwen3",
-    "fastembed"
-   ],
-   "rerank_v2_pool": 64,
-   "rerank_v2_search_pool": 0,
    "resolve_durations": false,
    "resolve_relative_dates": true,
    "role_aware": false,
@@ -22022,7 +21320,6 @@
    "session_sequence": false,
    "short_query_lexical_weight": null,
    "skip_defaulted_dates": false,
-   "skip_rerank_for_ordering": false,
    "span_line": false,
    "speaker_probe": false,
    "speaker_vote_mode": "name",
@@ -22148,12 +21445,13 @@
     "warmup_concurrency": 2,
     "warmup_exclude": [],
     "warmup_include": [
-     "embedder",
-     "reranker",
-     "gliner",
+     "embedding",
+     "rerank",
+     "extraction",
      "lexical",
      "llm",
-     "decider"
+     "decider",
+     "vision"
     ],
     "warmup_timeout_s": 120.0
    }

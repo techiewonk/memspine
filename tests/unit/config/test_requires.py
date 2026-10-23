@@ -67,14 +67,13 @@ def _on_value(key: str) -> object:
 def _satisfy(need: Need) -> dict:
     if need.values is not None:
         return _nest(need.path, need.values[0])
-    if need.path.startswith("llm.roles."):
+    if need.path.startswith("model.llm."):
         return _nest(
             need.path,
-            {
-                "provider": "litellm",
-                "settings": {"model": "fake/model", "timeout_seconds": 30.0},
-            },
+            {"provider": "litellm", "timeout_s": 30.0, "settings": {"model": "fake/model"}},
         )
+    if need.path == "model.rerank.chain":
+        return _nest(need.path, [{"provider": "fastembed", "settings": {}}])
     return _nest(need.path, _on_value(need.path))
 
 
@@ -113,7 +112,7 @@ def test_defaults_are_valid_and_every_required_flag_is_off() -> None:
 
 
 #: count keys (0 = off): not in the flag registry, which lists bools and Literal modes only.
-_COUNT_KEYS = {"economy.budget", "read.rerank_v2_search_pool"}
+_COUNT_KEYS = {"economy.budget", "model.rerank.search_pool"}
 
 
 def test_every_declared_key_exists() -> None:
@@ -122,7 +121,9 @@ def test_every_declared_key_exists() -> None:
         assert key in reg or key in _COUNT_KEYS, f"{key} is not a flag of the schema"
         for need in needs:
             for path in (need.path, *need.alt):
-                assert path in reg or path.startswith(("llm.roles.", "workers.", "economy.")), path
+                assert path in reg or path.startswith(
+                    ("model.llm.", "model.rerank.chain", "workers.", "economy.")
+                ), path
 
 
 def test_the_registry_exposes_the_requirements() -> None:
@@ -195,6 +196,7 @@ EXEMPT: dict[str, str] = {
     "read.asset_evidence": "already a root validator (_asset_keys_agree)",
     "read.core_terms_leg": "needs the lexical store; read.hybrid is on by default",
     "embedding.migrate_profile": "versioned_spaces check lives in the embedding profile gate (MD-02)",
+    "model.embedding.migrate_preset": "versioned_spaces check lives in the embedding preset gate (MD-02)",
     "graph.neo4j_outbox": "needs storage.profile server OR graph.backend neo4j; an either/or the table cannot express yet",
     "graph.backend": "same either/or as graph.neo4j_outbox",
     "firewall.hearsay_trust_cap": "needs a perspective policy; inert tags only, degrades safely",

@@ -40,11 +40,14 @@ read:
     utility_weight: 0.0
   assembly:
     relative_floor: 0.3         # H4: drop candidates far below the best
-  rerank: "off"                 # reranking is opt-in per requirement; to enable, e.g.:
-  # rerank: fastembed           # local cross-encoder (or flashrank | qwen3 | litellm)
-  # rerank_model: BAAI/bge-reranker-base
-  # candidate_pool: 3           # rerank a wider pool ...
-  # rerank_keep: 10             # ... then keep the best 10
+  # candidate_pool: 3           # rerank a wider pool (with model.rerank below) ...
+
+model:                          # ADR-082: one slot per model category
+  rerank:
+    chain: []                   # reranking is opt-in per requirement; to enable, e.g.:
+    # chain:
+    #   - {provider: fastembed, settings: {}}   # local cross-encoder (or flashrank | qwen3 | litellm)
+    # keep: 10                  # ... then keep the best 10
 
 prompts:
   selection:

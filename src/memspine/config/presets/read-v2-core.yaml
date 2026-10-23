@@ -5,8 +5,13 @@ read:
   legs_v2: true
   family_fusion: true
   lift_before_rerank: true
-  rerank_v2: true
   exact_budget: true
   contract_rules: true
   router_rules: true
   tiers_v2: true
+model:
+  rerank:
+    chain:             # R3-07 licence fallback chain (Jina v3.5, Qwen3-Reranker-0.6B, MiniLM CPU)
+      - {provider: jina, settings: {}}
+      - {provider: qwen3, settings: {}}
+      - {provider: fastembed, settings: {}}

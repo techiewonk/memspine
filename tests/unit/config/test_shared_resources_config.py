@@ -31,7 +31,15 @@ def test_defaults_match_the_adr_and_constants() -> None:
     assert cfg.warmup == "background"
     assert cfg.warmup_timeout_s == 120.0
     assert cfg.warmup_concurrency == 2
-    assert cfg.warmup_include == ("embedder", "reranker", "gliner", "lexical", "llm", "decider")
+    assert cfg.warmup_include == (
+        "embedding",
+        "rerank",
+        "extraction",
+        "lexical",
+        "llm",
+        "decider",
+        "vision",
+    )
     assert cfg.warmup_exclude == ()
     assert cfg.keep_warm is True
     assert cfg.idle_ttl_s is None and cfg.memory_budget_mb is None
@@ -47,8 +55,8 @@ def test_yaml_style_values_are_accepted() -> None:
         scope="engine",
         warmup="blocking",
         warmup_timeout_s=5,
-        warmup_include=["embedder", "llm"],
-        warmup_exclude=["gliner"],
+        warmup_include=["embedding", "llm"],
+        warmup_exclude=["extraction"],
         idle_ttl_s=600,
         memory_budget_mb=2048,
         max_models_per_category=2,
@@ -56,8 +64,8 @@ def test_yaml_style_values_are_accepted() -> None:
         http={"max_connections": 10},
         model_server="off",
     ).runtime.shared_resources
-    assert cfg.scope == "engine" and cfg.warmup_include == ("embedder", "llm")
-    assert cfg.warmup_categories() == ("embedder", "llm")
+    assert cfg.scope == "engine" and cfg.warmup_include == ("embedding", "llm")
+    assert cfg.warmup_categories() == ("embedding", "llm")
     assert cfg.sql.pool_size == 2 and cfg.http.max_connections == 10
 
 
@@ -70,8 +78,8 @@ def test_yaml_style_values_are_accepted() -> None:
         {"warmup_timeout_s": True},
         {"warmup_concurrency": 0},
         {"warmup_concurrency": 2.0},
-        {"warmup_include": ["embedder", "gpu"]},
-        {"warmup_include": ["embedder", "embedder"]},
+        {"warmup_include": ["embedding", "gpu"]},
+        {"warmup_include": ["embedding", "embedding"]},
         {"keep_warm": "yes"},
         {"idle_ttl_s": 0},
         {"memory_budget_mb": 0},
@@ -93,9 +101,9 @@ def test_strict_validation_rejects(bad: dict[str, Any]) -> None:
 
 def test_explicit_include_and_exclude_must_be_disjoint() -> None:
     with pytest.raises(ValidationError, match="disjoint"):
-        SharedResourcesConfig(warmup_include=["embedder", "llm"], warmup_exclude=["llm"])
+        SharedResourcesConfig(warmup_include=["embedding", "llm"], warmup_exclude=["llm"])
     cfg = SharedResourcesConfig(warmup_exclude=["llm", "decider"])
-    assert cfg.warmup_categories() == ("embedder", "reranker", "gliner", "lexical")
+    assert cfg.warmup_categories() == ("embedding", "rerank", "extraction", "lexical", "vision")
 
 
 def test_idle_ttl_requires_keep_warm() -> None:

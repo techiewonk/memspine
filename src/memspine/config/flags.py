@@ -118,10 +118,10 @@ FLAG_EVIDENCE: dict[str, dict[str, str]] = {
         "evidence": "ADR-079 (addendum settings table: sql.pool_pre_ping true)",
         "note": "SQLAlchemy pre-ping on checkout; Postgres and file SQLite pools",
     },
-    # --- models.profiles.*.settings (GLiNER profile, RM-81) ---
+    # --- model.extraction.*.settings (gliner2 slot settings, RM-81 / ADR-082) ---
     "GlinerSettings.local_files_only": {
         "evidence": "commit 47526490 (named GLiNER profiles); ADR-074 (explicit offline policy)",
-        "note": "missing local artifacts fail; a download needs the profile to set it false",
+        "note": "missing local artifacts fail; a download needs the slot to set it false",
     },
 }
 
@@ -129,7 +129,8 @@ FLAG_EVIDENCE: dict[str, dict[str, str]] = {
 #: by the config schema itself (not by a provider descriptor). The registry walks them under
 #: their wildcard key so their flags are visible and evidenced like any other.
 _PROFILE_SETTINGS: tuple[tuple[str, type[BaseModel]], ...] = (
-    ("models.profiles.*.settings.", schema.GlinerSettings),
+    ("model.extraction.*.settings.", schema.GlinerSettings),
+    ("model.decider.read.settings.", schema.OpenDeciderSettings),
 )
 
 
