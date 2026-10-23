@@ -391,3 +391,36 @@ async def test_cohere_rerank_path_and_explicit_override() -> None:
     await connector.arerank(model="ranker", query="q", documents=[])
     assert seen == ["/v2/rerank", "/custom/rerank"]
     await pool.close()
+
+
+async def test_anyllm_closes_owned_provider_sdk_and_uses_wall_clock_for_unsupported_timeout(
+    monkeypatch,
+) -> None:
+    from memspine.clients.anyllm import AnyLLMConnector
+
+    seen = {}
+
+    class SDK:
+        async def close(self):
+            seen["closed"] = True
+
+    class Provider:
+        TIMEOUT_SUPPORT = "unsupported"
+        client = SDK()
+
+        async def acompletion(self, **kwargs):
+            assert "timeout" not in kwargs
+            return SimpleNamespace(model_dump=lambda: {"choices": []})
+
+    class Factory:
+        @staticmethod
+        def create(*args, **kwargs):
+            assert kwargs["unified_exceptions"] is True
+            return Provider()
+
+    monkeypatch.setitem(sys.modules, "any_llm", SimpleNamespace(AnyLLM=Factory))
+    connector = AnyLLMConnector("fake")
+    await connector.acompletion(model="x", messages=[], timeout=3)
+    await connector.close()
+    await connector.close()
+    assert seen["closed"]
