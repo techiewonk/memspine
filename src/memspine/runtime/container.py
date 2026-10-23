@@ -41,6 +41,13 @@ from dishka import AsyncContainer, BaseScope, Provider, make_async_container, ne
 from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import MemspineConfig
 from memspine.config.schema.base import ConfigInputError
+from memspine.config.schema.model import (
+    LLMSlot,
+    decider_slot,
+    extraction_slot,
+    gliner_settings,
+    llm_slots,
+)
 from memspine.config.schema.root import freeze_effective_config
 from memspine.config.schema.storage import SlotConfig
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
@@ -55,7 +62,6 @@ from memspine.memories.semantic.write_pipeline import (
     cardinality_map,
     extraction_rounds,
 )
-from memspine.models.profiles import bound_llm_roles, resolve_llm_profile
 from memspine.observability.logging import get_logger
 from memspine.plugins import enable as enable_plugins
 from memspine.prompts.registry import PromptRegistry
@@ -761,18 +767,17 @@ async def wiring_of(config: MemspineConfig, _caps: Capabilities) -> AsyncIterato
         retention_token=registry.add_retention(retention_policy(config)),
         private_registry=private,
     )
-    gliner_active = (
-        config.decision.provider == "gliner2"
-        or memory_policy(config, "semantic").get("entity_extraction", "off") == "gliner"
-        or config.write.prepass == "gliner"
-        or "gliner_sensitivity" in config.models.bindings  # RM-99 opt-in
-        or "gliner_topic" in config.models.bindings  # RM-106 opt-in
-    )
     try:
-        if gliner_active:
-            # RM-113: the model.extraction descriptor builds the pool and registers its close.
-            descriptor = _descriptor(PROVIDER_EXTRACTORS, "gliner2", "models.gliner_max_models")
-            settings = _settings(descriptor, {"max_models": config.models.gliner_max_models})
+        if gliner_consumers(config):
+            # RM-113: the model.extraction descriptor builds the ONE pool every GLiNER consumer
+            # leases (ADR-082 item 4: weights keyed without per-consumer fields, so consumers
+            # naming one checkpoint share one load) and registers its close.
+            descriptor = _descriptor(
+                PROVIDER_EXTRACTORS, "gliner2", "model.placement.max_loaded_models"
+            )
+            settings = _settings(
+                descriptor, {"max_models": config.model.placement.max_loaded_models}
+            )
             built = await _build_provider(
                 wiring,
                 descriptor,
@@ -787,6 +792,27 @@ async def wiring_of(config: MemspineConfig, _caps: Capabilities) -> AsyncIterato
             await wiring.close_clients()
         finally:
             await wiring.release_registry()
+
+
+def gliner_consumers(config: MemspineConfig) -> tuple[str, ...]:
+    """ADR-082: the active consumers whose slot selects ``gliner2`` (they share one pool).
+
+    ``semantic`` / ``prepass`` are switched by ``memories.semantic.policies.entity_extraction``
+    / ``write.prepass`` and need their slot; ``topic`` / ``sensitivity`` (RM-106 / RM-99) are
+    on when their slot is set; ``route`` is the H24 decider."""
+    active: list[str] = []
+    semantic = memory_policy(config, "semantic").get("entity_extraction", "off") == "gliner"
+    switched = {"semantic": semantic, "prepass": config.write.prepass == "gliner"}
+    for consumer in ("semantic", "prepass", "topic", "sensitivity"):
+        slot = extraction_slot(config, consumer)
+        if slot is None or slot.provider != "gliner2":
+            continue
+        if switched.get(consumer, True):
+            active.append(consumer)
+    route = decider_slot(config, "route")
+    if route is not None and route.provider == "gliner2":
+        active.append("route")
+    return tuple(active)
 
 
 def shared_build_context(config: MemspineConfig, wiring: Wiring) -> SharedBuildContext:
@@ -862,9 +888,9 @@ async def build_documents(config: MemspineConfig, wiring: Wiring) -> DocumentSto
 
 
 def resolved_embedding(config: MemspineConfig) -> Any:
-    """MD-02: ``config.embedding`` with ``embedding.profile`` applied (None: unchanged)."""
-    cfg = config.embedding
-    if cfg.profile is None:
+    """MD-02: ``model.embedding`` with ``model.embedding.preset`` applied (None: unchanged)."""
+    cfg = config.model.embedding
+    if cfg.preset is None:
         return cfg
     from memspine.models.embedding_profiles import resolve_profile
     from memspine.observability import tap
@@ -875,7 +901,7 @@ def resolved_embedding(config: MemspineConfig) -> Any:
     # rather than looking for a legacy top-level attribute.
     configured_device = cfg.settings.get("device")
     profile = resolve_profile(
-        cfg.profile,
+        cfg.preset,
         device=configured_device if isinstance(configured_device, str) else None,
     )
     tap.event(
@@ -896,8 +922,8 @@ def _pin_embedding_profile(
     generation_id: str = "active",
 ) -> Any:
     """MD-02: pin the store's embedding profile at creation; refuse a different one on open."""
-    cfg = config.embedding
-    if not cfg.pin_profile:
+    cfg = config.model.embedding
+    if not cfg.pin_preset:
         return None
     from memspine.models.embedding_profiles import (
         EmbeddingProfile,
@@ -907,18 +933,19 @@ def _pin_embedding_profile(
     )
     from memspine.observability import tap
 
-    if cfg.migrate_profile and not cfg.versioned_spaces:
+    if cfg.migrate_preset and not cfg.versioned_spaces:
         raise ConfigError(
-            "embedding.migrate_profile needs embedding.versioned_spaces=true: the new profile's "
+            "model.embedding.migrate_preset needs model.embedding.versioned_spaces=true: the new "
+            "preset's "
             "vectors go to a new space and the F-03 re-embed moves the old records"
         )
     effective = resolved_embedding(config)
     provider_settings = _settings(
-        _descriptor(PROVIDER_EMBEDDERS, effective.provider, "embedding.provider"),
+        _descriptor(PROVIDER_EMBEDDERS, effective.provider, "model.embedding.provider"),
         effective.settings,
     )
-    if cfg.profile is not None:
-        profile = resolve_profile(cfg.profile, device=getattr(provider_settings, "device", None))
+    if cfg.preset is not None:
+        profile = resolve_profile(cfg.preset, device=getattr(provider_settings, "device", None))
     else:
         eff = resolved_embedding(config)
         profile = EmbeddingProfile(
@@ -938,7 +965,7 @@ def _pin_embedding_profile(
         else f"{derived_base(config)}.embedding-profile{generation_suffix}.json"
     )
     try:
-        status = check_or_pin(path, profile, migrate=cfg.migrate_profile)
+        status = check_or_pin(path, profile, migrate=cfg.migrate_preset)
     except EmbeddingProfileMismatch:
         tap.event("embed.profile_mismatch", profile=profile.name, version_hash=profile.version_hash)
         raise
@@ -952,7 +979,7 @@ async def provide_embedder(
 ) -> EmbeddingService:
     """The E3-cached embedder (the cache is the one shared KV cache, Phase 2)."""
     effective = resolved_embedding(config)
-    descriptor = _descriptor(PROVIDER_EMBEDDERS, effective.provider, "embedding.provider")
+    descriptor = _descriptor(PROVIDER_EMBEDDERS, effective.provider, "model.embedding.provider")
     settings = _settings(descriptor, effective.settings)
     shared = shared_build_context(config, wiring)
     result = await _build_provider(wiring, descriptor, settings, shared, result_key="embedding")
@@ -978,7 +1005,7 @@ async def build_vector_store(
     placement = _storage_placement(config, wiring)
     effective_embedding = resolved_embedding(config)
     effective_embedding_settings = _settings(
-        _descriptor(PROVIDER_EMBEDDERS, effective_embedding.provider, "embedding.provider"),
+        _descriptor(PROVIDER_EMBEDDERS, effective_embedding.provider, "model.embedding.provider"),
         effective_embedding.settings,
     )
     context = VectorBuildContext(
@@ -988,7 +1015,7 @@ async def build_vector_store(
         quantization,
         matryoshka_dim,
         None if pinned is None else pinned.to_dict(),
-        config.embedding.versioned_spaces,
+        config.model.embedding.versioned_spaces,
         getattr(effective_embedding_settings, "query_instruction", None),
         generation_id,
         sql=wiring.sql,
@@ -1225,144 +1252,159 @@ async def build_graph_store(config: MemspineConfig, wiring: Wiring) -> GraphStor
     return cast(GraphStore, result.service)
 
 
+def llm_settings(descriptor: ProviderDescriptor, slot: Any) -> Any:
+    """ADR-082: a ``model.llm.<role>`` slot's native settings plus its typed ``timeout_s``
+    (the adapters' ``timeout_seconds``), validated by the selected descriptor."""
+    values: dict[str, Any] = dict(slot.settings)
+    if "timeout_seconds" in descriptor.settings_model.model_fields:
+        values["timeout_seconds"] = slot.timeout_s
+    return _settings(descriptor, values)
+
+
+def _slot_key(slot: Any) -> tuple[Any, ...]:
+    """The identity of an LLM slot's built service: provider, native settings and timeout."""
+    import orjson
+
+    return (
+        slot.provider,
+        orjson.dumps(dict(slot.settings), option=orjson.OPT_SORT_KEYS),
+        slot.timeout_s,
+    )
+
+
+def _native_token_cap(slot: Any) -> int | None:
+    value = slot.settings.get("max_tokens")
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    return None
+
+
+def _thinking_capped(role: str, slot: LLMSlot, provider: LLMService) -> LLMService:
+    """P-15: a slot's ``thinking`` budget (judge / reflect only, validated by the schema)."""
+    if not slot.thinking:
+        return provider
+    from memspine.models.tiers import ROLE_CATALOGUE
+    from memspine.prompts.roles import CATALOGUE_ROLE
+    from memspine.services.llm.base import ThinkingCapped
+
+    spec_tokens = {r.name: r.max_tokens for r in ROLE_CATALOGUE}
+    answer = spec_tokens.get(CATALOGUE_ROLE.get(role, ""), _native_token_cap(slot) or 2048)
+    return ThinkingCapped(provider, cap_tokens=slot.thinking, max_tokens=answer)
+
+
 async def build_llm_router(config: MemspineConfig, hooks: WiringHooks, wiring: Wiring) -> LLMRouter:
-    """Build inline, named-profile, tiered and escalation LLM bindings."""
+    """Build the ``model.llm.<role>`` slots, the tiered roles and their escalation ladders."""
     providers: dict[str, LLMService] = {}
-    role_configs = bound_llm_roles(config)
-    profile_services: dict[str, LLMService] = {}
+    role_configs: dict[str, Any] = llm_slots(config)
+    target_services: dict[tuple[Any, ...], LLMService] = {}
+    primary_builds: dict[tuple[Any, ...], BuildResult[Any]] = {}
     shared = shared_build_context(config, wiring)
 
-    async def build_profile(profile_name: str, role: str) -> LLMService:
-        existing = profile_services.get(profile_name)
+    async def build_target(role: str, index: int, target: Any) -> LLMService:
+        """An inline escalation target; identical targets share one service (ADR-079)."""
+        key = _slot_key(target)
+        existing = target_services.get(key)
         if existing is not None:
             return existing
-        profile_config = resolve_llm_profile(config, profile_name)
-        descriptor = _descriptor(
-            PROVIDER_LLM_PROVIDERS,
-            profile_config.provider,
-            f"models.profiles.{profile_name}.provider",
-        )
-        typed = _settings(descriptor, profile_config.settings)
+        path = f"model.llm.{role}.escalation.targets[{index}]"
+        descriptor = _descriptor(PROVIDER_LLM_PROVIDERS, target.provider, f"{path}.provider")
+        typed = llm_settings(descriptor, target)
+        label = f"escalation:{role}:{index}"
         built = await _build_provider(
             wiring,
             descriptor,
             typed,
-            LLMBuildContext(shared, role, resource_key=f"llm.profile:{profile_name}"),
-            result_key=f"llm.profile.{profile_name}",
+            LLMBuildContext(shared, role, resource_key=f"llm.{label}"),
+            result_key=f"llm.{label}",
         )
         raw_service = cast(LLMService, built.service)
         service = ProfiledLLM(
             raw_service,
             profiled_provider_identity(descriptor.ref, typed, raw_service),
         )
-        profile_services[profile_name] = service
+        target_services[key] = service
         return service
 
-    def native_token_cap(role_config: Any) -> int | None:
-        value = role_config.settings.get("max_tokens")
-        if isinstance(value, int) and not isinstance(value, bool) and value > 0:
-            return value
-        return None
-
-    for role, role_config in role_configs.items():
-        profile_name = config.models.bindings.get(role)
-        if profile_name is not None and config.models.profiles[profile_name].kind == "llm":
-            providers[role] = await build_profile(profile_name, role)
-            continue
-        descriptor = _descriptor(
-            PROVIDER_LLM_PROVIDERS, role_config.provider, f"llm.roles.{role}.provider"
-        )
-        typed = _settings(descriptor, role_config.settings)
-        built = await _build_provider(
-            wiring, descriptor, typed, LLMBuildContext(shared, role), result_key=f"llm.{role}"
-        )
-        providers[role] = cast(LLMService, built.service)
+    for role, slot in role_configs.items():
+        key = _slot_key(slot)
+        built = primary_builds.get(key)
+        if built is None:
+            descriptor = _descriptor(
+                PROVIDER_LLM_PROVIDERS, slot.provider, f"model.llm.{role}.provider"
+            )
+            typed = llm_settings(descriptor, slot)
+            built = await _build_provider(
+                wiring, descriptor, typed, LLMBuildContext(shared, role), result_key=f"llm.{role}"
+            )
+            primary_builds[key] = built
+        else:
+            # ADR-082 item 3 / ADR-079: roles whose slots name the same provider, settings and
+            # timeout share one built service (as one named profile did); each keeps its row.
+            wiring.provider_results[f"llm.{role}"] = built
+        providers[role] = _thinking_capped(role, slot, cast(LLMService, built.service))
+    explicit = dict(role_configs)
     resolved = None
-    if config.models.tiers_v2:
+    if config.model.placement.tiers_v2:
         resolved = await _bind_tiered_roles(config, providers, role_configs, wiring)
     consent = config.consent
-    if consent.remote_llm_max_tier is not None:
-        # Gate each candidate independently: a local primary may target a remote profile.
+    gate_remote = consent.remote_llm_max_tier is not None
+    if gate_remote:
+        # Gate each candidate independently: a local primary may escalate to a remote target.
         for role, role_config in role_configs.items():
             if not is_local_binding(
                 role_config.provider, role_config.settings, consent.local_hosts
             ):
                 providers[role] = TierGatedLLM(providers[role], hooks.withheld_texts)
-        for role, policy in config.models.escalation.items():
-            target_names = policy.targets[: max(0, policy.max_attempts - 1)]
-            profile_names = (config.models.bindings[role], *target_names)
-            candidates: list[LLMService] = [providers[role]]
-            profile_caps = [native_token_cap(role_configs[role])]
-            for profile_name in target_names:
-                candidates.append(await build_profile(profile_name, role))
-                profile_caps.append(native_token_cap(resolve_llm_profile(config, profile_name)))
-            gated = []
-            for candidate, profile_name in zip(candidates[1:], target_names, strict=True):
-                target_config = resolve_llm_profile(config, profile_name)
-                if not is_local_binding(
-                    target_config.provider, target_config.settings, consent.local_hosts
-                ):
-                    candidate = TierGatedLLM(candidate, hooks.withheld_texts)
-                gated.append(candidate)
-            providers[role] = EscalatingLLM(
-                role, profile_names, (candidates[0], *gated), policy, tuple(profile_caps)
-            )
-    else:
-        for role, policy in config.models.escalation.items():
-            target_names = policy.targets[: max(0, policy.max_attempts - 1)]
-            profile_names = (config.models.bindings[role], *target_names)
-            candidates = [providers[role]]
-            profile_caps = [native_token_cap(role_configs[role])]
-            for profile_name in target_names:
-                candidates.append(await build_profile(profile_name, role))
-                profile_caps.append(native_token_cap(resolve_llm_profile(config, profile_name)))
-            providers[role] = EscalatingLLM(
-                role, profile_names, tuple(candidates), policy, tuple(profile_caps)
-            )
+    for role, slot in explicit.items():
+        policy = slot.escalation
+        if policy is None:
+            continue
+        targets = policy.targets[: max(0, policy.max_attempts - 1)]
+        names = (role, *(f"{role}.escalation.targets[{i}]" for i in range(len(targets))))
+        candidates: list[LLMService] = [providers[role]]
+        caps = [_native_token_cap(slot)]
+        for index, target in enumerate(targets):
+            candidate = await build_target(role, index, target)
+            if gate_remote and not is_local_binding(
+                target.provider, target.settings, consent.local_hosts
+            ):
+                candidate = TierGatedLLM(candidate, hooks.withheld_texts)
+            candidates.append(candidate)
+            caps.append(_native_token_cap(target))
+        providers[role] = EscalatingLLM(role, names, tuple(candidates), policy, tuple(caps))
     router = LLMRouter(
         providers,
-        structured_options=_structured.StructuredOptions(**config.llm.structured.model_dump()),
+        structured_options={
+            role: _structured.StructuredOptions(**slot.structured.model_dump())
+            for role, slot in explicit.items()
+        },
     )
     if resolved is not None:
         from memspine.models.resolve import report
         from memspine.prompts.roles import CATALOGUE_ROLE
 
-        explicit_profiles = {
-            role: profile_name
-            for role, profile_name in config.models.bindings.items()
-            if role in role_configs and config.models.profiles[profile_name].kind == "llm"
-        }
         model_plan = report(resolved)
-        profiles_by_catalogue: dict[str, dict[str, str]] = {}
-        for role, profile_name in explicit_profiles.items():
+        by_catalogue: dict[str, dict[str, str]] = {}
+        for role, slot in explicit.items():
             catalogue_role = CATALOGUE_ROLE.get(role)
             if catalogue_role is not None:
-                profiles_by_catalogue.setdefault(catalogue_role, {})[role] = profile_name
+                model = str(slot.settings.get("model", slot.provider))
+                by_catalogue.setdefault(catalogue_role, {})[role] = model
         for role_plan in model_plan["roles"]:
-            bindings = profiles_by_catalogue.get(role_plan["role"])
-            if not bindings:
+            slots = by_catalogue.get(role_plan["role"])
+            if not slots:
                 continue
-            profiles = set(bindings.values())
+            models = set(slots.values())
             role_plan.update(
-                status="explicit_multiple" if len(profiles) > 1 else "explicit",
-                model=(
-                    "multiple profiles"
-                    if len(profiles) > 1
-                    else str(
-                        config.models.profiles[next(iter(profiles))].settings.get(
-                            "model", next(iter(profiles))
-                        )
-                    )
-                ),
+                status="explicit_multiple" if len(models) > 1 else "explicit",
+                model="multiple slots" if len(models) > 1 else next(iter(models)),
                 device="",
                 fallback="",
-                profile_bindings=dict(sorted(bindings.items())),
+                slot_models=dict(sorted(slots.items())),
             )
-            if len(profiles) == 1:
-                role_plan["profile"] = next(iter(profiles))
         router.model_plan = {
             **model_plan,
-            "explicit_profiles": explicit_profiles,
+            "explicit_roles": sorted(explicit),
         }
     return router
 
@@ -1373,11 +1415,12 @@ async def _bind_tiered_roles(
     role_configs: dict[str, Any],
     wiring: Wiring,
 ) -> Any:
-    """MD-01 (``models.tiers_v2``): bind every engine role no ``llm.roles`` entry covers through the
-    tier plan. A role the plan cannot serve gets no provider, so its feature takes the role's
-    fallback (L1/L3/summaries off, rules, calibrated gate) and makes zero model calls. Explicit
-    ``llm.roles`` entries win and are left exactly as built above."""
+    """MD-01 (``model.placement.tiers_v2``): bind every engine role no ``model.llm.<role>``
+    slot covers through the tier plan. A role the plan cannot serve gets no provider, so its
+    feature takes the role's fallback (L1/L3/summaries off, rules, calibrated gate) and makes
+    zero model calls. Explicit ``model.llm`` slots win and are left exactly as built above."""
     from memspine.models.resolve import (
+        embedder_preference,
         emit_taps,
         resolve_models,
         role_binding,
@@ -1393,33 +1436,35 @@ async def _bind_tiered_roles(
         CATALOGUE_ROLE[role] for role in explicit_roles if role in CATALOGUE_ROLE
     }
     extra = ("extract",) if config.write.window_extract != "off" else ()
-    models_config = config.models.model_copy(
+    placement = config.model.placement
+    placement_config = placement.model_copy(
         update={
-            "required_roles": tuple(
-                role
-                for role in config.models.required_roles
-                if role not in explicit_catalogue_roles
-            )
+            "required_roles": [
+                role for role in placement.required_roles if role not in explicit_catalogue_roles
+            ]
         }
     )
     resolved = resolve_models(
-        models_config,
+        placement_config,
         extra_required=tuple(role for role in extra if role not in explicit_catalogue_roles),
+        rerank=bool(config.model.rerank.chain),
+        embedder_profile=embedder_preference(config.model.embedding.preset),
     )
     resolved.check()
     spec_tokens = {r.name: r.max_tokens for r in ROLE_CATALOGUE}
     for role in sorted(CATALOGUE_ROLE):
         if role in explicit_roles:
-            source = "models.profiles" if role in config.models.bindings else "llm.roles"
-            tap.event("models.resolve", role=role, status="explicit", source=source)
+            tap.event("models.resolve", role=role, status="explicit", source="model.llm")
             continue
         rc = role_config(resolved, role)
         if rc is None:
             continue
         descriptor = _descriptor(
-            PROVIDER_LLM_PROVIDERS, rc.provider, f"models.roles.{role}.provider"
+            PROVIDER_LLM_PROVIDERS,
+            rc.provider,
+            f"model.placement.catalogue[{rc.settings['model']!r}].provider",
         )
-        typed = _settings(descriptor, rc.settings)
+        typed = llm_settings(descriptor, rc)
         built = await _build_provider(
             wiring,
             descriptor,
@@ -1451,13 +1496,29 @@ async def provide_llm_router(
 
 
 def check_decision_provider(config: MemspineConfig) -> DecisionState:
-    """H24, at ``start()``: a configured gliner2 provider must be importable (D-10).
+    """H24, at ``start()``: a ``model.decider.route`` slot must be importable (D-10).
 
     Missing gliner2 raises ``MissingServiceError(extra="ner")``; with
-    ``strict_services: false`` it logs once and the provider stays off.
+    ``strict_services: false`` it logs once and the provider stays off. A route provider the
+    H24 router does not implement is a config error; so is a read decider provider the I28
+    decision points do not implement.
     """
-    if config.decision.provider == "off":
+    from memspine.providers.decider import READ_DECIDER_PROVIDERS, ROUTE_DECIDER_PROVIDERS
+
+    read = decider_slot(config, "read")
+    if read is not None and read.provider not in READ_DECIDER_PROVIDERS:
+        raise ConfigError(
+            f"model.decider.read provider {read.provider!r} is not implemented for the read "
+            f"path (valid: {', '.join(sorted(READ_DECIDER_PROVIDERS))})"
+        )
+    route = decider_slot(config, "route")
+    if route is None:
         return DecisionState(off=False)
+    if route.provider not in ROUTE_DECIDER_PROVIDERS:
+        raise ConfigError(
+            f"model.decider.route provider {route.provider!r} is not implemented for H24 mode "
+            f"routing (valid: {', '.join(sorted(ROUTE_DECIDER_PROVIDERS))})"
+        )
     from memspine.services.decider.gliner2 import auto_extractor_class
 
     try:
@@ -1507,11 +1568,10 @@ def build_extractor(
         return SemanticExtractor(wiring.cached_extractor)
     if mode == "gliner":
         from memspine.memories.semantic.entities import GlinerEntityExtractor
-        from memspine.models.profiles import resolve_gliner_settings
 
         if wiring.gliner_pool is None:
-            raise ConfigError("semantic GLiNER extraction needs the engine GLiNER pool")
-        settings = resolve_gliner_settings(config, "gliner_semantic")
+            raise ConfigError("semantic GLiNER extraction needs model.extraction.semantic")
+        settings = gliner_settings(config, "semantic")
         return SemanticExtractor(GlinerEntityExtractor(wiring.gliner_pool, settings))
     raise ConfigError(
         f"unknown memories.semantic.policies.entity_extraction {mode!r} (valid: off, llm, gliner)"

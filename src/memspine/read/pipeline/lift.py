@@ -28,6 +28,7 @@ from memspine.models.encoders.query.shape import is_personal
 from memspine.models.encoders.query.temporal_query import SPEAKER_PREFIX, LegHit, NamedLeg
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
+from memspine.providers.decider import read_decider_min_confidence, read_decider_slot
 from memspine.read import lift as liblift
 from memspine.read.lead import query_names
 from memspine.read.lift import Candidate, Dropped, LiftPolicy
@@ -103,8 +104,7 @@ async def _annotate_perspective(
             axes=opts.axes,
             when=when or eng._clock(),
         )
-        read = eng._config().read
-        if opts.mode == "decider" and read.decider != "heuristic":
+        if opts.mode == "decider" and read_decider_slot(eng._config()) is not None:
             adapter = eng._decider_adapter()
 
             async def decide(task: str, text: str) -> tuple[str, float | None]:
@@ -112,7 +112,10 @@ async def _annotate_perspective(
                 return d.label, d.confidence
 
             p = await refine_with_decider(
-                p, content.split(":", 1)[-1], decide, read.decider_min_confidence
+                p,
+                content.split(":", 1)[-1],
+                decide,
+                read_decider_min_confidence(eng._config()),
             )
         if p.spk:
             state["known"].add(p.spk)
@@ -127,10 +130,11 @@ async def _annotate_perspective(
             state["assistant"] = None
             reply = re.sub(r"^\s*[\w'-]{1,30}(?: [\w'-]{1,30})?:\s+", "", content, count=1)
             said_yes = acknowledges(reply)
-            if opts.mode == "decider" and read.decider != "heuristic":
+            if opts.mode == "decider" and read_decider_slot(eng._config()) is not None:
                 try:
                     d = await eng._decider_adapter().decide("acknowledges", reply, prev_text)
-                    if d.confidence is not None and d.confidence >= read.decider_min_confidence:
+                    floor = read_decider_min_confidence(eng._config())
+                    if d.confidence is not None and d.confidence >= floor:
                         said_yes = d.label == "ack"
                 except Exception:  # the rules' answer stands
                     pass

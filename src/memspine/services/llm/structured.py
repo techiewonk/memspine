@@ -233,7 +233,7 @@ async def structured_call[ModelT: BaseModel](
 ) -> ModelT:
     """Render, chat, parse (format-aware), validate. Raises LLMError with the raw
     response attached when validation fails even after repair (and after the one
-    opt-in retry, ``llm.structured.retry_on_error``)."""
+    opt-in retry, ``model.llm.<role>.structured.retry_on_error``)."""
     version = prompt.prompt_version
     messages = prompt.render(context)
     _bump(version, "calls")

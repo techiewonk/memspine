@@ -1,4 +1,4 @@
-"""I9: chunk-and-max wrapper for long documents (opt-in, ``read.rerank_chunk_chars``).
+"""I9: chunk-and-max wrapper for long documents (opt-in, ``model.rerank.chunk_chars``).
 
 Audit (2026-10-10). The cross-encoder adapters cut a long document silently:
 
@@ -15,7 +15,7 @@ Chunk-and-max splits a document longer than ``chunk_chars`` into overlapping win
 scores each window against the query and gives the document the MAX window score, so
 the best-matching passage decides the rank wherever it sits. Documents at or under the
 limit are scored as-is, byte-identical to the unwrapped reranker. A leading ``[...]``
-tag (the ``rerank_date_prefix`` ``[Date: ...]``) is repeated on every window.
+tag (the ``model.rerank.date_prefix`` ``[Date: ...]``) is repeated on every window.
 """
 
 from __future__ import annotations

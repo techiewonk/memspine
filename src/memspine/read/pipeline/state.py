@@ -42,7 +42,7 @@ _RERANK_SUPPORT: ContextVar[float | None] = ContextVar("memspine_rerank_support"
 
 
 #: Whether the last ``_search`` of the current read reranked its candidates
-#: (``read.rerank_floor="skip"`` needs it at assembly).
+#: (``model.rerank.floor="skip"`` needs it at assembly).
 _RERANKED: ContextVar[bool] = ContextVar("memspine_reranked", default=False)
 
 
@@ -52,7 +52,7 @@ _RAW_SCORES: ContextVar[dict[str, float] | None] = ContextVar("memspine_raw_scor
 
 
 #: B1 (``read.list_mode``): True while the routed read searches for a list / set question;
-#: the search then adds the speaker vote leg, widens the pool and skips ``rerank_keep``.
+#: the search then adds the speaker vote leg, widens the pool and skips ``model.rerank.keep``.
 _LIST_MODE: ContextVar[bool] = ContextVar("memspine_list_mode", default=False)
 
 

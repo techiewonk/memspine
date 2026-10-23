@@ -31,6 +31,7 @@ from memspine.prompts.models import (
     QueryContractOut,
     ReadPlan,
 )
+from memspine.providers.decider import read_decider_min_confidence
 from memspine.read.cache import InMemoryBackend, ItemsResult, ReadCache, read_key
 from memspine.read.contract import (
     QueryContract,
@@ -84,14 +85,16 @@ async def _decided(eng: Any, task: str, question: str, context: str | None, heur
     raises. Every decision is recorded in the forensics as ``decisions``."""
     if not eng._decider_active(task):
         return heuristic
-    read = eng._config().read
-    entry: dict[str, Any] = {"task": task, "adapter": read.decider, "heuristic": heuristic}
+    slot = eng._config().model.decider.read
+    adapter = "heuristic" if slot is None else slot.provider
+    entry: dict[str, Any] = {"task": task, "adapter": adapter, "heuristic": heuristic}
     label = heuristic
     try:
         decision = await eng._decider_adapter().decide(task, question, context)
         entry.update(decision.as_meta())
         sure = (
-            decision.confidence is not None and decision.confidence >= read.decider_min_confidence
+            decision.confidence is not None
+            and decision.confidence >= read_decider_min_confidence(eng._config())
         )
         if sure:
             label = decision.label
@@ -515,7 +518,8 @@ def _services(eng: Any, read: Any) -> ServiceState:
     return ServiceState(
         embedder=eng._embedder is not None,
         lexical_index=bool(eng._lexical is not None and read.hybrid),
-        reranker=read.rerank != "off" and not getattr(eng, "_rerank_unavailable", False),
+        reranker=bool(eng._config().model.rerank.chain)
+        and not getattr(eng, "_rerank_unavailable", False),
         graph_store=eng._graph is not None,
         worker_model=bool(eng._llm is not None and "plan" in getattr(eng._llm, "roles", ())),
     )
@@ -707,7 +711,7 @@ def tier_pool() -> int:
     """FX-READPATH (R-13): the rerank pool of the tier chosen for this read, else 0.
 
     Only a read under ``read.tiers_v2`` has a tier; the assembly search fetches at least this
-    many candidates before ``rerank_v2`` (see ``windows._assemble_core``)."""
+    many candidates before the rerank chain (see ``windows._assemble_core``)."""
     plan = _READ_PLAN.get()
     return plan.tier.max_rerank_pool if plan is not None and plan.tier is not None else 0
 

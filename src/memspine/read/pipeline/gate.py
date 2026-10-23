@@ -161,7 +161,9 @@ async def _gate_raw_tops(eng: Any, ns: str, text: str, legs: Sequence[str]) -> d
         reranker = await eng._rerank_provider()
         if reranker is not None:
             raws = await gated_rerank(reranker, text, [concat_background(r) for r, _ in live])
-            out["rerank"] = float(max(raws))
+            scored = [float(s) for s in raws if s is not None]  # a None is unscored (R3-07)
+            if scored:
+                out["rerank"] = max(scored)
     return out
 
 
@@ -411,7 +413,7 @@ async def _gate_v2_scores(
     if leg == "rerank":
         reranker = await eng._rerank_provider()
         raws = await gated_rerank(reranker, query, [concat_background(r) for r in records])
-        return {r.record_id: float(s) for r, s in zip(records, raws, strict=True)}
+        return {r.record_id: float(s) for r, s in zip(records, raws, strict=True) if s is not None}
     [qv] = await embed_queries(eng._embedder, [query])
     n = max(read.relevance_gate_candidates, 4 * len(records))
     hits = await eng._vector_leg(ns, qv, n)

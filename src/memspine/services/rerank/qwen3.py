@@ -1,4 +1,4 @@
-"""Qwen3-Reranker as a local cross-encoder (G5a, ``read.rerank: qwen3``, ``[st]`` extra).
+"""Qwen3-Reranker as a local cross-encoder (G5a, a ``qwen3`` ``model.rerank.chain`` entry, ``[st]`` extra).
 
 Qwen/Qwen3-Reranker-0.6B (Apache-2.0) is a causal LM fine-tuned to answer "yes" or "no"
 to *does this document meet the query, under this instruction?*. The score is the

@@ -230,7 +230,7 @@ class AssemblyPolicy(BindablePolicy):
         before_floor = [r.record_id for r, _ in scored] if tracing else []
         if raw_scores:  # I30: the floor reads the raw reranker scores, min-max or not
             scored = self.apply_floor(scored, raw_scores)
-        elif apply_floor:  # read.rerank_floor="skip" turns the H4 floor off for reranked reads
+        elif apply_floor:  # model.rerank.floor="skip" turns the H4 floor off for reranked reads
             scored = self.apply_floor(scored)
         if tracing:
             kept_ids = {r.record_id for r, _ in scored}

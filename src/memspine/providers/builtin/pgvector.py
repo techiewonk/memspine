@@ -56,7 +56,8 @@ class PgvectorBuilder:
             )
         if ctx.versioned_spaces:
             raise ConfigError(
-                "pgvector does not support embedding.versioned_spaces; select a vector provider "
+                "pgvector does not support model.embedding.versioned_spaces; select a vector "
+                "provider "
                 "that implements versioned embedding-space routing"
             )
         if ctx.quantization is not None or ctx.matryoshka_dim is not None:

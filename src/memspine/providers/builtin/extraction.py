@@ -26,9 +26,11 @@ POOL_RESOURCE_ID = "gliner-model-pool"
 
 
 class GlinerPoolSettings(StrictSettings):
-    """Pool limits; per-consumer model settings come from the bound ``models.profiles``."""
+    """Pool limits; per-consumer model settings come from each ``model.extraction.<consumer>``
+    / ``model.decider.route`` slot (ADR-082)."""
 
-    #: Upper bound on simultaneously loaded GLiNER checkpoints (``models.gliner_max_models``).
+    #: Upper bound on simultaneously loaded GLiNER checkpoints
+    #: (``model.placement.max_loaded_models``).
     max_models: int = Field(default=1, ge=1)
 
 

@@ -281,7 +281,7 @@ def resolve_describer(eng: Any) -> AssetDescriber:
     llm = getattr(eng, "_llm", None)
     prompts = getattr(eng, "_prompts", None)
     if llm is not None and prompts is not None and DESCRIBE_ROLE in llm.roles:
-        role = eng._config().llm.roles.get(DESCRIBE_ROLE)
+        role = eng._config().model.llm.get(DESCRIBE_ROLE)
         return LLMDescriber(
             llm.for_role(DESCRIBE_ROLE),
             prompts.for_role(DESCRIBE_ROLE),

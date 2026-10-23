@@ -56,7 +56,7 @@ class WarmState:
 
 @dataclass(frozen=True, slots=True)
 class WarmTarget:
-    """One resource to warm. ``name`` is unique per Engine (``reranker:fastembed``);
+    """One resource to warm. ``name`` is unique per Engine (``rerank:fastembed``);
     ``category`` is one of ``runtime.shared_resources.warmup_include``."""
 
     name: str

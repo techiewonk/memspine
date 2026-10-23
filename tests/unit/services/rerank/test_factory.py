@@ -32,7 +32,7 @@ async def test_unknown_mode_fails_explicitly() -> None:
 
 
 async def test_litellm_without_model_fails_typed_settings_validation() -> None:
-    with pytest.raises(ConfigError, match="invalid read.rerank_settings"):
+    with pytest.raises(ConfigError, match=r"invalid model\.rerank\.chain\[\]\.settings"):
         await build_reranker(
             RerankSettings(mode="litellm", model=None), explicit_deployment_id=True
         )

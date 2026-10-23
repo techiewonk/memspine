@@ -29,7 +29,7 @@ from collections.abc import (
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar, Self, TypeVar, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Self, TypeVar
 
 import orjson
 from dishka import AsyncContainer
@@ -168,7 +168,7 @@ from memspine.prompts.registry import PromptRegistry
 from memspine.providers.changes import ChangeCategory, ChangeStrategy, RevisionGuard, SqlChangeStore
 from memspine.providers.contracts import SqlAccess
 from memspine.providers.control import EngineProviderChanges, ProviderChangeRuntime
-from memspine.providers.decider import build_decider
+from memspine.providers.decider import build_read_decider, read_decider_slot
 from memspine.providers.engine_changes import build_engine_change_support
 from memspine.providers.health import ProviderHealthReport, ProviderStatusService, ReadinessReport
 from memspine.providers.identity import resolve_deployment
@@ -184,7 +184,6 @@ from memspine.providers.recovery import CleanupQuiescenceGuard
 from memspine.providers.rerank import (
     RerankSettings,
     build_reranker_result,
-    rerank_modes,
     validate_reranker_settings,
 )
 from memspine.providers.shared import (
@@ -231,6 +230,7 @@ from memspine.runtime.container import (
     WiringHooks,
     client_is_memory,
     derived_base,
+    gliner_consumers,
     lexical_projector_name,
     make_container,
     make_neo4j_projection,
@@ -249,10 +249,10 @@ from memspine.services.llm.base import LLMRouter, LLMService
 from memspine.services.rerank.base import Reranker
 
 if TYPE_CHECKING:
-    from memspine.models.profiles import GlinerConsumerRole
+    from memspine.config.schema.model import GlinerConsumer
 from memspine.schemas.durable import AssertionEnvelope, OwnerScope
 from memspine.schemas.durable.erasure import RetentionBoundary
-from memspine.semantics.domains import TOPIC_BINDING_ROLE, topic_hook
+from memspine.semantics.domains import topic_hook
 from memspine.services.documents.base import DocumentStore
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.qualifiers import QualifierFilter
@@ -408,15 +408,16 @@ class Engine:
         self._sql: SqlAccess | None = None
         self._provider_resources: ProviderLifecycleManager | None = None
         self._gliner_pool: Any | None = None
-        #: RM-106: the opt-in GLiNER topic tagger (``models.bindings.gliner_topic``), set at
-        #: start; None when unbound.
+        #: RM-106: the opt-in GLiNER topic tagger (``model.extraction.topic``), set at
+        #: start; None when the slot is absent.
         self._topic_tagger: Any | None = None
         self._decision: Any | None = None
         self._provider_results: dict[str, Any] = {}
         self._provider_owner_id: str | None = None
         self._reranker_build_lock = asyncio.Lock()
-        self._reranker_build_results: dict[str, Any | None] = {}
-        self._reranker_build_tasks: dict[str, asyncio.Task[Any | None]] = {}
+        #: Keyed by the resolved :class:`RerankSettings` (one build per distinct chain entry).
+        self._reranker_build_results: dict[RerankSettings, Any | None] = {}
+        self._reranker_build_tasks: dict[RerankSettings, asyncio.Task[Any | None]] = {}
         self._provider_tearing_down = False
         self._teardown_task: asyncio.Task[None] | None = None
         # Inside a projection batch (ingest_messages): the last seq each
@@ -753,27 +754,21 @@ class Engine:
         self._assembly_compression = CompressionPolicy.bind(
             _as_options_dict(config.read.compression)
         )
-        # E8 rerank (D-51): validate the mode now; the model itself loads
-        # lazily on first search (a config typo must fail at start, a heavy
+        # E8 rerank (D-51, ADR-082): validate every ``model.rerank.chain`` entry now; the
+        # models load lazily on first search (a config typo must fail at start, a heavy
         # ONNX download must not).
-        if config.read.rerank not in rerank_modes():
-            raise ConfigError(
-                f"unknown read.rerank {config.read.rerank!r} (valid: {', '.join(rerank_modes())})"
-            )
-        if config.read.rerank != "off":
-            validate_reranker_settings(
-                config.read.rerank,
-                config.read.rerank_settings,
-                explicit_deployment_id=config.deployment.id is not None,
-            )
-        if config.read.rerank_v2:
-            for mode in config.read.rerank_v2_chain:
-                validate_reranker_settings(
-                    mode,
-                    config.read.rerank_settings,
-                    explicit_deployment_id=config.deployment.id is not None,
-                    allow_irrelevant=True,
+        for index, stage in enumerate(config.model.rerank.chain):
+            if stage.provider == "off":
+                raise ConfigError(
+                    f"model.rerank.chain[{index}]: 'off' is not a reranker provider; "
+                    "use model.rerank.chain: [] to turn reranking off"
                 )
+            validate_reranker_settings(
+                stage.provider,
+                stage.settings,
+                explicit_deployment_id=config.deployment.id is not None,
+                path=f"model.rerank.chain[{index}]",
+            )
         self._working = WorkingMemory(
             append_event=self._append_and_project,
             page_size=int(
@@ -1058,35 +1053,26 @@ class Engine:
         targets: list[WarmTarget] = []
         embed_hook = find_warm_hook(self._embedder)
         if embed_hook is not None:
-            targets.append(WarmTarget("embedder", "embedder", embed_hook))
-        read = config.read
-        if read.rerank != "off":
-
-            async def warm_reranker() -> None:
-                hook = find_warm_hook(await self._rerank_provider())
-                if hook is not None:
-                    await hook()
-
-            targets.append(WarmTarget(f"reranker:{read.rerank}", "reranker", warm_reranker))
-        if read.rerank_v2:
-            for mode in dict.fromkeys(read.rerank_v2_chain):
-                if mode in (read.rerank, "off"):
-                    continue
-                targets.append(
-                    WarmTarget(f"reranker:{mode}", "reranker", self._chain_warm_hook(mode))
-                )
+            targets.append(WarmTarget("embedding", "embedding", embed_hook))
+        for index, stage in enumerate(config.model.rerank.chain):
+            name = f"rerank:{stage.provider}"
+            if any(t.name == name for t in targets):
+                name = f"{name}#{index}"
+            targets.append(WarmTarget(name, "rerank", self._chain_warm_hook(index)))
         if self._gliner_pool is not None:
-            semantic = self._memory_policy(config, "semantic").get("entity_extraction", "off")
-            gliner_tasks: tuple[tuple[GlinerConsumerRole, bool], ...] = (
-                ("gliner_decision", config.decision.provider == "gliner2"),
-                ("gliner_semantic", semantic == "gliner"),
-                ("gliner_prepass", config.write.prepass == "gliner"),
-            )
-            for task, on in gliner_tasks:
-                if on:
-                    targets.append(
-                        WarmTarget(f"gliner:{task}", "gliner", self._gliner_warm_hook(config, task))
+            # Topic / sensitivity are offline only (RM-99 / RM-106) and are not warmed; the
+            # consumers share one pool load (ADR-082 item 4), so any warmed one warms them all.
+            for consumer in gliner_consumers(config):
+                if consumer in ("topic", "sensitivity"):
+                    continue
+                category = "decider" if consumer == "route" else "extraction"
+                targets.append(
+                    WarmTarget(
+                        f"{category}:{consumer}",
+                        category,
+                        self._gliner_warm_hook(config, consumer),  # type: ignore[arg-type]
                     )
+                )
         lexical_hook = find_warm_hook(self._lexical)
         if lexical_hook is not None:
             targets.append(WarmTarget("lexical", "lexical", lexical_hook))
@@ -1097,8 +1083,10 @@ class Engine:
                 if hook is not None:
                     name = getattr(service, "provider_id", f"llm-{index}")
                     targets.append(WarmTarget(f"llm:{name}", "llm", hook))
+        read_slot = read_decider_slot(config)
+        read_tasks: tuple[str, ...] = () if read_slot is None else tuple(read_slot.tasks)
         if getattr(self, "_decider_override", None) is None and any(
-            self._decider_active(task) for task in (*read.decider_tasks, "sensitivity_scope")
+            self._decider_active(task) for task in (*read_tasks, "sensitivity_scope")
         ):
 
             async def warm_decider() -> None:
@@ -1112,26 +1100,33 @@ class Engine:
             unique.setdefault(target.name, target)
         return list(unique.values())
 
-    def _chain_warm_hook(self, mode: str) -> Callable[[], Awaitable[None]]:
+    def _chain_warm_hook(self, index: int) -> Callable[[], Awaitable[None]]:
+        """Warm ``model.rerank.chain[index]`` (entry 0 is the engine's own reranker)."""
+
         async def warm() -> None:
             from memspine.read.pipeline.rerank import _chain_provider
 
-            hook = find_warm_hook(await _chain_provider(self, mode, self._config().read, None))
+            rerank_cfg = self._config().model.rerank
+            if index == 0:
+                reranker = await self._rerank_provider()
+            else:
+                reranker = await _chain_provider(self, rerank_cfg.chain[index], rerank_cfg, None)
+            hook = find_warm_hook(reranker)
             if hook is not None:
                 await hook()
 
         return warm
 
     def _gliner_warm_hook(
-        self, config: MemspineConfig, task: GlinerConsumerRole
+        self, config: MemspineConfig, consumer: GlinerConsumer
     ) -> Callable[[], Awaitable[None]]:
         async def warm() -> None:
-            from memspine.models.profiles import resolve_gliner_settings
+            from memspine.config.schema.model import gliner_settings
 
             pool = self._gliner_pool
             if pool is None:
                 return
-            lease = await pool.acquire(resolve_gliner_settings(config, task))
+            lease = await pool.acquire(gliner_settings(config, consumer))
             await lease.aclose()  # the pool keeps the loaded weights resident
 
         return warm
@@ -3164,31 +3159,29 @@ class Engine:
     # -- I28: the optional decider (OpenDecider-nano) at the read path's decision points --
 
     def _decider_active(self, task: str) -> bool:
-        read = self._config().read
-        if read.decider == "heuristic":
-            return False
+        config = self._config()
+        slot = read_decider_slot(config)
+        if slot is None:
+            return False  # no model.decider.read (or heuristic): the heuristic rules (I28)
         if task == "sensitivity_scope":
-            return read.sensitivity_gate == "decider"
-        return task in read.decider_tasks
+            return config.read.sensitivity_gate == "decider"
+        return task in slot.tasks
 
     def set_decider(self, decider: Decider | None) -> None:
         """I28: use ``decider`` for the read-path decision points configured by
-        ``read.decider_tasks`` (tests, or a shared instance). None: build from the config."""
+        ``model.decider.read.tasks`` (tests, or a shared instance). None: build from the
+        config."""
         self._decider_override = decider
 
     def _decider_adapter(self) -> Decider:
         override = getattr(self, "_decider_override", None)
         if override is not None:
             return override  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
-        cfg = self._config().read
-        key = (
-            cfg.decider,
-            cfg.decider_model,
-            cfg.decider_device,
-            cfg.decider_threads,
-            cfg.decider_backend,
-            cfg.decider_workers,
-            cfg.decider_dtype,
+        slot = read_decider_slot(self._config())
+        key: Any = (
+            None
+            if slot is None
+            else (slot.provider, tuple(sorted(slot.settings.items())), slot.workers)
         )
         cached = getattr(self, "_decider_cache", None)
         if cached is None or cached[0] != key:
@@ -3196,20 +3189,10 @@ class Engine:
                 # A replaced decider keeps its weight lease until teardown releases it
                 # (an in-flight decision may still be using it).
                 self.__dict__.setdefault("_retired_deciders", []).append(cached[1])
-            kind, model, device, threads, backend, workers, dtype = key
             cached = (
                 key,
-                build_decider(
-                    kind,
-                    model,
-                    device,
-                    threads=threads,
-                    backend=backend,
-                    workers=workers,
-                    dtype=dtype,
-                    # RM-73: weights shared per process; this Engine's teardown releases.
-                    registry=self._registry(),
-                ),
+                # RM-73: weights shared per process; this Engine's teardown releases.
+                build_read_decider(slot, registry=self._registry()),
             )
             self._decider_cache = cached
         return cached[1]
@@ -4659,25 +4642,26 @@ class Engine:
         return self._resolved.config
 
     async def _build_reranker(self, settings: RerankSettings) -> Reranker | None:
-        """Share one lazy provider build across concurrent callers."""
+        """Share one lazy provider build across concurrent callers (one per distinct
+        resolved chain entry)."""
         mode = settings.mode
         if self._provider_tearing_down:
             raise MemspineError("reranker construction cannot start during provider teardown")
-        if mode in self._reranker_build_results:
-            result = self._reranker_build_results[mode]
+        if settings in self._reranker_build_results:
+            result = self._reranker_build_results[settings]
             return None if result is None else result.service
         async with self._reranker_build_lock:
             if self._provider_tearing_down:
                 raise MemspineError("reranker construction cannot start during provider teardown")
-            if mode in self._reranker_build_results:
-                result = self._reranker_build_results[mode]
+            if settings in self._reranker_build_results:
+                result = self._reranker_build_results[settings]
                 return None if result is None else result.service
-            task = self._reranker_build_tasks.get(mode)
+            task = self._reranker_build_tasks.get(settings)
             if task is None or task.done():
                 task = asyncio.create_task(
                     self._perform_reranker_build(settings), name=f"memspine-reranker-build-{mode}"
                 )
-                self._reranker_build_tasks[mode] = task
+                self._reranker_build_tasks[settings] = task
         return await asyncio.shield(task)
 
     async def _perform_reranker_build(self, settings: RerankSettings) -> Reranker | None:
@@ -4709,46 +4693,38 @@ class Engine:
         except (MissingServiceError, ConnectionError, TimeoutError) as exc:
             _log.warning("rerank.provider_unavailable", mode=mode, error=type(exc).__name__)
             built = None
-        self._reranker_build_results[mode] = built
+        self._reranker_build_results[settings] = built
         if built is not None:
-            self._provider_results[f"reranker.{mode}"] = built
+            logical = f"reranker.{mode}"
+            suffix = 1
+            while logical in self._provider_results:
+                suffix += 1
+                logical = f"reranker.{mode}#{suffix}"
+            self._provider_results[logical] = built
             return built.service
         return None
 
     async def _rerank_provider(self) -> Reranker | None:
-        """The E8 reranker for the configured mode (D-51), constructed lazily
-        on first use (cross-encoder weights must not load at engine start).
-        An unavailable adapter is skip-logged ONCE and the stage disables
-        itself — retrieval quality degrades, retrieval never fails."""
-        read = self._config().read
-        mode = read.rerank
-        rerank_options = read.rerank_settings
-        if mode == "off" or self._rerank_unavailable:
-            return None if mode == "off" else self._reranker
-        if self._reranker is not None:
+        """The E8 reranker of ``model.rerank.chain[0]`` (D-51, ADR-082), constructed lazily
+        on first use (cross-encoder weights must not load at engine start). The read gates
+        use it; the rerank stage falls back through the rest of the chain. An unavailable
+        adapter is skip-logged ONCE and stays off — retrieval quality degrades, retrieval
+        never fails. None when the chain is empty (reranking off)."""
+        rerank_cfg = self._config().model.rerank
+        if not rerank_cfg.chain:
+            return None
+        if self._rerank_unavailable or self._reranker is not None:
             return self._reranker
         # The provider factory owns lazy construction and classifies approved
         # unavailability; configuration and programming failures still propagate.
         self._reranker = await self._build_reranker(
-            RerankSettings(
-                mode=mode,
-                model=cast(str | None, rerank_options.get("model")),
-                api_base=cast(str | None, rerank_options.get("api_base")),
-                api_key=cast(str | None, rerank_options.get("api_key")),
-                aws_region=cast(str | None, rerank_options.get("aws_region")),
-                request_timeout_s=cast(float | None, rerank_options.get("request_timeout_s")),
-                instruction=cast(str | None, rerank_options.get("instruction")),
-                device=cast(str | None, rerank_options.get("device")),
-                quant=cast(str | None, rerank_options.get("quant")),
-                batch_size=cast(int | None, rerank_options.get("batch_size")),
-                max_length=cast(int | None, rerank_options.get("max_length")),
-                max_documents=cast(int | None, rerank_options.get("max_documents")),
-                chunk_chars=read.rerank_chunk_chars,
-                chunk_overlap=read.rerank_chunk_overlap,
-            )
+            read_rerank.stage_settings(rerank_cfg.chain[0], rerank_cfg)
         )
         if self._reranker is None:
             self._rerank_unavailable = True
+        elif hasattr(self._reranker, "unscored_tail"):
+            # R3-07: the Jina window tail is unscored (None), never 0.0.
+            self._reranker.unscored_tail = True
         return self._reranker
 
     async def _static_embedding_prefilter(
@@ -5637,7 +5613,7 @@ class Engine:
             "storage": config.storage.records.provider,
             "cache": config.storage.cache.provider,
             "vector": config.storage.vector.provider,
-            "embedding": config.embedding.provider,
+            "embedding": config.model.embedding.provider,
             "lexical": config.storage.lexical.provider,
         }
         for logical_id, result in self._provider_results.items():
@@ -5959,40 +5935,39 @@ class Engine:
         )
 
     def _build_topic_tagger(self, config: MemspineConfig) -> Any | None:
-        """RM-106: the opt-in GLiNER topic tagger from the bound ``gliner_topic`` profile
-        (offline, ``local_files_only``); None when unbound. Building never loads a model (the
+        """RM-106: the opt-in GLiNER topic tagger from ``model.extraction.topic`` (offline,
+        ``local_files_only``); None when the slot is absent. Building never loads a model (the
         pool loads lazily); a failure is logged and leaves the topic source off."""
-        if TOPIC_BINDING_ROLE not in config.models.bindings or self._gliner_pool is None:
+        slot = config.model.extraction.topic
+        if slot is None or self._gliner_pool is None:
             return None
         try:
+            from memspine.config.schema.model import gliner_settings
             from memspine.derive.topics import GlinerTopicTagger
-            from memspine.models.profiles import resolve_gliner_settings
 
             return GlinerTopicTagger(
                 self._gliner_pool,
-                resolve_gliner_settings(config, "gliner_topic"),
-                labels=config.models.topic.labels,
-                min_confidence=config.models.topic.min_confidence,
+                gliner_settings(config, "topic"),
+                labels=slot.labels,
+                min_confidence=slot.min_confidence,
             )
         except Exception as exc:
             _log.warning("topic.tagger_unavailable", error=f"{type(exc).__name__}: {exc}")
             return None
 
     def _sensitivity_model(self) -> Any | None:
-        """RM-99: the opt-in GLiNER sensitivity detector (``models.bindings.gliner_sensitivity``),
-        built once per Engine so its pool lease is reused; None when unbound."""
+        """RM-99: the opt-in GLiNER sensitivity detector (``model.extraction.sensitivity``),
+        built once per Engine so its pool lease is reused; None when the slot is absent."""
         config = self._config()
-        if "gliner_sensitivity" not in config.models.bindings or self._gliner_pool is None:
+        if config.model.extraction.sensitivity is None or self._gliner_pool is None:
             return None
         pool = self._gliner_pool
         cached = self.__dict__.get("_sensitivity_detector")
         if cached is None or cached[0] is not pool:  # a restart builds a new pool
+            from memspine.config.schema.model import gliner_settings
             from memspine.derive.sensitivity import GlinerSensitivityDetector
-            from memspine.models.profiles import resolve_gliner_settings
 
-            detector = GlinerSensitivityDetector(
-                pool, resolve_gliner_settings(config, "gliner_sensitivity")
-            )
+            detector = GlinerSensitivityDetector(pool, gliner_settings(config, "sensitivity"))
             cached = (pool, detector)
             self.__dict__["_sensitivity_detector"] = cached
         return cached[1]
@@ -6111,19 +6086,18 @@ class Engine:
     }
 
     def _decision_provider(self) -> Any:
-        """H24: the configured decision provider, built lazily; None when off (or when
-        gliner2 was missing at start under ``strict_services: false``)."""
+        """H24: the ``model.decider.route`` decision provider, built lazily; None when the slot
+        is absent (or when gliner2 was missing at start under ``strict_services: false``)."""
         config = self._config()
-        cfg = config.decision
-        if cfg.provider == "off" or getattr(self, "_decision_off", False):
+        if config.model.decider.route is None or getattr(self, "_decision_off", False):
             return None
         if getattr(self, "_decision", None) is None:
-            from memspine.models.profiles import resolve_gliner_settings
+            from memspine.config.schema.model import gliner_settings
             from memspine.providers.decider import build_decision_provider
 
             if self._gliner_pool is None:
                 raise ConfigError("decision GLiNER provider needs the engine GLiNER pool")
-            settings = resolve_gliner_settings(config, "gliner_decision")
+            settings = gliner_settings(config, "route")
             # RM-113: the model.decider descriptor builds it over the extraction pool.
             self._decision = build_decision_provider(settings, self._gliner_pool)
         return self._decision

@@ -32,7 +32,6 @@ from memspine.core.read_filters import (
 from memspine.core.rule_edges import is_why_question
 from memspine.exceptions import (
     MemspineError,
-    MissingServiceError,
 )
 from memspine.memories.episodic.sessions import topic_segments
 from memspine.models.encoders.query.perspective import (
@@ -70,8 +69,6 @@ from memspine.read.pipeline.fusion import (
     _ids,
     _leg_rank_map,
     _log_leg_floor,
-    _minmax_normalize,
-    _minmax_quiet,
     _protected_ids,
     fuse_families,
 )
@@ -79,13 +76,12 @@ from memspine.read.pipeline.legs import registry_base_legs
 from memspine.read.pipeline.lift import lift_stage
 from memspine.read.pipeline.rerank import (
     _static_prefilter,
-    rerank_v2_stage,
+    rerank_stage,
 )
 from memspine.read.pipeline.state import (
     _FOCAL_ENTITY,
     _FORENSICS,
     _LIST_MODE,
-    _RAW_SCORES,
     _RERANK_SUPPORT,
     _RERANKED,
     _SEARCH_MAX_WIDEN,
@@ -96,7 +92,6 @@ from memspine.read.pipeline.time_guard import legs_guarded
 from memspine.services.embedding.base import embed_queries
 from memspine.services.graph.qualifiers import QualifierFilter, graph_filter_scope
 from memspine.services.lexical.base import minmax_fuse, rrf_fuse
-from memspine.services.rerank.base import concat_background, gated_rerank
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import (
     MemoryRecord,
@@ -413,7 +408,7 @@ async def search(
             tags=tags,
             session_id=session_id,
             keep_k=top_k,
-            search_pool=eng._config().read.rerank_v2_search_pool,
+            search_pool=eng._config().model.rerank.search_pool,
         )
         if outer:
             await eng._audit_read("search", namespace, [r.record_id for r, _ in scored])
@@ -490,8 +485,8 @@ async def _search(
     ``fused_legs`` (#36): precomputed ranked legs (the persons / time leg) fused by RRF
     like the C3' legs. Empty: unchanged.
 
-    ``search_pool`` (FU-RRPOOL, ``read.rerank_v2_search_pool``, passed by :func:`search` only):
-    with ``read.rerank_v2`` on, fetch and rerank ``max(top_k, search_pool)`` candidates, then
+    ``search_pool`` (FU-RRPOOL, ``model.rerank.search_pool``, passed by :func:`search` only):
+    with a non-empty ``model.rerank.chain``, fetch and rerank ``max(top_k, search_pool)`` candidates, then
     cut to ``top_k``. 0 = off. :func:`assemble` already widens through ``candidate_pool`` and
     does not pass it.
 
@@ -507,7 +502,7 @@ async def _search(
         raise ValueError(f"top_k must be >= 1, got {top_k}")
     ns = validate_namespace(namespace)
     final_k = top_k
-    if search_pool > top_k and (eng._config().read.rerank_v2 or eng._config().read.tiers_v2):
+    if search_pool > top_k and (eng._config().model.rerank.chain or eng._config().read.tiers_v2):
         # FU-RRPOOL: the reranker sees a wider pool; the cut back to ``final_k`` follows it.
         top_k = search_pool
     if eng._config().read.freshness_v2:  # O4-01b (O-06): staleness metadata, optional raw fallback
@@ -632,7 +627,8 @@ async def _search(
             ]
         if (use_hybrid or extra_legs) and read_now.family_fusion:
             # R3-06 (LIB-10): family fusion + protected pool + floors, instead of per-leg RRF.
-            _over = 3 if read_now.rerank_balanced and read_now.rerank != "off" else 1
+            rr_now = eng._config().model.rerank
+            _over = 3 if rr_now.balanced and rr_now.chain else 1
             ranked, protected, family_slots = fuse_families(
                 vector_hits,
                 lexical_hits,
@@ -678,10 +674,11 @@ async def _search(
                         *[(getattr(leg, "name", "extra"), leg) for leg in extra_legs],
                     ],
                 )
-            # GR-15 fix (2026-10-10): with ``rerank_balanced`` the fused list must keep more
+            # GR-15 fix (2026-10-10): with ``model.rerank.balanced`` the fused list must keep more
             # than the pool size, or ``_balanced_pool`` below has nothing to choose from and
             # is a no-op (measured: identical answers on 233 dev questions).
-            over = 3 if read_cut.rerank_balanced and read_cut.rerank != "off" else 1
+            rr_cut = eng._config().model.rerank
+            over = 3 if rr_cut.balanced and rr_cut.chain else 1
             fused_full = fused
             fused = fused[: top_k * widen * over]
             protect_n = read_cut.pool_protect_per_leg
@@ -817,7 +814,8 @@ async def _search(
         if date_filter is not None:
             candidates = [pair for pair in candidates if date_filter.matches(pair[0])]
     read_pre = eng._config().read
-    if read_pre.rerank_balanced and read_pre.rerank != "off" and len(candidates) > top_k:
+    rr_cfg = eng._config().model.rerank
+    if rr_cfg.balanced and rr_cfg.chain and len(candidates) > top_k:
         # GR-15 (Graphiti d40da88): the pool the reranker sees takes the legs'
         # best hits in turn, so one leg cannot fill it before the cut.
         candidates = _balanced_pool(candidates, [vector_hits, lexical_hits, *extra_legs], top_k)
@@ -922,28 +920,27 @@ async def _search(
             hide=hide,
             max_turns=read_pre.lift_max_turns,
         )
-    reranker = await eng._rerank_provider()
-    gate = eng._config().read.rerank_max_top_k
-    if gate is not None and keep_k > gate and not read_pre.rerank_v2:
+    # ADR-082: one rerank path, ``model.rerank.chain`` (the first entry that builds and works
+    # wins; ``[]`` is off). Ordering questions skip it (Agent Zero: a relevance reranker
+    # scrambles temporal order); H18 ``max_top_k`` skips it when the caller keeps many.
+    read_cfg = eng._config().read
+    rerank_on = bool(rr_cfg.chain)
+    if rr_cfg.max_top_k is not None and keep_k > rr_cfg.max_top_k:
         # H18: reranking pays when few of many candidates are kept. The gate
         # judges what the caller keeps, not the (candidate_pool-wide) fetch.
-        reranker = None
-    read_cfg = eng._config().read
-    if read_cfg.skip_rerank_for_ordering and is_ordering(query):
-        reranker = None  # Agent Zero: a relevance reranker scrambles temporal order
-    # R3-07: rerank_v2 reranks every read (chain in ``rerank_v2_chain``); ordering questions
-    # still skip.
-    v2_on = read_cfg.rerank_v2 and not (read_cfg.skip_rerank_for_ordering and is_ordering(query))
+        rerank_on = False
+    if rr_cfg.skip_for_ordering and is_ordering(query):
+        rerank_on = False
     reranked = False
     _RERANK_SUPPORT.set(None)
     if (fx := _FORENSICS.get()) is not None:
         fx["pool"] = [(record.record_id, score) for record, score in candidates]
-        fx["reranker"] = getattr(reranker, "reranker_id", None)
+        fx["reranker"] = None
     rerank_query = query
     if read_cfg.query_contract != "off":  # A03: the contract is logged; the hint is opt-in
         contract = await eng._query_contract(query)
         hint = rerank_hint(contract) if "rerank" in read_cfg.query_contract_use else None
-        if hint and (reranker is not None or v2_on):
+        if hint and rerank_on:
             rerank_query = query + hint
         if (fx := _FORENSICS.get()) is not None:
             fx["query_contract"] = {
@@ -956,61 +953,8 @@ async def _search(
     elif (fx := _FORENSICS.get()) is not None:
         # V02: say that the contract was not computed rather than leave the field out
         fx["query_contract"] = {"mode": "off", "status": "absent"}
-    if v2_on and candidates:
-        candidates, reranked = await rerank_v2_stage(eng, ns, rerank_query, candidates, read_cfg)
-    elif reranker is not None and candidates:
-        documents = [concat_background(record) for record, _ in candidates]
-        if read_cfg.rerank_date_prefix:
-            # Hindsight: the cross-encoder sees when each candidate happened.
-            documents = [
-                doc
-                if constants.UNDATED_TAG in record.tags
-                else f"[Date: {record.valid_from:%Y-%m-%d}] {doc}"
-                for (record, _), doc in zip(candidates, documents, strict=True)
-            ]
-        if read_cfg.rerank_context:
-            documents = await eng._with_session_neighbours(
-                ns, candidates, documents, read_cfg.rerank_context
-            )
-        try:
-            eng._rerank_calls += 1
-            raw_scores = await gated_rerank(reranker, rerank_query, documents)
-            if len(raw_scores) > 1:
-                _RERANK_SUPPORT.set(sorted(raw_scores, reverse=True)[1])
-            if (raw_sink := _RAW_SCORES.get()) is not None:
-                for (record, _), raw in zip(candidates, raw_scores, strict=True):
-                    raw_sink[record.record_id] = max(
-                        float(raw), raw_sink.get(record.record_id, float("-inf"))
-                    )
-            if (fx := _FORENSICS.get()) is not None:
-                fx["rerank_scores"] = [
-                    (record.record_id, float(raw))
-                    for (record, _), raw in zip(candidates, raw_scores, strict=True)
-                ]
-            if read_cfg.rerank_gate is not None and max(raw_scores) < read_cfg.rerank_gate:
-                # N41: the reranker is not confident: keep the retrieval order.
-                eng._rerank_gated += 1
-            else:
-                relevances = _minmax_normalize(raw_scores)
-                if read_cfg.rerank_blend is not None:
-                    w = read_cfg.rerank_blend
-                    prior = _minmax_quiet([score for _, score in candidates])
-                    relevances = [
-                        w * r + (1.0 - w) * p for r, p in zip(relevances, prior, strict=True)
-                    ]
-                candidates = [
-                    (record, relevance)
-                    for (record, _), relevance in zip(candidates, relevances, strict=True)
-                ]
-                reranked = True
-        except (MissingServiceError, ConnectionError, TimeoutError) as exc:
-            eng._rerank_failures += 1
-            _log.warning(
-                "rerank.failed",
-                namespace=ns,
-                reranker=reranker.reranker_id,
-                error=type(exc).__name__,
-            )
+    if rerank_on and candidates:
+        candidates, reranked = await rerank_stage(eng, ns, rerank_query, candidates, rr_cfg)
     scored = [
         (record, eng._scoring.composite_score(record, relevance=relevance))
         for record, relevance in candidates
@@ -1066,14 +1010,14 @@ async def _search(
     _RERANKED.set(reranked)
     if (
         reranked
-        and read_cfg.rerank_keep is not None
+        and rr_cfg.keep is not None
         and read_cfg.candidate_pool > 1
         and not _LIST_MODE.get()  # B1: list mode keeps the whole reranked pool
     ):
         # G5b: the wider pool fed the reranker; only its best few go on.
         _pre = _ids(scored)
-        scored = scored[: read_cfg.rerank_keep]
-        _cut_missing(_pre, scored, "rerank_keep", keep=read_cfg.rerank_keep)
+        scored = scored[: rr_cfg.keep]
+        _cut_missing(_pre, scored, "rerank_keep", keep=rr_cfg.keep)
     if len(scored) > final_k:
         # FU-RRPOOL: the wide pool was reranked; only the caller's top_k leave.
         _pre = _ids(scored)

@@ -42,13 +42,20 @@ def model_calls(eng: Any) -> dict[str, int]:
 
 
 def rerank_stats(eng: Any) -> dict[str, Any]:
-    """E8 reranker use since construction: ``{"mode", "calls", "failures",
-    "unavailable"}``. ``calls`` counts rerank attempts, ``failures`` those that
-    raised (retrieval fell back to vector order), ``unavailable`` that the adapter
-    could not be built and the stage disabled itself. Read-only."""
-    mode = eng._resolved.config.read.rerank if eng._resolved is not None else None
+    """E8 reranker use since construction: ``{"mode", "chain", "calls", "failures",
+    "unavailable", "gated"}``. ``mode`` is the first ``model.rerank.chain`` provider
+    (``off`` for an empty chain), ``chain`` every provider in order. ``calls`` counts rerank
+    attempts, ``failures`` those that raised (retrieval fell back to vector order),
+    ``unavailable`` that the first adapter could not be built and stays off. Read-only."""
+    chain = (
+        [stage.provider for stage in eng._resolved.config.model.rerank.chain]
+        if eng._resolved is not None
+        else None
+    )
+    mode = None if chain is None else (chain[0] if chain else "off")
     return {
         "mode": mode,
+        "chain": chain,
         "calls": eng._rerank_calls,
         "failures": eng._rerank_failures,
         "unavailable": eng._rerank_unavailable,
@@ -156,7 +163,7 @@ def describe(eng: Any) -> dict[str, Any]:
         # D1: whether the autonomous sleep loop is active this run.
         "scheduler": eng._scheduler.running if eng._scheduler is not None else False,
         "strict_services": config.strict_services,
-        # MD-01: the model plan (tiers, devices, VRAM, fallbacks) when models.tiers_v2 is on.
+        # MD-01: the model plan (tiers, devices, VRAM, fallbacks) when model.placement.tiers_v2 is on.
         **(
             {"models": eng._llm.model_plan}
             if eng._llm is not None and getattr(eng._llm, "model_plan", None)

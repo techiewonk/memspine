@@ -18,7 +18,7 @@ def _remote_view(eng: Any, role: str, records: Sequence[MemoryRecord]) -> list[M
     is rendered; the provider-boundary text match stays as the backstop."""
     config = eng._config()
     limit = config.consent.remote_llm_max_tier
-    role_config = config.llm.roles.get(role)
+    role_config = config.model.llm.get(role)
     if limit is None or role_config is None:
         return list(records)
     if is_local_binding(role_config.provider, role_config.settings, config.consent.local_hosts):

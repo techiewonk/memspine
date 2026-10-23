@@ -99,7 +99,7 @@ async def test_litellm_empty_content_raises(monkeypatch: pytest.MonkeyPatch) -> 
 
 def test_router_names_missing_role() -> None:
     router = LLMRouter({})
-    with pytest.raises(ConfigError, match=r"llm\.roles\.judge"):
+    with pytest.raises(ConfigError, match=r"model\.llm\.judge"):
         router.for_role("judge")
 
 

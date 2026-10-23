@@ -1,6 +1,6 @@
 """Cloud reranker via LiteLLM (E8, D-51): Cohere / Bedrock / Together rerank
 endpoints behind the same ``Reranker`` port. The rerank ``model`` comes from
-``read.rerank_settings.model`` (e.g. ``cohere/rerank-english-v3.0``,
+``model.rerank.chain[].settings.model`` (e.g. ``cohere/rerank-english-v3.0``,
 ``bedrock/amazon.rerank-v1:0``). litellm returns a relevance score per document;
 we map them back to input order (missing indices score 0.0). The transport (endpoint,
 key, region) is the injected :class:`~memspine.clients.litellm.LiteLLMConnector`.

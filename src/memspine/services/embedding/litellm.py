@@ -81,5 +81,5 @@ class LiteLLMEmbedding:
         )
         vectors = [list(map(float, item["embedding"])) for item in response.data]
         if any(len(vector) != self._dim for vector in vectors):
-            raise ValueError("LiteLLM output dimension differs from embedding.settings.dim")
+            raise ValueError("LiteLLM output dimension differs from model.embedding.settings.dim")
         return vectors

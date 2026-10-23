@@ -23,7 +23,7 @@ import importlib
 from collections.abc import Mapping
 from typing import Any
 
-from memspine.config.schema.llm import GlinerSettings
+from memspine.config.schema.model import GlinerSettings
 from memspine.exceptions import MissingServiceError
 from memspine.services.extraction.base import ExtractionModels
 
@@ -73,7 +73,7 @@ class GLiNER2Decision:
     def __init__(self, settings: GlinerSettings, pool: ExtractionModels) -> None:
         if "classification" not in settings.tasks:
             raise ValueError(
-                "the bound GLiNER profile must include task 'classification' for the decision provider"
+                "model.decider.route settings.tasks must include 'classification' for the decision provider"
             )
         self.settings = settings
         # RM-73: one Engine-lifetime lease, not an acquire/release per call.
@@ -122,7 +122,7 @@ class GLiNER2Decision:
         """GP-3: the entity names in ``text`` (seeds for the graph read leg)."""
         if "entities" not in self.settings.tasks:
             raise ValueError(
-                "the bound GLiNER profile must include task 'entities' for decision entity lookup"
+                "model.decider.route settings.tasks must include 'entities' for decision entity lookup"
             )
         raw = await self._model.call(
             lambda model: model.extract_entities(text, list(_ENTITY_LABELS))

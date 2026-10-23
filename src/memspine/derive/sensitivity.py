@@ -15,7 +15,7 @@ order and their findings are unioned (labels only tighten policy, RM-52):
    * ``terms``: a small, documented medical-term list (:data:`HEALTH_TERMS`) and the W16
      first-person financial cues (``core.sensitive``);
    * ``write_tags``: the write door's ``sensitive:<category>`` / ``sensc:<category>`` tags.
-3. **Model detector** (optional, off unless ``models.bindings.gliner_sensitivity`` is bound):
+3. **Model detector** (optional, off unless ``model.extraction.sensitivity`` is configured):
    a local GLiNER2 entity pass (:class:`GlinerSensitivityDetector`), offline only
    (``local_files_only`` required), never a generative model.
 
@@ -309,7 +309,7 @@ class SensitivityModel(Protocol):
 class GlinerSensitivityDetector:
     """GLiNER2 entity pass mapped to sensitivity labels (``[ner]``, local CPU, offline only).
 
-    Bound through ``models.bindings.gliner_sensitivity`` (a GLiNER profile with task
+    Configured by ``model.extraction.sensitivity`` (a GLiNER slot with task
     ``entities`` and ``local_files_only: true``). Mentions are reduced to label and confidence;
     the matched text never leaves this call."""
 
@@ -335,7 +335,7 @@ class GlinerSensitivityDetector:
         if not getattr(settings, "local_files_only", False):
             raise ValueError("the GLiNER sensitivity detector is offline only (local_files_only)")
         if "entities" not in tuple(getattr(settings, "tasks", ())):
-            raise ValueError("the bound GLiNER profile must include task 'entities'")
+            raise ValueError("model.extraction.sensitivity settings.tasks must include 'entities'")
         self._settings = settings
         self._model = pool.binding(settings)
 

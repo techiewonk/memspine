@@ -1,4 +1,4 @@
-"""Rerank selection (E8, D-51): ``read.rerank`` mode -> descriptor -> built reranker.
+"""Rerank selection (E8, D-51): a ``model.rerank.chain`` entry -> descriptor -> reranker.
 
 "Multiple support" is one registry entry, not an engine if/elif. The descriptors live in
 :mod:`memspine.providers.builtin.rerank` (the one rerank factory, RM-113); this module is the
@@ -6,9 +6,9 @@ selection layer the engine and the read pipeline call, so they never import a bu
 Classified provider-unavailability errors return ``None`` so retrieval can continue without
 reranking; configuration and programming errors remain visible to the caller.
 
-``rerank_modes()`` is the single source the engine's startup validator reads, so a config typo
-fails fast at start while the valid set stays in lock-step with the registry — including any
-deployment-registered provider (``register_reranker``).
+``validate_reranker_settings`` is what the engine's startup validator runs on every chain entry,
+so a config typo fails fast at start while the valid set stays in lock-step with the registry —
+including any deployment-registered provider (``register_reranker``).
 """
 
 from __future__ import annotations
@@ -46,7 +46,8 @@ __all__ = [
 
 @dataclass(frozen=True)
 class RerankSettings:
-    """The resolved rerank config a spec needs (from ``read.rerank*``)."""
+    """One resolved ``model.rerank.chain`` entry (its ``provider`` is ``mode``, its
+    ``settings`` the fields below) plus the chain's ``chunk_chars`` / ``chunk_overlap``."""
 
     mode: str
     model: str | None = None
@@ -78,9 +79,8 @@ def register_reranker(descriptor: ProviderDescriptor) -> None:
 
 
 def rerank_modes() -> tuple[str, ...]:
-    """The valid ``read.rerank`` values — ``off`` plus every registered provider.
-    The ONE source for the engine's startup validation, so the check can never
-    drift from what ``build_reranker`` actually supports (the A1 bug's root)."""
+    """``off`` plus every registered reranker provider (the providers a
+    ``model.rerank.chain`` entry may name; ``model.rerank.chain: []`` is off)."""
     get_registry("rerankers")
     return ("off", *RERANKERS.names())
 
@@ -111,15 +111,18 @@ def validate_reranker_settings(
     *,
     explicit_deployment_id: bool,
     allow_irrelevant: bool = False,
+    path: str = "model.rerank.chain[]",
 ) -> tuple[ProviderDescriptor, Any] | None:
-    """Validate options and shared-provider requirements without loading a model."""
+    """Validate options and shared-provider requirements without loading a model. ``path``
+    names the chain entry in errors."""
     if mode == "off":
         return None
     get_registry("rerankers")
     descriptor = RERANKERS.find(mode)
     if not isinstance(descriptor, ProviderDescriptor):
         raise ConfigError(
-            f"unknown reranker provider {mode!r} (valid: {', '.join(rerank_modes())})"
+            f"unknown reranker provider {mode!r} at {path}.provider "
+            f"(valid: {', '.join(RERANKERS.names())})"
         )
     if descriptor.requires_deployment_id and not explicit_deployment_id:
         raise ConfigError(f"deployment.id is required by shared provider rerank.{mode}")
@@ -134,7 +137,7 @@ def validate_reranker_settings(
         typed = validate_settings(descriptor, values)
     except ProviderRegistryError as exc:
         raise ConfigError(
-            f"invalid read.rerank_settings for provider {mode!r} ({type(exc).__name__})"
+            f"invalid {path}.settings for provider {mode!r} ({type(exc).__name__})"
         ) from None
     return descriptor, typed
 

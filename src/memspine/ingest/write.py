@@ -342,7 +342,7 @@ async def write(
         opts = eng._perspective_options()
         if opts.on:  # I39: speaker / addressee / subject / stance tags; content untouched
             tags = await eng._annotate_perspective(ns, content, source.role, tags, opts, valid_from)
-    # RM-91 (d) / RM-106: opt-in topic tags; off unless models.bindings binds ``gliner_topic``
+    # RM-91 (d) / RM-106: opt-in topic tags; off unless ``model.extraction.topic`` is set
     # and a tagger is attached. A failing tagger is logged and never blocks the write.
     tagger = topic_hook(eng._config(), getattr(eng, "_topic_tagger", None))
     if tagger is not None:
@@ -498,7 +498,7 @@ async def _prefetch_neighbours(
     eng: Any, ns: str, contents: Sequence[str]
 ) -> _NeighbourBatch | None:
     """#63: the firewall's neighbour query for every turn, as one batched
-    vector search (in chunks of ``embedding.batch_size``) before the first
+    vector search (in chunks of ``model.embedding.batch_size``) before the first
     write. None (per-turn queries) below two distinct contents, with the
     firewall off, or when the vector store has no batched query."""
     query_many = getattr(eng._vector, "query_many", None)
@@ -514,7 +514,7 @@ async def _prefetch_neighbours(
     # Enough rows that the nearest non-held ones are always among them (rows
     # held later in the batch are written ones, which are scored separately).
     top_k = constants.ANOMALY_MIN_NEIGHBOURS + await eng._require_started().count_quarantined(ns)
-    size = eng._config().embedding.batch_size
+    size = eng._config().model.embedding.batch_size
     for start in range(0, len(unique), size):
         chunk = unique[start : start + size]
         vectors = await eng._embedder.embed(chunk)
@@ -637,7 +637,7 @@ async def _prewarm_embeddings(eng: Any, texts: Sequence[str]) -> None:
     unique = list(dict.fromkeys(texts))
     if len(unique) < 2:
         return
-    size = eng._config().embedding.batch_size
+    size = eng._config().model.embedding.batch_size
     for start in range(0, len(unique), size):
         await eng._embedder.embed(unique[start : start + size])
 
@@ -977,13 +977,15 @@ async def _grade_sensitivity(eng: Any, content: str, mode: str) -> tuple[str, tu
     label = grade_text(content)
     if mode != "decider" or label.grade != "none":
         return label.grade, label.categories
-    read = eng._config().read
+    from memspine.providers.decider import read_decider_min_confidence
+
+    floor = read_decider_min_confidence(eng._config())
     try:
         decision = await eng._decider_adapter().decide("sensitivity", content[:2000], None)
         if (
             decision.label == "sensitive"
             and decision.confidence is not None
-            and decision.confidence >= read.decider_min_confidence
+            and decision.confidence >= floor
         ):
             return "medium", ("other",)
     except Exception as exc:  # an enhancer, never a gate; log the class, not the text
@@ -1084,7 +1086,9 @@ async def review_inferred(
 async def _sensitivity_scope_open(eng: Any, query: str) -> bool:
     """I52 (``read.sensitivity_gate: decider``): is the message about the user's own
     sensitive details? Only a sure ``about`` answer opens the gate; anything else keeps it."""
-    if eng._config().read.decider == "heuristic":
+    from memspine.providers.decider import read_decider_slot
+
+    if read_decider_slot(eng._config()) is None:
         return False
     return await eng._decided("sensitivity_scope", query, None, "not_about") == "about"  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 

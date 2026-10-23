@@ -1,4 +1,4 @@
-"""Local torch embedder over sentence-transformers (``embedding.provider: st``, ``[st]`` extra).
+"""Local torch embedder over sentence-transformers (``model.embedding.provider: st``, ``[st]`` extra).
 
 For models fastembed cannot load, e.g. Qwen3-Embedding-0.6B (BF16 on the GPU). Queries
 take the model's retrieval instruction (``embedding.query_instruction``), documents
@@ -88,7 +88,7 @@ class SentenceTransformersEmbedding:
             )
             if any(len(v) < self._dim for v in vecs):
                 raise ValueError(
-                    "sentence-transformers output dimension is smaller than embedding.settings.dim"
+                    "sentence-transformers output dimension is smaller than model.embedding.settings.dim"
                 )
             return [[float(x) for x in v[: self._dim]] for v in vecs]
 

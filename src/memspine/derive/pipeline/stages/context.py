@@ -334,10 +334,10 @@ class PipelineContext:
     #: contexts) => no edges, as before. See ``offline_door.stamp_summary`` / ``link_summary``.
     link_derived: Callable[[str, MemoryRecord, Sequence[str], str], Awaitable[None]] | None = None
     #: RM-99: the opt-in offline model detector of the sensitivity labelling layer
-    #: (``models.bindings.gliner_sensitivity``; a ``derive.sensitivity.SensitivityModel``). None
+    #: (``model.extraction.sensitivity``; a ``derive.sensitivity.SensitivityModel``). None
     #: => deterministic labels only (vocabulary defaults and rule/pattern detectors).
     sensitivity_model: Any | None = None
-    #: RM-106: the opt-in topic tagger (``models.bindings.gliner_topic``; a
+    #: RM-106: the opt-in topic tagger (``model.extraction.topic``; a
     #: ``semantics.domains.AnyTopicTagger``), already gated by the binding. None => no
     #: ``gliner_topic`` domain source on the compile path.
     topic_tagger: Any | None = None

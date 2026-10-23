@@ -37,7 +37,7 @@ from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass, replace
 from typing import Any, Literal
 
-from memspine.config.schema.llm import GlinerSettings
+from memspine.config.schema.model import GlinerSettings
 from memspine.derive.envelope_stages import EnvelopeStage, EnvelopeStageContext
 from memspine.derive.gliner_mentions import (
     GlinerMentionError,
@@ -325,7 +325,7 @@ class GlinerHints:
         self._model = pool.binding(settings)
         if "entities" not in settings.tasks:
             raise ValueError(
-                "the bound GLiNER profile must include task 'entities' for the write pre-pass"
+                "model.extraction.prepass settings.tasks must include 'entities' for the write pre-pass"
             )
 
     @property

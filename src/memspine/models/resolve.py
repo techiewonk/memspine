@@ -1,6 +1,7 @@
-"""MD-01: resolve engine roles through tier, placement and fallback (``models.tiers_v2``).
+"""MD-01: resolve engine roles through tier, placement and fallback
+(``model.placement.tiers_v2``).
 
-Wiring for the LIB-42 library (:mod:`memspine.models.tiers`). It turns the ``models`` config into a
+Wiring for the LIB-42 library (:mod:`memspine.models.tiers`). It turns ``model.placement`` into a
 :class:`~memspine.models.tiers.ModelPlan` (pure: declared sizes in, plan out, no GPU needed), maps
 the engine's role names onto the catalogue (:mod:`memspine.prompts.roles`), and says per role which
 model serves it, on which device, with which thinking setting, or why it has no model and what the
@@ -12,8 +13,9 @@ from __future__ import annotations
 
 import re
 import subprocess
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
-from typing import Any
+from typing import Any, Literal
 
 from memspine.exceptions import ConfigError
 from memspine.models.tiers import (
@@ -39,6 +41,7 @@ __all__ = [
     "Resolution",
     "ResolvedModels",
     "detect_cuda_gpus",
+    "embedder_preference",
     "emit_taps",
     "report",
     "rerank_chain",
@@ -57,7 +60,7 @@ TIER_BY_NAME: dict[str, Tier] = {
 }
 _NAME_BY_TIER = {v: k for k, v in TIER_BY_NAME.items()}
 
-#: Reranker family -> ``read.rerank`` factory mode.
+#: Reranker family -> ``model.rerank.chain`` provider.
 RERANK_MODE: dict[str, str] = {
     "jina-v3.5": "jina",
     "qwen3-reranker-0.6b": "qwen3",
@@ -66,7 +69,8 @@ RERANK_MODE: dict[str, str] = {
 
 #: Estimated sizes of the owner-chosen reranker chain (Jina v3.5, Qwen3-Reranker-0.6B, MiniLM CPU).
 #: The two torch models are GPU-only here, so a CPU-only machine falls straight to MiniLM.
-#: Estimates only: replace with measured values by declaring the model in ``models.catalogue``.
+#: Estimates only: replace with measured values by declaring the model in
+#: ``model.placement.catalogue``.
 DEFAULT_RERANKERS: tuple[ModelInfo, ...] = (
     ModelInfo(
         "jina-reranker-v3.5",
@@ -114,10 +118,14 @@ def _provider_of(model_id: str) -> str:
     return model_id.partition("/")[0] if "/" in model_id else "local"
 
 
+#: ADR-082 item 13: catalogue ``kind`` -> the LIB-42 library's model kind.
+_LIBRARY_KIND = {"llm": "llm", "rerank": "reranker", "embedding": "embedder"}
+
+
 def _info(decl: Any) -> ModelInfo:
     return ModelInfo(
         id=decl.id,
-        kind=decl.kind,
+        kind=_LIBRARY_KIND.get(decl.kind, decl.kind),
         provider=decl.provider or _provider_of(decl.id),
         tier=TIER_BY_NAME[decl.tier] if decl.kind == "llm" else Tier.NONE,
         family=decl.family,
@@ -168,16 +176,37 @@ class ResolvedModels:
         """Fail fast (P-03 default): raise ``ConfigError`` listing every error."""
         problems = [*self.errors, *self.plan.errors]
         if problems:
-            raise ConfigError("models.tiers_v2: " + "; ".join(dict.fromkeys(problems)))
+            raise ConfigError("model.placement.tiers_v2: " + "; ".join(dict.fromkeys(problems)))
+
+
+def embedder_preference(preset: str | None) -> Literal["auto", "cpu", "gpu"]:
+    """MD-01: the plan's embedder preference from ``model.embedding.preset`` (unset = auto;
+    ``gpu`` = the instruction embedder; a ``cpu*`` preset = the CPU embedder)."""
+    if preset == "gpu":
+        return "gpu"
+    if preset is not None and preset.startswith("cpu"):
+        return "cpu"
+    return "auto"
 
 
 def resolve_models(
-    cfg: Any, *, extra_required: tuple[str, ...] = (), gpus: tuple[GpuInfo, ...] | None = None
+    cfg: Any,
+    *,
+    extra_required: tuple[str, ...] = (),
+    gpus: tuple[GpuInfo, ...] | None = None,
+    rerank: bool = True,
+    embedder_profile: Literal["auto", "cpu", "gpu"] = "auto",
+    thinking: Mapping[str, int] | None = None,
 ) -> ResolvedModels:
-    """Build the plan from a ``ModelsConfig``. Pure for a given config (``gpus`` overrides probing).
+    """Build the plan from ``model.placement`` (a ``PlacementConfig``). Pure for a given config
+    (``gpus`` overrides probing).
 
     ``extra_required`` are catalogue roles a configured feature needs (they join
-    ``models.required_roles`` when ``on_missing_model`` is ``error``).
+    ``model.placement.required_roles`` when ``on_missing_model`` is ``error``). ``rerank``
+    plans a reranker (the engine passes ``bool(model.rerank.chain)``); ``embedder_profile``
+    comes from ``model.embedding.preset``; ``thinking`` maps catalogue roles to a capped
+    thinking budget (ADR-082 puts thinking on explicit ``model.llm`` slots, so the engine
+    passes none).
     """
     notes: list[str] = []
     errors: list[str] = []
@@ -185,7 +214,7 @@ def resolve_models(
 
     decls: dict[str, Any] = {d.id: d for d in cfg.catalogue}
     models = [_info(d) for d in cfg.catalogue]
-    if cfg.default_rerankers == "shipped" and not any(m.kind == "reranker" for m in models):
+    if cfg.catalogue_rerankers == "shipped" and not any(m.kind == "reranker" for m in models):
         models.extend(DEFAULT_RERANKERS)
     inv = Inventory(tuple(models))
 
@@ -206,14 +235,17 @@ def resolve_models(
     disabled: set[str] = set()
     for role, model_id in cfg.pins.items():
         if role not in known:
-            errors.append(f"models.pins: unknown role {role!r} (valid: {', '.join(sorted(known))})")
+            errors.append(
+                f"model.placement.pins: unknown role {role!r} (valid: {', '.join(sorted(known))})"
+            )
         else:
             pins[role] = model_id
     llms = [m for m in models if m.kind == "llm"]
     for role, tier_name in sorted(cfg.role_tier.items()):
         if role not in known:
             errors.append(
-                f"models.role_tier: unknown role {role!r} (valid: {', '.join(sorted(known))})"
+                f"model.placement.role_tier: unknown role {role!r} "
+                f"(valid: {', '.join(sorted(known))})"
             )
             continue
         want = TIER_BY_NAME[tier_name]
@@ -238,12 +270,12 @@ def resolve_models(
             if role in known:
                 required.add(role)
             else:
-                errors.append(f"models.required_roles: unknown role {role!r}")
+                errors.append(f"model.placement.required_roles: unknown role {role!r}")
 
     caps: dict[str, int] = {}
-    for role, cap in cfg.thinking.items():
+    for role, cap in (thinking or {}).items():
         if role not in known:
-            errors.append(f"models.thinking: unknown role {role!r}")
+            errors.append(f"thinking: unknown role {role!r}")
         elif cap > 0:
             caps[role] = cap
 
@@ -253,8 +285,8 @@ def resolve_models(
         required_roles=frozenset(required),
         allow_hosted=cfg.allow_hosted,
         thinking_optin=frozenset(caps),
-        embedder_profile=cfg.embedder_profile,
-        rerank=cfg.rerank == "chain",
+        embedder_profile=embedder_profile,
+        rerank=rerank,
         gpu_headroom_mb=cfg.gpu_headroom_mb,
     )
     plan = plan_models(inv, hw, prefs)
@@ -295,11 +327,12 @@ def resolve_role(resolved: ResolvedModels, role: str) -> Resolution:
 
 
 def role_config(resolved: ResolvedModels, role: str) -> Any | None:
-    """The ``LLMRoleConfig`` for a bound engine ``role`` (None when no model serves it).
+    """The ``LLMSlot`` for a bound engine ``role`` (None when no model serves it); the catalogue
+    declaration's ``timeout_seconds`` becomes the slot's ``timeout_s``.
 
     Thinking (P-15): off -> ``no_think`` True for a model that can think, else the provider default;
     capped -> ``no_think`` False (the adapter wrapper caps the tokens)."""
-    from memspine.config.schema.llm import LLMRoleConfig
+    from memspine.config.schema.model import LLMSlot
 
     b = role_binding(resolved, role)
     if b is None or b.status != "bound":
@@ -315,10 +348,7 @@ def role_config(resolved: ResolvedModels, role: str) -> Any | None:
         no_think = True if (info is not None and info.supports_thinking) else None
     if d.timeout_seconds is None:
         raise ValueError("bound LLM declaration is missing its explicit timeout")
-    settings: dict[str, Any] = {
-        "model": d.id,
-        "timeout_seconds": d.timeout_seconds,
-    }
+    settings: dict[str, Any] = {"model": d.id}
     for name in ("api_base", "api_key", "aws_region", "no_think"):
         value = no_think if name == "no_think" else getattr(d, name)
         if value is not None:
@@ -327,7 +357,7 @@ def role_config(resolved: ResolvedModels, role: str) -> Any | None:
         value = getattr(d, name)
         if value is not None:
             settings[name] = value
-    return LLMRoleConfig(provider=d.provider, settings=settings)
+    return LLMSlot(provider=d.provider, timeout_s=d.timeout_seconds, settings=settings)
 
 
 def role_binding(resolved: ResolvedModels, role: str) -> RoleBinding | None:

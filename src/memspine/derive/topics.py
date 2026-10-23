@@ -1,16 +1,16 @@
 """GLiNER topic tagger for topical domains (RM-106; ADR-080 decisions 9 and 12).
 
-Opt-in: built only when ``models.bindings.gliner_topic`` binds a GLiNER profile with task
+Opt-in: built only when ``model.extraction.topic`` is a GLiNER slot with task
 ``classification`` and ``local_files_only: true`` (offline only; never a generative model).
 The candidate labels come from two sources (owner decision, both):
 
 * **pack domains**: every domain id the active vocabulary packs declare (predicate, property
   and pack top domains), offered to the model in readable form (``health/condition`` ->
   ``health condition``);
-* **operator label map** (``models.topic.labels``): free topic label -> domain id. An operator
+* **operator label map** (``model.extraction.topic.labels``): free topic label -> domain id. An operator
   label equal to a readable pack label overrides it.
 
-The best classification hit at or above ``models.topic.min_confidence`` sets the domain; an
+The best classification hit at or above ``model.extraction.topic.min_confidence`` sets the domain; an
 unscored hit (no confidence) never does. The result feeds the ``gliner_topic`` domain source,
 the lowest precedence of RM-91. Nothing here downloads a model: the pool loads the bound
 checkpoint lazily, offline, on the first call.
@@ -81,7 +81,7 @@ class GlinerTopicTagger:
         if not getattr(settings, "local_files_only", False):
             raise ValueError("the GLiNER topic tagger is offline only (local_files_only)")
         if "classification" not in tuple(getattr(settings, "tasks", ())):
-            raise ValueError("the bound GLiNER profile must include task 'classification'")
+            raise ValueError("model.extraction.topic settings.tasks must include 'classification'")
         if not 0.0 <= min_confidence <= 1.0:
             raise ValueError("min_confidence must lie in [0, 1]")
         candidates: dict[str, str] = {}

@@ -124,11 +124,11 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
             # W2-06c: the no-model template. No extraction (the L1/L2 stages do not run), no call.
             _log.warning(
                 "window.no_model",
-                detail=f"write.window_extract={mode!r} skipped: no llm.roles.window_extract",
+                detail=f"write.window_extract={mode!r} skipped: no model.llm.window_extract",
             )
             return None
         raise ConfigError(
-            f"write.window_extract={mode!r} needs an LLM role: set llm.roles.window_extract"
+            f"write.window_extract={mode!r} needs an LLM role: set model.llm.window_extract"
         )
     if eng._semantic is None or eng._episodic is None:
         raise ConfigError(
@@ -136,7 +136,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
             "enabled (turns are episodic, facts land in the semantic layer)"
         )
     sections = SECTION_MODES[mode]
-    role = config.llm.roles.get("window_extract")
+    role = config.model.llm.get("window_extract")
     storage = eng._storage
     assert storage is not None  # built in start() before the memory types
     asynchronous = config.write.window_async
@@ -388,13 +388,9 @@ def _prepass(eng: Any, config: MemspineConfig) -> Prepass | None:
         return None
     shared: Prepass | None = getattr(eng, "_window_prepass", None)
     if shared is None:
-        from memspine.models.profiles import resolve_gliner_settings
+        from memspine.config.schema.model import gliner_settings
 
-        settings = (
-            resolve_gliner_settings(config, "gliner_prepass")
-            if config.write.prepass == "gliner"
-            else None
-        )
+        settings = gliner_settings(config, "prepass") if config.write.prepass == "gliner" else None
         shared = Prepass(
             config.write.prepass,
             gliner_pool=getattr(eng, "_gliner_pool", None),

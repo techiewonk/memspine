@@ -1,4 +1,4 @@
-"""Jina listwise reranker (``read.rerank: jina``, ``[st]`` extra, CC-BY-NC-4.0 weights).
+"""Jina listwise reranker (a ``jina`` ``model.rerank.chain`` entry, ``[st]`` extra, CC-BY-NC-4.0 weights).
 
 ``jinaai/jina-reranker-v3.5`` (0.6B, Qwen3-0.6B base) ranks a query against many documents
 in one forward pass ("last-but-not-late" listwise scoring) through its custom
@@ -46,7 +46,7 @@ class JinaReranker:
         self._model_id = model
         self._device = device
         self._max_documents = max(1, max_documents)
-        #: R3-07 (``read.rerank_v2``): a document beyond the window gets None (unscored), not 0.0.
+        #: R3-07 (the ``model.rerank.chain`` stage): a document beyond the window gets None (unscored), not 0.0.
         self.unscored_tail = unscored_tail
         self._load_lock = threading.Lock()
         self._infer_lock = threading.Lock()

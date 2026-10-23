@@ -264,7 +264,7 @@ def _build_fact_miner(eng: Any) -> Any:
     # per (model, prompt, variant, transcript), so re-ingesting the same history
     # yields the same facts (LoCoMo L5: two runs of one mining arm differed).
     options["temperature"] = 0.0
-    role = eng._config().llm.roles.get("extract")
+    role = eng._config().model.llm.get("extract")
     from memspine.providers.engine_changes import resolved_config_fingerprint
 
     model = resolved_config_fingerprint(role) if role is not None else llm.provider_id

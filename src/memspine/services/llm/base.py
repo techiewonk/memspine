@@ -1,7 +1,7 @@
 """LLM port: per-role provider routing (D-07/D-22) + json-repair safety net (D-31).
 
 Roles are capabilities, not models: ``extract`` / ``judge`` / ``chat`` each bind
-their own provider in config (``llm.roles.<role>``), so a cheap local model can
+their own provider in config (``model.llm.<role>``), so a cheap local model can
 extract while a stronger endpoint chats. The instructor structured-output
 wrapper joins under ``[structured]`` in Phase 2 (D-31); the always-on lenient
 JSON parser ships now.
@@ -10,6 +10,7 @@ JSON parser ships now.
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any, Protocol, cast, runtime_checkable
 
 if TYPE_CHECKING:
@@ -252,21 +253,29 @@ class ThinkingCapped:
 class LLMRouter:
     """Role -> provider table resolved from config at engine start."""
 
-    #: MD-01: the resolved model plan when ``models.tiers_v2`` built this router, else None.
+    #: MD-01: the resolved model plan when ``model.placement.tiers_v2`` built this router, else None.
     model_plan: Any = None
 
     def __init__(
         self,
         providers: dict[str, LLMService],
         *,
-        structured_options: StructuredOptions | None = None,
+        structured_options: StructuredOptions | Mapping[str, StructuredOptions] | None = None,
     ) -> None:
+        """``structured_options``: one value for every role, or (ADR-082: each
+        ``model.llm.<role>.structured``) a role -> options map; a role not in the map gets None."""
         self._providers = providers
         self._counted_attempt_roles: set[str] = set()
         self._counts: dict[str, int] = {}
         self._estimates: dict[str, list[int]] = {}
         self._usage = UsageLedger()
         self._structured_options = structured_options
+
+    def _options_for(self, role: str) -> StructuredOptions | None:
+        options = self._structured_options
+        if isinstance(options, Mapping):
+            return options.get(role)
+        return options
 
     @property
     def roles(self) -> list[str]:
@@ -285,8 +294,8 @@ class LLMRouter:
         provider = self._providers.get(role)
         if provider is None:
             raise ConfigError(
-                f"no LLM provider bound for role {role!r} — add llm.roles.{role} "
-                "with provider and selected-provider settings to your config"
+                f"no LLM provider bound for role {role!r} — add model.llm.{role} "
+                "with provider, timeout_s and selected-provider settings to your config"
             )
         return provider
 
@@ -305,13 +314,13 @@ class LLMRouter:
                             self._counts,
                             self._estimates,
                             self._usage,
-                            self._structured_options,
+                            self._options_for(role),
                         )
                         for attempt_provider in attempt_providers
                     )
                 )
                 self._counted_attempt_roles.add(role)
-            cast(Any, provider).structured_options = self._structured_options
+            cast(Any, provider).structured_options = self._options_for(role)
             return provider
         return _Counted(
             provider,
@@ -319,7 +328,7 @@ class LLMRouter:
             self._counts,
             self._estimates,
             self._usage,
-            self._structured_options,
+            self._options_for(role),
         )
 
     def call_counts(self) -> dict[str, int]:

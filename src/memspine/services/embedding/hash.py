@@ -1,6 +1,6 @@
 """Deterministic hash embedder: zero-network, zero-model provider.
 
-For tests, CI, and air-gapped smoke runs (config: ``embedding.provider: hash``).
+For tests, CI, and air-gapped smoke runs (config: ``model.embedding.provider: hash``).
 Vectors are stable across runs (xxh64-seeded token buckets, L2-normalized) and
 similar texts land near each other only insofar as they share tokens — good
 enough to exercise the retrieval plumbing, useless for semantics. Never the

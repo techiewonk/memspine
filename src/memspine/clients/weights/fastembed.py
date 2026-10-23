@@ -44,7 +44,7 @@ def cross_encoder_class() -> Any:
         # (TextCrossEncoder ships only in recent releases), not a new extra.
         raise MissingServiceError(
             "fastembed cross-encoder reranker (upgrade fastembed to a version "
-            "shipping TextCrossEncoder, or set read.rerank=flashrank)",
+            "shipping TextCrossEncoder, or use a flashrank model.rerank.chain entry)",
             extra="rerank",
         ) from exc
     return TextCrossEncoder

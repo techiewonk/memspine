@@ -15,7 +15,7 @@ Rules (``docs/STORAGE_SLOTS_MIGRATION_PLAN.md`` section 3):
 - ``multi_node``: every data slot that is built must be ``cluster``. The one exception is a
   ``process`` cache (``memory``): it only memoises deterministic embeddings and extractions,
   so a per-node copy cannot diverge. Host-local features are rejected too: the Resonate step
-  journal (``workers.runner: temporal``), the embedding pin file (``embedding.pin_profile``)
+  journal (``workers.runner: temporal``), the embedding pin file (``model.embedding.pin_preset``)
   and the asset directory (``ingest.asset_dir`` with ``ingest.assets: on``).
 - ``multi_process``: a ``process`` records store (``:memory:``) is rejected (each process
   would hold a private database). A single-writer host-local store (Tantivy, LadybugDB,
@@ -222,10 +222,11 @@ def validate_deployment_locality(
                 "is a host-local step journal; use workers.runner: inline or taskiq, or "
                 "deployment.locality: single_process"
             )
-        if config.embedding.pin_profile:
+        if config.model.embedding.pin_preset:
             errors.append(
-                f"{prefix}embedding.pin_profile writes a host-local pin file; set "
-                "embedding.pin_profile: false (every node must run the same embedding config)"
+                f"{prefix}model.embedding.pin_preset writes a host-local pin file; set "
+                "model.embedding.pin_preset: false (every node must run the same embedding "
+                "config)"
             )
         if config.ingest.assets == "on" and config.ingest.asset_dir:
             errors.append(
@@ -238,7 +239,7 @@ def validate_deployment_locality(
         for item in slots
         if item.needs_placement and item.locality == "host" and item.provider != "auto"
     ]
-    pin_file = config.embedding.pin_profile
+    pin_file = config.model.embedding.pin_preset
     if needs_base or pin_file:
         placement = _placement(config)
         if placement is not None and not placement.in_memory and placement.base_path is None:
@@ -249,7 +250,7 @@ def validate_deployment_locality(
                 )
             if pin_file:
                 errors.append(
-                    "embedding.pin_profile writes a pin file and needs deployment.data_dir "
+                    "model.embedding.pin_preset writes a pin file and needs deployment.data_dir "
                     "(the records store is not a file)"
                 )
     if errors:

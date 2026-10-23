@@ -4,11 +4,12 @@ An :class:`EmbeddingProfile` names everything that makes two vectors comparable:
 id, dimension, dtype, query instruction and normalisation. Its ``version_hash`` hashes exactly
 those (device and batch size do not change the vectors, so they are not part of it).
 
-Behind ``embedding.profile`` (default ``None``: the embedder config is used as written) the
-profile fills the embedder config; behind ``embedding.pin_profile`` (default off) the resolved
-profile is written next to the store at creation and checked on every open. A mismatch is refused
-with an error that names the migration (``embedding.migrate_profile`` + the F-03 re-embed), never
-silently mixed into one vector space.
+Behind ``model.embedding.preset`` (default ``None``: the embedder config is used as written) the
+profile fills the embedder config; behind ``model.embedding.pin_preset`` (default off) the resolved
+profile is written next to the store at creation and checked on every open (the pin file format is
+data and keeps its field names). A mismatch is refused with an error that names the migration
+(``model.embedding.migrate_preset`` + the F-03 re-embed), never silently mixed into one vector
+space.
 
 Profiles: ``gpu`` is the evals default (Qwen3-Embedding-0.6B, bf16 on CUDA, 1024 dims, with the
 retrieval instruction); ``cpu_multilingual`` is a small multilingual ONNX model that runs on the
@@ -137,7 +138,7 @@ def resolve_profile(name: str, *, device: str | None = None) -> EmbeddingProfile
         profile = _PROFILES[name]
     except KeyError:
         raise ConfigError(
-            f"unknown embedding.profile {name!r} (valid: {', '.join(profile_names())})"
+            f"unknown model.embedding.preset {name!r} (valid: {', '.join(profile_names())})"
         ) from None
     return replace(profile, device=device) if device else profile
 
@@ -167,8 +168,8 @@ def check_or_pin(path: str | None, profile: EmbeddingProfile, *, migrate: bool =
             f"hash {existing.get('version_hash')}) but was opened with "
             f"{profile.name!r} ({profile.model_id}, dim {profile.dim}, "
             f"hash {profile.version_hash}). Vectors of different profiles are not "
-            "comparable. Re-embed the store: set embedding.versioned_spaces=true and "
-            "embedding.migrate_profile=true, then run VersionedSpaceStore.reembed(...) "
+            "comparable. Re-embed the store: set model.embedding.versioned_spaces=true and "
+            "model.embedding.migrate_preset=true, then run VersionedSpaceStore.reembed(...) "
             "(F-03) for each namespace; or reopen it with the original profile."
         )
     _write(path, {**profile.to_dict(), "previous": existing.get("version_hash")})

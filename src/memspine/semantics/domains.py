@@ -17,8 +17,8 @@ winning source is recorded next to the domain):
    (``PackManifest.domain``);
 5. ``gliner_topic``: an engine-written ``gliner_topic:<id>`` tag from the
    opt-in topic tagger, or (RM-106) the domain that tagger gives the record on the
-   compile path. The tagger is OFF unless ``models.bindings`` binds the
-   ``gliner_topic`` role AND a tagger is supplied; nothing here loads a model
+   compile path. The tagger is OFF unless ``model.extraction.topic`` is
+   configured AND a tagger is supplied; nothing here loads a model
    (``derive.topics`` builds the GLiNER tagger).
 
 Nothing is inferred: no source, no domain (unknown, which fails any
@@ -42,7 +42,6 @@ _log = get_logger(__name__)
 __all__ = [
     "DOMAIN_PATTERN",
     "DOMAIN_TAG_PREFIX",
-    "TOPIC_BINDING_ROLE",
     "TOPIC_TAG_PREFIX",
     "AnyTopicTagger",
     "AsyncTopicTagger",
@@ -67,8 +66,6 @@ _DOMAIN_RE = re.compile(DOMAIN_PATTERN)
 DOMAIN_TAG_PREFIX = "domain:"
 #: Engine-written tag from the opt-in GLiNER topic tagger (never accepted from callers).
 TOPIC_TAG_PREFIX = "gliner_topic:"
-#: The ``models.bindings`` role that switches the topic tagger on.
-TOPIC_BINDING_ROLE = "gliner_topic"
 
 DomainSource = Literal["ingest_tag", "property", "predicate", "pack", "gliner_topic"]
 #: Text -> candidate domain ids (a GLiNER classification adapter, or a test stub).
@@ -159,12 +156,12 @@ def declared_domains(registry: SemanticRegistry) -> tuple[str, ...]:
 def topic_hook(config: Any, tagger: AnyTopicTagger | None) -> AnyTopicTagger | None:
     """The topic tagger to run, or None (the default).
 
-    On only when ``models.bindings`` binds :data:`TOPIC_BINDING_ROLE` and a tagger
-    is supplied; this never constructs, downloads or activates a model."""
+    On only when ``model.extraction.topic`` is configured (ADR-082) and a tagger is
+    supplied; this never constructs, downloads or activates a model."""
     if tagger is None:
         return None
-    bindings = getattr(getattr(config, "models", None), "bindings", None) or {}
-    return tagger if TOPIC_BINDING_ROLE in bindings else None
+    extraction = getattr(getattr(config, "model", None), "extraction", None)
+    return tagger if getattr(extraction, "topic", None) is not None else None
 
 
 def _topic_ids(found: Iterable[str]) -> list[str]:

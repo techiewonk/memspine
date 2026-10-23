@@ -9,6 +9,10 @@ from typing import Any
 
 from memspine.observability import tap
 
+#: ``model.vision.settings`` defaults (E04): the local Ollama vision model and endpoint.
+DEFAULT_VISION_MODEL = "qwen2.5vl:3b"
+DEFAULT_VISION_URL = "http://localhost:11434"
+
 
 def _asset_adapter(eng: Any) -> Any:
     if eng._assets is None:
@@ -20,18 +24,19 @@ def _asset_adapter(eng: Any) -> Any:
             OllamaVision,
         )
 
-        cfg = eng._config().ingest
+        config = eng._config()
+        cfg = config.ingest
         http = eng._http_connector()  # RM-113: the Engine's shared HTTP connector
-        vision: Any = (
-            OllamaVision(
-                cfg.asset_vision_model,
+        slot = config.model.vision  # ADR-082: null = no description (text only)
+        vision: Any = NoopVision()
+        if slot is not None:  # the only provider today is ``ollama``
+            options = slot.settings
+            vision = OllamaVision(
+                str(options.get("model", DEFAULT_VISION_MODEL)),
                 http,
-                cfg.asset_vision_url,
-                timeout=cfg.asset_vision_timeout_s,
+                str(options.get("api_base", DEFAULT_VISION_URL)),
+                timeout=slot.timeout_s,
             )
-            if cfg.asset_vision == "ollama"
-            else NoopVision()
-        )
         eng._assets = AssetAdapter(
             AssetRegistry(cfg.asset_dir),
             HttpAssetFetcher(tuple(cfg.asset_allowed_mime), http),

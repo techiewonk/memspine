@@ -201,13 +201,12 @@ async def _assemble_core(
     if _LIST_MODE.get():  # B1: a list question draws a wider pool
         pool = max(pool, eng._config().read.list_pool)
     want = top_k * pool
-    # FU-RRPOOL (read.rerank_v2_search_pool): the read path widens through the same key as
-    # search(); _search fetches max(want, pool) before rerank_v2 and cuts back to ``want``.
+    # FU-RRPOOL (model.rerank.search_pool): the read path widens through the same key as
+    # search(); _search fetches max(want, pool) before the rerank chain and cuts back to
+    # ``want``.
     # 0 = off; a pool <= want changes nothing, so candidate_pool is never widened twice.
-    rr_pool = eng._config().read.rerank_v2_search_pool
-    if eng._config().read.tiers_v2 and (
-        eng._config().read.rerank_v2 or eng._config().read.rerank != "off"
-    ):
+    rr_pool = eng._config().model.rerank.search_pool
+    if eng._config().read.tiers_v2 and eng._config().model.rerank.chain:
         # FX-READPATH (R3-01 / R-13): the chosen tier sets the rerank pool (fast 32, standard 48,
         # deep 64), so ``tiers_v2`` now reaches the retrieval it was specified to govern.
         rr_pool = max(rr_pool, tier_pool())
@@ -439,7 +438,7 @@ async def _assemble_core(
             else true_budget
         ),
         compression=eng._assembly_compression,
-        apply_floor=not (read_cfg.rerank_floor == "skip" and _RERANKED.get()),
+        apply_floor=not (eng._config().model.rerank.floor == "skip" and _RERANKED.get()),
         raw_scores=_RAW_SCORES.get() if read_cfg.abstain_on_raw else None,
         cost=tok if counter is not None else None,
         max_skips=read_cfg.exact_budget_max_skips if counter is not None else None,

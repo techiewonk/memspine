@@ -3,10 +3,10 @@
 A decider chooses among described options without generating. Two ports live in this slot:
 
 * ``gliner2``: the H24 :class:`~memspine.services.decider.base.DecisionProvider` (calibrated
-  choice among described options, ``decision.provider``). It leases the Engine's extraction
+  choice among described options, ``model.decider.route``). It leases the Engine's extraction
   pool, so it shares the GLiNER weights connector with the extraction consumers.
 * ``heuristic`` and ``opendecider``: the I28 task-level
-  :class:`~memspine.services.decider.decider.Decider` (``read.decider``).
+  :class:`~memspine.services.decider.decider.Decider` (``model.decider.read``).
 
 Builders expose ``construct`` (sync, lazy: no model loads until first use) for the engine's
 config-reloadable decider, and ``build`` for the async descriptor contract. Reserved future
@@ -20,7 +20,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from memspine.config.schema.llm import GlinerSettings
+from memspine.config.schema.model import GlinerSettings
 from memspine.providers.contexts import DeciderBuildContext, SharedBuildContext
 from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef
 from memspine.providers.registry import DECIDERS, ProviderDescriptor
@@ -31,7 +31,7 @@ __all__ = ["OpenDeciderSettings", "register"]
 
 
 class OpenDeciderSettings(StrictSettings):
-    """``read.decider_*`` mapped to the OpenDecider-nano load and worker options."""
+    """``model.decider.read`` settings (plus its typed ``workers``) for OpenDecider-nano."""
 
     model: str = "manjunathshiva/opendecider-nano"
     device: Literal["cpu", "cuda", "mps", "auto"] = "cpu"

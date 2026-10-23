@@ -6,7 +6,7 @@ model swap, a changed instruction or a changed dtype is a new space, and vectors
 are never compared. Every stored vector carries its space id through the identity of the table that
 holds it (the backend factory is given the space, and names its table from ``qualified_id``).
 
-Behind ``embedding.versioned_spaces`` (off by default: nothing here is wired, storage and search are
+Behind ``model.embedding.versioned_spaces`` (off by default: nothing here is wired, storage and search are
 what they were). With it on:
 
 * the first write of a namespace makes the current space its *active* space;

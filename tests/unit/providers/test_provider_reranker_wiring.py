@@ -119,7 +119,7 @@ def test_startup_validation_checks_shared_provider_identity_without_building() -
 
 
 def test_startup_validation_rejects_unknown_provider_options() -> None:
-    with pytest.raises(ConfigError, match="invalid read.rerank_settings"):
+    with pytest.raises(ConfigError, match=r"invalid model\.rerank\.chain\[\]\.settings"):
         validate_reranker_settings(
             "qwen3",
             {"model": "qwen3", "secretish_typo": "never shown"},

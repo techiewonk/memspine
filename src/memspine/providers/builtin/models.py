@@ -136,8 +136,10 @@ def _missing_dim(provider: str | None = None) -> Exception:
     from memspine.exceptions import ConfigError
 
     if provider is None:
-        return ConfigError("embedding.settings.dim could not be resolved")
-    return ConfigError(f"embedding.settings.dim is required when embedding.provider='{provider}'")
+        return ConfigError("model.embedding.settings.dim could not be resolved")
+    return ConfigError(
+        f"model.embedding.settings.dim is required when model.embedding.provider='{provider}'"
+    )
 
 
 def _embed_fast(settings: FastembedEmbeddingSettings, registry: ResourceRegistry | None) -> Any:
@@ -334,13 +336,15 @@ def _embedding_target_identity(name: str) -> Callable[[Any], dict[str, Any]]:
                 from memspine.exceptions import ConfigError
 
                 raise ConfigError(
-                    "embedding.settings.dim is required to identify an unknown fastembed model"
+                    "model.embedding.settings.dim is required to identify an unknown fastembed "
+                    "model"
                 )
             if settings.dim is not None and settings.dim != dimension:
                 from memspine.exceptions import ConfigError
 
                 raise ConfigError(
-                    "embedding.settings.dim conflicts with the known fastembed model dimension"
+                    "model.embedding.settings.dim conflicts with the known fastembed model "
+                    "dimension"
                 )
             return {"embedder_id": f"fastembed:{settings.model}", "dimension": dimension}
 

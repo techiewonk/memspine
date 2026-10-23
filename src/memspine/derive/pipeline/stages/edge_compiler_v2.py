@@ -217,7 +217,7 @@ class EdgeCompiler:
         self.registry = registry if registry is not None else load_builtin_registry()
         #: RM-99: the sensitivity labelling layer (deterministic unless a model is bound).
         self.labeller = labeller or SensitivityLabeller()
-        #: RM-106: the opt-in topic tagger (already gated by ``models.bindings.gliner_topic``);
+        #: RM-106: the opt-in topic tagger (already gated by ``model.extraction.topic``);
         #: run on the async path before :meth:`compile` (see ``_compile_namespace``).
         self.topic_tagger = topic_tagger
 

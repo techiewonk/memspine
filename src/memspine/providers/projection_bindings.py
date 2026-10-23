@@ -381,7 +381,7 @@ def projection_target_fingerprint(
         storage_identity = provider_target_identity(storage_descriptor, storage_settings)
         if storage_identity is not None:
             identity["sql_target"] = storage_identity
-    if category == "vector" and not config.embedding.versioned_spaces:
+    if category == "vector" and not config.model.embedding.versioned_spaces:
         effective = _effective_embedding(config)
         embedding_descriptor = get_registry("embedders").get(effective.provider)
         embedding_settings = validate_settings(embedding_descriptor, effective.settings)

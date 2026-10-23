@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from typing import Protocol, runtime_checkable
 
-from memspine.config.schema.llm import GlinerSettings
+from memspine.config.schema.model import GlinerSettings
 from memspine.derive.gliner_mentions import MentionSpan, parse_gliner_mentions
 from memspine.observability.logging import get_logger
 from memspine.prompts.base import Prompt
@@ -93,7 +93,7 @@ class GlinerEntityExtractor:
         missing = set(("entities",)) - set(settings.tasks)
         if missing:
             raise ValueError(
-                "the bound GLiNER profile must include task 'entities' for semantic extraction"
+                "model.extraction.semantic settings.tasks must include 'entities' for semantic extraction"
             )
 
     @property

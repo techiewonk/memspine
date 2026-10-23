@@ -19,7 +19,7 @@ T = TypeVar("T")
 
 
 class ExtractionSettings(Protocol):
-    """The structural subset of a GLiNER profile a consumer binds with."""
+    """The structural subset of a GLiNER slot's settings a consumer binds with."""
 
     @property
     def model(self) -> str: ...
