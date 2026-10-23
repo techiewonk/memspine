@@ -1,0 +1,26 @@
+{
+  "model": "Xenova/ms-marco-MiniLM-L-6-v2",
+  "repo": "Xenova/ms-marco-MiniLM-L-6-v2",
+  "revision": "a09144355adeed5f58c8ed011d209bf8ee5a1fec",
+  "fastembed_version": "0.9.0",
+  "files_sha256": {
+    "onnx/model.onnx": "c623d0bcb99f4622beb413eaef00cfbe5db20df9f1dd982da4b4f26022881870",
+    "tokenizer.json": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+    "tokenizer_config.json": "0b29c7bfc889e53b36d9dd3e686dd4300f6525110eaa98c76a5dafceb2029f53",
+    "special_tokens_map.json": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+    "config.json": "d827779a72d27ae68cf878a6fc2e954542663fe21ca515d9f4783fc96be2d37e"
+  },
+  "query": "What does a memory engine preserve?",
+  "documents": [
+    "A memory engine preserves evidence.",
+    "Bananas are yellow.",
+    "Memory stores facts and evidence.",
+    ""
+  ],
+  "scores": [
+    8.5352802,
+    -11.3126335,
+    -6.2141161,
+    -9.8873615
+  ]
+}
