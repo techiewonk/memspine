@@ -166,7 +166,7 @@ ladder  incumbent=79940188… verdict=update rule=R3_newer_supersedes
 | Lineage | every fact has `parents ≥ 1`; `links <rid>` lists the cited turn(s) |
 | Ladder | `R3_newer_supersedes` only where the newer fact really replaces the old one. With the stub, every fact on `(Bram, said)` supersedes the last, so that is expected here |
 
-### 2d. Graph mirror (A28)
+### 2d. Graph projection (A28)
 Turns and facts become graph nodes (`graph_node=yes` on the index line). Edges come from sleep (section 3).
 
 ---

@@ -79,8 +79,8 @@ class MemspineConfig(ConfigModel):
     event_log: EventLogConfig = Field(default_factory=EventLogConfig)
     #: ADR-081: deployment identity, locality and the host-local data directory.
     deployment: DeploymentConfig = Field(default_factory=DeploymentConfig)
-    #: ADR-081: one slot per data category (records, vector, lexical, graph, graph_mirror,
-    #: cache, documents). Model providers live in ``model``.
+    #: ADR-081: one slot per data category (records, vector, lexical, graph, cache,
+    #: documents). Model providers live in ``model``.
     storage: StorageConfig = Field(default_factory=StorageConfig)
     #: ADR-082: one slot per model category (embedding, llm.<role>, rerank,
     #: extraction.<consumer>, decider.<consumer>, vision) plus device placement.

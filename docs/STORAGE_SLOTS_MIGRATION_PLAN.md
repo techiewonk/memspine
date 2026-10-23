@@ -3,6 +3,12 @@
 Plan for owner review. Status lives in `docs/PROVIDER_TODO.md`. Background is in
 `docs/STORAGE_TOPOLOGY_REVIEW_2026-10-22.md`.
 
+**Amendment 2026-10-23 (owner decision): graph mirror removed.** Exactly one graph client
+runs at a time (`storage.graph`); the optional `storage.graph_mirror` slot, the `mirror`
+capability and the outbox-fed Neo4j mirror are gone, with no alias. A config naming
+`storage.graph_mirror` (any value, null included) is rejected naming `storage.graph`; Neo4j
+stays available as `storage.graph.provider`. See the ADR-081 amendment section.
+
 ## 1. Target shape
 
 ```yaml
@@ -16,7 +22,6 @@ storage:                        # data providers: where memory lives
   vector:     {provider: pgvector, settings: {url: ${PG_URL}, connect_timeout_s: 5, statement_timeout_s: 30}}
   lexical:    {provider: opensearch, settings: {url: ${OS_URL}}}
   graph:      {provider: neo4j, settings: {url_env: MEMSPINE_NEO4J_URL}}
-  graph_mirror: null
   cache:      {provider: redis, settings: {url: ${REDIS_URL}}}
 
 embedding: {provider: fastembed, settings: {...}}   # service provider (model), unchanged
@@ -50,7 +55,7 @@ That is the one implicit link, and it is validated.
 | `vector.provider` / `vector.settings` | `storage.vector.*` | |
 | `read.lexical_provider` / `read.lexical_settings` | `storage.lexical.*` | `read.lexical_scorer`, `lexical_language`, `lexical_strip_names`, `lexical_namespace_languages`, `short_query_lexical_weight` stay in `read` |
 | `graph.provider` / `graph.settings` | `storage.graph.*` | `graph.edge_compiler_v2`, `key_v2`, `entity_embeddings` stay in `graph` |
-| `graph.mirror.{enabled,provider,settings}` | `storage.graph_mirror` (null = off) | gated by the `mirror` capability |
+| `graph.mirror.{enabled,provider,settings}` | removed (amendment 2026-10-23) | was `storage.graph_mirror`; one graph client runs at a time, so select Neo4j as `storage.graph` |
 | `cache.provider` / `cache.settings` | `storage.cache.*` | the disk cache path defaults under `deployment.data_dir` |
 | `runtime.deployment_id` | `deployment.id` | |
 | `workers.resonate.journal_path` | unchanged | declared host-local, so `multi_node` checks it |
@@ -77,7 +82,6 @@ new location.
    binding. A later difference is reported as an explicit provider change and never
    applied silently.
 5. **Capabilities.**
-   - `graph_mirror` needs `mirror`.
    - pgvector needs a Postgres target.
    - `sqlite_adjacency` is renamed `sql_adjacency` and supports SQLite and Postgres (no
      alias).
@@ -199,7 +203,7 @@ reads only the config and the descriptors:
   (a sidecar proxy such as cloud-sql-proxy) stays `cluster`. The connector's `locality(spec)`
   is endpoint information, not the rule input.
 - Only slots that are built are checked: `lexical` with `read.hybrid`, `graph` with
-  associative memory, `graph_mirror` and `documents` when set.
+  associative memory and `documents` when set.
 - `multi_node`: every built data slot must be `cluster`, except a `process` cache (`memory`
   only memoises deterministic embeddings and extractions). Host-local features are rejected:
   `workers.runner: temporal` (Resonate journal), `embedding.pin_profile` (pin file) and

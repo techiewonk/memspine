@@ -391,7 +391,7 @@ class _FakeNeo4jClient(Neo4jClient):
         self.closed += 1
 
 
-async def test_neo4j_graph_and_mirror_share_one_driver_closed_on_last_release(
+async def test_neo4j_graph_builds_share_one_driver_closed_on_last_release(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from memspine.providers.builtin import graph as graph_builtin
@@ -410,13 +410,13 @@ async def test_neo4j_graph_and_mirror_share_one_driver_closed_on_last_release(
         settings,
         GraphBuildContext(SharedBuildContext(first_resources, "dep", 2.0), placement, None),
     )
-    mirror = await graph_builtin.Neo4jBuilder().build(
+    candidate = await graph_builtin.Neo4jBuilder().build(
         settings,
         GraphBuildContext(
             SharedBuildContext(first_resources, "dep", 2.0),
             placement,
             None,
-            resource_id="graph_mirror",
+            resource_id="graph_candidate",
         ),
     )
     other_engine = await graph_builtin.Neo4jBuilder().build(
@@ -424,9 +424,9 @@ async def test_neo4j_graph_and_mirror_share_one_driver_closed_on_last_release(
         GraphBuildContext(SharedBuildContext(second_resources, "dep-b", 2.0), placement, None),
     )
     assert len(_FakeNeo4jClient.instances) == 1
-    assert [ref.resource_id for ref in (*primary.resources, *mirror.resources)] == [
+    assert [ref.resource_id for ref in (*primary.resources, *candidate.resources)] == [
         "graph",
-        "graph_mirror",
+        "graph_candidate",
     ]
     assert other_engine.resources[0].resource_id == "graph"
     assert (await first_resources.close_all()).complete
@@ -689,8 +689,8 @@ def test_runners_of_one_engine_share_one_job_store(monkeypatch: pytest.MonkeyPat
     try:
         config = _outbox_config()
         windows = make_outbox_runner(config, sql, resources)
-        mirror = make_outbox_runner(config, sql, resources, label="graph_mirror")
-        assert windows.store is mirror.store
+        second = make_outbox_runner(config, sql, resources, label="outbox")
+        assert windows.store is second.store
         assert schema_checks == 1  # one create_all per Engine outbox database
         assert make_outbox_runner(config, other_sql, other_resources).store is not windows.store
     finally:
@@ -707,11 +707,11 @@ def test_taskiq_runners_of_one_engine_share_one_broker() -> None:
     try:
         config = _outbox_config(transport="taskiq")
         windows = make_outbox_runner(config, sql, resources)
-        mirror = make_outbox_runner(config, sql, resources, label="graph_mirror")
-        assert isinstance(windows, TransportRunner) and isinstance(mirror, TransportRunner)
-        assert windows.store is mirror.store
-        assert windows.broker is mirror.broker
+        second = make_outbox_runner(config, sql, resources, label="outbox")
+        assert isinstance(windows, TransportRunner) and isinstance(second, TransportRunner)
+        assert windows.store is second.store
+        assert windows.broker is second.broker
         assert windows.task_name == TASK_NAME
-        assert mirror.task_name == f"{TASK_NAME}.graph_mirror"
+        assert second.task_name == f"{TASK_NAME}.outbox"
     finally:
         assert asyncio.run(resources.close_all()).complete

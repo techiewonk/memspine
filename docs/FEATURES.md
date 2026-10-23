@@ -268,7 +268,7 @@ truth. Startup selects the configured adapter; existing data needs a controlled 
 |------------|-----------|---------|
 | SQL storage / event log | `storage.records.provider` | `sqlite` (default) · `postgres` `[postgres]` (ADR-025, ADR-081) |
 | Vector | `storage.vector.provider` | `lancedb` (default) · `pgvector` `[postgres]` · `weaviate` |
-| Graph | `storage.graph.provider` | `auto` chooses a compatible local graph · `sql_adjacency` · `ladybug` `[graph]` · direct `neo4j` `[neo4j]` (real-server gate pending) |
+| Graph | `storage.graph.provider` | `auto` chooses a compatible local graph · `sql_adjacency` · `ladybug` `[graph]` · direct `neo4j` `[neo4j]` (real-server gate pending). One graph client runs at a time; the optional Neo4j mirror slot (`storage.graph_mirror`) was removed (ADR-081 amendment 2026-10-23) |
 | Cache / KV | `storage.cache.provider` | `memory` (default) · `disk` · `redis` · `valkey` (external caches need `[cache]`) |
 | Lexical (hybrid leg) | `storage.lexical.provider` | `tantivy` (core) · `opensearch` · `weaviate` |
 | Embedding | `model.embedding.provider` | `fastembed` (default) · `hash` · `static` `[static]` · `litellm` (cloud; `settings.dim` required) |

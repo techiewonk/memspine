@@ -2,14 +2,13 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 import pytest
 
 from memspine import Engine
 from memspine.exceptions import ConfigError
 from memspine.providers.lifecycle import LifecycleState
-from memspine.runtime.container import Neo4jProjection
 
 
 def _engine(path: Path) -> Engine:
@@ -175,23 +174,3 @@ async def test_cancelling_stop_waits_for_worker_cleanup_and_preserves_cancellati
 class _WorkerWithStop:
     def __init__(self, stop: Any) -> None:
         self.stop = stop
-
-
-@pytest.mark.asyncio
-async def test_neo4j_projection_closes_runner_even_if_drain_raises() -> None:
-    calls: list[str] = []
-
-    class Runner:
-        async def stop(self, _deadline_s: float) -> None:
-            calls.append("stop")
-            raise RuntimeError("transport detail")
-
-        def close(self) -> None:
-            calls.append("close")
-
-    projection = Neo4jProjection(projector=object(), runner=cast(Any, Runner()), store=object())
-    with pytest.raises(RuntimeError, match="stop:RuntimeError") as raised:
-        await projection.close()
-
-    assert calls == ["stop", "close"]
-    assert "transport detail" not in str(raised.value)

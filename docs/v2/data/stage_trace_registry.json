@@ -285,10 +285,10 @@
    "gap": false
   },
   "A28": {
-   "phase": "Graph mirror",
+   "phase": "Graph projection",
    "events": [
-    "graph.neo4j.apply",
-    "graph.neo4j.enqueue",
+    "graph.neo4j.merge_edge",
+    "graph.neo4j.merge_node",
     "store.index.record"
    ],
    "gap": false

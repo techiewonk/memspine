@@ -208,70 +208,147 @@ async def test_engine_rejects_graph_provider_swap_before_startup_serves_reads(
                 registry.unregister(name)
 
 
-async def test_engine_rejects_same_primary_mirror_target_before_builder_connects(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from memspine.providers.builtin.graph import _neo4j_target_identity
-    from memspine.providers.settings import Neo4jSettings
+async def test_start_drops_leftover_graph_mirror_state(tmp_path: Path) -> None:
+    """ADR-081 amendment 2026-10-23: a store that once ran the removed Neo4j graph mirror still
+    holds its projector offset, binding and outbox rows. Start-up never fails on them; it
+    deletes exactly those rows (and nothing else) and is idempotent."""
+    from sqlalchemy import insert
 
-    registry = get_registry("graph_stores")
-    connected: list[str] = []
-
-    class Builder:
-        async def build(self, settings: Any, context: Any) -> BuildResult[Any]:
-            connected.append(context.resource_id)
-            raise AssertionError("duplicate graph targets must fail before provider build")
-
-    name = "test_same_target_primary"
-    registry.register(
-        name,
-        ProviderDescriptor(
-            ProviderRef("graph", name),
-            Neo4jSettings,
-            frozenset({"graph", "namespace_filter", "erase", "mirror"}),
-            (),
-            Builder(),
-            target_identity=_neo4j_target_identity,
-            requires_deployment_id=True,
-        ),
+    from memspine.providers.projection_bindings import (
+        RETIRED_GRAPH_MIRROR_PROJECTOR,
+        RETIRED_GRAPH_MIRROR_STAGE,
+        retire_graph_mirror_state,
     )
-    monkeypatch.setenv("TEST_GRAPH_URL", "neo4j://example.test:7687")
-    monkeypatch.setenv("TEST_GRAPH_USER", "test-user")
-    monkeypatch.setenv("TEST_GRAPH_PASSWORD", "test-password")
-    timeout_settings = {
-        "url_env": "TEST_GRAPH_URL",
-        "user_env": "TEST_GRAPH_USER",
-        "password_env": "TEST_GRAPH_PASSWORD",
-        "database": "same-db",
-        "connect_timeout_s": 1.0,
-        "request_timeout_s": 1.0,
-    }
-    engine = Engine(
-        template="core",
-        dotenv_path=None,
-        storage={
-            "records": {
-                "provider": "sqlite",
-                "settings": {"path": str(tmp_path / "same-target.sqlite"), "busy_timeout_s": 5.0},
+    from memspine.services.storage.outbox_tables import outbox, outbox_item, outbox_progress
+    from memspine.services.storage.sqlite.schema import (
+        projector_offsets,
+        provider_projector_bindings,
+    )
+
+    database = tmp_path / "old-mirror.sqlite"
+
+    def _engine() -> Engine:
+        return Engine(
+            template="core",
+            dotenv_path=None,
+            storage={
+                "records": {
+                    "provider": "sqlite",
+                    "settings": {"path": str(database), "busy_timeout_s": 5.0},
+                },
+                "graph": {"provider": "sql_adjacency"},
             },
-            "graph_mirror": {"provider": "neo4j", "settings": timeout_settings},
-            "graph": {"provider": name, "settings": timeout_settings},
-        },
-        model={"embedding": {"provider": "hash", "settings": {}}},
-        memories={"associative": {"enabled": True}},
-        runtime={
-            "provider_services": {
-                "health_timeout_s": 1.0,
-                "close_timeout_s": 1.0,
-                "startup_timeout_s": None,
-            }
-        },
-        deployment={"id": "same-target-test"},
-    )
+            model={"embedding": {"provider": "hash", "settings": {}}},
+            memories={"associative": {"enabled": True}},
+            deployment={"id": "old-mirror-test"},
+        )
+
+    first = _engine()
+    await first.start()
+    await first.write("a record from before the mirror was removed", namespace="mirror-test")
+    await first.stop()
+
+    now = "2026-10-01T00:00:00+00:00"
+    sql = create_async_engine(f"sqlite+aiosqlite:///{database}")
+
+    def _scope(owner: str) -> dict[str, Any]:
+        return {"tenant": "default", "owner": owner, "owner_kind": "user"}
+
+    async with sql.begin() as conn:
+        await conn.execute(
+            insert(projector_offsets).values(
+                projector_name=RETIRED_GRAPH_MIRROR_PROJECTOR, last_seq=1, updated_at=now
+            )
+        )
+        await conn.execute(
+            insert(provider_projector_bindings).values(
+                deployment_id="old-mirror-test",
+                projector_name=RETIRED_GRAPH_MIRROR_PROJECTOR,
+                provider="graph:neo4j:v1",
+                target_fingerprint="f" * 64,
+                generation_id="active",
+                updated_at=now,
+            )
+        )
+        for owner, offset in (("graph-neo4j", 0), ("graph-neo4j", 1), ("someone-else", 0)):
+            await conn.execute(
+                insert(outbox_item).values(
+                    **_scope(owner),
+                    stage=RETIRED_GRAPH_MIRROR_STAGE,
+                    item_offset=offset,
+                    payload='{"op": "clear"}',
+                    created_at=now,
+                )
+            )
+        await conn.execute(
+            insert(outbox_progress).values(
+                **_scope("graph-neo4j"),
+                job_kind=RETIRED_GRAPH_MIRROR_STAGE,
+                watermark=-1,
+                target_offset=1,
+                holes="[]",
+            )
+        )
+        await conn.execute(
+            insert(outbox).values(
+                job_id="old-mirror-job",
+                seq=10_000,
+                **_scope("graph-neo4j"),
+                stage=RETIRED_GRAPH_MIRROR_STAGE,
+                target_offset=1,
+                state="queued",
+                created_at=now,
+                frozen=False,
+                epoch=0,
+                attempts=0,
+            )
+        )
+
+    async def _count(table: Any, *where: Any) -> int:
+        async with sql.connect() as conn:
+            return int(
+                await conn.scalar(select(func.count()).select_from(table).where(*where)) or 0
+            )
+
+    async def _left() -> dict[str, int]:
+        return {
+            "offset": await _count(
+                projector_offsets,
+                projector_offsets.c.projector_name == RETIRED_GRAPH_MIRROR_PROJECTOR,
+            ),
+            "binding": await _count(
+                provider_projector_bindings,
+                provider_projector_bindings.c.projector_name == RETIRED_GRAPH_MIRROR_PROJECTOR,
+            ),
+            "items": await _count(outbox_item, outbox_item.c.stage == RETIRED_GRAPH_MIRROR_STAGE),
+            "progress": await _count(
+                outbox_progress, outbox_progress.c.job_kind == RETIRED_GRAPH_MIRROR_STAGE
+            ),
+            "jobs": await _count(outbox, outbox.c.stage == RETIRED_GRAPH_MIRROR_STAGE),
+        }
+
+    assert await _left() == {"offset": 1, "binding": 1, "items": 3, "progress": 1, "jobs": 1}
+    second = _engine()
+    await second.start()  # never fails on the old rows
     try:
-        with pytest.raises(ConfigError, match="distinct canonical targets"):
-            await engine.start()
-        assert not connected
+        assert await second.search("before the mirror", namespace="mirror-test", top_k=1)
     finally:
-        await engine.stop()
-        registry.unregister(name)
+        await second.stop()
+    # only the mirror's own scope went; another scope's item under the same stage name stays
+    assert await _left() == {"offset": 0, "binding": 0, "items": 1, "progress": 0, "jobs": 0}
+
+    third = _engine()  # idempotent: a clean store starts and nothing more is removed
+    await third.start()
+    await third.stop()
+    assert await _left() == {"offset": 0, "binding": 0, "items": 1, "progress": 0, "jobs": 0}
+
+    class _Storage:
+        async def get_offset(self, name: str) -> int:
+            return 0
+
+        async def reset_offset(self, name: str) -> None:
+            raise AssertionError("nothing to reset")
+
+    removed = await retire_graph_mirror_state(_Storage(), sql)
+    assert not any(removed.values())
+    await sql.dispose()

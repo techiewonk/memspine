@@ -1,4 +1,4 @@
-"""Primary graph factories; direct Neo4j is distinct from an outbox mirror."""
+"""Graph store factories (ADR-081: one graph client per Engine, the ``storage.graph`` slot)."""
 
 from __future__ import annotations
 
@@ -138,7 +138,7 @@ class Neo4jBuilder:
             f"{ctx.shared.owner_id}:{ctx.resource_id}:{ctx.generation_id}".encode()
         ).hexdigest()[:24]
         # RM-113 item 6: one driver per target, credentials and transport knobs, shared by the
-        # primary graph and the mirror of every Engine in the process (ADR-079). The executor
+        # graph slot of every Engine in the process (ADR-079). The executor
         # never closes the driver; the registry closes it on the last release.
         client, ref = await acquire(
             ctx.shared,
@@ -159,7 +159,7 @@ class Neo4jBuilder:
             service,
             ProviderRef("graph", "neo4j"),
             (ref,),
-            frozenset({"graph", "namespace_filter", "erase", "mirror"}),
+            frozenset({"graph", "namespace_filter", "erase"}),
             health_probe=probe,
         )
 
@@ -185,7 +185,7 @@ def register() -> None:
             Neo4jSettings,
             Neo4jBuilder(),
             (DependencyRequirement("package", "neo4j"),),
-            {"graph", "namespace_filter", "erase", "mirror"},
+            {"graph", "namespace_filter", "erase"},
         ),
     ):
         if name not in GRAPH_STORES:

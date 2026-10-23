@@ -1,4 +1,8 @@
-"""F-16e: Neo4j graph adapter fed through the outbox (``graph.neo4j_outbox``), model-free.
+"""F-16e: the Neo4j graph adapter as the engine's one graph client (``storage.graph``).
+
+The outbox-fed Neo4j mirror (``storage.graph_mirror``) was removed by the ADR-081 amendment of
+2026-10-23: one graph client runs at a time. The file keeps its name because other suites
+import its ``FakeNeo4j`` and ``live_executor``. Model-free.
 
 The adapter contract runs against an in-memory MERGE recorder (``FakeNeo4j``) and, when the
 ``neo4j`` driver is importable and ``MEMSPINE_TEST_NEO4J_URL`` is set (plus optional
@@ -9,39 +13,23 @@ private label that is cleared afterwards. Otherwise the live variants skip with 
 from __future__ import annotations
 
 import importlib.util
-import json
 import os
 import uuid
 from collections.abc import Mapping
-from datetime import UTC, datetime, timedelta
-from pathlib import Path
+from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 
 from memspine import Engine
-from memspine.clients.sqlite.sync import memory_sync_engine, sqlite_sync_engine
 from memspine.config.schema import StorageConfig
 from memspine.config.schema.observability import TapConfig
 from memspine.exceptions import ConfigError
-from memspine.memories.associative.entities import EntityPolicy, entity_node_id
-from memspine.memories.associative.graph_outbox import (
-    GRAPH_SCOPE,
-    GRAPH_STAGE,
-    Neo4jGraphHandler,
-    Neo4jOutboxProjector,
-    rebuild_from_log,
-)
 from memspine.observability import tap
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.registry import get_registry
-from memspine.runtime.jobs import ManualClock, RetryBudget
-from memspine.runtime.outbox import SqlJobStore
-from memspine.runtime.runner import InlineRunner
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.neo4j import CYPHER, Neo4jExecutor, Neo4jGraphStore
-from memspine.store.events import EventKind, MemoryEvent
-from memspine.store.records import MemoryRecord
 
 NS = "acme/alice"
 NS2 = "acme/bram"
@@ -405,222 +393,9 @@ def test_constructing_without_an_executor_still_names_the_extra() -> None:
         Neo4jGraphStore()
 
 
-# --------------------------------------------------------------------------- outbox plumbing
-def _rec(rid: str, ns: str = NS, trust: float = 0.9) -> MemoryRecord:
-    return MemoryRecord(
-        record_id=rid, namespace=ns, memory_type="semantic", content="x", trust=trust
-    )
-
-
-def _write(seq: int, rid: str, ns: str = NS) -> MemoryEvent:
-    return MemoryEvent(
-        kind=EventKind.WRITE,
-        namespace=ns,
-        seq=seq,
-        payload={"record": json.loads(_rec(rid, ns).model_dump_json())},
-    )
-
-
-def _link(seq: int, src: str, dst: str, **extra: Any) -> MemoryEvent:
-    payload = {"src": src, "dst": dst, "rel": "related", "weight": 1.0, "reason": "t", **extra}
-    return MemoryEvent(kind=EventKind.LINK, namespace=NS, seq=seq, payload=payload)
-
-
-def _forget(seq: int, rid: str) -> MemoryEvent:
-    return MemoryEvent(kind=EventKind.FORGET, namespace=NS, seq=seq, payload={"record_id": rid})
-
-
-def _runner(engine: Any = None, clock: Any = None) -> InlineRunner:
-    return InlineRunner(
-        SqlJobStore(engine or memory_sync_engine()),
-        clock=clock or ManualClock(T0),
-        budget=RetryBudget(base_backoff=timedelta(0)),
-    )
-
-
-def _wire(
-    fake: FakeNeo4j,
-    runner: InlineRunner,
-    *,
-    scoped: bool = False,
-    entities: EntityPolicy | None = None,
-    drain: bool = False,
-) -> tuple[Neo4jOutboxProjector, Neo4jGraphHandler]:
-    handler = Neo4jGraphHandler(_store(fake, scoped=scoped), entities, compiled=COMPILED)
-    handler.register(runner)
-    return Neo4jOutboxProjector(runner, drain=drain), handler
-
-
-async def test_events_become_outbox_items_and_apply_idempotently() -> None:
-    fake, runner = FakeNeo4j(), _runner()
-    proj, _ = _wire(fake, runner)
-    events = [_write(1, "r1"), _write(2, "r2"), _link(3, "r1", "r2", weight=0.7)]
-    for ev in events:
-        await proj.apply(ev)
-    assert fake.merges == 0  # queued, nothing applied yet: the outbox row is the truth
-    assert runner.pending_items(GRAPH_SCOPE, GRAPH_STAGE).__len__() == 3
-    await runner.drain(GRAPH_SCOPE)
-    first = fake.snapshot()
-    assert [n[0] for n in first[0]] == ["r1", "r2"] and first[1] == [
-        ("r1", "r2", "related", NS, 0.7)
-    ]
-    for ev in events:  # catch-up re-delivery of the same events
-        await proj.apply(ev)
-    await runner.drain(GRAPH_SCOPE)
-    assert fake.snapshot() == first
-
-
-async def test_retrieve_events_are_not_queued() -> None:
-    runner = _runner()
-    proj, _ = _wire(FakeNeo4j(), runner)
-    await proj.apply(MemoryEvent(kind=EventKind.RETRIEVE, namespace=NS, seq=1, payload={}))
-    assert runner.pending_items(GRAPH_SCOPE, GRAPH_STAGE) == []
-
-
-async def test_scoped_handler_uses_scope_keys() -> None:
-    fake, runner = FakeNeo4j(), _runner()
-    proj, _ = _wire(fake, runner, scoped=True)
-    a = _link(1, "shared", "t")
-    b = MemoryEvent(kind=EventKind.LINK, namespace=NS2, seq=2, payload=dict(a.payload))
-    await proj.apply(a)
-    await proj.apply(b)
-    await runner.drain(GRAPH_SCOPE)
-    assert len(fake.nodes) == 4 and len(fake.edges) == 2
-
-
-async def test_forget_removes_node_edges_and_orphan_entities() -> None:
-    fake, runner = FakeNeo4j(), _runner()
-    proj, _ = _wire(fake, runner, entities=EntityPolicy())
-    ent = entity_node_id(NS, "acme")
-    rec = _rec("r1")
-    rec = rec.model_copy(update={"entity": "Acme", "content": "Acme hires"})
-    ev = MemoryEvent(
-        kind=EventKind.WRITE,
-        namespace=NS,
-        seq=1,
-        payload={"record": json.loads(rec.model_dump_json())},
-    )
-    await proj.apply(ev)
-    await proj.apply(_write(2, "r2"))
-    await proj.apply(_link(3, "r1", "r2"))
-    await runner.drain(GRAPH_SCOPE)
-    assert any(n["id"] == "r1" for n in fake.nodes.values())
-    await proj.apply(_forget(4, "r1"))
-    await runner.drain(GRAPH_SCOPE)
-    ids = {n["id"] for n in fake.nodes.values()}
-    assert "r1" not in ids and ent not in ids  # node and its orphan entity are gone
-    assert not [
-        e
-        for e in fake.edges.values()
-        if "r1" in (fake.nodes[e["a"]]["id"], fake.nodes[e["b"]]["id"])
-    ]
-    assert "r2" in ids
-
-
-async def test_compiled_tombstone_prunes_the_assertion_node() -> None:
-    fake, runner = FakeNeo4j(), _runner()
-    proj, _ = _wire(fake, runner)
-    node = {"labels": ["assertion"], "properties": {"namespace": NS, "compiled": COMPILED}}
-    await proj.apply(_write(1, "rec"))
-    await proj.apply(
-        _link(
-            2,
-            "as1",
-            "rec",
-            rel="role:subject",
-            reason=COMPILED,
-            src_node=node,
-            props={"record_id": "rec"},
-        )
-    )
-    await runner.drain(GRAPH_SCOPE)
-    assert {n["id"] for n in fake.nodes.values()} == {"as1", "rec"}
-    await proj.apply(
-        _link(3, "as1", "rec", rel="role:subject", weight=0.0, reason=f"{COMPILED}:erasure")
-    )
-    await runner.drain(GRAPH_SCOPE)
-    assert {n["id"] for n in fake.nodes.values()} == {"rec"}  # edges and the assertion node went
-    assert fake.edges == {}
-
-
-async def test_a_hole_is_retried_and_the_graph_converges() -> None:
-    fake, runner = FakeNeo4j(), _runner()
-    proj, _ = _wire(fake, runner)
-    fake.fail_at = {2: RuntimeError("neo4j down")}  # the second mutation fails once
-    for i, rid in enumerate(["a", "b", "c"], start=1):
-        await proj.apply(_write(i, rid))
-    first = await runner.drain(GRAPH_SCOPE)
-    assert first.holes == 1
-    await runner.drain(GRAPH_SCOPE)  # the hole is retried inside its budget
-    assert sorted(n["id"] for n in fake.nodes.values()) == ["a", "b", "c"]
-    assert runner.book.progress(GRAPH_SCOPE, GRAPH_STAGE).holes == []
-
-
-async def test_crash_mid_batch_resumes_from_the_watermark(tmp_path: Path) -> None:
-    path = str(tmp_path / "outbox.db")
-    clock = ManualClock(T0)
-    fake = FakeNeo4j()
-    first = _runner(sqlite_sync_engine(path, busy_timeout_s=5.0), clock)
-    proj, _ = _wire(fake, first)
-    for i, rid in enumerate(["a", "b", "c", "d", "e"], start=1):
-        await proj.apply(_write(i, rid))
-    fake.fail_at = {3: Crash()}  # the process dies while applying the third item
-    with pytest.raises(Crash):
-        await first.drain(GRAPH_SCOPE)
-    assert first.book.progress(GRAPH_SCOPE, GRAPH_STAGE).watermark == 1  # items 0 and 1 done
-    first.close()
-    done_before = fake.merges
-
-    clock.advance(3600)  # the dead worker's lease expires
-    second = _runner(sqlite_sync_engine(path, busy_timeout_s=5.0), clock)
-    _wire(fake, second)
-    await second.start()
-    assert sorted(n["id"] for n in fake.nodes.values()) == ["a", "b", "c", "d", "e"]
-    assert fake.merges - done_before == 3  # only items 2..4 ran; 0 and 1 were not redone
-    assert second.depth() == 0
-
-
-async def test_rebuild_from_the_log_equals_the_incremental_graph() -> None:
-    events = [
-        _write(1, "r1"),
-        _write(2, "r2"),
-        _write(3, "r3"),
-        _link(4, "r1", "r2", weight=0.4),
-        _link(5, "r2", "r3"),
-        _forget(6, "r3"),
-    ]
-
-    class Log:
-        async def read_events(self, after_seq: int = 0, limit: int = 1000) -> list[MemoryEvent]:
-            return [e for e in events if (e.seq or 0) > after_seq][:limit]
-
-    live, runner = FakeNeo4j(), _runner()
-    proj, _ = _wire(live, runner)
-    for ev in events:
-        await proj.apply(ev)
-    await runner.drain(GRAPH_SCOPE)
-
-    rebuilt = FakeNeo4j()
-    stale = _store(rebuilt)
-    await stale.upsert_node("garbage", [], {"namespace": NS}, namespace=NS)  # must be cleared
-    count = await rebuild_from_log(Log(), Neo4jGraphHandler(stale, None, compiled=COMPILED))
-    assert count == len(events)
-    assert rebuilt.snapshot() == live.snapshot()
-
-
-async def test_projector_reset_clears_then_replay_refeeds() -> None:
-    fake, runner = FakeNeo4j(), _runner()
-    proj, _ = _wire(fake, runner)
-    await proj.apply(_write(1, "r1"))
-    await runner.drain(GRAPH_SCOPE)
-    await proj.reset()
-    await proj.apply(_write(1, "r1"))  # what the engine's replay does after reset
-    await runner.drain(GRAPH_SCOPE)
-    assert "clear" in fake.calls and [n["id"] for n in fake.nodes.values()] == ["r1"]
-
-
 # --------------------------------------------------------------------------- engine wiring
-def _engine(*, mirror: bool = False, deployment_id: str | None = None) -> Engine:
+def _engine(*, scoped: bool = False) -> Engine:
+    """Neo4j as THE graph client (``storage.graph``; ADR-081 amendment 2026-10-23)."""
     return Engine(
         template="core",
         dotenv_path=None,
@@ -629,15 +404,10 @@ def _engine(*, mirror: bool = False, deployment_id: str | None = None) -> Engine
                 "provider": "sqlite",
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             },
-            "graph": {"provider": "sql_adjacency", "settings": {}},
-            "graph_mirror": (
-                {
-                    "provider": "neo4j",
-                    "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
-                }
-                if mirror
-                else None
-            ),
+            "graph": {
+                "provider": "neo4j",
+                "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
+            },
         },
         model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
@@ -645,54 +415,45 @@ def _engine(*, mirror: bool = False, deployment_id: str | None = None) -> Engine
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
         read={"record_access": False},
-        deployment={"id": deployment_id} if deployment_id is not None else {},
+        deployment={"id": "test-deployment"},
+        isolation={"scope_keys_v2": scoped},
     )
 
 
-def test_flag_default_off() -> None:
+def test_one_graph_client_by_default() -> None:
     storage = StorageConfig()
-    assert storage.graph_mirror is None and storage.graph.provider == "auto"
+    assert storage.graph.provider == "auto"
+    assert "graph_mirror" not in StorageConfig.model_fields
 
 
-async def test_mirror_without_deployment_id_is_refused(
+def test_the_neo4j_descriptor_declares_no_mirror_capability() -> None:
+    descriptor = get_registry("graph_stores").get("neo4j")
+    assert "mirror" not in descriptor.declared_capabilities
+
+
+async def test_neo4j_graph_without_deployment_id_is_refused(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("MEMSPINE_NEO4J_URL", "bolt://localhost:7687")
-    eng = _engine(mirror=True)
-    with pytest.raises(ConfigError, match=r"deployment\.id"):
-        await eng.start()
-
-
-async def test_mirror_provider_without_the_mirror_capability_is_refused() -> None:
-    """ADR-081: the mirror gate is the provider's ``mirror`` capability, not a profile."""
     eng = Engine(
         template="core",
         dotenv_path=None,
         storage={
             "records": {"settings": {"path": ":memory:", "busy_timeout_s": 5.0}},
-            "graph": {"provider": "sql_adjacency"},
-            "graph_mirror": {"provider": "sql_adjacency"},
+            "graph": {
+                "provider": "neo4j",
+                "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
+            },
         },
         model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
-        deployment={"id": "test-deployment"},
     )
-    with pytest.raises(ConfigError, match="'mirror' capability"):
+    with pytest.raises(ConfigError, match=r"deployment\.id"):
         await eng.start()
 
 
-async def test_flag_off_builds_no_neo4j() -> None:
-    eng = _engine()
-    await eng.start()
-    try:
-        await eng.write("Ilse works at Acme", namespace=NS, memory_type="semantic")
-        assert eng._neo4j is None
-        assert "graph.mirror" not in eng._provider_results
-    finally:
-        await eng.stop()
-
-
-def _install_fake_mirror(monkeypatch: pytest.MonkeyPatch, fake: FakeNeo4j) -> None:
+def _install_fake_neo4j(monkeypatch: pytest.MonkeyPatch, fake: FakeNeo4j) -> None:
+    """Swap the Neo4j descriptor's builder for one over the in-memory fake."""
     monkeypatch.setenv("MEMSPINE_NEO4J_URL", "bolt://localhost:7687")
     descriptor = get_registry("graph_stores").get("neo4j")
 
@@ -708,36 +469,31 @@ def _install_fake_mirror(monkeypatch: pytest.MonkeyPatch, fake: FakeNeo4j) -> No
             store,
             ProviderRef("graph", "neo4j"),
             (ref,),
-            frozenset({"graph", "namespace_filter", "erase", "mirror"}),
+            frozenset({"graph", "namespace_filter", "erase"}),
             health_probe=probe,
         )
 
     monkeypatch.setattr(descriptor.builder, "build", build)
 
 
-async def test_engine_feeds_neo4j_through_the_outbox_and_forget_removes_it(
+async def test_engine_projects_into_the_neo4j_graph_and_forget_removes_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     tap.configure(TapConfig(enabled=True, sink="memory"))
     fake = FakeNeo4j()
-    _install_fake_mirror(monkeypatch, fake)
-    eng = _engine(mirror=True, deployment_id="test-deployment")
+    _install_fake_neo4j(monkeypatch, fake)
+    eng = _engine()
     await eng.start()
     try:
-        assert eng._neo4j is not None
-        assert "graph.mirror" in eng._provider_results
+        assert isinstance(eng._graph, Neo4jGraphStore)
+        assert eng._provider_results["graph.primary"].provider.name == "neo4j"
         rec = await eng.write("Ilse works at Acme", namespace=NS, memory_type="semantic")
-        embedded = {n for n in [rec.record_id]}
-        assert embedded <= {n["id"] for n in fake.nodes.values()}  # mirrored, drained inline
-        # the embedded graph is the read path and still has it
-        assert await eng._graph.node_count() >= 1
+        assert rec.record_id in {n["id"] for n in fake.nodes.values()}
         await eng.forget(rec.record_id, namespace=NS)
-        ids = {n["id"] for n in fake.nodes.values()}
-        assert rec.record_id not in ids
+        assert rec.record_id not in {n["id"] for n in fake.nodes.values()}
         stages = {e["stage"] for t in tap.memory_traces() for e in t["events"]}
-        assert {"graph.neo4j.enqueue", "graph.neo4j.apply", "graph.neo4j.merge_node"} <= stages
-        # a rebuild of every projector re-feeds Neo4j from the log
-        await eng.rebuild()
+        assert "graph.neo4j.merge_node" in stages
+        await eng.rebuild()  # the graph projector clears and replays into Neo4j
         assert "clear" in fake.calls
     finally:
         await eng.stop()
@@ -746,30 +502,11 @@ async def test_engine_feeds_neo4j_through_the_outbox_and_forget_removes_it(
 
 async def test_scope_keys_flag_reaches_the_neo4j_store(monkeypatch: pytest.MonkeyPatch) -> None:
     fake = FakeNeo4j()
-    _install_fake_mirror(monkeypatch, fake)
-    eng = Engine(
-        template="core",
-        dotenv_path=None,
-        storage={
-            "records": {
-                "provider": "sqlite",
-                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
-            },
-            "graph_mirror": {
-                "provider": "neo4j",
-                "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
-            },
-            "graph": {"provider": "sql_adjacency", "settings": {}},
-        },
-        model={"embedding": {"provider": "hash", "settings": {}}},
-        memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
-        read={"record_access": False},
-        deployment={"id": "test-deployment"},
-        isolation={"scope_keys_v2": True},
-    )
+    _install_fake_neo4j(monkeypatch, fake)
+    eng = _engine(scoped=True)
     await eng.start()
     try:
-        assert eng._neo4j is not None and eng._neo4j.store.scoped is True
+        assert isinstance(eng._graph, Neo4jGraphStore) and eng._graph.scoped is True
         await eng.write("Noor lives in Utrecht", namespace=NS, memory_type="semantic")
         assert all("\x1f" in key for key in fake.nodes)
     finally:

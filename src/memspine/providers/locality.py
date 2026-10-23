@@ -63,7 +63,6 @@ _SLOT_KIND: dict[str, str] = {
     "vector": "vector_stores",
     "lexical": "lexical_indexes",
     "graph": "graph_stores",
-    "graph_mirror": "graph_stores",
     "cache": "cache_backends",
     "documents": "document_stores",
 }
@@ -101,8 +100,6 @@ def _built_slots(config: MemspineConfig, enabled: Collection[str] | None) -> lis
         slots.append("lexical")
     if enabled is None or "associative" in enabled:
         slots.append("graph")
-    if storage.graph_mirror is not None:
-        slots.append("graph_mirror")
     if storage.documents is not None:
         slots.append("documents")
     return slots

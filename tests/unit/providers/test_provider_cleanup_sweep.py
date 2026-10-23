@@ -139,7 +139,9 @@ async def test_sweep_cleans_only_expired_deployment_owned_projection() -> None:
     engine, store, coordinator = await _setup(strategy, clock)
     try:
         due = await _activate(coordinator, _request(service="graph.primary"), retention_s=0)
-        not_due = await _activate(coordinator, _request(service="graph.mirror"), retention_s=3600)
+        not_due = await _activate(
+            coordinator, _request(service="graph.secondary"), retention_s=3600
+        )
         foreign = await _activate(
             coordinator,
             _request(owner_id="another-deployment", service="graph.foreign"),

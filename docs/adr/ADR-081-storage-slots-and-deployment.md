@@ -1,7 +1,7 @@
 # ADR-081: One storage block with a slot per data category, plus a deployment block
 
 **Status:** Accepted (design) on 2026-10-23. Implementation is RM-111; providers are
-RM-112.
+RM-112. Amended 2026-10-23: graph mirror removed (see the amendment section at the end).
 **Date:** 2026-10-22 (proposed), 2026-10-23 (accepted)
 **Deciders:** Owner (RM-108 discussion, 2026-10-22 and 2026-10-23)
 **Supersedes:** the `storage.profile` selector (F-16d / M-04 C, plan Q11 "preserve SQL
@@ -128,3 +128,33 @@ The owner wants many data providers and service providers, each selected separat
 - Behaviour flags stay where they are: `graph.edge_compiler_v2`, `graph.key_v2`,
   `graph.entity_embeddings`, `read.lexical_scorer` / `lexical_language`, `event_log.*`
   and `embedding.*`. Only the provider selection moves.
+
+## Amendment 2026-10-23: graph mirror removed
+
+**Owner decision (2026-10-23):** exactly one graph client runs at a time, the `storage.graph`
+slot. Neo4j stays available as the graph provider (`storage.graph.provider: neo4j`). Decision
+item 8 (the mirror gate) and the `storage.graph_mirror` entry of item 1 are withdrawn; the text
+above is kept as the record of what was accepted first.
+
+- **Removed, with no alias or compatibility layer (ADR-068):** the `storage.graph_mirror` slot,
+  the `mirror` provider capability, the outbox-fed Neo4j projection
+  (`memories/associative/graph_outbox.py`: `Neo4jOutboxProjector`, `Neo4jGraphHandler`, the
+  `graph_projection` outbox stage), its wiring (`graph_mirror_slot`, `neo4j_outbox_on`,
+  `make_neo4j_projection`, `Neo4jProjection`), the primary/mirror distinct-target check
+  (`providers/graph_targets.py`) and the `graph.mirror` logical service id.
+- **Rejection:** a config that names `storage.graph_mirror` (any value, null included, from
+  YAML, kwargs or `MEMSPINE_STORAGE__GRAPH_MIRROR__*`) raises `ConfigError`: "config key
+  'storage.graph_mirror' was removed by ADR-081; removed with no replacement key (ADR-081
+  amendment 2026-10-23): one graph client runs at a time; select it with storage.graph (neo4j
+  stays available as storage.graph.provider)". The older `graph.mirror` key gets the same
+  message. The ADR-081 codemod now drops an enabled `graph.mirror` and reports it instead of
+  emitting `storage.graph_mirror`.
+- **Old durable state:** a store that once ran the mirror can hold the `graph_neo4j` projector
+  offset and binding and outbox rows of scope `(default, graph-neo4j)`, stage
+  `graph_projection`. They never fail a start, but the stale offset would hold back the
+  rolling event-log prune for good and the queued items would count in the outbox backlog. Every
+  start deletes exactly those rows (`providers/projection_bindings.retire_graph_mirror_state`,
+  idempotent, logged as `provider.graph_mirror_retired`). The mirror's own Neo4j database is
+  outside the engine and is left for the operator to drop.
+- **Kept behaviour:** `Engine.rebuild` drops erasure-lost ids from the one graph after the
+  replay (F-16f G1, which used to apply to the mirror only).

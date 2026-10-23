@@ -197,8 +197,6 @@ EXEMPT: dict[str, str] = {
     "read.core_terms_leg": "needs the lexical store; read.hybrid is on by default",
     "embedding.migrate_profile": "versioned_spaces check lives in the embedding profile gate (MD-02)",
     "model.embedding.migrate_preset": "versioned_spaces check lives in the embedding preset gate (MD-02)",
-    "graph.neo4j_outbox": "needs storage.profile server OR graph.backend neo4j; an either/or the table cannot express yet",
-    "graph.backend": "same either/or as graph.neo4j_outbox",
     "firewall.hearsay_trust_cap": "needs a perspective policy; inert tags only, degrades safely",
     "read.perspective_as_of_subject": "needs an as-of read at call time, not a config switch",
     "read.completeness_check": "needs a bound sufficiency or plan role; falls back (completeness_unbound)",

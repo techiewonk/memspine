@@ -8,7 +8,8 @@ assignments and attribute paths) and YAML files::
     storage.settings.data_dir              -> deployment.data_dir
     vector.* / cache.*                     -> storage.vector.* / storage.cache.*
     graph.{provider,settings}              -> storage.graph.*
-    graph.mirror {enabled: true, ...}      -> storage.graph_mirror (dropped when disabled)
+    graph.mirror {enabled: true, ...}      -> dropped and reported (ADR-081 amendment
+                                              2026-10-23: one graph client runs at a time)
     read.{lexical_provider,lexical_settings} -> storage.lexical.{provider,settings}
     runtime.deployment_id                  -> deployment.id
 
@@ -38,6 +39,12 @@ SLOT_ROOT_KEYS = ("vector", "cache")
 CONFIG_KEYS = {"storage", "vector", "cache", "graph", "read", "runtime", "deployment"}
 OLD_STORAGE_KEYS = {"profile", "provider", "settings"}
 SLOT_KEYS = {"provider", "settings"}
+#: ADR-081 amendment 2026-10-23: the graph mirror slot is gone, so an enabled ``graph.mirror``
+#: is dropped and reported instead of being moved to a ``storage`` slot.
+MIRROR_REMOVED = (
+    "graph.mirror was removed (ADR-081 amendment 2026-10-23): one graph client runs at a "
+    "time; dropped, select the one graph with storage.graph (it may be neo4j)"
+)
 GRAPH_MOVED = {"provider", "settings", "mirror"}
 GRAPH_FLAGS = {"entity_embeddings", "key_v2", "edge_compiler_v2"}
 READ_MOVED = {"lexical_provider", "lexical_settings"}
@@ -48,8 +55,6 @@ ATTRIBUTE_SUBS: tuple[tuple[str, str], ...] = (
     (r"\.storage\.settings\b", ".storage.records.settings"),
     (r"(?<!storage)\.vector\.(provider|settings)\b", r".storage.vector.\1"),
     (r"(?<!storage)(?<!read)\.cache\.(provider|settings)\b", r".storage.cache.\1"),
-    (r"\.graph\.mirror\.enabled\b", ".storage.graph_mirror"),
-    (r"\.graph\.mirror\.(provider|settings)\b", r".storage.graph_mirror.\1"),
     (r"(?<!storage)\.graph\.(provider|settings)\b", r".storage.graph.\1"),
     (r"\.read\.lexical_provider\b", ".storage.lexical.provider"),
     (r"\.read\.lexical_settings\b", ".storage.lexical.settings"),
@@ -238,15 +243,7 @@ def plan_root(items: list[tuple[str | None, ast.expr]], src: Source) -> Plan | N
                 mitems = dict(_dict_items(md, src))
                 enabled = mitems.get("enabled")
                 if isinstance(enabled, ast.Constant) and enabled.value is True:
-                    mslot = [
-                        Item(
-                            "provider",
-                            src.seg(mitems["provider"]) if "provider" in mitems else '"neo4j"',
-                        )
-                    ]
-                    if "settings" in mitems:
-                        mslot.append(Item("settings", src.seg(mitems["settings"])))
-                    plan.storage["graph_mirror"] = _render_dq(mslot)
+                    plan.manual.append(MIRROR_REMOVED)
                 elif enabled is not None and not (
                     isinstance(enabled, ast.Constant) and enabled.value is False
                 ):
@@ -535,14 +532,17 @@ def rewrite_python(path: Path) -> tuple[str, list[str]]:
         r"storage\.profile|lexical_provider|deployment_id\s*=|\"profile\":\s*\"server\"", out
     ):
         rewriter.manual.append(f"{path}: residual old key text")
+    if re.search(r"\.graph\.mirror\b|graph_mirror", out):
+        rewriter.manual.append(f"{path}: {MIRROR_REMOVED}")
     return out, rewriter.manual
 
 
 # ── YAML / plain mappings ──────────────────────────────────────────────────────────────
 
 
-def migrate_mapping(data: dict) -> bool:
-    """Rewrite one plain config mapping in place; True when something moved."""
+def migrate_mapping(data: dict, notes: list[str] | None = None) -> bool:
+    """Rewrite one plain config mapping in place; True when something moved. A key that is
+    dropped rather than moved is reported in ``notes``."""
     changed = False
     storage = data.get("storage")
     new_storage: dict = {}
@@ -579,11 +579,8 @@ def migrate_mapping(data: dict) -> bool:
         if slot:
             new_storage["graph"] = slot
         mirror = graph.pop("mirror", None)
-        if isinstance(mirror, dict) and mirror.get("enabled") is True:
-            new_storage["graph_mirror"] = {
-                "provider": mirror.get("provider", "neo4j"),
-                **({"settings": mirror["settings"]} if "settings" in mirror else {}),
-            }
+        if isinstance(mirror, dict) and mirror.get("enabled") is True and notes is not None:
+            notes.append(MIRROR_REMOVED)
         if not graph:
             data.pop("graph")
         changed = True
@@ -619,14 +616,15 @@ def rewrite_json(path: Path) -> tuple[str | None, list[str]]:
         data = json.loads(text)
     except json.JSONDecodeError:
         return None, []
-    if not isinstance(data, dict) or not migrate_mapping(data):
+    notes: list[str] = []
+    if not isinstance(data, dict) or not migrate_mapping(data, notes):
         return None, []
     match = re.search(r"\n( +)", text)
     if match:
         out = json.dumps(data, indent=len(match.group(1)), ensure_ascii=False)
     else:
         out = json.dumps(data, ensure_ascii=False)
-    return out + ("\n" if text.endswith("\n") else ""), []
+    return out + ("\n" if text.endswith("\n") else ""), [f"{path}: {n}" for n in notes]
 
 
 def rewrite_yaml(path: Path) -> tuple[str | None, list[str]]:
@@ -637,10 +635,14 @@ def rewrite_yaml(path: Path) -> tuple[str | None, list[str]]:
         data = yaml.safe_load(text)
     except yaml.YAMLError:
         return None, [f"{path}: YAML not parseable"]
-    if not isinstance(data, dict) or not migrate_mapping(data):
+    notes: list[str] = []
+    if not isinstance(data, dict) or not migrate_mapping(data, notes):
         return None, []
     out = yaml.safe_dump(data, sort_keys=False, allow_unicode=True)
-    return out, [f"{path}: YAML rewritten (comments dropped; review)"]
+    return out, [
+        f"{path}: YAML rewritten (comments dropped; review)",
+        *(f"{path}: {n}" for n in notes),
+    ]
 
 
 def iter_files(paths: Iterable[str]) -> Iterable[Path]:

@@ -49,6 +49,12 @@ class EncryptionConfig(ConfigModel):
         return self
 
 
+#: ADR-081 amendment 2026-10-23: the optional second graph client (a Neo4j mirror) is gone.
+_ONE_GRAPH_CLIENT = (
+    "removed with no replacement key (ADR-081 amendment 2026-10-23): one graph client runs "
+    "at a time; select it with storage.graph (neo4j stays available as storage.graph.provider)"
+)
+
 #: ADR-081 / RM-111: removed keys and their new location. There are no aliases (ADR-068);
 #: an old key is rejected with an error naming where it moved.
 MOVED_KEYS: dict[str, str] = {
@@ -60,7 +66,8 @@ MOVED_KEYS: dict[str, str] = {
     "cache": "storage.cache",
     "graph.provider": "storage.graph.provider",
     "graph.settings": "storage.graph.settings",
-    "graph.mirror": "storage.graph_mirror (null = off)",
+    "graph.mirror": _ONE_GRAPH_CLIENT,
+    "storage.graph_mirror": _ONE_GRAPH_CLIENT,
     "read.lexical_provider": "storage.lexical.provider",
     "read.lexical_settings": "storage.lexical.settings",
     "runtime.deployment_id": "deployment.id",
@@ -138,8 +145,8 @@ class CacheSlotConfig(SlotConfig):
 class StorageConfig(ConfigModel):
     """ADR-081: one slot per data category. Each slot is ``{provider, settings}``.
 
-    ``vector`` and ``lexical`` are required (never null). ``graph_mirror`` is optional
-    (null = off) and needs a provider with the ``mirror`` capability. ``documents`` is optional
+    ``vector`` and ``lexical`` are required (never null). ``graph`` is the one graph client
+    (the ``graph_mirror`` slot was removed, ADR-081 amendment 2026-10-23). ``documents`` is optional
     (null = off): non-structured payloads by namespace and content hash; the built-in providers
     are ``filesystem``, ``s3`` and ``weaviate`` (MongoDB GridFS is planned, RM-112)."""
 
@@ -149,7 +156,6 @@ class StorageConfig(ConfigModel):
     vector: VectorSlotConfig = Field(default_factory=VectorSlotConfig)
     lexical: LexicalSlotConfig = Field(default_factory=LexicalSlotConfig)
     graph: GraphSlotConfig = Field(default_factory=GraphSlotConfig)
-    graph_mirror: SlotConfig | None = None
     cache: CacheSlotConfig = Field(default_factory=CacheSlotConfig)
     documents: SlotConfig | None = None
 
@@ -162,7 +168,7 @@ class StorageConfig(ConfigModel):
     def reject_moved_and_null(value: Any) -> Any:
         """Reject removed keys, null required slots and a planned (not yet shipped)
         documents provider."""
-        reject_moved_keys(value, "storage", ("profile", "provider", "settings"))
+        reject_moved_keys(value, "storage", ("profile", "provider", "settings", "graph_mirror"))
         if isinstance(value, Mapping):
             for slot in ("records", "vector", "lexical", "graph", "cache"):
                 if slot in value and value[slot] is None:

@@ -50,8 +50,7 @@ recommendation or a fair retrieval-quality baseline.
 | Embedding | `model.embedding.provider`, `model.embedding.settings` | Model, dimension, device and provider-specific inference settings |
 | Vector projection | `storage.vector.provider`, `storage.vector.settings` | Native index and collection/table options; dimensions come from embedder |
 | Lexical retrieval | `storage.lexical.provider`, `storage.lexical.settings` | Native analyzer, index and transport options; `read.hybrid` enables the leg |
-| Graph | `storage.graph.provider`, `storage.graph.settings` | Primary graph selection; associative memory must be enabled |
-| Graph mirror | `storage.graph_mirror` (`{provider, settings}`, null = off) | Separately owned projection; not a second authoritative graph |
+| Graph | `storage.graph.provider`, `storage.graph.settings` | The one graph client (Neo4j included); associative memory must be enabled. `storage.graph_mirror` was removed (ADR-081 amendment 2026-10-23) and is rejected; a store that ran it has its leftover mirror offset, binding and outbox rows deleted at start |
 | LLM role | `model.llm.<role>.provider/timeout_s/settings` | Explicit adapter, deadline, model and generation defaults |
 | Reranking | `model.rerank.chain` (`[{provider, settings}]`, `[]` = off) | Native rerankers tried in order; behaviour keys (`pool`, `keep`, ...) on `model.rerank` |
 | Extraction / decider / vision | `model.extraction.<consumer>`, `model.decider.{route,read}`, `model.vision` | One inline slot per consumer; no named profiles |

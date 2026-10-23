@@ -49,7 +49,6 @@ from memspine.config.schema.model import (
     llm_slots,
 )
 from memspine.config.schema.root import freeze_effective_config
-from memspine.config.schema.storage import SlotConfig
 from memspine.core.registry import SERVICE_EXTRAS, dependency_closure, missing_services
 from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.exceptions import ConfigError, MissingServiceError
@@ -105,9 +104,6 @@ from memspine.providers.registry import (
 )
 from memspine.providers.registry import (
     EXTRACTORS as PROVIDER_EXTRACTORS,
-)
-from memspine.providers.registry import (
-    GRAPH_STORES as PROVIDER_GRAPH_STORES,
 )
 from memspine.providers.registry import (
     LEXICAL_INDEXES as PROVIDER_LEXICAL_INDEXES,
@@ -175,10 +171,8 @@ __all__ = [
     "lexical_projector_name",
     "lexical_variant",
     "make_container",
-    "make_neo4j_projection",
     "make_outbox_runner",
     "memory_policy",
-    "neo4j_outbox_on",
     "preflight_projection_bindings",
     "prewarm_provider_imports",
     "request_scope",
@@ -1156,14 +1150,6 @@ async def preflight_projection_bindings(
         await resolve_graph_pin(config, wiring)  # ADR-081: auto resolves once, then pinned
         graph_descriptor = _graph_descriptor(config, wiring)
         candidates.append(("graph", "graph", graph_descriptor, config.storage.graph.settings))
-        mirror_slot = graph_mirror_slot(config)
-        if mirror_slot is not None:
-            mirror_descriptor = _descriptor(
-                PROVIDER_GRAPH_STORES,
-                mirror_slot.provider,
-                "storage.graph_mirror.provider",
-            )
-            candidates.append(("graph_neo4j", "graph", mirror_descriptor, mirror_slot.settings))
 
     bindings: list[Any] = []
     for projector_name, category, descriptor, raw_settings in candidates:
@@ -1218,20 +1204,6 @@ async def preflight_projection_bindings(
 
 async def build_graph_store(config: MemspineConfig, wiring: Wiring) -> GraphStore:
     descriptor = _graph_descriptor(config, wiring)
-    mirror_slot = config.storage.graph_mirror
-    if mirror_slot is not None:
-        from memspine.providers.graph_targets import require_distinct_graph_targets
-
-        mirror_descriptor = _descriptor(
-            PROVIDER_GRAPH_STORES,
-            mirror_slot.provider,
-            "storage.graph_mirror.provider",
-        )
-        mirror_settings = _settings(mirror_descriptor, mirror_slot.settings)
-        primary_settings = _settings(descriptor, config.storage.graph.settings)
-        require_distinct_graph_targets(
-            descriptor, primary_settings, mirror_descriptor, mirror_settings
-        )
     route = wiring.projection_routes.get("graph")
     if route is not None and descriptor.ref.name != route.provider:
         raise ConfigError("storage.graph.provider does not match its verified switch target")
@@ -1765,108 +1737,6 @@ def build_outbox(config: MemspineConfig, wiring: Wiring, _storage: SqlStorage) -
     if wiring.sql is None:
         raise ConfigError("workers.outbox requires the storage SQL capability")
     return OutboxHandle(make_outbox_runner(config, wiring.sql, wiring.resources, label="outbox"))
-
-
-# ── F-16e: Neo4j graph projection through the outbox ─────────────────────────────────────
-
-
-def graph_mirror_slot(config: MemspineConfig) -> SlotConfig | None:
-    """The ``storage.graph_mirror`` slot when one is configured (ADR-081).
-
-    The mirror gate is a capability check: the selected provider must declare ``mirror``."""
-    slot = config.storage.graph_mirror
-    if slot is None:
-        return None
-    descriptor = _descriptor(PROVIDER_GRAPH_STORES, slot.provider, "storage.graph_mirror.provider")
-    if "mirror" not in descriptor.declared_capabilities:
-        raise ConfigError(
-            f"storage.graph_mirror provider {slot.provider!r} lacks the 'mirror' capability"
-        )
-    return slot
-
-
-def neo4j_outbox_on(config: MemspineConfig) -> bool:
-    """Whether the separately configured graph mirror is enabled."""
-    return graph_mirror_slot(config) is not None
-
-
-@dataclass
-class Neo4jProjection:
-    """The pieces of the Neo4j mirror: the queueing projector, its runner, the store."""
-
-    projector: Any
-    runner: OutboxRunner
-    store: Any
-
-    async def close(self) -> None:
-        failures: list[str] = []
-        try:
-            await self.runner.stop(1.0)
-        except asyncio.CancelledError:
-            failures.append("stop:CancelledError")
-        except Exception as exc:
-            failures.append(f"stop:{type(exc).__name__}")
-        try:
-            self.runner.close()
-        except asyncio.CancelledError:
-            failures.append("close:CancelledError")
-        except Exception as exc:
-            failures.append(f"close:{type(exc).__name__}")
-        if failures:
-            raise RuntimeError("Neo4j projection worker cleanup failed: " + ", ".join(failures))
-
-
-async def make_neo4j_projection(
-    config: MemspineConfig,
-    sql: SqlAccess,
-    resources: ProviderLifecycleManager,
-    commit_lock: Callable[[str], Any] | None,
-    entities: Any,
-    compiled: str,
-    provider_results: dict[str, BuildResult[Any]] | None = None,
-    registry: ResourceRegistry | None = None,
-) -> Neo4jProjection:
-    """Build the outbox runner, the Neo4j store and the registered ``graph_projection`` handler."""
-    from memspine.memories.associative.graph_outbox import Neo4jGraphHandler, Neo4jOutboxProjector
-
-    mirror = graph_mirror_slot(config)
-    if mirror is None:
-        raise ConfigError("make_neo4j_projection needs storage.graph_mirror")
-    descriptor = _descriptor(
-        PROVIDER_GRAPH_STORES, mirror.provider, "storage.graph_mirror.provider"
-    )
-    settings = _settings(descriptor, mirror.settings)
-    shared = SharedBuildContext(
-        resources,
-        _owner_id(config),
-        config.runtime.provider_services.health_timeout_s,
-        registry=registry,
-        sql_pool=config.runtime.shared_resources.sql,
-        http_pool=config.runtime.shared_resources.http,
-    )
-    graph_context = GraphBuildContext(
-        shared,
-        storage_placement(config, _owner_id(config)),  # mirror uses deployment-scoped ownership
-        sql,
-        generation_id=config.deployment.id or "localdev",
-        resource_id="graph:mirror",
-    )
-    mirror_wiring = Wiring(
-        resources,
-        shared.health_timeout_s,
-        config.runtime.provider_services.startup_timeout_s,
-        owner_id=config.deployment.id,
-        explicit_owner_id=config.deployment.id is not None,
-    )
-    built = await _build_provider(
-        mirror_wiring, descriptor, settings, graph_context, result_key="graph.mirror"
-    )
-    if provider_results is not None:
-        provider_results["graph.mirror"] = built
-    store = built.service
-    runner = make_outbox_runner(config, sql, resources, commit_lock, label="graph_mirror")
-    Neo4jGraphHandler(store, entities, compiled=compiled).register(runner)
-    return Neo4jProjection(Neo4jOutboxProjector(runner), runner, store)
 
 
 def _window_outbox(eng: Any, config: MemspineConfig) -> OutboxRunner:

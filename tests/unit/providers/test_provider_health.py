@@ -79,13 +79,13 @@ async def test_build_result_probe_is_optional_and_does_not_probe_implicitly() ->
 
 
 @pytest.mark.asyncio
-async def test_primary_and_mirror_results_keep_separate_logical_health_ids() -> None:
+async def test_two_results_of_one_provider_keep_separate_logical_health_ids() -> None:
     async def healthy() -> bool:
         return True
 
     provider = ProviderRef("graph", "neo4j")
     status = ProviderStatusService(health_timeout_s=0.1)
-    for logical_id in ("graph.primary", "graph.mirror"):
+    for logical_id in ("graph.primary", "graph.candidate"):
         status.register_build_result(
             BuildResult(object(), provider, (), frozenset({"graph"}), health_probe=healthy),
             required=logical_id.endswith("primary"),
@@ -95,7 +95,7 @@ async def test_primary_and_mirror_results_keep_separate_logical_health_ids() -> 
     report = await status.health()
     assert [item.logical_id for item in report.providers] == [
         "graph.primary",
-        "graph.mirror",
+        "graph.candidate",
     ]
     assert [item.required for item in report.providers] == [True, False]
 

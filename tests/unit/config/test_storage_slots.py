@@ -50,7 +50,7 @@ def _config(**overrides: Any) -> MemspineConfig:
         ({"cache": {"provider": "memory"}}, "storage.cache"),
         ({"graph": {"provider": "auto"}}, "storage.graph.provider"),
         ({"graph": {"settings": {}}}, "storage.graph.settings"),
-        ({"graph": {"mirror": {"enabled": True}}}, "storage.graph_mirror"),
+        ({"graph": {"mirror": {"enabled": True}}}, "one graph client runs at a time"),
         ({"read": {"lexical_provider": "tantivy"}}, "storage.lexical.provider"),
         ({"read": {"lexical_settings": {}}}, "storage.lexical.settings"),
         ({"runtime": {"deployment_id": "x"}}, "deployment.id"),
@@ -90,7 +90,7 @@ def test_slot_defaults_and_deployment_defaults() -> None:
         storage.graph.provider,
         storage.cache.provider,
     ) == ("sqlite", "lancedb", "tantivy", "auto", "memory")
-    assert storage.graph_mirror is None
+    assert "graph_mirror" not in type(storage).model_fields
     assert config.deployment.id is None
     assert config.deployment.locality == "single_process"
     assert config.deployment.data_dir is None
@@ -161,14 +161,33 @@ def test_every_builtin_data_provider_declares_its_locality() -> None:
         assert seen[key] == locality, key
 
 
-def test_mirror_gate_is_a_capability_check() -> None:
-    from memspine.runtime.container import graph_mirror_slot
+@pytest.mark.parametrize(
+    "value", [{"provider": "neo4j"}, {"provider": "neo4j", "settings": {}}, None]
+)
+def test_graph_mirror_slot_is_rejected_naming_storage_graph(value: Any) -> None:
+    """ADR-081 amendment 2026-10-23: one graph client runs at a time. The key is rejected
+    whatever its value (null included), naming ``storage.graph`` as the replacement."""
+    for build in (
+        lambda: _config(storage={"graph_mirror": value}),
+        lambda: load_config(template="base", overrides={"storage": {"graph_mirror": value}}),
+    ):
+        with pytest.raises(ConfigError, match="storage.graph_mirror") as raised:
+            build()
+        message = str(raised.value)
+        assert "one graph client runs at a time" in message
+        assert "storage.graph" in message.replace("storage.graph_mirror", "")
 
-    assert graph_mirror_slot(_config()) is None
-    config = _config(storage={"graph_mirror": {"provider": "neo4j"}})
-    assert graph_mirror_slot(config) is not None
-    with pytest.raises(ConfigError, match="'mirror' capability"):
-        graph_mirror_slot(_config(storage={"graph_mirror": {"provider": "ladybug"}}))
+
+def test_graph_mirror_env_var_is_rejected() -> None:
+    env = {"MEMSPINE_STORAGE__GRAPH_MIRROR__PROVIDER": "neo4j"}
+    with pytest.raises(ConfigError, match="one graph client runs at a time"):
+        load_config(template="base", env=env)
+
+
+def test_no_graph_provider_declares_a_mirror_capability() -> None:
+    registry = get_registry("graph_stores")
+    for name in registry.builtin_names():
+        assert "mirror" not in registry.get(name).declared_capabilities, name
 
 
 # ---------------------------------------------------------------------------- placement

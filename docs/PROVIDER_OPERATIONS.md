@@ -16,8 +16,7 @@ provider does not silently migrate data or start model re-embedding calls.
 | Authoritative SQL | `storage.records.provider` | `storage.records.settings` |
 | Vector | `storage.vector.provider` | `storage.vector.settings` |
 | Lexical | `storage.lexical.provider` | `storage.lexical.settings` |
-| Primary graph | `storage.graph.provider` | `storage.graph.settings` |
-| Optional graph mirror | `storage.graph_mirror.provider` (null = off) | `storage.graph_mirror.settings` |
+| Graph (the one graph client; `neo4j` selectable; the graph mirror slot was removed 2026-10-23) | `storage.graph.provider` | `storage.graph.settings` |
 | Embedding | `model.embedding.provider` | `model.embedding.settings` |
 | LLM role | `model.llm.<role>.provider` (deadline: `model.llm.<role>.timeout_s`) | `model.llm.<role>.settings` |
 | Reranking | `model.rerank.chain[].provider` (first entry that builds wins; `[]` = off) | `model.rerank.chain[].settings` |

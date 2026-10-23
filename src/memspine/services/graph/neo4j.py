@@ -2,9 +2,9 @@
 
 The store is a ``GraphStore`` over a small executor port, so the Cypher lives in one table
 (:data:`CYPHER`) and a test can stand in an in-memory MERGE recorder for the driver. It is only
-ever a *projection*: nothing writes to it directly. The engine feeds it through the durable
-outbox (``graph.neo4j_outbox``, stage ``graph_projection``, see
-:mod:`memspine.services.graph.neo4j_outbox`), and every mutation is an idempotent MERGE.
+ever a *projection*: nothing writes to it directly. Selected as ``storage.graph`` (the one
+graph client, ADR-081 amendment 2026-10-23), the engine's graph projector feeds it, and every
+mutation is an idempotent MERGE.
 
 Model. One node label and one relationship type carry everything; the memory-level labels and
 edge relation ride as properties (so no user text is ever spliced into Cypher):
@@ -18,8 +18,7 @@ the namespace, so two tenants never MERGE onto one node or edge. ``delete_node``
 take a bare node id (the port has no namespace there) and match on the ``id`` property.
 
 Edges with weight ``<= 0`` are the ADR-015 tombstone: stored, never traversed. Constructing the
-store without an executor raises the D-10 error naming the ``[neo4j]`` extra (the config value
-``graph.provider: neo4j`` as a *primary* store stays unsupported).
+store without an executor raises the D-10 error naming the ``[neo4j]`` extra.
 
 Walks (FU-GAPS). ``neighbors`` and ``subgraph`` are ONE variable-length Cypher query each (ops
 ``walk_nodes`` / ``walk_edges``: ``(s)-[:R*1..D]-(m)`` over live edges, the namespace and relation

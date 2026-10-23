@@ -86,7 +86,6 @@ from memspine.derive.pipeline.stages.context import (
     SummarizeEntities,
     SummarizeIncremental,
 )
-from memspine.derive.pipeline.stages.edge_compiler_v2 import COMPILED as _EDGE_COMPILED
 from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.derive.scheduler import DerivationScheduler
 from memspine.economy import ledger as _economy_ledger
@@ -179,6 +178,7 @@ from memspine.providers.lifecycle import (
 from memspine.providers.projection_bindings import (
     SqlProjectionBindingStore,
     projection_target_bindings,
+    retire_graph_mirror_state,
 )
 from memspine.providers.recovery import CleanupQuiescenceGuard
 from memspine.providers.rerank import (
@@ -223,7 +223,6 @@ from memspine.runtime.container import (
     Capabilities,
     DecisionState,
     EngineSpec,
-    Neo4jProjection,
     SemanticExtractor,
     SemanticWritePipeline,
     Wiring,
@@ -233,9 +232,7 @@ from memspine.runtime.container import (
     gliner_consumers,
     lexical_projector_name,
     make_container,
-    make_neo4j_projection,
     memory_policy,
-    neo4j_outbox_on,
     preflight_projection_bindings,
     prewarm_provider_imports,
 )
@@ -435,7 +432,6 @@ class Engine:
         self._graph: GraphStore | None = None
         #: ADR-081 ``storage.documents`` (None when the slot is not configured).
         self._documents: DocumentStore | None = None
-        self._neo4j: Neo4jProjection | None = None  # F-16e: graph.neo4j_outbox
         self._llm: LLMRouter | None = None
         self._working: WorkingMemory | None = None
         self._semantic: SemanticMemory | None = None
@@ -874,30 +870,14 @@ class Engine:
                     else None,
                 )
             )
-        graph_entities = (
-            EntityPolicy.from_policy(self._memory_policy(config, "associative").get("entity_nodes"))
-            if self._associative is not None
-            else None
-        )
-        if neo4j_outbox_on(config):  # F-16e: Neo4j mirror of the graph, fed through the outbox
-            if self._graph is None:
-                raise ConfigError("graph.neo4j_outbox needs memories.associative (a graph)")
-            self._neo4j = await make_neo4j_projection(
-                config,
-                self._sql,
-                self._provider_resources,
-                self._namespace_lock,
-                graph_entities,
-                _EDGE_COMPILED,
-                self._provider_results,
-                registry=self._resource_registry,
-            )
-            self._projectors.append(self._neo4j.projector)
 
         # A durable high-water mark is valid only for the provider target that
-        # produced it. Fail closed before the mirror worker or catch-up can
-        # serve data under a changed graph/vector/lexical target.
+        # produced it. Fail closed before catch-up can serve data under a changed
+        # graph/vector/lexical target.
         assert self._sql is not None and self._provider_owner_id is not None
+        # ADR-081 amendment 2026-10-23: the graph mirror is gone. A store that once ran it
+        # keeps no offset, binding or queued outbox work for it (idempotent, never fails).
+        await retire_graph_mirror_state(self._storage, self._sql.engine)
         binding_store = SqlProjectionBindingStore(self._sql.engine)
         for binding in projection_target_bindings(
             config,
@@ -920,8 +900,6 @@ class Engine:
 
         # 5.(minimal)/6. catch-up from high-water marks; rolling mode prunes on
         # boot via the pipeline (continuous scheduling joins the P3 sleep cycle).
-        if self._neo4j is not None:
-            await self._neo4j.runner.start()  # F-16e: resume queued graph work from the watermark
         await catch_up(self._storage, list(self._projectors))
         if config.event_log.mode is EventLogMode.ROLLING:
             stats = await self._runner.run("event_log_prune", self._pipeline_ctx())  # type: ignore[union-attr]  # CI-GREEN: pre-existing typing debt
@@ -1360,13 +1338,6 @@ class Engine:
                 await windows.stop()
 
         await attempt("window workers", stop_windows)
-
-        async def close_neo4j_projection() -> None:
-            if self._neo4j is not None:
-                neo4j, self._neo4j = self._neo4j, None
-                await neo4j.close()
-
-        await attempt("Neo4j projection worker", close_neo4j_projection)
 
         async def close_runner() -> None:
             if self._runner is not None:
@@ -5475,14 +5446,17 @@ class Engine:
         if callable(purge):
             await purge()
         self._passive_sessions.clear()  # #53: passive flags were replayed
-        if self._neo4j is not None:
+        if self._graph is not None:
             # F-16f G1: the replay re-feeds erasure-hidden dependants (their WRITE events stay in
-            # the log until re-derivation); drain the mirror, then drop every lost id again.
+            # the log until re-derivation); drop every lost id from the graph again, as the
+            # erasure's graph purge step did (it applied to the removed Neo4j mirror before).
             lost = self.__dict__.get("_erasure_state")
             if lost is not None and lost.lost:
-                await self._neo4j.runner.drain()
                 for rid in lost.lost:
-                    await self._neo4j.store.delete_node(rid)
+                    await self._graph.delete_node(rid)
+                from memspine.memories.associative import entity_cache
+
+                entity_cache.invalidate(self._graph)
         _log.info(EVENT_REBUILD, counts=counts)
         return counts
 
@@ -5495,8 +5469,8 @@ class Engine:
         for logical_id, result in self._provider_results.items():
             service.register_build_result(
                 result,
-                required=logical_id != "graph.mirror"
-                and result.provider.category in {"storage", "vector", "graph", "lexical", "cache"},
+                required=result.provider.category
+                in {"storage", "vector", "graph", "lexical", "cache"},
                 logical_id=logical_id,
             )
         return service
@@ -5600,7 +5574,7 @@ class Engine:
         """Inspect registered and built services without exposing native settings.
 
         Each built logical service has its own row, including separate LLM
-        roles and graph mirror. Infrastructure health checks are opt-in; no
+        roles. Infrastructure health checks are opt-in; no
         model quality calls or model downloads are performed.
         """
         from memspine.providers.inspection import inspect_providers, projection_diagnostics
@@ -5621,8 +5595,6 @@ class Engine:
                 result.provider.category, result.provider.name
             )
         configured["graph.primary"] = config.storage.graph.provider
-        if config.storage.graph_mirror is not None:
-            configured["graph.mirror"] = config.storage.graph_mirror.provider
         report = await self.readiness() if probe_health else None
         diagnostics = {}
         diagnostic_error = False

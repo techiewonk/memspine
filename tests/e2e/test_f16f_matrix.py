@@ -4,8 +4,10 @@ Axes (every cell asserts no leak and no resurrection):
 
 * profile    ``embedded`` always; ``server`` (Postgres) only when ``MEMSPINE_TEST_PG_URL`` is set,
              otherwise the cell is skipped with that reason
-* graph      ``embedded`` (the default graph) or ``neo4j`` (the F-16e mirror through the outbox,
-             against the in-memory ``FakeNeo4j`` recorder; no Neo4j server needed)
+* graph      ``embedded`` (the default graph) or ``neo4j`` (Neo4j as the one graph client,
+             ``storage.graph``, against the in-memory ``FakeNeo4j`` recorder; no Neo4j server
+             needed. The outbox-fed mirror these cells once used was removed by the ADR-081
+             amendment of 2026-10-23)
 * operation  cross-tenant read, cross-owner read, multi-party read without a viewer, hard erase then
              read, hard erase then restart then read, erase then replay (``migrate``) then read,
              ``Engine.rebuild`` then read
@@ -91,7 +93,7 @@ def _pg_url() -> str | None:
 # --------------------------------------------------------------------------- the fake Neo4j
 
 
-#: The fake the next Neo4j mirror build uses (a cell swaps it per open).
+#: The fake the next Neo4j graph build uses (a cell swaps it per open).
 _CURRENT_FAKE: dict[str, Any] = {}
 
 
@@ -103,14 +105,14 @@ class _FakeProxy:
 
 
 @pytest.fixture(autouse=True)
-def _fake_neo4j_mirror(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The neo4j cells' mirror builds over the fake (same seam as tests/unit F-16e)."""
+def _fake_neo4j_graph(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The neo4j cells' graph builds over the fake (same seam as tests/unit F-16e)."""
     sys.path.insert(0, str(Path(__file__).parents[1] / "unit" / "wiring"))
     from test_f_16e_neo4j_outbox import (  # type: ignore[import-not-found]
-        _install_fake_mirror,
+        _install_fake_neo4j,
     )
 
-    _install_fake_mirror(monkeypatch, _FakeProxy())
+    _install_fake_neo4j(monkeypatch, _FakeProxy())
 
 
 def _fake_neo4j() -> Any:
@@ -146,8 +148,8 @@ class Cell:
                 },
             }
             o["deployment"] = {"id": "e2e-f16f", "data_dir": str(self.tmp / "derived")}
-        if self.graph == "neo4j":  # the F-16e mirror fed through the outbox
-            o.setdefault("storage", {})["graph_mirror"] = {
+        if self.graph == "neo4j":  # Neo4j as the one graph client (storage.graph)
+            o.setdefault("storage", {})["graph"] = {
                 "provider": "neo4j",
                 "settings": {"connect_timeout_s": 2.0, "request_timeout_s": 2.0},
             }
@@ -250,19 +252,12 @@ def _ids(param: tuple[str, str]) -> str:
     return f"{param[0]}-{param[1]}"
 
 
-G1 = (
-    "G1: erasure_v2._purge_step (graph) deletes hidden dependants from the embedded graph only; "
-    "the Neo4j mirror keeps their nodes. Fix: delete them from eng._neo4j.store there "
-    "(erasure_v2.py is FX-EX1A's area, left untouched)"
-)
-
-
 def matrix(op: str, *, g1: bool = False) -> Any:
     params = [
         pytest.param(
             c,
             id=f"{_ids(c)}-{op}",
-            marks=[],  # G1 fixed: erasure_v2 purges the Neo4j mirror too
+            marks=[],
         )
         for c in CELLS
     ]
@@ -285,17 +280,15 @@ async def _no_foreign_text(handle: Any, probe: str, foreign: str) -> None:
 
 
 def _neo4j_clean(c: Cell, erased: set[str], text: str) -> None:
-    """The mirror holds no erased node, then (checked last) no hidden dependant and no text."""
+    """The Neo4j graph holds no erased node, then no hidden dependant and no text."""
     if c.fake is None:
         return
     held = {n["id"] for n in c.fake.nodes.values()}
     secret_id = c.ids["secret_turn"]
-    assert secret_id not in held, "neo4j mirror still holds the erased record"
+    assert secret_id not in held, "neo4j graph still holds the erased record"
     assert all(text not in str(n) for n in c.fake.nodes.values() if n["id"] == secret_id)
-    # F-16f finding G1: erasure_v2's graph purge step deletes hidden dependants from the embedded
-    # graph only; the Neo4j mirror keeps their nodes (and the erased text they carry)
-    assert not (held & erased), f"neo4j mirror still holds hidden dependants: {held & erased}"
-    assert all(text not in str(n) for n in c.fake.nodes.values()), "neo4j mirror carries text"
+    assert not (held & erased), f"neo4j graph still holds hidden dependants: {held & erased}"
+    assert all(text not in str(n) for n in c.fake.nodes.values()), "neo4j graph carries text"
 
 
 async def _assert_erased_clean(c: Cell, label: str) -> None:

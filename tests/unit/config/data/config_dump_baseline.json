@@ -643,7 +643,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -738,7 +737,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "86e699c5b5aa86c18d5c89bed754d292dec76f4a3aca976dce20b79008d7cd88",
+ "json_schema_sha256": "1d073695ed7bb924fabfd6b2257dd04fd7b6242e373804a4f046b150147f92da",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1414,7 +1413,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -2183,7 +2181,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -2952,7 +2949,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -3721,7 +3717,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -4490,7 +4485,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -5259,7 +5253,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -6041,7 +6034,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -6827,7 +6819,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -7596,7 +7587,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -8365,7 +8355,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -9134,7 +9123,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -9903,7 +9891,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -10672,7 +10659,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -11441,7 +11427,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -12210,7 +12195,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -12979,7 +12963,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -13759,7 +13742,6 @@
     "provider": "sql_adjacency",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -14535,7 +14517,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -15290,7 +15271,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -16059,7 +16039,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -16836,7 +16815,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -17609,7 +17587,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -18399,7 +18376,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -19168,7 +19144,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -19938,7 +19913,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -20720,7 +20694,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}
@@ -21494,7 +21467,6 @@
     "provider": "auto",
     "settings": {}
    },
-   "graph_mirror": null,
    "lexical": {
     "provider": "tantivy",
     "settings": {}

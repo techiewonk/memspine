@@ -710,7 +710,7 @@
      "key": "storage.graph.provider",
      "default": "auto",
      "type": "str",
-     "description": "ADR-081 graph slot (was `graph.provider`). `auto` (GR-1, ADR-064): LadybugDB when the `ladybug` package is installed (`[graph]`), else `sql_adjacency` (SQLite or Postgres records). `auto` is resolved once and pinned in the projector binding. Explicit: `sql_adjacency` | `ladybug` `[graph]` | `neo4j` (D-26). `auto` takes no settings.",
+     "description": "ADR-081 graph slot (was `graph.provider`). `auto` (GR-1, ADR-064): LadybugDB when the `ladybug` package is installed (`[graph]`), else `sql_adjacency` (SQLite or Postgres records). `auto` is resolved once and pinned in the projector binding. Explicit: `sql_adjacency` | `ladybug` `[graph]` | `neo4j` (D-26). `auto` takes no settings. One graph client runs at a time: the optional `storage.graph_mirror` slot (a Neo4j mirror fed through the outbox) was removed by the ADR-081 amendment of 2026-10-23 and is rejected, whatever its value, naming this slot; to run on Neo4j select it here.",
      "effect": "Graph slot (was `graph.provider`).",
      "rebuild": true,
      "rebuild_scope": "index",
@@ -725,16 +725,6 @@
      "type": "dict[str, JsonValue]",
      "description": "Provider and policy fields are validated by their typed configuration schema.",
      "effect": "Provider and policy fields are validated by their typed configuration schema.",
-     "rebuild": true,
-     "rebuild_scope": "index",
-     "screen_ids": []
-    },
-    {
-     "key": "storage.graph_mirror",
-     "default": null,
-     "type": "SlotConfig | None",
-     "description": "ADR-081 optional graph mirror slot `{provider, settings}` fed through the outbox (was `graph.mirror.{enabled,provider,settings}`). Null = off. The provider must declare the `mirror` capability (`neo4j`).",
-     "effect": "Optional graph mirror slot `{provider, settings}` fed through the outbox (was `graph.mirror.{enabled,provider,settings}`).",
      "rebuild": true,
      "rebuild_scope": "index",
      "screen_ids": []
@@ -1974,8 +1964,8 @@
    "models": []
   },
   "A28": {
-   "name": "Graph mirror",
-   "file_function": "`GraphProjector`, `Neo4jOutboxProjector`, `services/graph/*`",
+   "name": "Graph projection",
+   "file_function": "`GraphProjector`, `services/graph/*` (the one graph client, `storage.graph`; the outbox-fed Neo4j mirror was removed 2026-10-23)",
    "keys": [
     {
      "key": "graph.entity_embeddings",
@@ -9237,5 +9227,5 @@
   "workers.temporal": "no read site matched an inventory stage"
  },
  "unattributed_count": 131,
- "schema_key_count": 614
+ "schema_key_count": 613
 }

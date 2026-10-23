@@ -81,7 +81,7 @@ See §D.
 | A25 | Semantic dedup and conflict ladder | `memories/semantic/store.write`, `_merge`, conflict resolution, `write_pipeline.py` | fact → added / merged / superseded / conflicting | WRITE, MERGE, CONFLICT events; `status`, `evolve_to`, `valid_to` | outcome only as `write.deposit.action`; rule and incumbent only as WF conflict | rid, incumbent rid |
 | A26 | Episode fragment deposit | `windows._store_episode` → `ingest/windows._deposit_window_episode` | episode → semantic record (`episode_fragment`, `window:<win>`) | door; lineage | `write.extract.deposit` (layer = episode) | rid, win |
 | A27 | Typed routing | `gateway._route_typed`, `role_wiring.TypeRouter` | keyed turn → typed record (semantic/skill/plan), parent = raw rid | records | `write.route.{decision,typed,skipped,failed}` | raw ↔ typed rid, wid |
-| A28 | Graph mirror | `GraphProjector`, `Neo4jOutboxProjector`, `services/graph/*` | WRITE/LINK/FORGET → nodes, edges | `graph_nodes`, `graph_edges`; Neo4j outbox | `graph.neo4j.*` | rid = node id; `ent:<ns>:<canon>` |
+| A28 | Graph projection | `GraphProjector`, `services/graph/*` (the one graph client, `storage.graph`; the outbox-fed Neo4j mirror was removed 2026-10-23) | WRITE/LINK/FORGET → nodes, edges | `graph_nodes`, `graph_edges`, or the Neo4j graph | `graph.neo4j.*` (Neo4j graph) | rid = node id; `ent:<ns>:<canon>` |
 
 The typed edge compiler (assertion → graph) runs only in sleep (B12).
 

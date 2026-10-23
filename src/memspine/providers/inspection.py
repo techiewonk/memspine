@@ -62,7 +62,6 @@ async def projection_diagnostics(
         logical_id = {
             "vectors": "vector",
             "graph": "graph.primary",
-            "graph_neo4j": "graph.mirror",
         }.get(row.projector_name)
         if logical_id is None and row.projector_name.startswith("lexical"):
             logical_id = "lexical"
@@ -84,7 +83,7 @@ def inspect_providers(
 ) -> list[dict[str, object]]:
     """Combine descriptor inventory with one row per built logical service.
 
-    Repeated LLM roles or primary/mirror bindings remain distinct. Unbuilt
+    Repeated LLM roles remain distinct. Unbuilt
     inventory entries have no runtime state. Probe execution belongs to the
     caller; this function never invokes a model, connects, or serializes settings.
     """
@@ -116,7 +115,6 @@ def inspect_providers(
             projector_name = {
                 "vector": "vectors",
                 "graph.primary": "graph",
-                "graph.mirror": "graph_neo4j",
             }.get(logical_id)
             catchup = projector_catchup or {}
             pending = (
