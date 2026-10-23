@@ -43,11 +43,11 @@ async def test_certified_pgvector_reads_old_rows_without_reembedding() -> None:
         async with client.engine.connect() as connection:
             original = (await connection.execute(select(before._table))).all()
         after = PgVectorStore(
-            client, projection, embedder_id="embed:model", legacy_embedder_id="fastembed:model"
+            client, projection, embedder_id="embedder:model", legacy_embedder_id="fastembed:model"
         )
         await after.start()
-        assert await after.query("tenant", [1.0, 0.0, 0.0], "embed:model") == expected
-        assert await after.scores_for("tenant", [1.0, 0.0, 0.0], "embed:model", ["r1"]) == {
+        assert await after.query("tenant", [1.0, 0.0, 0.0], "embedder:model") == expected
+        assert await after.scores_for("tenant", [1.0, 0.0, 0.0], "embedder:model", ["r1"]) == {
             "r1": 1.0
         }
         async with client.engine.connect() as connection:
@@ -55,8 +55,8 @@ async def test_certified_pgvector_reads_old_rows_without_reembedding() -> None:
         assert [(r.record_id, r.embedder_id, list(r.embedding)) for r in unchanged] == [
             (r.record_id, r.embedder_id, list(r.embedding)) for r in original
         ]
-        await after.upsert("r2", "tenant", "embed:model", [0.0, 1.0, 0.0])
-        assert len(await after.query("tenant", [0.0, 1.0, 0.0], "embed:model")) == 2
+        await after.upsert("r2", "tenant", "embedder:model", [0.0, 1.0, 0.0])
+        assert len(await after.query("tenant", [0.0, 1.0, 0.0], "embedder:model")) == 2
     finally:
         async with client.engine.begin() as connection:
             await connection.run_sync(before._table.drop, checkfirst=True)

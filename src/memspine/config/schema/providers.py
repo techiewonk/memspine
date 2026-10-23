@@ -302,7 +302,12 @@ class OnnxEmbeddingSettings(StrictSettings):
 
     @model_validator(mode="after")
     def _dimension_matches_known_model(self) -> OnnxEmbeddingSettings:
-        known_dim = ONNX_MODEL_DIMS.get(self.model)
+        from memspine.clients.weights.onnx_catalogue import resolve_model_spec
+
+        spec = resolve_model_spec(self.model, self.model_spec)
+        if spec.pooling == "score":
+            raise ValueError("model.embedding requires an embedding model, not a score head")
+        known_dim = spec.dim
         if self.dim is None:
             if known_dim is None:
                 raise ValueError(
@@ -394,6 +399,14 @@ class OnnxRerankerSettings(StrictSettings):
     batch_size: int = Field(default=32, ge=1)
     providers: tuple[str, ...] = ("CPUExecutionProvider",)
     model_spec: dict[str, JsonValue] | None = None
+
+    @model_validator(mode="after")
+    def _score_head(self) -> OnnxRerankerSettings:
+        from memspine.clients.weights.onnx_catalogue import resolve_model_spec
+
+        if resolve_model_spec(self.model, self.model_spec).pooling != "score":
+            raise ValueError("model.rerank requires an ONNX score head")
+        return self
 
 
 class FlashrankRerankerSettings(StrictSettings):

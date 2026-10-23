@@ -49,7 +49,7 @@ async def test_instruction_prefixes_queries_only() -> None:
         "Ana went camping",
         constants.BGE_QUERY_INSTRUCTION + "when did Ana go camping?",
     ]
-    assert emb.embedder_id == "embed:BAAI/bge-small-en-v1.5"  # identity unchanged
+    assert emb.embedder_id == "embedder:BAAI/bge-small-en-v1.5"  # identity unchanged
 
 
 async def test_cache_never_serves_a_vector_made_under_the_other_setting() -> None:

@@ -13,7 +13,7 @@ runtime:
     startup_timeout_s: null
 model:
   embedding:
-    provider: fastembed
+    provider: onnx
     batch_size: 32
     versioned_spaces: false
     settings: {model: BAAI/bge-small-en-v1.5}
@@ -51,7 +51,7 @@ model:
     # Always a chain: the first entry that builds and works wins; [] is off.
     chain:
       - {provider: jina, settings: {}}
-      - {provider: fastembed, settings: {}}
+      - {provider: onnx, settings: {}}
     pool: 64
     keep: 20
     floor: minmax

@@ -71,7 +71,7 @@ async def test_identical_specs_share_one_load_without_sharing_holder_limits(
     assert (await first.embed(["abc"]))[0][0] == 3
     assert (await second.embed_queries(["abc"]))[0][0] == 10
     assert loads == 1
-    assert first.embedder_id == f"embed:{MODEL}"
+    assert first.embedder_id == f"embedder:{MODEL}"
     assert first.legacy_embedder_id == f"fastembed:{MODEL}"
     assert second.legacy_embedder_id is None
     await first.aclose()

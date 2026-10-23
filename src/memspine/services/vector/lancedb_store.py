@@ -104,7 +104,7 @@ def _table_name(embedder_id: str) -> str:
 def physical_embedder_id(embedder: Any) -> str:
     """Keep certified ONNX models on their original physical tables (ADR-084).
 
-    Public identity and cache keys use ``embed:``; a physical name is never an alias
+    Public identity and cache keys use ``embedder:``; a physical name is never an alias
     accepted in configuration. Fresh stores use the same stable physical convention.
     """
     legacy = getattr(embedder, "legacy_embedder_id", None)

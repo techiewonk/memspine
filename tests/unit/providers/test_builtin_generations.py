@@ -184,14 +184,14 @@ def test_embedding_target_identity_requires_exact_dimension_without_loading_mode
     onnx = get_registry("embedders").get("onnx")
     known = provider_target_identity(onnx, OnnxEmbeddingSettings())
     assert known == {
-        "embedder_id": "embed:BAAI/bge-small-en-v1.5",
+        "embedder_id": "embedder:BAAI/bge-small-en-v1.5",
         "dimension": 384,
     }
 
     unknown = OnnxEmbeddingSettings(model="organization/private-model", dim=512)
     identity = provider_target_identity(onnx, unknown)
     assert identity == {
-        "embedder_id": "embed:organization/private-model",
+        "embedder_id": "embedder:organization/private-model",
         "dimension": 512,
     }
     with pytest.raises(ValidationError, match="settings.dim is required"):
@@ -264,16 +264,21 @@ async def test_mock_embedding_dimensions_must_match_the_declared_table(
 ) -> None:
     from memspine.services.embedding.onnx import OnnxEmbedding
 
-    class FakeFastembedModel:
-        def embed(self, _texts: list[str]) -> list[list[float]]:
+    class FakeOnnxModel:
+        def embed(self, _texts: list[str], **kwargs: Any) -> list[list[float]]:
             return [[1.0, 2.0, 3.0]]
 
-    fast = OnnxEmbedding(model="organization/private-model", dim=3)
-    fast._model = FakeFastembedModel()
+    from dataclasses import asdict
+    from memspine.clients.weights.onnx_catalogue import CATALOGUE
+    spec = asdict(CATALOGUE["BAAI/bge-small-en-v1.5"])
+    spec["dim"] = 3
+    fast = OnnxEmbedding(model="organization/private-model", dim=3, model_spec=spec)
+    fast._model = FakeOnnxModel()
     assert await fast.embed(["no download"]) == [[1.0, 2.0, 3.0]]
 
-    wrong_fast = OnnxEmbedding(model="organization/private-model", dim=4)
-    wrong_fast._model = FakeFastembedModel()
+    wrong_spec = {**spec, "dim": 4}
+    wrong_fast = OnnxEmbedding(model="organization/private-model", dim=4, model_spec=wrong_spec)
+    wrong_fast._model = FakeOnnxModel()
     with pytest.raises(ValueError, match="output dimension"):
         await wrong_fast.embed(["no download"])
 

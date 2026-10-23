@@ -60,7 +60,7 @@ class OnnxEmbedding:
     @property
     def embedder_id(self) -> str:
         if self._model_spec is None:
-            return f"embed:{self._model_name}"
+            return f"embedder:{self._model_name}"
         # An arbitrary export must not impersonate the certified catalogue space.
         import hashlib
         import json

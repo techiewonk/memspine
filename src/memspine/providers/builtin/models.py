@@ -352,7 +352,7 @@ def _embedding_target_identity(name: str) -> Callable[[Any], dict[str, Any]]:
                     "model.embedding.settings.dim conflicts with the known onnx model "
                     "dimension"
                 )
-            return {"embedder_id": f"embed:{settings.model}", "dimension": dimension}
+            return {"embedder_id": f"embedder:{settings.model}", "dimension": dimension}
 
         return onnx_identity
     if name == "hash":

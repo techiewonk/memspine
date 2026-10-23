@@ -34,7 +34,7 @@ def test_pgvector_name_matches_original_including_pinned_profile_hash() -> None:
         shared=old.shared,
         generation_id="active",
         embedding=SimpleNamespace(
-            embedder_id="embed:model", dim=384, legacy_embedder_id="fastembed:model"
+            embedder_id="embedder:model", dim=384, legacy_embedder_id="fastembed:model"
         ),
         profile_meta=replace(old_profile, provider="onnx").to_dict(),
     )
@@ -80,7 +80,7 @@ async def test_binding_adoption_checks_exact_source_and_preserves_offset(tmp_pat
 
 
 async def test_lance_adoption_keeps_table_and_vector_values(tmp_path: Path) -> None:
-    old_id, new_id = "fastembed:certified-model", "embed:certified-model"
+    old_id, new_id = "fastembed:certified-model", "embedder:certified-model"
     client = LanceDBClient(LanceDBSpec(tmp_path / "vectors.lance"))
     await client.open()
     try:
@@ -107,12 +107,12 @@ def test_versioned_adoption_preserves_physical_id_and_active_state() -> None:
     state = InMemorySpaceState()
     old = VectorSpace("fastembed:model", 3)
     state.save({"spaces": {old.id: old.to_dict()}, "active": {"tenant": old.id}})
-    new = replace(old, model_id="embed:model")
+    new = replace(old, model_id="embedder:model")
     factory: Any = lambda _: None
     store = VersionedSpaceStore(factory, new, state, legacy_model_id=old.model_id)
     assert store.current.qualified_id == old.qualified_id
     assert store.active_space("tenant") == store.current
-    assert store.current.model_id == "embed:model"
+    assert store.current.model_id == "embedder:model"
     snapshot = state.load()
     reopened = VersionedSpaceStore(factory, new, state, legacy_model_id=old.model_id)
     assert reopened.current.qualified_id == old.qualified_id
@@ -123,7 +123,7 @@ def test_changed_instruction_does_not_adopt_versioned_space() -> None:
     state = InMemorySpaceState()
     old = VectorSpace("fastembed:model", 3)
     state.save({"spaces": {old.id: old.to_dict()}, "active": {"tenant": old.id}})
-    new = VectorSpace("embed:model", 3, query_instruction="different")
+    new = VectorSpace("embedder:model", 3, query_instruction="different")
     store = VersionedSpaceStore(lambda _: cast(Any, None), new, state, legacy_model_id=old.model_id)
     assert store.active_space("tenant") == old
     assert store.current == new
