@@ -10,6 +10,7 @@ from memspine.store.records import RecordStatus, SourceInfo
 
 
 def _engine(**extra: Any) -> Engine:
+    model = {"embedding": {"provider": "hash", "settings": {}}, **extra.pop("model", {})}
     return Engine(
         template="core",
         dotenv_path=None,
@@ -19,7 +20,7 @@ def _engine(**extra: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}},
+        model=model,
         memories={"semantic": {"enabled": True}},
         **extra,
     )
@@ -291,7 +292,10 @@ async def test_rerank_gate_skips_reranker_for_large_top_k(monkeypatch) -> None: 
             calls.append(len(documents))
             return [float(i) for i in range(len(documents))]
 
-    eng = _engine(read={"hybrid": False}, model={"rerank": {"max_top_k": 3}})
+    eng = _engine(
+        read={"hybrid": False},
+        model={"rerank": {"chain": [{"provider": "fastembed", "settings": {}}], "max_top_k": 3}},
+    )
     await eng.start()
     try:
 
@@ -351,7 +355,14 @@ async def test_rerank_date_prefix_and_ordering_skip(monkeypatch) -> None:  # typ
             return [0.0] * len(documents)
 
     eng = _engine(
-        read={"hybrid": False}, model={"rerank": {"date_prefix": True, "skip_for_ordering": True}}
+        read={"hybrid": False},
+        model={
+            "rerank": {
+                "chain": [{"provider": "fastembed", "settings": {}}],
+                "date_prefix": True,
+                "skip_for_ordering": True,
+            }
+        },
     )
     await eng.start()
     try:

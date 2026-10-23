@@ -1,7 +1,7 @@
 """G9: ``ingest_messages`` embeds its turns in chunked batches.
 
 The turns that reach the door are embedded up front, in calls of at most
-``embedding.batch_size`` texts; the per-record firewall and vector projection
+``model.embedding.batch_size`` texts; the per-record firewall and vector projection
 then read the vectors from the embedding cache. A failed up-front embedding
 raises before any turn is written.
 """
@@ -81,7 +81,7 @@ async def _engine(
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding=embedding_config,
+        model={"embedding": embedding_config},
         memories={"episodic": {"enabled": True}},
         **overrides,
     )
@@ -165,7 +165,7 @@ async def test_batched_records_and_vectors_match_single_writes(
 
 async def test_batch_larger_than_batch_size_is_chunked(monkeypatch: pytest.MonkeyPatch) -> None:
     spy = SpyEmbedder()
-    engine = await _engine(monkeypatch, spy, model={"embedding": {"batch_size": 2}})
+    engine = await _engine(monkeypatch, spy, embedding={"batch_size": 2})
     try:
         await engine.ingest_messages(_messages(), namespace="chat/chunk")
         assert [len(call) for call in spy.calls] == [2, 2, 1]

@@ -128,11 +128,11 @@ async def test_different_specs_get_separate_engines_on_one_registry(
 async def test_worker_start_runs_the_configured_warmup(tmp_path: Path, gate: _Gate) -> None:
     async with process_engine(_spec(tmp_path / "m.db"), role="taskiq-worker") as eng:
         (report,) = worker_readiness()["engines"]
-        assert report["warm"]["embedder"]["status"] == "warming"  # background: not gated
+        assert report["warm"]["embedding"]["status"] == "warming"  # background: not gated
         assert worker_readiness()["ready"]  # warm state never gates readiness
         gate.release.set()
         states = await eng.wait_until_warm(10.0)
-        assert {states["embedder"].status, states["lexical"].status} == {"warm"}
+        assert {states["embedding"].status, states["lexical"].status} == {"warm"}
         (report,) = worker_readiness()["engines"]
         assert report["warm_done"] and report["warm"]["lexical"]["status"] == "warm"
 
@@ -143,7 +143,7 @@ async def test_blocking_warmup_failure_fails_the_worker_start(
     gate.error = OSError("weights missing")
     gate.release.set()
     spec = _spec(tmp_path / "m.db", warmup="blocking")
-    with pytest.raises(WarmupError, match="embedder"):
+    with pytest.raises(WarmupError, match="embedding"):
         await _fresh_process.acquire(spec, role="taskiq-worker")
     report = worker_readiness()
     assert not report["ready"]

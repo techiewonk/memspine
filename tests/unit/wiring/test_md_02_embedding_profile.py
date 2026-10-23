@@ -73,7 +73,7 @@ def test_profile_identity() -> None:
     assert GPU_QWEN3.model_id == "Qwen/Qwen3-Embedding-0.6B"
     assert (GPU_QWEN3.dim, GPU_QWEN3.dtype, GPU_QWEN3.device) == (1024, "bfloat16", "cuda")
     assert "Instruct:" in (GPU_QWEN3.query_instruction or "")
-    with pytest.raises(ConfigError, match=r"unknown embedding.profile"):
+    with pytest.raises(ConfigError, match=r"unknown model.embedding.preset"):
         resolve_profile("nope")
 
 

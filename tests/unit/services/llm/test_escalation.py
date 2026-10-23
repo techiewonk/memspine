@@ -409,7 +409,7 @@ async def test_target_remote_candidate_is_individually_privacy_gated(
     assert WITHHELD_MARKER in target_message
 
 
-async def test_profiles_reuse_one_provider_and_profiles_satisfy_tier_role(
+async def test_equal_slots_reuse_one_provider_and_slots_satisfy_tier_role(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     built: list[_Provider] = []
@@ -470,17 +470,13 @@ async def test_profiles_reuse_one_provider_and_profiles_satisfy_tier_role(
     router = await container.build_llm_router(config, _Hooks(), wiring)  # type: ignore[arg-type]
     assert router.roles == ["chat", "extract", "window_extract"]
     assert len(built) == 2
-    assert router.model_plan["explicit_profiles"] == {
-        "chat": "shared",
-        "extract": "shared",
-        "window_extract": "reasoning",
-    }
+    assert router.model_plan["explicit_roles"] == ["chat", "extract", "window_extract"]
     extract_plan = next(role for role in router.model_plan["roles"] if role["role"] == "extract")
     assert extract_plan["status"] == "explicit_multiple"
-    assert extract_plan["model"] == "multiple profiles"
-    assert extract_plan["profile_bindings"] == {
-        "extract": "shared",
-        "window_extract": "reasoning",
+    assert extract_plan["model"] == "multiple slots"
+    assert extract_plan["slot_models"] == {
+        "extract": "ollama/shared",
+        "window_extract": "ollama/reasoning",
     }
     await router.for_role("chat").chat([{"role": "user", "content": "hello"}])
     assert router.token_counts() == {"chat": {"prompt": 5, "completion": 3}}

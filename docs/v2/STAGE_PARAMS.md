@@ -88,7 +88,7 @@ Prompts:
 
 Models:
 
-- describe_asset (`llm.roles.describe_asset.model`)
+- describe_asset (`model.llm.describe_asset.settings.model`)
 
 ## A9 Index view (`write.index_view`)
 
@@ -140,7 +140,7 @@ Prompts:
 
 Models:
 
-- firewall_flag (`llm.roles.firewall_flag.model`)
+- firewall_flag (`model.llm.firewall_flag.settings.model`)
 
 ## A12 Door routing and event append
 
@@ -263,8 +263,8 @@ Prompts:
 
 Models:
 
-- extract (`llm.roles.extract.model`)
-- window_extract (`llm.roles.window_extract.model`)
+- extract (`model.llm.extract.settings.model`)
+- window_extract (`model.llm.window_extract.settings.model`)
 
 ## A20 Item validation and repair
 
@@ -282,8 +282,8 @@ Prompts:
 
 Models:
 
-- extract (`llm.roles.extract.model`)
-- window_extract (`llm.roles.window_extract.model`)
+- extract (`model.llm.extract.settings.model`)
+- window_extract (`model.llm.window_extract.settings.model`)
 
 ## A21 Envelope stages
 
@@ -399,8 +399,8 @@ Prompts:
 
 Models:
 
-- dedupe (`llm.roles.dedupe.model`)
-- judge (`llm.roles.judge.model`)
+- dedupe (`model.llm.dedupe.settings.model`)
+- judge (`model.llm.judge.settings.model`)
 
 ## A26 Episode fragment deposit
 
@@ -480,7 +480,7 @@ Prompts:
 
 Models:
 
-- session_close (`llm.roles.session_close.model`)
+- session_close (`model.llm.session_close.settings.model`)
 
 ## B5 Retention and erasure re-derive
 
@@ -506,7 +506,7 @@ Prompts:
 
 Models:
 
-- consolidate (`llm.roles.consolidate.model`)
+- consolidate (`model.llm.consolidate.settings.model`)
 
 ## B7 mine_facts, project_facts, predict_calibrate, anticipate
 
@@ -531,10 +531,10 @@ Prompts:
 
 Models:
 
-- anticipate (`llm.roles.anticipate.model`)
-- calibrate (`llm.roles.calibrate.model`)
-- extract (`llm.roles.extract.model`)
-- predict_episode (`llm.roles.predict_episode.model`)
+- anticipate (`model.llm.anticipate.settings.model`)
+- calibrate (`model.llm.calibrate.settings.model`)
+- extract (`model.llm.extract.settings.model`)
+- predict_episode (`model.llm.predict_episode.settings.model`)
 
 ## B8 reflect_profile, profile card
 
@@ -554,7 +554,7 @@ Prompts:
 
 Models:
 
-- reflect (`llm.roles.reflect.model`)
+- reflect (`model.llm.reflect.settings.model`)
 
 ## B9 Graph extraction
 
@@ -577,9 +577,9 @@ Prompts:
 
 Models:
 
-- extract_edges (`llm.roles.extract_edges.model`)
-- invalidate_edge (`llm.roles.invalidate_edge.model`)
-- resolve_entity (`llm.roles.resolve_entity.model`)
+- extract_edges (`model.llm.extract_edges.settings.model`)
+- invalidate_edge (`model.llm.invalidate_edge.settings.model`)
+- resolve_entity (`model.llm.resolve_entity.settings.model`)
 
 ## B10 rule_edges, reconcile, histories
 
@@ -638,7 +638,7 @@ Prompts:
 
 Models:
 
-- summarize_entity (`llm.roles.summarize_entity.model`)
+- summarize_entity (`model.llm.summarize_entity.settings.model`)
 
 ## B14 reorganize (communities)
 
@@ -665,8 +665,8 @@ Prompts:
 
 Models:
 
-- subcluster (`llm.roles.subcluster.model`)
-- summarize (`llm.roles.summarize.model`)
+- subcluster (`model.llm.subcluster.settings.model`)
+- summarize (`model.llm.summarize.settings.model`)
 
 ## B15 check_watches, session_lifecycle
 
@@ -699,7 +699,7 @@ Prompts:
 
 Models:
 
-- summarize (`llm.roles.summarize.model`)
+- summarize (`model.llm.summarize.settings.model`)
 
 ## B17 Cost and budget
 
@@ -841,7 +841,7 @@ Prompts:
 
 Models:
 
-- plan (`llm.roles.plan.model`)
+- plan (`model.llm.plan.settings.model`)
 
 ## C6 Assemble loop
 
@@ -884,7 +884,7 @@ Prompts:
 
 Models:
 
-- query_rewrite (`llm.roles.query_rewrite.model`)
+- query_rewrite (`model.llm.query_rewrite.settings.model`)
 
 ## C7 Query embedding
 
@@ -1218,8 +1218,8 @@ Prompts:
 
 Models:
 
-- query_rewrite (`llm.roles.query_rewrite.model`)
-- sufficiency (`llm.roles.sufficiency.model`)
+- query_rewrite (`model.llm.query_rewrite.settings.model`)
+- sufficiency (`model.llm.sufficiency.settings.model`)
 
 ## C27 Agentic, event ledger, deep_v2, obligations
 
@@ -1245,7 +1245,7 @@ Prompts:
 
 Models:
 
-- sufficiency (`llm.roles.sufficiency.model`)
+- sufficiency (`model.llm.sufficiency.settings.model`)
 
 ## C28 Relevance gate
 
@@ -1270,7 +1270,7 @@ Prompts:
 
 Models:
 
-- relevance (`llm.roles.relevance.model`)
+- relevance (`model.llm.relevance.settings.model`)
 
 ## C29 Overlays
 
@@ -1383,7 +1383,7 @@ Prompts:
 
 Models:
 
-- chat (`llm.roles.chat.model`)
+- chat (`model.llm.chat.settings.model`)
 - reader (`cli:--reader-model`)
 
 ## C33 Reader wrappers
@@ -1416,7 +1416,7 @@ Prompts:
 
 Models:
 
-- verify_answer (`llm.roles.verify_answer.model`)
+- verify_answer (`model.llm.verify_answer.settings.model`)
 
 ## C34 Judge
 

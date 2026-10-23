@@ -143,7 +143,7 @@ def _run_engine_op(db: Path, op: str, **kwargs: object) -> dict[str, object]:
             template="base",
             dotenv_path=None,
             storage={"records": {"settings": {"path": str(db)}}},
-            embedding={"provider": "hash"},
+            model={"embedding": {"provider": "hash"}},
         )
         await engine.start()
         try:
@@ -249,7 +249,7 @@ def export_cmd(
             template="base",
             dotenv_path=None,
             storage={"records": {"settings": {"path": str(db)}}},
-            embedding={"provider": "hash"},
+            model={"embedding": {"provider": "hash"}},
         )
         await engine.start()
         try:
@@ -358,7 +358,7 @@ def graph_requalify_cmd(
     from memspine.derive.pipeline.stages.edge_compiler_v2 import requalify_namespace
 
     async def _inner() -> dict[str, object]:
-        overrides: dict[str, Any] = {"embedding": {"provider": "hash"}}
+        overrides: dict[str, Any] = {"model": {"embedding": {"provider": "hash"}}}
         if db is not None:
             overrides["storage"] = {"records": {"settings": {"path": str(db)}}}
         engine = Engine(

@@ -176,7 +176,16 @@ async def _rerank_run(cache: dict[str, Any], **rerank: Any) -> tuple[list[str], 
     try:
         for i in range(8):
             await eng.write(f"note {i} " + "word " * i, namespace="a", memory_type="episodic")
-        eng.__dict__["_rerank_v2_cache"] = cache
+        # ADR-082: the first chain entry is the engine's own reranker; the others are built
+        # once per (provider, settings, device) into the chain cache.
+        eng.__dict__["_rerank_chain_cache"] = {
+            (name, "{}", None): svc for name, svc in cache.items() if name != "jina"
+        }
+
+        async def first() -> Any:
+            return cache.get("jina")
+
+        eng.__dict__["_rerank_provider"] = first
         with search_forensics() as fx:
             out = await eng.search("note word", namespace="a", top_k=8)
         return [r.record_id for r, _ in out], fx

@@ -17,6 +17,14 @@ T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 QUERY = "weather football Ana talked"
 
 
+def _rerank(rerank: dict[str, Any] | None) -> dict[str, Any]:
+    """``model.rerank``; given keys turn reranking on with a one-entry chain whose (engine)
+    reranker the test replaces, None leaves it off (ADR-082)."""
+    if rerank is None:
+        return {}
+    return {"chain": [{"provider": "fastembed", "settings": {}}], **rerank}
+
+
 def _engine(read: dict[str, Any], rerank: dict[str, Any] | None = None, **kw: Any) -> Engine:
     return Engine(
         template="core",
@@ -27,7 +35,7 @@ def _engine(read: dict[str, Any], rerank: dict[str, Any] | None = None, **kw: An
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model={"embedding": {"provider": "hash", "settings": {}}, "rerank": rerank or {}},
+        model={"embedding": {"provider": "hash", "settings": {}}, "rerank": _rerank(rerank)},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
         **kw,
@@ -107,7 +115,7 @@ async def test_reranker_runs_once_per_search_of_a_read() -> None:
     search is the only other rerank."""
     turns = [f"random chatter {i} about nothing" for i in range(5)]
     facts = [f"Ana event: Ana talked about weather football {n}" for n in range(300)]
-    eng = _engine({"cards": "header", "candidate_pool": 3})
+    eng = _engine({"cards": "header", "candidate_pool": 3}, rerank={})
     await eng.start()
     try:
         await _seed(eng, turns, facts)

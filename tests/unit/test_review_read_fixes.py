@@ -390,7 +390,10 @@ async def test_rerank_gate_judges_the_kept_count_not_the_pool(
             calls.append(len(documents))
             return [float(i) for i in range(len(documents))]
 
-    eng = _engine({"candidate_pool": 4}, model={"rerank": {"max_top_k": 3}})
+    eng = _engine(
+        {"candidate_pool": 4},
+        model={"rerank": {"chain": [{"provider": "fastembed", "settings": {}}], "max_top_k": 3}},
+    )
     await eng.start()
     try:
         monkeypatch.setattr(eng, "_rerank_provider", lambda: _resolved_provider(FakeReranker()))

@@ -112,7 +112,7 @@ async def test_llamacpp_constructor_failure_unwinds_registered_resource(
 
 
 @pytest.mark.asyncio
-async def test_named_llamacpp_profiles_have_distinct_resources_and_shared_profile_closes_once(
+async def test_llamacpp_slots_have_distinct_resources_and_an_equal_slot_closes_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     register()
@@ -178,8 +178,9 @@ async def test_named_llamacpp_profiles_have_distinct_resources_and_shared_profil
     router = await container.build_llm_router(config, container.WiringHooks(), wiring)
     assert constructed == ["primary.gguf", "backup.gguf"]
     assert resources.states == {
-        "llm.profile:primary": LifecycleState.REGISTERED,
-        "llm.profile:backup": LifecycleState.REGISTERED,
+        # ADR-082: one resource per distinct slot; extract equals chat and reuses it.
+        "llm:chat": LifecycleState.REGISTERED,
+        "llm.escalation:chat:0": LifecycleState.REGISTERED,
     }
     chat = router.provider("chat")
     assert chat._memspine_attempt_providers[0] is router.provider("extract")

@@ -78,9 +78,10 @@ async def test_engine_passes_every_knob_to_build_decider(monkeypatch: pytest.Mon
         seen.append((kind, model, device, kw))
         return Stub()
 
-    import memspine.api.engine as engine_mod
+    import memspine.providers.decider as decider_provider_mod
 
-    monkeypatch.setattr(engine_mod, "build_decider", build)
+    # ADR-082: the engine builds the slot through build_read_decider -> build_decider.
+    monkeypatch.setattr(decider_provider_mod, "build_decider", build)
     eng = _engine(
         decider={
             "workers": 2,

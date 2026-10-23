@@ -24,7 +24,11 @@ class _Reranker:
 
 
 def _engine(*, keep: int | None = None, **read: Any) -> Engine:
-    rerank = {} if keep is None else {"keep": keep}
+    # ADR-082: a non-empty chain turns reranking on; its first entry is the engine's own
+    # reranker, which these tests replace (``_rerank_provider``), so nothing is built.
+    rerank: dict[str, Any] = {"chain": [{"provider": "fastembed", "settings": {}}]}
+    if keep is not None:
+        rerank["keep"] = keep
     return Engine(
         template="core",
         dotenv_path=None,

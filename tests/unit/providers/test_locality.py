@@ -292,7 +292,9 @@ def test_documents_with_an_explicit_root_need_no_data_dir() -> None:
 
 def test_pin_file_needs_data_dir_on_a_non_file_records_store() -> None:
     config = _config(storage=_cluster_storage(), model={"embedding": {"pin_preset": True}})
-    with pytest.raises(DeploymentLocalityError, match=r"embedding\.pin_profile writes a pin file"):
+    with pytest.raises(
+        DeploymentLocalityError, match=r"model\.embedding\.pin_preset writes a pin file"
+    ):
         validate_deployment_locality(config)
 
 

@@ -24,6 +24,8 @@ T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 def _engine(**read: Any) -> Engine:
     # ADR-082: the reranker behaviour keys live in model.rerank, the rest in read.
     rerank = {k: read.pop(k) for k in ("floor", "keep") if k in read}
+    # a non-empty chain turns reranking on; the tests replace its first (engine) reranker
+    rerank["chain"] = [{"provider": "fastembed", "settings": {}}]
     return Engine(
         template="core",
         dotenv_path=None,

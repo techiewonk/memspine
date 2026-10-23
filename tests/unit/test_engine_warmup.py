@@ -62,12 +62,12 @@ def _engine(path: str = ":memory:", **shared: Any) -> Engine:
 async def test_background_start_returns_before_warm_then_reports_warm(gate: _Gate) -> None:
     eng = await asyncio.wait_for(_engine(warmup="background").start(), 30)
     try:
-        assert eng.warm_state()["embedder"] == WarmState("embedder", "warming")
+        assert eng.warm_state()["embedding"] == WarmState("embedding", "warming")
         gate.release.set()
         states = await eng.wait_until_warm(5.0)
-        assert states["embedder"] == WarmState("embedder", "warm") and gate.finished == 1
+        assert states["embedding"] == WarmState("embedding", "warm") and gate.finished == 1
         report = await eng.readiness()
-        assert report.warm["embedder"].status == "warm"
+        assert report.warm["embedding"].status == "warm"
         assert report.ready  # warm state never gates readiness
     finally:
         await eng.stop()
@@ -78,7 +78,7 @@ async def test_requests_are_served_while_warming(gate: _Gate) -> None:
     try:
         rec = await eng.write("Mira lives in Lisbon.")
         assert rec.record_id
-        assert eng.warm_state()["embedder"].status == "warming"
+        assert eng.warm_state()["embedding"].status == "warming"
     finally:
         gate.release.set()
         await eng.stop()
@@ -89,14 +89,14 @@ async def test_blocking_start_waits_for_warm(gate: _Gate) -> None:
     eng = await _engine(warmup="blocking").start()
     try:
         assert gate.finished == 1
-        assert eng.warm_state()["embedder"].status == "warm"
+        assert eng.warm_state()["embedding"].status == "warm"
     finally:
         await eng.stop()
 
 
 async def test_blocking_timeout_fails_start_naming_the_category(gate: _Gate) -> None:
     eng = _engine(warmup="blocking", warmup_timeout_s=0.05)
-    with pytest.raises(WarmupError, match="failed for embedder"):
+    with pytest.raises(WarmupError, match="failed for embedding"):
         await eng.start()
     assert gate.cancelled == 1
     assert not eng._started  # start tore everything down
@@ -108,8 +108,8 @@ async def test_background_failure_is_reported_not_raised(gate: _Gate) -> None:
     eng = await _engine().start()
     try:
         states = await eng.wait_until_warm(5.0)
-        assert states["embedder"] == WarmState("embedder", "failed", "OSError")
-        assert (await eng.readiness()).warm["embedder"].error_type == "OSError"
+        assert states["embedding"] == WarmState("embedding", "failed", "OSError")
+        assert (await eng.readiness()).warm["embedding"].error_type == "OSError"
     finally:
         await eng.stop()
 
@@ -119,7 +119,7 @@ async def test_lazy_warms_nothing(gate: _Gate) -> None:
     try:
         await asyncio.sleep(0.01)
         assert gate.started == 0
-        assert eng.warm_state()["embedder"].status == "not_requested"
+        assert eng.warm_state()["embedding"].status == "not_requested"
     finally:
         await eng.stop()
 
@@ -127,7 +127,7 @@ async def test_lazy_warms_nothing(gate: _Gate) -> None:
 async def test_excluded_category_is_not_requested(gate: _Gate) -> None:
     eng = await _engine(warmup_exclude=["embedding"]).start()
     try:
-        assert eng.warm_state()["embedder"].status == "not_requested"
+        assert eng.warm_state()["embedding"].status == "not_requested"
     finally:
         await eng.stop()
     assert gate.started == 0

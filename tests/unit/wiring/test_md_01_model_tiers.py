@@ -52,9 +52,24 @@ BIG = ModelDecl(
 RTX = GpuDecl(name="NVIDIA GeForce RTX 5080", vram_mb=16303)
 
 
-def _models(llm: dict[str, Any] | None = None, **kw: Any) -> ModelConfig:
-    """ADR-082: the planning keys live in ``model.placement``; explicit roles in ``model.llm``."""
-    return ModelConfig(llm=llm or {}, placement=PlacementConfig(tiers_v2=True, **kw))
+#: The old ``read.rerank_v2`` default chain, now configured in ``model.rerank.chain`` (ADR-082).
+_V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "fastembed")]
+
+
+def _models(**kw: Any) -> PlacementConfig:
+    """ADR-082: the planning keys live in ``model.placement`` (``resolve_models`` reads it)."""
+    return PlacementConfig(tiers_v2=True, **kw)
+
+
+def _model(
+    llm: dict[str, Any] | None = None, chain: list[Any] | None = None, **placement: Any
+) -> ModelConfig:
+    """A ``model`` block: placement, explicit ``model.llm`` roles and the rerank chain."""
+    return ModelConfig(
+        llm=llm or {},
+        rerank={"chain": chain or []},
+        placement=_models(**placement),
+    )
 
 
 def _runtime() -> dict[str, Any]:
@@ -208,7 +223,7 @@ def test_missing_required_role_fails_start_unless_degraded() -> None:
 
 
 async def test_window_extract_adds_the_extract_requirement(stub_providers: list[_Stub]) -> None:
-    cfg = _config(model=_models(), write={"window_extract": "facts"})
+    cfg = _config(model=_model(), write={"window_extract": "facts"})
     with pytest.raises(ConfigError, match="extract"):
         await _build(cfg)
 
@@ -216,7 +231,7 @@ async def test_window_extract_adds_the_extract_requirement(stub_providers: list[
 # ---- no-model template: zero calls ----------
 
 
-def _engine(models: ModelConfig, **extra: Any) -> Engine:
+def _engine(model: ModelConfig, **extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
@@ -226,7 +241,7 @@ def _engine(models: ModelConfig, **extra: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        model=models.model_copy(update={"embedding": EmbeddingSlot(provider="hash")}),
+        model=model.model_copy(update={"embedding": EmbeddingSlot(provider="hash")}),
         runtime=_runtime(),
         **extra,
     )
@@ -236,7 +251,7 @@ async def test_no_model_template_makes_zero_calls_across_write_sleep_read(
     stub_providers: list[_Stub],
 ) -> None:
     eng = _engine(
-        _models(on_missing_model="skip", role_tier={r.name: "none" for r in ROLE_CATALOGUE}),
+        _model(on_missing_model="skip", role_tier={r.name: "none" for r in ROLE_CATALOGUE}),
         memories={
             "episodic": {
                 "enabled": True,
@@ -270,7 +285,7 @@ async def test_no_model_template_makes_zero_calls_across_write_sleep_read(
 
 async def test_bound_roles_do_make_calls_counted_by_the_stub(stub_providers: list[_Stub]) -> None:
     eng = _engine(
-        _models(catalogue=[NINE], gpus=[RTX], role_tier={"query_rewrite": "worker"}),
+        _model(catalogue=[NINE], gpus=[RTX], role_tier={"query_rewrite": "worker"}),
         read={"hybrid": False, "compose_rewrites": True},
     )
     await eng.start()
@@ -286,7 +301,7 @@ async def test_bound_roles_do_make_calls_counted_by_the_stub(stub_providers: lis
 
 async def test_explicit_llm_roles_win_over_the_plan(stub_providers: list[_Stub]) -> None:
     cfg = _config(
-        model=_models(
+        model=_model(
             llm={
                 "extract": {
                     "provider": "litellm",
@@ -394,8 +409,9 @@ def test_reranker_chain_without_gpu_is_minilm_on_cpu() -> None:
 def test_reranker_chain_skips_what_does_not_fit_and_can_be_empty() -> None:
     tight = resolve_models(_models(catalogue=[NINE], gpus=[GpuDecl(name="NVIDIA", vram_mb=9300)]))
     assert [m for m, _ in rerank_chain(tight)] == ["fastembed"]
-    # ADR-082: ``models.rerank: off`` is removed; no shipped rerankers = an empty chain.
-    off = resolve_models(_models(catalogue=[NINE], gpus=[RTX], catalogue_rerankers="none"))
+    # ADR-082: ``models.rerank: off`` is removed; the engine plans no reranker for an empty
+    # ``model.rerank.chain`` (``rerank=bool(chain)``).
+    off = resolve_models(_models(catalogue=[NINE], gpus=[RTX]), rerank=False)
     assert rerank_chain(off) == [] and off.plan.rerank_unscored
 
 
@@ -418,9 +434,9 @@ async def test_chain_score_follows_the_plan_and_falls_back(
         return None if settings.mode == "jina" else _RR(settings.mode)
 
     monkeypatch.setattr(rr, "build_reranker", fake_build)
-    cfg = _config(model=_models(catalogue=[NINE], gpus=[RTX]))
+    cfg = _config(model=_model(catalogue=[NINE], gpus=[RTX], chain=_V2_CHAIN))
     eng = SimpleNamespace(_config=lambda: cfg, _rerank_calls=0, _rerank_failures=0)
-    scores, model, fallback, tried = await rr.chain_score(eng, "q", ["a", "bb"], cfg.read)
+    scores, model, fallback, tried = await rr.chain_score(eng, "q", ["a", "bb"], cfg.model.rerank)
     assert built == [("jina", "cuda:0"), ("qwen3", "cuda:0")]
     assert (scores, model, fallback) == ([1.0, 2.0], "qwen3", "qwen3")
     assert tried[0] == {"mode": "jina", "outcome": "unavailable"}
@@ -435,9 +451,9 @@ async def test_chain_score_flag_off_uses_the_config_chain(monkeypatch: pytest.Mo
         built.append(settings.mode)
 
     monkeypatch.setattr(rr, "build_reranker", fake_build)
-    cfg = _config()
+    cfg = _config(model={"rerank": {"chain": _V2_CHAIN}})
     eng = SimpleNamespace(_config=lambda: cfg, _rerank_calls=0, _rerank_failures=0)
-    scores, model, _, _ = await rr.chain_score(eng, "q", ["a"], cfg.read)
+    scores, model, _, _ = await rr.chain_score(eng, "q", ["a"], cfg.model.rerank)
     assert built == ["jina", "qwen3", "fastembed"] and scores == [None] and model is None
 
 
@@ -482,7 +498,8 @@ def test_catalogue_generation_defaults_are_forwarded_only_when_explicit() -> Non
 
 def test_llamacpp_catalogue_binding_validates_without_transport_fields_or_model_load() -> None:
     from memspine.providers.builtin.models import register
-    from memspine.providers.registry import LLM_PROVIDERS, validate_settings
+    from memspine.providers.registry import LLM_PROVIDERS
+    from memspine.runtime.container import llm_settings
 
     register()
     declared = ModelDecl(
@@ -498,26 +515,26 @@ def test_llamacpp_catalogue_binding_validates_without_transport_fields_or_model_
     assert not {"api_base", "api_key", "aws_region"}.intersection(configured.settings)
 
     descriptor = LLM_PROVIDERS.get("llamacpp")
-    typed = validate_settings(descriptor, configured.settings)
+    assert configured.timeout_s == 30.0  # ADR-082: the slot carries the deadline
+    typed = llm_settings(descriptor, configured)
     assert typed.model == declared.id
     assert typed.timeout_seconds == 30.0
 
 
 #: ADR-082 moved thinking budgets into ``model.llm.<role>.thinking`` (an explicit slot, which wins
-#: over the plan); a key for plan-resolved (tiers_v2) roles is an open RM-117 owner decision.
+#: over the plan); the engine passes no budget for plan-resolved (tiers_v2) roles.
 _THINKING_KEY_OPEN = pytest.mark.skip(
-    reason="ADR-082: no thinking key for plan-resolved tiers_v2 roles yet (RM-117 owner decision)"
+    reason="ADR-082: no config key for a plan-resolved role thinking budget (RM-117 open)"
 )
 
 
-@_THINKING_KEY_OPEN
 def test_capped_thinking_only_for_judge_and_reflect() -> None:
     r = resolve_models(
         _models(
             catalogue=[NINE],
             gpus=[RTX],
-            thinking={"judge": 512, "reflect": 900, "chat": 300, "extract": 99},
-        )
+        ),
+        thinking={"judge": 512, "reflect": 900, "chat": 300, "extract": 99},
     )
     judge, reflect = resolve_role(r, "judge"), resolve_role(r, "reflect")
     assert (judge.thinking, judge.thinking_cap) == ("capped", 512)
@@ -528,12 +545,11 @@ def test_capped_thinking_only_for_judge_and_reflect() -> None:
     assert role_config(r, "chat").settings["no_think"] is True
 
 
-@_THINKING_KEY_OPEN
 def test_capped_thinking_needs_a_model_that_can_think() -> None:
     plain = ModelDecl(
         id="ollama/plain-9b", provider="litellm", tier="worker", vram_mb=6000, timeout_seconds=60.0
     )
-    r = resolve_models(_models(catalogue=[plain], gpus=[RTX], thinking={"judge": 512}))
+    r = resolve_models(_models(catalogue=[plain], gpus=[RTX]), thinking={"judge": 512})
     res = resolve_role(r, "judge")
     assert res.thinking == "off" and res.reason_code == "thinking_not_applied"
     assert role_config(r, "judge").settings.get("no_think") is None
@@ -541,7 +557,7 @@ def test_capped_thinking_needs_a_model_that_can_think() -> None:
 
 @_THINKING_KEY_OPEN
 async def test_router_wraps_a_capped_role_and_leaves_others(stub_providers: list[_Stub]) -> None:
-    cfg = _config(model=_models(catalogue=[NINE], gpus=[RTX], thinking={"judge": 512}))
+    cfg = _config(model=_model(catalogue=[NINE], gpus=[RTX]))
     router = await _build(cfg)
     judge = router.provider("judge")
     assert isinstance(judge, ThinkingCapped) and judge.cap_tokens == 512
