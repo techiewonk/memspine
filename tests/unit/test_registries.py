@@ -19,8 +19,8 @@ def test_all_kinds_exist() -> None:
 
 
 def test_builtin_names_match_config_values() -> None:
-    assert _names("embedders") == ("fastembed", "hash", "static", "litellm", "st")
-    assert _names("rerankers") == ("fastembed", "flashrank", "litellm", "qwen3", "jina")
+    assert _names("embedders") == ("onnx", "hash", "static", "litellm", "st")
+    assert _names("rerankers") == ("onnx", "flashrank", "litellm", "qwen3", "jina")
     assert _names("llm_providers") == ("litellm", "ollama", "vllm", "bedrock", "llamacpp")
     assert _names("extractors") == ("gliner2",)
     assert _names("deciders") == ("heuristic", "opendecider", "gliner2")
@@ -57,7 +57,7 @@ def test_rerank_modes_come_from_the_registry() -> None:
     from memspine.providers.rerank import register_reranker, rerank_modes
 
     modes = rerank_modes()
-    assert modes[:6] == ("off", "fastembed", "flashrank", "litellm", "qwen3", "jina")
+    assert modes[:6] == ("off", "onnx", "flashrank", "litellm", "qwen3", "jina")
     from memspine.providers.contracts import BuildResult, ProviderRef
     from memspine.providers.registry import ProviderDescriptor
     from memspine.providers.settings import EmptySettings
@@ -105,10 +105,10 @@ def test_llm_provider_is_declared_separately_from_model_id() -> None:
 def test_embedder_factories_are_typed_and_lazy() -> None:
     from memspine.providers.registry import EMBEDDERS, ProviderDescriptor
 
-    fastembed = EMBEDDERS.get("fastembed")
-    assert isinstance(fastembed, ProviderDescriptor)
-    assert fastembed.settings_model.__name__ == "FastembedEmbeddingSettings"
-    assert "fastembed" in EMBEDDERS.builtin_names()
+    onnx = EMBEDDERS.get("onnx")
+    assert isinstance(onnx, ProviderDescriptor)
+    assert onnx.settings_model.__name__ == "OnnxEmbeddingSettings"
+    assert "onnx" in EMBEDDERS.builtin_names()
 
 
 def test_unknown_provider_error_lists_valid() -> None:

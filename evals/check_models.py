@@ -111,19 +111,19 @@ def check_llm() -> None:
 
 
 async def main() -> None:
-    from memspine.services.embedding.fastembed import FastembedEmbedding
+    from memspine.services.embedding.onnx import OnnxEmbedding
     from memspine.services.embedding.st import SentenceTransformersEmbedding
-    from memspine.services.rerank.fastembed import FastembedReranker
+    from memspine.services.rerank.onnx import OnnxReranker
     from memspine.services.rerank.jina import JinaReranker
     from memspine.services.rerank.qwen3 import Qwen3Reranker
 
     print("cuda:", torch.cuda.is_available(), torch.cuda.get_device_name(0))
     check_llm()
     await check_embedder(
-        "bge-small-en-v1.5 (fastembed)", FastembedEmbedding("BAAI/bge-small-en-v1.5")
+        "bge-small-en-v1.5 (onnx)", OnnxEmbedding("BAAI/bge-small-en-v1.5")
     )
     await check_embedder(
-        "bge-base-en-v1.5 (fastembed)", FastembedEmbedding("BAAI/bge-base-en-v1.5")
+        "bge-base-en-v1.5 (onnx)", OnnxEmbedding("BAAI/bge-base-en-v1.5")
     )
     await check_embedder(
         "Qwen3-Embedding-0.6B (st, bf16)",
@@ -148,7 +148,7 @@ async def main() -> None:
         ),
     )
     await check_reranker(
-        "bge-reranker-base (fastembed)", FastembedReranker("BAAI/bge-reranker-base")
+        "bge-reranker-base (onnx)", OnnxReranker("BAAI/bge-reranker-base")
     )
     await check_reranker(
         "Qwen3-Reranker-0.6B (cuda)", Qwen3Reranker("Qwen/Qwen3-Reranker-0.6B", device="cuda")

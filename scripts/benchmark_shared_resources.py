@@ -10,7 +10,7 @@ latency, RSS, threads and OS handles.
 duration, reporting throughput, p50/p95 per operation, errors and (Postgres) server-side
 connection count.
 
-Uses the locally cached fastembed model (no download; fails if absent) or the hash
+Uses the locally cached onnx model (no download; fails if absent) or the hash
 embedder. Postgres runs use a throwaway database per scenario, dropped afterwards.
 
     python scripts/benchmark_shared_resources.py --engines 1 2 4 --out result.json
@@ -66,8 +66,8 @@ def _engine_kwargs(
     args: argparse.Namespace, work: Path, index: int, database: str | None
 ) -> dict[str, Any]:
     embedding = (
-        {"provider": "fastembed", "settings": {"model": args.model}}
-        if args.embedder == "fastembed"
+        {"provider": "onnx", "settings": {"model": args.model}}
+        if args.embedder == "onnx"
         else {"provider": "hash"}
     )
     if args.storage == "postgres":
@@ -259,7 +259,7 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--duration", type=float, default=15.0)
     parser.add_argument("--engines", type=int, nargs="+", default=[1, 2, 4])
-    parser.add_argument("--embedder", choices=("fastembed", "hash"), default="fastembed")
+    parser.add_argument("--embedder", choices=("onnx", "hash"), default="onnx")
     parser.add_argument("--model", default="BAAI/bge-small-en-v1.5")
     parser.add_argument("--queries", type=int, default=20)
     parser.add_argument("--trials", type=int, default=3)

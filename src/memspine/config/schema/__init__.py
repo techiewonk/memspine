@@ -62,8 +62,8 @@ from memspine.config.schema.privacy import (
 )
 from memspine.config.schema.providers import (
     DiskCacheSettings,
-    FastembedEmbeddingSettings,
-    FastembedRerankerSettings,
+    OnnxEmbeddingSettings,
+    OnnxRerankerSettings,
     FlashrankRerankerSettings,
     HashEmbeddingSettings,
     JinaRerankerSettings,
@@ -148,8 +148,8 @@ __all__ = [
     "ExtractionConsumer",
     "ExtractionSlot",
     "ExtractionSlots",
-    "FastembedEmbeddingSettings",
-    "FastembedRerankerSettings",
+    "OnnxEmbeddingSettings",
+    "OnnxRerankerSettings",
     "FirewallConfig",
     "FirewallSignalsConfig",
     "FlashrankRerankerSettings",

@@ -117,7 +117,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -736,7 +736,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "828330df2e7a215f95ff3c63b9d96f5730a645c7a2e0016949aff30e6d68a643",
+ "json_schema_sha256": "46b5583263d9071e609f7ec2d97b3efab4b2da866bdd8affbad035ad068cf407",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -876,7 +876,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -1643,7 +1643,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -2410,7 +2410,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -3177,7 +3177,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -3944,7 +3944,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -4711,7 +4711,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -5478,7 +5478,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -5518,7 +5518,7 @@
       "settings": {}
      },
      {
-      "provider": "fastembed",
+      "provider": "onnx",
       "settings": {}
      }
     ],
@@ -6262,7 +6262,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -6302,7 +6302,7 @@
       "settings": {}
      },
      {
-      "provider": "fastembed",
+      "provider": "onnx",
       "settings": {}
      }
     ],
@@ -7042,7 +7042,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -7809,7 +7809,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -8576,7 +8576,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -9343,7 +9343,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -10110,7 +10110,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -10877,7 +10877,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -11644,7 +11644,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -12411,7 +12411,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -13185,7 +13185,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {
      "model": "BAAI/bge-small-en-v1.5"
     },
@@ -13963,7 +13963,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -14726,7 +14726,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -15483,7 +15483,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -16258,7 +16258,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -17029,7 +17029,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -17817,7 +17817,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -18584,7 +18584,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -19352,7 +19352,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -20132,7 +20132,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },
@@ -20904,7 +20904,7 @@
     "migrate_preset": false,
     "pin_preset": false,
     "preset": null,
-    "provider": "fastembed",
+    "provider": "onnx",
     "settings": {},
     "versioned_spaces": false
    },

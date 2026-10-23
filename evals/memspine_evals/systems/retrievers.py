@@ -2,7 +2,7 @@
 
 Two, for a reason. ``BM25Retriever`` is exact, offline and free, so every
 plumbing test and every ablation that is not *about* embeddings can run without
-a model. ``FastEmbedRetriever`` is the dense leg — the one that makes the
+a model. ``OnnxRetriever`` is the dense leg — the one that makes the
 MemPalace comparison a like-for-like test rather than an analogy, since their
 claim rests specifically on *default embeddings over raw text*.
 
@@ -123,10 +123,10 @@ class BM25Retriever:
         return [(self._units[i], score) for i, score in scored[:top_k]]
 
 
-class FastEmbedRetriever:
-    """Dense retrieval over ``fastembed`` (ONNX, CPU, local, free).
+class OnnxRetriever:
+    """Dense retrieval over ``onnx`` (ONNX, CPU, local, free).
 
-    memspine already depends on fastembed for its own default embedder (D-08),
+    memspine already depends on onnx for its own default embedder (D-08),
     so a dense run costs nothing beyond CPU time and a one-off model download —
     which matters, because it means the MemPalace comparison can be run
     honestly without a paid API.
@@ -134,16 +134,17 @@ class FastEmbedRetriever:
 
     def __init__(self, model: str = "BAAI/bge-small-en-v1.5", batch_size: int = 32) -> None:
         try:
-            from fastembed import TextEmbedding
+            from memspine.clients.weights.onnx import OnnxModel
+            from memspine.clients.weights.onnx_catalogue import resolve_model_spec
         except ImportError as exc:  # pragma: no cover - needs the dependency
             raise RuntimeError(
-                "FastEmbedRetriever needs fastembed — `uv sync` inside memspine, "
+                "OnnxRetriever needs onnx — `uv sync` inside memspine, "
                 "or run the lexical BM25Retriever and say so in the manifest"
             ) from exc
-        self._embedder = TextEmbedding(model_name=model)
+        self._embedder = OnnxModel(resolve_model_spec(model))
         self.model = model
         self.batch_size = batch_size
-        self.retriever_id = f"fastembed:{model}"
+        self.retriever_id = f"embed:{model}"
         self._units: list[Unit] = []
         self._vectors: list[Sequence[float]] = []
 

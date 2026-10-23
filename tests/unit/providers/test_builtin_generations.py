@@ -9,7 +9,7 @@ from pydantic import ValidationError
 from memspine import Engine
 from memspine.config.loader import load_config
 from memspine.config.schema.providers import (
-    FastembedEmbeddingSettings,
+    OnnxEmbeddingSettings,
     HashEmbeddingSettings,
     LiteLLMEmbeddingSettings,
     SentenceTransformersEmbeddingSettings,
@@ -181,21 +181,21 @@ def test_neo4j_target_identity_tracks_resolved_endpoint_without_exposing_secrets
 
 
 def test_embedding_target_identity_requires_exact_dimension_without_loading_models() -> None:
-    fastembed = get_registry("embedders").get("fastembed")
-    known = provider_target_identity(fastembed, FastembedEmbeddingSettings())
+    onnx = get_registry("embedders").get("onnx")
+    known = provider_target_identity(onnx, OnnxEmbeddingSettings())
     assert known == {
-        "embedder_id": "fastembed:BAAI/bge-small-en-v1.5",
+        "embedder_id": "embed:BAAI/bge-small-en-v1.5",
         "dimension": 384,
     }
 
-    unknown = FastembedEmbeddingSettings(model="organization/private-model", dim=512)
-    identity = provider_target_identity(fastembed, unknown)
+    unknown = OnnxEmbeddingSettings(model="organization/private-model", dim=512)
+    identity = provider_target_identity(onnx, unknown)
     assert identity == {
-        "embedder_id": "fastembed:organization/private-model",
+        "embedder_id": "embed:organization/private-model",
         "dimension": 512,
     }
     with pytest.raises(ValidationError, match="settings.dim is required"):
-        FastembedEmbeddingSettings(model="organization/private-model")
+        OnnxEmbeddingSettings(model="organization/private-model")
 
     static = get_registry("embedders").get("static")
     settings = validate_settings(static, {"model": "org/static", "dim": 768})
@@ -208,11 +208,11 @@ def test_embedding_target_identity_requires_exact_dimension_without_loading_mode
 
 
 def test_builtin_embedding_defaults_are_model_specific() -> None:
-    assert FastembedEmbeddingSettings().dim == 384
-    assert FastembedEmbeddingSettings(model="BAAI/bge-base-en-v1.5").dim == 768
-    assert FastembedEmbeddingSettings(model="organization/private-model", dim=512).dim == 512
+    assert OnnxEmbeddingSettings().dim == 384
+    assert OnnxEmbeddingSettings(model="BAAI/bge-base-en-v1.5").dim == 768
+    assert OnnxEmbeddingSettings(model="organization/private-model", dim=512).dim == 512
     with pytest.raises(ValidationError, match="settings.dim is required"):
-        FastembedEmbeddingSettings(model="organization/private-model")
+        OnnxEmbeddingSettings(model="organization/private-model")
 
     assert HashEmbeddingSettings().dim == 64
     assert HashEmbeddingSettings(dim=768).dim == 768
@@ -262,17 +262,17 @@ def test_builtin_embedding_defaults_are_model_specific() -> None:
 async def test_mock_embedding_dimensions_must_match_the_declared_table(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from memspine.services.embedding.fastembed import FastembedEmbedding
+    from memspine.services.embedding.onnx import OnnxEmbedding
 
     class FakeFastembedModel:
         def embed(self, _texts: list[str]) -> list[list[float]]:
             return [[1.0, 2.0, 3.0]]
 
-    fast = FastembedEmbedding(model="organization/private-model", dim=3)
+    fast = OnnxEmbedding(model="organization/private-model", dim=3)
     fast._model = FakeFastembedModel()
     assert await fast.embed(["no download"]) == [[1.0, 2.0, 3.0]]
 
-    wrong_fast = FastembedEmbedding(model="organization/private-model", dim=4)
+    wrong_fast = OnnxEmbedding(model="organization/private-model", dim=4)
     wrong_fast._model = FakeFastembedModel()
     with pytest.raises(ValueError, match="output dimension"):
         await wrong_fast.embed(["no download"])

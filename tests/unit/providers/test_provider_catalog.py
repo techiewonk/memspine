@@ -6,7 +6,7 @@ from memspine.providers.catalog import catalog, catalog_dicts
 def test_catalog_is_derived_from_registered_descriptors() -> None:
     entries = catalog(category="embedding")
     assert entries
-    assert {entry.name for entry in entries} >= {"hash", "fastembed"}
+    assert {entry.name for entry in entries} >= {"hash", "onnx"}
     assert all(entry.category == "embedding" for entry in entries)
     assert all(entry.contract_version == 1 for entry in entries)
 

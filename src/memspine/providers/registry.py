@@ -90,7 +90,11 @@ _CATEGORY_TO_KIND = {category: kind for kind, category in KIND_TO_CATEGORY.items
 #: Renamed built-in providers (registry kind -> old name -> new name). There is no alias
 #: (ADR-068): the old name is rejected with an error that names the new one.
 RENAMED_PROVIDERS: Mapping[str, Mapping[str, str]] = MappingProxyType(
-    {"graph_stores": MappingProxyType({"sqlite_adjacency": "sql_adjacency"})}  # ADR-081
+    {
+        "graph_stores": MappingProxyType({"sqlite_adjacency": "sql_adjacency"}),
+        "embedders": MappingProxyType({"fastembed": "onnx"}),
+        "rerankers": MappingProxyType({"fastembed": "onnx"}),
+    }
 )
 
 
@@ -100,8 +104,9 @@ def renamed_provider_message(kind: str, name: str) -> str | None:
     if new is None:
         return None
     category = KIND_TO_CATEGORY.get(kind, kind)
+    adr = "ADR-084" if name == "fastembed" else "ADR-081"
     return (
-        f"{category} provider {name!r} was renamed to {new!r} (ADR-081; no alias): "
+        f"{category} provider {name!r} was renamed to {new!r} ({adr}; no alias): "
         f"set the provider to {new!r}"
     )
 

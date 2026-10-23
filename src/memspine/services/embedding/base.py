@@ -5,7 +5,7 @@ The manifest (E4, ADR-020) declares storage/speed capabilities the vector store
 exploits: ``matryoshka_dims`` (truncatable prefix dimensions) and
 ``quantization`` (``"int8"``/``"binary"``; ``None`` = float32). The zero-dep
 SQLite store reads these to drive its two-stage ``search_rescore``. The core
-default embedders (hash, fastembed) declare neither — an unclaimed capability
+default embedders (hash, onnx) declare neither — an unclaimed capability
 is safer than a guessed one (D-10) — so the default retrieval path is unchanged;
 an embedder that declares one, or a ``vector.quantization`` config override,
 opts in.

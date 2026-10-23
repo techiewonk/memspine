@@ -73,7 +73,7 @@ async def test_lazy_warms_nothing_and_reports_not_requested() -> None:
 async def test_blocking_waits_for_every_target() -> None:
     a, b = _Slow(0.02), _Slow(0.02)
     ctl = _controller(
-        {"embedder": ("embedder", a), "reranker:fastembed": ("reranker", b)}, mode="blocking"
+        {"embedder": ("embedder", a), "reranker:onnx": ("reranker", b)}, mode="blocking"
     )
     await ctl.run_blocking()
     assert a.finished == b.finished == 1

@@ -37,7 +37,7 @@ async def _search(rerank: dict[str, Any], reranker: FakeReranker) -> list[str]:
         },
         model={
             "embedding": {"provider": "hash", "settings": {}},
-            "rerank": {"chain": [{"provider": "fastembed", "settings": {}}], **rerank},
+            "rerank": {"chain": [{"provider": "onnx", "settings": {}}], **rerank},
         },
         memories={"episodic": {"enabled": True}},
         read={"record_access": False},

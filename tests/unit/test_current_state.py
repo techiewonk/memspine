@@ -294,7 +294,7 @@ async def test_rerank_gate_skips_reranker_for_large_top_k(monkeypatch) -> None: 
 
     eng = _engine(
         read={"hybrid": False},
-        model={"rerank": {"chain": [{"provider": "fastembed", "settings": {}}], "max_top_k": 3}},
+        model={"rerank": {"chain": [{"provider": "onnx", "settings": {}}], "max_top_k": 3}},
     )
     await eng.start()
     try:
@@ -358,7 +358,7 @@ async def test_rerank_date_prefix_and_ordering_skip(monkeypatch) -> None:  # typ
         read={"hybrid": False},
         model={
             "rerank": {
-                "chain": [{"provider": "fastembed", "settings": {}}],
+                "chain": [{"provider": "onnx", "settings": {}}],
                 "date_prefix": True,
                 "skip_for_ordering": True,
             }

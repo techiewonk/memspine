@@ -1,6 +1,6 @@
 """Local torch embedder over sentence-transformers (``model.embedding.provider: st``, ``[st]`` extra).
 
-For models fastembed cannot load, e.g. Qwen3-Embedding-0.6B (BF16 on the GPU). Queries
+For models onnx cannot load, e.g. Qwen3-Embedding-0.6B (BF16 on the GPU). Queries
 take the model's retrieval instruction (``embedding.query_instruction``), documents
 are embedded bare. The weights load on first use inside a worker thread.
 """

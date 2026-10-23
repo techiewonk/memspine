@@ -8,7 +8,7 @@ Audit (2026-10-10). The cross-encoder adapters cut a long document silently:
   head is kept). A reply whose answer sits late in a very long assistant turn is
   scored on its opening.
 * ``jina``: ``model.rerank`` applies the model's own context limit; no tail control.
-* ``fastembed`` / ``flashrank`` / ``litellm``: the backend limit (typically 512 tokens
+* ``onnx`` / ``flashrank`` / ``litellm``: the backend limit (typically 512 tokens
   for the ONNX cross-encoders), tail dropped.
 
 Chunk-and-max splits a document longer than ``chunk_chars`` into overlapping windows,

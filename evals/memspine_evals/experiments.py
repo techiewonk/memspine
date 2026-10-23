@@ -339,37 +339,37 @@ def _retriever(config: C01Config) -> Any:
     and 3. Which one ran is recorded in the manifest; a hash-vector control is
     never labelled dense, because the retriever reports its own model id."""
     if config.hybrid:
-        from .systems.retrievers import FastEmbedRetriever, HybridRetriever
+        from .systems.retrievers import OnnxRetriever, HybridRetriever
 
-        return HybridRetriever(BM25Retriever(), FastEmbedRetriever(model=config.embedding_model))
+        return HybridRetriever(BM25Retriever(), OnnxRetriever(model=config.embedding_model))
     if not config.dense:
         return BM25Retriever()
-    from .systems.retrievers import FastEmbedRetriever
+    from .systems.retrievers import OnnxRetriever
 
-    return FastEmbedRetriever(model=config.embedding_model)
+    return OnnxRetriever(model=config.embedding_model)
 
 
 def memspine_embedding_model(config: C01Config) -> str:
     """The embedder the memspine arm uses, for the same-embedder naive arm (R4-6).
 
-    Only a local fastembed model can be shared: a cloud embedder would make the baseline
+    Only a local onnx model can be shared: a cloud embedder would make the baseline
     pay for calls the harness does not budget, so that combination is refused.
     """
     model_cfg = dict((config.memspine_config or {}).get("model") or {})  # ADR-082
     embedding = dict(model_cfg.get("embedding") or {})
     settings = dict(embedding.get("settings") or {})
     try:
-        from memspine.config.schema.providers import FastembedEmbeddingSettings
+        from memspine.config.schema.providers import OnnxEmbeddingSettings
 
-        defaults = FastembedEmbeddingSettings()
-        provider = embedding.get("provider", "fastembed")
+        defaults = OnnxEmbeddingSettings()
+        provider = embedding.get("provider", "onnx")
         model = settings.get("model", defaults.model)
     except ImportError:  # the engine is not installed: its documented default
-        provider = embedding.get("provider", "fastembed")
+        provider = embedding.get("provider", "onnx")
         model = settings.get("model", "BAAI/bge-small-en-v1.5")
-    if provider != "fastembed":
+    if provider != "onnx":
         raise ValueError(
-            f"the same-embedder naive arm needs a fastembed embedder; memspine uses {provider!r}"
+            f"the same-embedder naive arm needs a onnx embedder; memspine uses {provider!r}"
         )
     return str(model)
 
@@ -535,11 +535,11 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
         VerbatimSystem(retriever=_retriever(config)),
     ]
     if config.naive_dense_same_embedder:
-        from .systems.retrievers import FastEmbedRetriever
+        from .systems.retrievers import OnnxRetriever
 
         systems.append(
             NaiveRAGSystem(
-                retriever=FastEmbedRetriever(model=memspine_embedding_model(config)),
+                retriever=OnnxRetriever(model=memspine_embedding_model(config)),
                 system_id="naive-rag-dense-memspine-embedder",
             )
         )

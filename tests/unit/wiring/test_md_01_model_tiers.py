@@ -53,7 +53,7 @@ RTX = GpuDecl(name="NVIDIA GeForce RTX 5080", vram_mb=16303)
 
 
 #: The old ``read.rerank_v2`` default chain, now configured in ``model.rerank.chain`` (ADR-082).
-_V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "fastembed")]
+_V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "onnx")]
 
 
 def _models(**kw: Any) -> PlacementConfig:
@@ -396,19 +396,19 @@ def test_encoders_share_the_gpu_only_when_they_fit() -> None:
 
 def test_reranker_chain_jina_then_qwen3_then_minilm_on_cpu() -> None:
     r = resolve_models(_models(catalogue=[NINE], gpus=[RTX]))
-    assert rerank_chain(r) == [("jina", "cuda:0"), ("qwen3", "cuda:0"), ("fastembed", "cpu")]
+    assert rerank_chain(r) == [("jina", "cuda:0"), ("qwen3", "cuda:0"), ("onnx", "cpu")]
     assert r.plan.reranker == "jina-reranker-v3.5" and r.plan.rerank_gate == "always"
 
 
 def test_reranker_chain_without_gpu_is_minilm_on_cpu() -> None:
     r = resolve_models(_models())
-    assert rerank_chain(r) == [("fastembed", "cpu")]
+    assert rerank_chain(r) == [("onnx", "cpu")]
     assert r.plan.rerank_gate == "gated"
 
 
 def test_reranker_chain_skips_what_does_not_fit_and_can_be_empty() -> None:
     tight = resolve_models(_models(catalogue=[NINE], gpus=[GpuDecl(name="NVIDIA", vram_mb=9300)]))
-    assert [m for m, _ in rerank_chain(tight)] == ["fastembed"]
+    assert [m for m, _ in rerank_chain(tight)] == ["onnx"]
     # ADR-082: ``models.rerank: off`` is removed; the engine plans no reranker for an empty
     # ``model.rerank.chain`` (``rerank=bool(chain)``).
     off = resolve_models(_models(catalogue=[NINE], gpus=[RTX]), rerank=False)
@@ -454,7 +454,7 @@ async def test_chain_score_flag_off_uses_the_config_chain(monkeypatch: pytest.Mo
     cfg = _config(model={"rerank": {"chain": _V2_CHAIN}})
     eng = SimpleNamespace(_config=lambda: cfg, _rerank_calls=0, _rerank_failures=0)
     scores, model, _, _ = await rr.chain_score(eng, "q", ["a"], cfg.model.rerank)
-    assert built == ["jina", "qwen3", "fastembed"] and scores == [None] and model is None
+    assert built == ["jina", "qwen3", "onnx"] and scores == [None] and model is None
 
 
 # ---- thinking per role (P-15) ----------

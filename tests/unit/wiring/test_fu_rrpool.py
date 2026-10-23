@@ -36,7 +36,7 @@ def _lexical_reranker(monkeypatch: pytest.MonkeyPatch) -> list[int]:
 
 
 #: The old ``read.rerank_v2: true`` default chain (ADR-082: one ``model.rerank.chain`` entry each).
-_V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "fastembed")]
+_V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "onnx")]
 
 
 def _engine(**rerank: Any) -> Engine:
@@ -90,7 +90,7 @@ def test_default_off_and_requires() -> None:
                 "chain": [
                     {"provider": "jina", "settings": {}},
                     {"provider": "qwen3", "settings": {}},
-                    {"provider": "fastembed", "settings": {}},
+                    {"provider": "onnx", "settings": {}},
                 ],
                 "search_pool": 20,
             }

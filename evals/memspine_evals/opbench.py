@@ -19,7 +19,7 @@ SHA-256 goes into the judge spec. Nothing here may write the task file or per-pr
 anywhere but ``evals/runs/`` (gitignored).
 
 Deviations from the official setup (all recorded in ``OPBENCH_PROTOCOL.md``): local Qwen
-reader and judge instead of gpt-4o-mini; ``BAAI/bge-small-en-v1.5`` (fastembed, CPU) instead
+reader and judge instead of gpt-4o-mini; ``BAAI/bge-small-en-v1.5`` (onnx, CPU) instead
 of ``text-embedding-3-small`` for repetition; our engine's retrieval instead of a MemOS/RAG
 frame; ``<think>`` blocks are stripped before the score is parsed.
 """
@@ -135,14 +135,15 @@ def sycophancy_route(subtype: str | None) -> str:
 
 
 def default_embedder(model: str = DEFAULT_EMBEDDING_MODEL) -> Embedder:
-    """fastembed on CPU (no Ollama, no GPU), built on first use."""
+    """onnx on CPU (no Ollama, no GPU), built on first use."""
     state: dict[str, Any] = {}
 
     def embed(texts: Sequence[str]) -> list[list[float]]:
         if "model" not in state:
-            from fastembed import TextEmbedding
+            from memspine.clients.weights.onnx import OnnxModel
+            from memspine.clients.weights.onnx_catalogue import resolve_model_spec
 
-            state["model"] = TextEmbedding(model_name=model)
+            state["model"] = OnnxModel(resolve_model_spec(model))
         return [[float(x) for x in vec] for vec in state["model"].embed(list(texts))]
 
     embed.model_name = model  # type: ignore[attr-defined]

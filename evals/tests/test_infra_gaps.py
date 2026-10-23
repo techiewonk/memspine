@@ -395,7 +395,7 @@ def test_forensics_report_joins_on_query_id_with_text_fallback() -> None:
 class _RerankSystem(VerbatimSystem):
     """A verbatim system that claims a reranker config and reports its per-query audit."""
 
-    def __init__(self, calls: int, failures: int, mode: str = "fastembed") -> None:
+    def __init__(self, calls: int, failures: int, mode: str = "onnx") -> None:
         super().__init__()
         self._audit = (calls, failures)
         self._mode = mode
@@ -428,9 +428,9 @@ class _RerankSystem(VerbatimSystem):
 @pytest.mark.parametrize(
     ("calls", "failures", "mode", "expected"),
     [
-        (0, 0, "fastembed", "FAILED"),
-        (3, 1, "fastembed", "FAILED"),
-        (3, 0, "fastembed", "ok"),
+        (0, 0, "onnx", "FAILED"),
+        (3, 1, "onnx", "FAILED"),
+        (3, 0, "onnx", "ok"),
         (0, 0, "off", "not_applicable"),
     ],
 )

@@ -25,7 +25,7 @@ def _engine(**read: Any) -> Engine:
     # ADR-082: the reranker behaviour keys live in model.rerank, the rest in read.
     rerank = {k: read.pop(k) for k in ("floor", "keep") if k in read}
     # a non-empty chain turns reranking on; the tests replace its first (engine) reranker
-    rerank["chain"] = [{"provider": "fastembed", "settings": {}}]
+    rerank["chain"] = [{"provider": "onnx", "settings": {}}]
     return Engine(
         template="core",
         dotenv_path=None,

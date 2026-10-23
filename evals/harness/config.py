@@ -222,7 +222,7 @@ class ModelConfig(_Frozen):
 class EmbeddingConfig(_Frozen):
     """Retrieval is only as reproducible as its embedder."""
 
-    provider: str = "fastembed"
+    provider: str = "onnx"
     model: str = "BAAI/bge-small-en-v1.5"
     dim: int | None = None
     normalize: bool = True

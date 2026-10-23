@@ -20,7 +20,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from memspine.config.schema.providers import (
-    FastembedEmbeddingSettings,
+    OnnxEmbeddingSettings,
     HashEmbeddingSettings,
     LiteLLMEmbeddingSettings,
     SentenceTransformersEmbeddingSettings,
@@ -142,17 +142,23 @@ def _missing_dim(provider: str | None = None) -> Exception:
     )
 
 
-def _embed_fast(settings: FastembedEmbeddingSettings, registry: ResourceRegistry | None) -> Any:
+def _embed_onnx(settings: OnnxEmbeddingSettings, registry: ResourceRegistry | None) -> Any:
     if settings.dim is None:
         raise _missing_dim()
-    from memspine.clients.weights.fastembed import text_weights
-    from memspine.services.embedding.fastembed import FastembedEmbedding
+    from memspine.clients.weights.onnx import text_weights
+    from memspine.services.embedding.onnx import OnnxEmbedding
 
-    return FastembedEmbedding(
+    return OnnxEmbedding(
         model=settings.model,
         query_instruction=settings.query_instruction,
         dim=settings.dim,
-        weights=text_weights(settings.model, registry=registry),
+        batch_size=settings.batch_size,
+        model_spec=settings.model_spec,
+        weights=text_weights(
+            settings.model, model_spec=settings.model_spec, threads=settings.threads,
+            providers=settings.providers, local_files_only=settings.local_files_only,
+            registry=registry,
+        ),
     )
 
 
@@ -327,28 +333,28 @@ def _register(
 
 def _embedding_target_identity(name: str) -> Callable[[Any], dict[str, Any]]:
     """Expose a no-load embedding table identity for pre-connect projection checks."""
-    if name == "fastembed":
-        from memspine.services.embedding.fastembed import _KNOWN_DIMS
+    if name == "onnx":
+        from memspine.services.embedding.onnx import _KNOWN_DIMS
 
-        def fastembed_identity(settings: FastembedEmbeddingSettings) -> dict[str, Any]:
+        def onnx_identity(settings: OnnxEmbeddingSettings) -> dict[str, Any]:
             dimension = _KNOWN_DIMS.get(settings.model, settings.dim)
             if dimension is None:
                 from memspine.exceptions import ConfigError
 
                 raise ConfigError(
-                    "model.embedding.settings.dim is required to identify an unknown fastembed "
+                    "model.embedding.settings.dim is required to identify an unknown onnx "
                     "model"
                 )
             if settings.dim is not None and settings.dim != dimension:
                 from memspine.exceptions import ConfigError
 
                 raise ConfigError(
-                    "model.embedding.settings.dim conflicts with the known fastembed model "
+                    "model.embedding.settings.dim conflicts with the known onnx model "
                     "dimension"
                 )
-            return {"embedder_id": f"fastembed:{settings.model}", "dimension": dimension}
+            return {"embedder_id": f"embed:{settings.model}", "dimension": dimension}
 
-        return fastembed_identity
+        return onnx_identity
     if name == "hash":
         return lambda settings: {
             "embedder_id": f"hash:{settings.dim}",
@@ -400,9 +406,9 @@ def register() -> None:
         (
             EMBEDDERS,
             "embedding",
-            "fastembed",
-            FastembedEmbeddingSettings,
-            _embed_fast,
+            "onnx",
+            OnnxEmbeddingSettings,
+            _embed_onnx,
             "embedding",
             False,
             (),

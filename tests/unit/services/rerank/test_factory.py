@@ -19,7 +19,7 @@ from memspine.providers.settings import EmptySettings
 def test_rerank_modes_is_off_plus_registry() -> None:
     modes = rerank_modes()
     assert modes[0] == "off"
-    assert {"fastembed", "flashrank", "litellm"} <= set(modes)  # the shipped providers
+    assert {"onnx", "flashrank", "litellm"} <= set(modes)  # the shipped providers
 
 
 async def test_off_builds_none() -> None:

@@ -62,7 +62,7 @@ def test_inspection_reports_cleanup_failure_and_health_separately() -> None:
     active = next(row for row in rows if row["logical_service_id"] == "embedding")
     assert active["lifecycle_state"] == "failed"
     assert active["health_state"] == "not_checked"
-    unbuilt = next(row for row in rows if row["name"] == "fastembed")
+    unbuilt = next(row for row in rows if row["name"] == "onnx")
     assert unbuilt["lifecycle_state"] is None
 
 

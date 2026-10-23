@@ -22,7 +22,7 @@ def _rerank(rerank: dict[str, Any] | None) -> dict[str, Any]:
     reranker the test replaces, None leaves it off (ADR-082)."""
     if rerank is None:
         return {}
-    return {"chain": [{"provider": "fastembed", "settings": {}}], **rerank}
+    return {"chain": [{"provider": "onnx", "settings": {}}], **rerank}
 
 
 def _engine(read: dict[str, Any], rerank: dict[str, Any] | None = None, **kw: Any) -> Engine:

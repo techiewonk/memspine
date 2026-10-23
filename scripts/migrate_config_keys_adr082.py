@@ -143,7 +143,7 @@ VISION_KEYS = ("asset_vision", "asset_vision_model", "asset_vision_url", "asset_
 WARMUP_RENAME = {"embedder": "embedding", "reranker": "rerank", "gliner": "extraction"}
 CATALOGUE_KIND = {"reranker": "rerank", "embedder": "embedding"}
 #: ``read.rerank_v2_chain`` default (schema/read.py) when ``rerank_v2: true`` names none.
-V2_DEFAULT_CHAIN = ("jina", "qwen3", "fastembed")
+V2_DEFAULT_CHAIN = ("jina", "qwen3", "onnx")
 #: Old provider defaults written explicitly into ``settings`` so behaviour does not depend on
 #: the new descriptor defaults (schema/read.py ``decider_model``, schema/write.py vision).
 DECIDER_DEFAULT_MODEL = "manjunathshiva/opendecider-nano"

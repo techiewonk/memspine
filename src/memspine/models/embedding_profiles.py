@@ -13,7 +13,7 @@ space.
 
 Profiles: ``gpu`` is the evals default (Qwen3-Embedding-0.6B, bf16 on CUDA, 1024 dims, with the
 retrieval instruction); ``cpu_multilingual`` is a small multilingual ONNX model that runs on the
-CPU through fastembed. Register more with :func:`register_profile`.
+CPU through onnx. Register more with :func:`register_profile`.
 """
 
 from __future__ import annotations
@@ -94,9 +94,9 @@ class EmbeddingProfile:
         # provider configuration and must follow a selected profile.
         if self.provider != "hash":
             settings["model"] = self.model_id
-        if self.provider in {"fastembed", "hash", "st", "litellm"}:
+        if self.provider in {"onnx", "hash", "st", "litellm"}:
             settings["dim"] = self.dim
-        if self.provider in {"fastembed", "st"}:
+        if self.provider in {"onnx", "st"}:
             settings["query_instruction"] = self.query_instruction
         if self.provider == "st":
             settings.update(
@@ -117,7 +117,7 @@ GPU_QWEN3 = EmbeddingProfile(
 
 CPU_MULTILINGUAL = EmbeddingProfile(
     name="cpu_multilingual",
-    provider="fastembed",
+    provider="onnx",
     model_id="sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     dim=384,
 )

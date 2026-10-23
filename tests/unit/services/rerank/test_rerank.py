@@ -47,17 +47,14 @@ def test_flashrank_adapter_names_the_extra_when_absent(monkeypatch: pytest.Monke
         FlashrankReranker()
 
 
-def test_fastembed_adapter_names_the_upgrade_remedy_when_too_old(
+def test_onnx_adapter_constructs_without_loading_runtime(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """CMP-2: fastembed is a CORE dep, so the remedy is an upgrade (or flashrank),
-    not a bare 'service unavailable'. The message must say so."""
-    # M-BRANCH: simulate a fastembed release without the cross-encoder module.
-    monkeypatch.setitem(sys.modules, "fastembed.rerank.cross_encoder", None)
-    from memspine.services.rerank.fastembed import FastembedReranker
+    """The connector owns lazy runtime imports; constructing a service loads no model."""
+    monkeypatch.setitem(sys.modules, "onnxruntime", None)
+    from memspine.services.rerank.onnx import OnnxReranker
 
-    with pytest.raises(MissingServiceError, match="upgrade fastembed"):
-        FastembedReranker()
+    assert OnnxReranker().reranker_id
 
 
 async def test_a_duck_typed_fake_satisfies_the_port() -> None:

@@ -73,7 +73,7 @@ def _satisfy(need: Need) -> dict:
             {"provider": "litellm", "timeout_s": 30.0, "settings": {"model": "fake/model"}},
         )
     if need.path == "model.rerank.chain":
-        return _nest(need.path, [{"provider": "fastembed", "settings": {}}])
+        return _nest(need.path, [{"provider": "onnx", "settings": {}}])
     return _nest(need.path, _on_value(need.path))
 
 

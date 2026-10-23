@@ -585,8 +585,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     c01.add_argument("--top-k", type=int, default=10)
     c01.add_argument("--seed", type=int, default=11)
-    c01.add_argument("--dense", action="store_true", help="use fastembed instead of BM25")
-    c01.add_argument("--hybrid", action="store_true", help="RRF fusion of BM25 and fastembed")
+    c01.add_argument("--dense", action="store_true", help="use onnx instead of BM25")
+    c01.add_argument("--hybrid", action="store_true", help="RRF fusion of BM25 and onnx")
     c01.add_argument("--with-memspine", action="store_true")
     c01.add_argument("--items", type=int, default=None, help="cap items (pilot runs)")
     c01.add_argument("--reader-model", default="qwen3:4b")
@@ -896,7 +896,7 @@ def build_parser() -> argparse.ArgumentParser:
     c01.add_argument(
         "--naive-dense-same-embedder",
         action="store_true",
-        help="add a naive-RAG arm on memspine's own (fastembed) embedder (R4-6)",
+        help="add a naive-RAG arm on memspine's own (onnx) embedder (R4-6)",
     )
     c01.add_argument(
         "--matched-budget-tokens",

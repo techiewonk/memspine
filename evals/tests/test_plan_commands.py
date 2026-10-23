@@ -16,7 +16,7 @@ from memspine_evals.cli import build_parser
 
 
 class _OfflineTextEmbedding:
-    """Stands in for fastembed's TextEmbedding: building systems must not download a model."""
+    """Stands in for onnx's TextEmbedding: building systems must not download a model."""
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         pass
@@ -28,8 +28,8 @@ class _OfflineTextEmbedding:
 @pytest.fixture(autouse=True)
 def _no_model_download(monkeypatch: pytest.MonkeyPatch) -> None:
     """These tests check which systems the harness builds, not what they embed (CI has no network)."""
-    fastembed = pytest.importorskip("fastembed")
-    monkeypatch.setattr(fastembed, "TextEmbedding", _OfflineTextEmbedding)
+    onnx = pytest.importorskip("memspine.clients.weights.onnx")
+    monkeypatch.setattr(onnx, "OnnxModel", _OfflineTextEmbedding)
 
 
 def test_every_plan_arm_yields_a_parseable_command() -> None:

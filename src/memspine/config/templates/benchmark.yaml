@@ -57,7 +57,7 @@ storage:
 
 model:
   embedding:
-    provider: fastembed             # ONNX on CPU — torch never enters core (D-08)
+    provider: onnx             # ONNX on CPU — torch never enters core (D-08)
     settings:
       model: BAAI/bge-small-en-v1.5  # pinned: an unpinned embedder is an unpinned number
   llm: {}              # no role bound => no LLM call; provider defaults apply only when bound

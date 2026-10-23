@@ -4,7 +4,7 @@ For tests, CI, and air-gapped smoke runs (config: ``model.embedding.provider: ha
 Vectors are stable across runs (xxh64-seeded token buckets, L2-normalized) and
 similar texts land near each other only insofar as they share tokens — good
 enough to exercise the retrieval plumbing, useless for semantics. Never the
-production default (that is fastembed, D-08).
+production default (that is onnx, D-08).
 """
 
 from __future__ import annotations

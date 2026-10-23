@@ -184,6 +184,8 @@ def reject_model_moved_keys(value: Any, area: str, keys: tuple[str, ...]) -> Non
 def _check_provider(value: str) -> str:
     if not value.strip() or value != value.strip():
         raise ValueError("provider must be non-empty and have no surrounding whitespace")
+    if value == "fastembed":
+        raise ConfigError("model provider 'fastembed' was removed by ADR-084; use 'onnx'")
     return value
 
 
@@ -278,9 +280,9 @@ def _strict_settings(provider: str, settings: Mapping[str, JsonValue]) -> None:
 
 class EmbeddingSlot(ModelSlot):
     """``model.embedding`` (D-08). ``hash`` is the deterministic zero-network provider for
-    tests/CI; ``fastembed`` (ONNX, CPU) is the production default; ``static`` is model2vec."""
+    tests/CI; ``onnx`` (ONNX, CPU) is the production default; ``static`` is model2vec."""
 
-    provider: str = Field(default="fastembed", min_length=1)
+    provider: str = Field(default="onnx", min_length=1)
     #: G9: the most texts one embedding call carries when ``ingest_messages`` embeds its turns.
     batch_size: int = Field(default=32, ge=1)
     #: F-03 (P-25 C): version the vector space; an embedder change writes a new space and
@@ -399,7 +401,7 @@ class LLMSlot(ModelSlot):
 
 
 class RerankStage(ModelSlot):
-    """One reranker in ``model.rerank.chain`` (``jina``, ``qwen3``, ``fastembed``, ...)."""
+    """One reranker in ``model.rerank.chain`` (``jina``, ``qwen3``, ``onnx``, ...)."""
 
 
 class RerankConfig(ConfigModel):

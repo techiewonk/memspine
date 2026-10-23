@@ -392,7 +392,7 @@ async def test_rerank_gate_judges_the_kept_count_not_the_pool(
 
     eng = _engine(
         {"candidate_pool": 4},
-        model={"rerank": {"chain": [{"provider": "fastembed", "settings": {}}], "max_top_k": 3}},
+        model={"rerank": {"chain": [{"provider": "onnx", "settings": {}}], "max_top_k": 3}},
     )
     await eng.start()
     try:

@@ -240,8 +240,8 @@ REST_JWKS_MISS_BACKOFF_SECONDS = 60.0
 #: that have refilled (they carry no state), so spoofed keys cannot grow it forever.
 REST_RATE_LIMIT_MAX_KEYS = 10_000
 
-# E8 rerank (D-42 §5/D-51): default fastembed ONNX cross-encoder model.
-RERANK_FASTEMBED_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"
+# E8 rerank (D-42 §5/D-51): default onnx ONNX cross-encoder model.
+RERANK_ONNX_MODEL = "Xenova/ms-marco-MiniLM-L-6-v2"
 RERANK_QWEN3_MODEL = "Qwen/Qwen3-Reranker-0.6B"
 RERANK_QWEN3_INSTRUCTION = (
     "Given a question about a user's past conversations, judge whether the memory helps answer it"

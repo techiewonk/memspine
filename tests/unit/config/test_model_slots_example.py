@@ -39,8 +39,8 @@ def test_example_validates_and_shows_every_slot_category() -> None:
     }
     config = _config()
     model = config.model
-    assert model.embedding.provider == "fastembed"
-    assert [stage.provider for stage in model.rerank.chain] == ["jina", "fastembed"]
+    assert model.embedding.provider == "onnx"
+    assert [stage.provider for stage in model.rerank.chain] == ["jina", "onnx"]
     assert model.rerank.pool == 64
     assert model.vision is not None and model.vision.provider == "ollama"
     assert model.placement.max_loaded_models == 2

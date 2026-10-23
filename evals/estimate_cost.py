@@ -72,7 +72,7 @@ def main() -> int:
 
     print("Baseline cost projection -- LEAN PROFILE (no LLM role bound)\n")
     print(f"  reader: {args.reader}   judge: {args.judge}   runs: {args.runs}")
-    print("  write path: 0 model calls. Embeddings are local CPU (fastembed ONNX).\n")
+    print("  write path: 0 model calls. Embeddings are local CPU (onnx ONNX).\n")
 
     grand = 0.0
     total_questions = 0

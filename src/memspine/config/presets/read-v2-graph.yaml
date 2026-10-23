@@ -17,7 +17,7 @@ model:
     chain:             # R3-07 licence fallback chain (Jina v3.5, Qwen3-Reranker-0.6B, MiniLM CPU)
       - {provider: jina, settings: {}}
       - {provider: qwen3, settings: {}}
-      - {provider: fastembed, settings: {}}
+      - {provider: onnx, settings: {}}
 graph:
   edge_compiler_v2: true
 offline:

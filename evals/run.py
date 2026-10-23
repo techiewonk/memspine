@@ -344,10 +344,10 @@ _SEAM_LIST: Final[tuple[ToggleSeam, ...]] = (
     ),
     ToggleSeam(
         field_name="rerank",
-        on={"model.rerank.chain": [{"provider": "fastembed", "settings": {}}]},
+        on={"model.rerank.chain": [{"provider": "onnx", "settings": {}}]},
         off={"model.rerank.chain": []},
         on_caveat=(
-            "rerank=True selects the fastembed ONNX cross-encoder; the flashrank "
+            "rerank=True selects the onnx ONNX cross-encoder; the flashrank "
             "alternative (memspine[rerank]) must be selected through --config."
         ),
     ),

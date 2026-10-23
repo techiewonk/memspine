@@ -1,1 +1,1 @@
-"""Embedding capability port (D-08): fastembed default, hash provider for tests."""
+"""Embedding capability port (D-08): onnx default, hash provider for tests."""

@@ -81,7 +81,7 @@ async def test_static_prefilter_off_by_default(engine: Engine) -> None:
 
 
 async def test_injected_reranker_reorders_results() -> None:
-    eng = make_engine(reranker="fastembed")
+    eng = make_engine(reranker="onnx")
     await eng.start()
     try:
         fake = FakeReranker(marker="zebra")
@@ -112,7 +112,7 @@ async def test_missing_rerank_provider_skips_loudly_but_search_works(
 
 
 async def test_quarantined_records_stay_excluded_with_rerank_on() -> None:
-    eng = make_engine(reranker="fastembed")
+    eng = make_engine(reranker="onnx")
     await eng.start()
     try:
         eng._reranker = FakeReranker(marker="Ignore")
@@ -182,14 +182,14 @@ async def test_reranker_construction_failure_for_explicit_provider_propagates(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """An explicitly selected provider's programming/build failure is not hidden."""
-    import memspine.services.rerank.fastembed as fastembed_module
+    import memspine.services.rerank.onnx as onnx_module
 
     class ExplodingReranker:
         def __init__(self, *args: Any, **kwargs: Any) -> None:
             raise RuntimeError("model weights failed to download")
 
-    monkeypatch.setattr(fastembed_module, "FastembedReranker", ExplodingReranker)
-    eng = make_engine(reranker="fastembed")
+    monkeypatch.setattr(onnx_module, "OnnxReranker", ExplodingReranker)
+    eng = make_engine(reranker="onnx")
     await eng.start()
     try:
         await eng.write("still retrievable after a broken reranker")

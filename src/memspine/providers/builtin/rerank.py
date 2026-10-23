@@ -16,7 +16,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from memspine.config.schema.providers import (
-    FastembedRerankerSettings,
+    OnnxRerankerSettings,
     FlashrankRerankerSettings,
     JinaRerankerSettings,
     LiteLLMRerankerSettings,
@@ -31,12 +31,17 @@ from memspine.services.base import CapabilityManifest
 __all__ = ["register"]
 
 
-def _fastembed(settings: FastembedRerankerSettings, registry: ResourceRegistry | None) -> Any:
-    from memspine.clients.weights.fastembed import rerank_weights
-    from memspine.services.rerank.fastembed import FastembedReranker
+def _onnx(settings: OnnxRerankerSettings, registry: ResourceRegistry | None) -> Any:
+    from memspine.clients.weights.onnx import rerank_weights
+    from memspine.services.rerank.onnx import OnnxReranker
 
-    return FastembedReranker(
-        settings.model, weights=rerank_weights(settings.model, registry=registry)
+    return OnnxReranker(
+        settings.model, batch_size=settings.batch_size, model_spec=settings.model_spec,
+        weights=rerank_weights(
+            settings.model, model_spec=settings.model_spec, threads=settings.threads,
+            providers=settings.providers, local_files_only=settings.local_files_only,
+            registry=registry,
+        ),
     )
 
 
@@ -145,7 +150,7 @@ _RERANKERS: tuple[
     ],
     ...,
 ] = (
-    ("fastembed", FastembedRerankerSettings, _fastembed, (), None),
+    ("onnx", OnnxRerankerSettings, _onnx, (), None),
     (
         "flashrank",
         FlashrankRerankerSettings,

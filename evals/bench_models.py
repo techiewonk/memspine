@@ -120,9 +120,9 @@ def bench_llm() -> None:
 
 
 async def main() -> None:
-    from memspine.services.embedding.fastembed import FastembedEmbedding
+    from memspine.services.embedding.onnx import OnnxEmbedding
     from memspine.services.embedding.st import SentenceTransformersEmbedding
-    from memspine.services.rerank.fastembed import FastembedReranker
+    from memspine.services.rerank.onnx import OnnxReranker
     from memspine.services.rerank.jina import JinaReranker
     from memspine.services.rerank.qwen3 import Qwen3Reranker
 
@@ -142,14 +142,14 @@ async def main() -> None:
         return
     st = dict(device="cuda", dtype="bfloat16")
     await bench_embedder(
-        "bge-small-en-v1.5 (fastembed, CPU ONNX)",
+        "bge-small-en-v1.5 (onnx, CPU ONNX)",
         "BAAI/bge-small-en-v1.5",
-        FastembedEmbedding("BAAI/bge-small-en-v1.5"),
+        OnnxEmbedding("BAAI/bge-small-en-v1.5"),
     )
     await bench_embedder(
-        "bge-base-en-v1.5 (fastembed, CPU ONNX)",
+        "bge-base-en-v1.5 (onnx, CPU ONNX)",
         "BAAI/bge-base-en-v1.5",
-        FastembedEmbedding("BAAI/bge-base-en-v1.5"),
+        OnnxEmbedding("BAAI/bge-base-en-v1.5"),
     )
     await bench_embedder(
         "Qwen3-Embedding-0.6B (GPU bf16)",
@@ -168,9 +168,9 @@ async def main() -> None:
         ),
     )
     await bench_reranker(
-        "bge-reranker-base (fastembed, CPU ONNX)",
+        "bge-reranker-base (onnx, CPU ONNX)",
         "BAAI/bge-reranker-base",
-        FastembedReranker("BAAI/bge-reranker-base"),
+        OnnxReranker("BAAI/bge-reranker-base"),
     )
     await bench_reranker(
         "Qwen3-Reranker-0.6B (GPU)",

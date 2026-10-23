@@ -31,8 +31,8 @@ EMBEDDERS = {
             "trust_remote_code": True,
         },
     },
-    "ebge": {"provider": "fastembed", "settings": {"model": "BAAI/bge-small-en-v1.5"}},
-    "ebgeb": {"provider": "fastembed", "settings": {"model": "BAAI/bge-base-en-v1.5"}},
+    "ebge": {"provider": "onnx", "settings": {"model": "BAAI/bge-small-en-v1.5"}},
+    "ebgeb": {"provider": "onnx", "settings": {"model": "BAAI/bge-base-en-v1.5"}},
     "eq06": {
         "provider": "st",
         "settings": {
@@ -50,7 +50,7 @@ RERANKERS: dict[str, list[dict]] = {
         {"provider": "jina", "settings": {"model": "jinaai/jina-reranker-v3.5", "device": "cuda"}}
     ],
     "roff": [],
-    "rbge": [{"provider": "fastembed", "settings": {"model": "BAAI/bge-reranker-base"}}],
+    "rbge": [{"provider": "onnx", "settings": {"model": "BAAI/bge-reranker-base"}}],
     "rq06": [
         {"provider": "qwen3", "settings": {"model": "Qwen/Qwen3-Reranker-0.6B", "device": "cuda"}}
     ],

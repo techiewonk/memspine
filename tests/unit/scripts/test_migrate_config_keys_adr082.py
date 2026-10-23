@@ -76,7 +76,7 @@ def test_embedding_provider_settings_and_space_keys() -> None:
     out, notes = mig(
         {
             "embedding": {
-                "provider": "fastembed",
+                "provider": "onnx",
                 "settings": {"model": "bge"},
                 "batch_size": 16,
                 "versioned_spaces": True,
@@ -86,7 +86,7 @@ def test_embedding_provider_settings_and_space_keys() -> None:
     assert out == {
         "model": {
             "embedding": {
-                "provider": "fastembed",
+                "provider": "onnx",
                 "settings": {"model": "bge"},
                 "batch_size": 16,
                 "versioned_spaces": True,
@@ -535,13 +535,13 @@ def test_read_rerank_off_is_an_empty_chain() -> None:
 
 
 def test_rerank_v2_chain_names_become_providers() -> None:
-    out, _ = mig({"read": {"rerank_v2": True, "rerank_v2_chain": ["qwen3", "fastembed"]}})
+    out, _ = mig({"read": {"rerank_v2": True, "rerank_v2_chain": ["qwen3", "onnx"]}})
     assert out == {
         "model": {
             "rerank": {
                 "chain": [
                     {"provider": "qwen3", "settings": {}},
-                    {"provider": "fastembed", "settings": {}},
+                    {"provider": "onnx", "settings": {}},
                 ]
             }
         }
@@ -551,25 +551,25 @@ def test_rerank_v2_chain_names_become_providers() -> None:
 def test_rerank_v2_without_chain_uses_the_old_default() -> None:
     out, _ = mig({"read": {"rerank_v2": True}})
     names = [e["provider"] for e in out["model"]["rerank"]["chain"]]
-    assert names == ["jina", "qwen3", "fastembed"]
+    assert names == ["jina", "qwen3", "onnx"]
 
 
 def test_rerank_v2_wins_over_v1_and_the_conflict_is_reported() -> None:
     out, notes = mig(
-        {"read": {"rerank": "fastembed", "rerank_settings": {"a": 1}, "rerank_v2": True}}
+        {"read": {"rerank": "onnx", "rerank_settings": {"a": 1}, "rerank_v2": True}}
     )
     assert [e["provider"] for e in out["model"]["rerank"]["chain"]] == [
         "jina",
         "qwen3",
-        "fastembed",
+        "onnx",
     ]
     assert "read" not in out
     assert any("rerank_v2 wins" in n for n in notes)
 
 
 def test_rerank_v2_false_keeps_v1() -> None:
-    out, _ = mig({"read": {"rerank": "fastembed", "rerank_v2": False, "rerank_v2_chain": ["x"]}})
-    assert out == {"model": {"rerank": {"chain": [{"provider": "fastembed", "settings": {}}]}}}
+    out, _ = mig({"read": {"rerank": "onnx", "rerank_v2": False, "rerank_v2_chain": ["x"]}})
+    assert out == {"model": {"rerank": {"chain": [{"provider": "onnx", "settings": {}}]}}}
 
 
 def test_rerank_pools_move() -> None:
@@ -683,11 +683,11 @@ def test_existing_model_block_merges_and_conflicts_are_reported() -> None:
     out, notes = mig(
         {
             "model": {"rerank": {"chain": []}},
-            "read": {"rerank": "fastembed", "rerank_keep": 4},
+            "read": {"rerank": "onnx", "rerank_keep": 4},
         }
     )
     assert out["model"]["rerank"] == {"chain": [], "keep": 4}
-    assert out["read"] == {"rerank": "fastembed"}
+    assert out["read"] == {"rerank": "onnx"}
     assert any("conflict" in n for n in notes)
 
 
@@ -712,7 +712,7 @@ def test_python_kwargs_keep_untouched_entries_and_comments() -> None:
             template="core",
             # extraction role
             llm={"roles": {"extract": {"provider": "litellm"}}},
-            read={"top_k": 5, "rerank": "fastembed"},  # keep me
+            read={"top_k": 5, "rerank": "onnx"},  # keep me
             strict_services=False,
         )
         """
@@ -725,7 +725,7 @@ def test_python_kwargs_keep_untouched_entries_and_comments() -> None:
     kwargs = {kw.arg: ast.literal_eval(kw.value) for kw in call.keywords if kw.arg != "template"}
     assert kwargs["model"] == {
         "llm": {"extract": {"provider": "litellm"}},
-        "rerank": {"chain": [{"provider": "fastembed", "settings": {}}]},
+        "rerank": {"chain": [{"provider": "onnx", "settings": {}}]},
     }
     assert "llm" not in kwargs
 
@@ -857,7 +857,7 @@ def test_python_warmup_and_model_decl_kinds() -> None:
 
 
 def test_python_removed_config_classes_are_reported() -> None:
-    _, notes = py('x = LLMConfig(roles={})\ny = ReadConfig(rerank="fastembed")\n')
+    _, notes = py('x = LLMConfig(roles={})\ny = ReadConfig(rerank="onnx")\n')
     assert any("LLMConfig" in n for n in notes)
     assert any("ReadConfig" in n for n in notes)
 
@@ -945,7 +945,7 @@ llm:
   structured: {retry_on_error: true}
 read:
   planner: decision   # stays
-  rerank: fastembed
+  rerank: onnx
 strict_services: false
 """
 
@@ -966,7 +966,7 @@ def test_yaml_round_trip(tmp_path: Path) -> None:
                     "structured": {"retry_on_error": True},
                 }
             },
-            "rerank": {"chain": [{"provider": "fastembed", "settings": {}}]},
+            "rerank": {"chain": [{"provider": "onnx", "settings": {}}]},
         },
     }
     # PyYAML drops comments, as the ADR-081 codemod did: the file is listed for review.
@@ -988,9 +988,9 @@ def test_json_keeps_indent(tmp_path: Path) -> None:
 
 def test_env_file(tmp_path: Path) -> None:
     path = tmp_path / ".env"
-    path.write_text("# x\nMEMSPINE_READ__RERANK=fastembed\nOTHER=1\n", encoding="utf-8")
+    path.write_text("# x\nMEMSPINE_READ__RERANK=onnx\nOTHER=1\n", encoding="utf-8")
     out, _ = mod.rewrite_file(path)
-    assert out == "# x\nMEMSPINE_MODEL__RERANK__CHAIN=fastembed\nOTHER=1\n"
+    assert out == "# x\nMEMSPINE_MODEL__RERANK__CHAIN=onnx\nOTHER=1\n"
 
 
 # ── idempotence, skip marker, CLI ──────────────────────────────────────────────────────

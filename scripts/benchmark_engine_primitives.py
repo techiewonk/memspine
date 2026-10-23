@@ -68,7 +68,7 @@ def _digest_environment() -> dict[str, object]:
         "lancedb",
         "tantivy",
         "onnxruntime",
-        "fastembed",
+        "onnx",
     )
     versions: dict[str, str | None] = {}
     for package in packages:

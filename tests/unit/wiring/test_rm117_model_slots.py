@@ -151,7 +151,7 @@ class _FakeReranker:
 
 
 async def test_a_chain_of_one_orders_like_the_old_single_reranker() -> None:
-    cfg = _cfg(model={"rerank": {"chain": [{"provider": "fastembed"}]}})
+    cfg = _cfg(model={"rerank": {"chain": [{"provider": "onnx"}]}})
     texts = ["alpha", "beta", "gamma", "delta", "epsilon"]
     cands = [
         (MemoryRecord(namespace="a", memory_type="episodic", content=t), 1.0 - i / 10)
@@ -185,7 +185,7 @@ async def test_a_chain_of_one_orders_like_the_old_single_reranker() -> None:
 
 
 async def test_the_chain_falls_back_to_the_next_entry() -> None:
-    cfg = _cfg(model={"rerank": {"chain": [{"provider": "jina"}, {"provider": "fastembed"}]}})
+    cfg = _cfg(model={"rerank": {"chain": [{"provider": "jina"}, {"provider": "onnx"}]}})
     second = _FakeReranker({"b": 2.0})
     built: list[str] = []
 
@@ -204,8 +204,8 @@ async def test_the_chain_falls_back_to_the_next_entry() -> None:
         _rerank_failures=0,
     )
     scores, model, fallback, tried = await rr.chain_score(eng, "q", ["a", "b"], cfg.model.rerank)
-    assert built == ["fastembed"] and scores == [0.0, 2.0]
-    assert (model, fallback) == ("fake", "fastembed")
+    assert built == ["onnx"] and scores == [0.0, 2.0]
+    assert (model, fallback) == ("fake", "onnx")
     assert tried == [{"mode": "jina", "outcome": "unavailable"}]
 
 
@@ -259,7 +259,7 @@ async def _search(model: dict[str, Any], fake: _FakeReranker, top_k: int = 3) ->
 
 async def test_engine_search_reranks_through_the_chain() -> None:
     fake = _FakeReranker({"the lake trip": 9.0})
-    hits = await _search({"rerank": {"chain": [{"provider": "fastembed"}]}}, fake)
+    hits = await _search({"rerank": {"chain": [{"provider": "onnx"}]}}, fake)
     assert hits[0] == "the lake trip" and fake.calls == 1
 
 
@@ -271,7 +271,7 @@ async def test_an_empty_chain_is_off() -> None:
 
 async def test_max_top_k_is_honoured() -> None:
     fake = _FakeReranker({"the lake trip": 9.0})
-    await _search({"rerank": {"chain": [{"provider": "fastembed"}], "max_top_k": 2}}, fake)
+    await _search({"rerank": {"chain": [{"provider": "onnx"}], "max_top_k": 2}}, fake)
     assert fake.calls == 0  # H18: the caller keeps 3 > 2
 
 

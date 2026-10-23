@@ -1,10 +1,7 @@
-"""Measure fastembed CPU batch sizes against an already cached model.
+"""Measure onnx CPU batch sizes against an already cached model.
 
-This benchmark never downloads model files. The checked-in cache in this
-workspace has complete blob contents but an empty Hugging Face snapshot view;
-the script verifies sizes from fastembed's metadata and stages those local
-blobs into a temporary model directory before loading with
-``local_files_only=True``. No shared cache files are changed.
+This benchmark uses the pinned ONNX catalogue and standard Hugging Face cache.
+It never downloads model files; missing cached artifacts fail visibly.
 
 Example (Python 3.13 validation environment):
 
@@ -15,33 +12,24 @@ Example (Python 3.13 validation environment):
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import platform
-import shutil
 import statistics
 import sys
 import tempfile
 import time
 import traceback
-from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-from fastembed import TextEmbedding
+from memspine.clients.weights.onnx import OnnxModel
+from memspine.clients.weights.onnx_catalogue import resolve_model_spec
 
 MODEL_NAME = "BAAI/bge-small-en-v1.5"
-REPO_DIR = "models--qdrant--bge-small-en-v1.5-onnx-q"
-EXPECTED_FILES = (
-    "config.json",
-    "model_optimized.onnx",
-    "special_tokens_map.json",
-    "tokenizer.json",
-    "tokenizer_config.json",
-)
 TEXTS_32 = (
     "Aster assigned the laboratory key to Rowan on Monday.",
     "The north archive opens at eight and closes at five.",
@@ -81,14 +69,6 @@ TEXTS_64 = TEXTS_32 + tuple(
 )
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def _version(package: str) -> str | None:
     try:
         return version(package)
@@ -96,77 +76,18 @@ def _version(package: str) -> str | None:
         return None
 
 
-def _stage_cached_blobs(cache_dir: Path, staged_dir: Path) -> dict[str, Any]:
-    repo_dir = cache_dir / REPO_DIR
-    metadata_path = repo_dir / "files_metadata.json"
-    if not metadata_path.is_file():
-        raise FileNotFoundError(f"fastembed cache metadata missing: {metadata_path}")
-    metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    expected_by_name = {Path(key.replace("\\", "/")).name: value for key, value in metadata.items()}
-    missing_metadata = sorted(set(EXPECTED_FILES) - expected_by_name.keys())
-    if missing_metadata:
-        raise RuntimeError(f"cache metadata lacks required files: {missing_metadata}")
-
-    blobs_dir = repo_dir / "blobs"
-    blobs = [path for path in blobs_dir.iterdir() if path.is_file()]
-    staged: list[dict[str, Any]] = []
-    for name in EXPECTED_FILES:
-        item = expected_by_name[name]
-        expected_size = item.get("size")
-        if not isinstance(expected_size, int) or isinstance(expected_size, bool):
-            raise RuntimeError(f"invalid cached size metadata for {name}")
-        candidates = [path for path in blobs if path.stat().st_size == expected_size]
-        if len(candidates) != 1:
-            raise RuntimeError(
-                f"expected one cached blob of size {expected_size} for {name}; found {len(candidates)}"
-            )
-        source = candidates[0]
-        target = staged_dir / name
-        shutil.copyfile(source, target)
-        if target.stat().st_size != expected_size:
-            raise RuntimeError(f"staged size mismatch for {name}")
-        staged.append(
-            {
-                "name": name,
-                "metadata_blob_id": item.get("blob_id"),
-                "source_blob_name": source.name,
-                "size_bytes": expected_size,
-                "sha256": _sha256(target),
-            }
-        )
-
-    snapshot_dirs = [path for path in (repo_dir / "snapshots").iterdir() if path.is_dir()]
-    snapshot_entries = sum(1 for path in snapshot_dirs[0].iterdir()) if snapshot_dirs else 0
-    return {
-        "cache_repo_dir": str(repo_dir),
-        "metadata_path": str(metadata_path),
-        "snapshot_revision": (repo_dir / "refs" / "main").read_text(encoding="utf-8").strip()
-        if (repo_dir / "refs" / "main").is_file()
-        else None,
-        "snapshot_entry_count_before_staging": snapshot_entries,
-        "staging": "temporary copy selected by unique metadata size; no cache mutation",
-        "files": staged,
-    }
-
-
 def _probe_standard_cache(cache_dir: Path) -> dict[str, Any]:
-    """Record whether fastembed's normal offline resolver can load this cache."""
+    """Record whether onnx's normal offline resolver can load this cache."""
     try:
-        TextEmbedding(
-            model_name=MODEL_NAME,
-            cache_dir=str(cache_dir),
-            threads=1,
-            cuda=False,
-            providers=["CPUExecutionProvider"],
-            local_files_only=True,
-        )
+        OnnxModel(resolve_model_spec(MODEL_NAME), threads=1,
+                  providers=["CPUExecutionProvider"], local_files_only=True)
     except Exception as exc:
         return {"status": "unavailable", "error_type": type(exc).__name__, "error": str(exc)}
     return {"status": "available"}
 
 
-def _embed_all(model: TextEmbedding, texts: tuple[str, ...], batch_size: int) -> np.ndarray:
-    vectors = list(model.embed(texts, batch_size=batch_size, parallel=None))
+def _embed_all(model: OnnxModel, texts: tuple[str, ...], batch_size: int) -> np.ndarray:
+    vectors = list(model.embed(list(texts), batch_size=batch_size))
     array = np.asarray(vectors, dtype=np.float32)
     if array.ndim != 2 or array.shape != (len(texts), 384):
         raise RuntimeError(f"unexpected vector matrix shape {array.shape}")
@@ -187,13 +108,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
 
     start = time.perf_counter()
     cache_dir = Path(args.cache_dir).resolve()
+    os.environ["HF_HUB_CACHE"] = str(cache_dir)
     result: dict[str, Any] = {
-        "benchmark": "fastembed-real-cpu-batch-kernel",
+        "benchmark": "onnx-real-cpu-batch-kernel",
         "command": " ".join(sys.argv),
         "started_at_utc": datetime.now(UTC).isoformat(),
         "status": "running",
         "model": MODEL_NAME,
-        "provider": "fastembed/ONNX Runtime CPUExecutionProvider",
+        "provider": "onnx/ONNX Runtime CPUExecutionProvider",
         "cache_dir": str(cache_dir),
         "offline_environment": {
             "HF_HUB_OFFLINE": os.environ["HF_HUB_OFFLINE"],
@@ -215,7 +137,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         "versions": {
             "python": sys.version,
             "platform": platform.platform(),
-            "fastembed": _version("fastembed"),
+            "tokenizers": _version("tokenizers"),
             "onnxruntime": _version("onnxruntime"),
             "numpy": np.__version__,
         },
@@ -225,29 +147,17 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         ),
     }
 
-    with tempfile.TemporaryDirectory(prefix="memspine-fastembed-batch-") as temp:
+    with tempfile.TemporaryDirectory(prefix="memspine-onnx-batch-") as temp:
         result["standard_offline_cache_probe"] = _probe_standard_cache(cache_dir)
-        model_dir = Path(temp) / "model"
-        model_dir.mkdir()
-        result["cache_materialization"] = _stage_cached_blobs(cache_dir, model_dir)
-        model = TextEmbedding(
-            model_name=MODEL_NAME,
-            cache_dir=str(Path(temp) / "fastembed-cache"),
-            threads=1,
-            cuda=False,
-            providers=["CPUExecutionProvider"],
-            local_files_only=True,
-            specific_model_path=str(model_dir),
-        )
+        spec = resolve_model_spec(MODEL_NAME)
+        model = OnnxModel(spec, threads=1, providers=["CPUExecutionProvider"],
+                          local_files_only=True)
         result["model_info"] = {
-            "runtime_class": type(model.model).__name__,
-            "dimension": model.model.model_description.dim,
-            "revision": result["cache_materialization"]["snapshot_revision"],
-            "model_file_sha256": next(
-                entry["sha256"]
-                for entry in result["cache_materialization"]["files"]
-                if entry["name"] == "model_optimized.onnx"
-            ),
+            "runtime_class": type(model).__name__,
+            "dimension": spec.dim,
+            "revision": spec.revision,
+            "repo": spec.repo,
+            "model_file": spec.model_file,
         }
         result["cases"] = []
         for text_count, texts in ((32, TEXTS_32), (64, TEXTS_64)):
@@ -311,7 +221,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--cache-dir",
-        default="C:/Users/hembad/AppData/Local/Temp/fastembed_cache",
+        default=os.environ.get("HF_HUB_CACHE", str(Path.home() / ".cache/huggingface/hub")),
     )
     parser.add_argument("--warmups", type=int, default=2)
     parser.add_argument("--trials", type=int, default=5)
@@ -323,7 +233,7 @@ def main() -> int:
         report = run(args)
     except Exception as exc:
         report = {
-            "benchmark": "fastembed-real-cpu-batch-kernel",
+            "benchmark": "onnx-real-cpu-batch-kernel",
             "command": " ".join(sys.argv),
             "status": "failed",
             "error_type": type(exc).__name__,
@@ -336,7 +246,7 @@ def main() -> int:
                 "TRANSFORMERS_OFFLINE": os.environ.get("TRANSFORMERS_OFFLINE"),
                 "local_files_only": True,
             },
-            "versions": {"python": sys.version, "fastembed": _version("fastembed")},
+            "versions": {"python": sys.version, "tokenizers": _version("tokenizers")},
             "scope": "No network permitted; failure is an honest cache/runtime limitation.",
         }
         status = 1

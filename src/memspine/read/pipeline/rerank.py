@@ -115,7 +115,7 @@ async def _static_embedding_prefilter(
 CHAIN_MODELS: dict[str, str] = {
     "jina": "jina-v3.5",
     "qwen3": "qwen3-reranker-0.6b",
-    "fastembed": "minilm",
+    "onnx": "minilm",
 }
 
 #: Providers whose device the tier plan may set (the torch rerankers).

@@ -1,11 +1,11 @@
 """System adapters: the control, the floor, the ceiling, the contender."""
 
 from .baselines import FullContextSystem, NaiveRAGSystem, NoMemorySystem, VerbatimSystem
-from .retrievers import BM25Retriever, FastEmbedRetriever, HybridRetriever, Retriever, Unit
+from .retrievers import BM25Retriever, OnnxRetriever, HybridRetriever, Retriever, Unit
 
 __all__ = [
     "BM25Retriever",
-    "FastEmbedRetriever",
+    "OnnxRetriever",
     "FullContextSystem",
     "HybridRetriever",
     "NaiveRAGSystem",

@@ -19,7 +19,9 @@ dependencies = [
     "fastuuid>=0.14.0",          # fast record ids (D-37)
     "structlog>=26.1.0",         # structured logging (D-04/M11)
     "typer>=0.27.3",             # CLI (D-04)
-    "fastembed>=0.9.0",          # default embedder, ONNX/CPU (D-08)
+    "onnxruntime>=1.24.3",       # pinned-catalogue CPU inference (ADR-084)
+    "tokenizers>=0.23.3",        # native tokenizer matching catalogue exports
+    "huggingface-hub>=1.33.0,<3", # standard model cache; Hub 2.x retry follows ADR-085
     "json-repair>=0.64.0",       # always-on JSON safety net (D-31)
     "datasketch>=2.0.0",         # MinHash-LSH dedup stage-1 (D-27)
     "zstandard>=0.25.0",         # cold-tier compression (D-32)
@@ -159,8 +161,6 @@ module = [
     "fastuuid",
     "datasketch",
     "datasketch.*",
-    "fastembed",
-    "fastembed.*",
     "gliner2",
     "gliner2.*",
     "json_repair",

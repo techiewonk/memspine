@@ -90,7 +90,7 @@ def test_gpu_profile_applies_to_config() -> None:
         "dtype": "bfloat16",
     }
     cpu = CPU_MULTILINGUAL.apply(EmbeddingSlot())
-    assert cpu.provider == "fastembed" and cpu.settings["dim"] == 384
+    assert cpu.provider == "onnx" and cpu.settings["dim"] == 384
 
 
 class _FakeEmbedder:
@@ -118,7 +118,7 @@ class _RecordingBuilder:
         ({"preset": "gpu"}, "st", "Qwen/Qwen3-Embedding-0.6B"),
         (
             {"preset": "cpu_multilingual"},
-            "fastembed",
+            "onnx",
             "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
         ),
         ({"provider": "hash"}, "hash", None),
@@ -172,7 +172,7 @@ async def test_embedder_builder_receives_effective_profile_settings_without_load
         assert settings.device == "cuda"
         assert settings.dtype == "bfloat16"
         assert settings.query_instruction == GPU_QWEN3.query_instruction
-    elif expected_provider == "fastembed":
+    elif expected_provider == "onnx":
         assert settings.dim == CPU_MULTILINGUAL.dim
         assert settings.query_instruction is None
     else:
@@ -278,9 +278,9 @@ async def test_memory_store_pins_nothing() -> None:
     await eng.stop()
 
 
-def _fastembed_cached(model: str) -> bool:
+def _onnx_cached(model: str) -> bool:
     base = os.environ.get("FASTEMBED_CACHE_PATH") or os.path.join(
-        os.environ.get("TEMP", "/tmp"), "fastembed_cache"
+        os.environ.get("TEMP", "/tmp"), "onnx_cache"
     )
     hf = os.path.expanduser("~/.cache/huggingface/hub")
     stem = model.split("/")[-1].lower()
@@ -291,8 +291,8 @@ def _fastembed_cached(model: str) -> bool:
 
 
 @pytest.mark.skipif(
-    not _fastembed_cached(CPU_MULTILINGUAL.model_id),
-    reason="paraphrase-multilingual-MiniLM-L12-v2 is not in the local fastembed/HF cache",
+    not _onnx_cached(CPU_MULTILINGUAL.model_id),
+    reason="paraphrase-multilingual-MiniLM-L12-v2 is not in the local onnx/HF cache",
 )
 async def test_cpu_multilingual_profile_resolves() -> None:
     from memspine.config.schema.model import EmbeddingSlot

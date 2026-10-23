@@ -1,4 +1,4 @@
-"""N64: fastembed query instruction: queries only, documents unchanged, cache keyed by it."""
+"""N64: onnx query instruction: queries only, documents unchanged, cache keyed by it."""
 
 from __future__ import annotations
 
@@ -7,31 +7,31 @@ from typing import Any
 import pytest
 
 from memspine.config import constants
-from memspine.config.schema.providers import FastembedEmbeddingSettings
+from memspine.config.schema.providers import OnnxEmbeddingSettings
 from memspine.services.cache.base import MemoryKV
 from memspine.services.cache.semantic import CachedEmbedding
 from memspine.services.embedding.base import embed_queries
-from memspine.services.embedding.fastembed import FastembedEmbedding
+from memspine.services.embedding.onnx import OnnxEmbedding
 
 
 class _FakeModel:
     def __init__(self) -> None:
         self.seen: list[str] = []
 
-    def embed(self, texts: list[str]) -> Any:
+    def embed(self, texts: list[str], **kwargs: Any) -> Any:
         self.seen.extend(texts)
         return [[float(len(t)), *([1.0] * 383)] for t in texts]
 
 
-def _emb(instruction: str | None) -> tuple[FastembedEmbedding, _FakeModel]:
-    emb = FastembedEmbedding(query_instruction=instruction)
+def _emb(instruction: str | None) -> tuple[OnnxEmbedding, _FakeModel]:
+    emb = OnnxEmbedding(query_instruction=instruction)
     model = _FakeModel()
     emb._model = model
     return emb, model
 
 
 def test_off_by_default() -> None:
-    assert FastembedEmbeddingSettings().query_instruction is None
+    assert OnnxEmbeddingSettings().query_instruction is None
 
 
 async def test_no_instruction_embeds_queries_like_documents() -> None:
@@ -49,7 +49,7 @@ async def test_instruction_prefixes_queries_only() -> None:
         "Ana went camping",
         constants.BGE_QUERY_INSTRUCTION + "when did Ana go camping?",
     ]
-    assert emb.embedder_id == "fastembed:BAAI/bge-small-en-v1.5"  # identity unchanged
+    assert emb.embedder_id == "embed:BAAI/bge-small-en-v1.5"  # identity unchanged
 
 
 async def test_cache_never_serves_a_vector_made_under_the_other_setting() -> None:

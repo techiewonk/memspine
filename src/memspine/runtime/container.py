@@ -940,7 +940,7 @@ def resolved_embedding(config: MemspineConfig) -> Any:
 
     # Provider-native options moved into ``settings``.  In particular, a profile
     # can be selected while the configured provider is still the default
-    # fastembed provider, so read an explicit device from the raw settings map
+    # onnx provider, so read an explicit device from the raw settings map
     # rather than looking for a legacy top-level attribute.
     configured_device = cfg.settings.get("device")
     profile = resolve_profile(

@@ -78,7 +78,7 @@ _OLD_KEYS: list[tuple[dict[str, Any], str]] = [
     ({"models": {"required_roles": []}}, "model.placement.required_roles"),
     ({"models": {"on_missing_model": "skip"}}, "model.placement.on_missing_model"),
     ({"decision": {"provider": "gliner2"}}, "model.decider.route"),
-    ({"read": {"rerank": "fastembed"}}, "model.rerank.chain"),
+    ({"read": {"rerank": "onnx"}}, "model.rerank.chain"),
     ({"read": {"rerank_settings": {}}}, "model.rerank.chain[].settings"),
     ({"read": {"rerank_v2": True}}, "model.rerank.chain"),
     ({"read": {"rerank_v2_chain": ["jina"]}}, "model.rerank.chain"),
@@ -165,7 +165,7 @@ def test_llm_slot_settings_timeout_points_at_timeout_s() -> None:
 
 def test_defaults() -> None:
     model = _config().model
-    assert model.embedding.provider == "fastembed" and model.embedding.settings == {}
+    assert model.embedding.provider == "onnx" and model.embedding.settings == {}
     assert model.embedding.batch_size == 32 and model.embedding.versioned_spaces is False
     assert model.embedding.preset is None
     assert not model.embedding.pin_preset and not model.embedding.migrate_preset
@@ -210,7 +210,7 @@ def test_sample_from_the_adr_validates() -> None:
     config = _config(
         model={
             "embedding": {
-                "provider": "fastembed",
+                "provider": "onnx",
                 "batch_size": 32,
                 "versioned_spaces": False,
                 "settings": {"model": "BAAI/bge-small-en-v1.5"},
@@ -243,7 +243,7 @@ def test_sample_from_the_adr_validates() -> None:
             "rerank": {
                 "chain": [
                     {"provider": "jina", "settings": {}},
-                    {"provider": "fastembed", "settings": {}},
+                    {"provider": "onnx", "settings": {}},
                 ],
                 "pool": 64,
                 "floor": "minmax",
@@ -388,7 +388,7 @@ def test_rerank_bounds_and_unique_chain() -> None:
 def test_search_pool_needs_a_chain() -> None:
     with pytest.raises(ConfigError, match=r"model.rerank.search_pool needs model.rerank.chain"):
         _config(model={"rerank": {"search_pool": 32}})
-    _config(model={"rerank": {"search_pool": 32, "chain": [{"provider": "fastembed"}]}})
+    _config(model={"rerank": {"search_pool": 32, "chain": [{"provider": "onnx"}]}})
 
 
 def test_a_layer_replaces_the_chain_whole() -> None:
@@ -406,7 +406,7 @@ _PRESET_CHAIN = {
             "chain": [
                 {"provider": "jina", "settings": {}},
                 {"provider": "qwen3", "settings": {}},
-                {"provider": "fastembed", "settings": {}},
+                {"provider": "onnx", "settings": {}},
             ]
         }
     }
@@ -656,7 +656,7 @@ def test_read_v2_presets_carry_the_shipped_rerank_chain() -> None:
 
     for name in ("read-v2-core", "read-v2-graph"):
         config = load_config(template="base", overrides=presets.load_preset(name)).config
-        assert [s.provider for s in config.model.rerank.chain] == ["jina", "qwen3", "fastembed"]
+        assert [s.provider for s in config.model.rerank.chain] == ["jina", "qwen3", "onnx"]
 
 
 def test_environment_layers_into_the_model_block() -> None:

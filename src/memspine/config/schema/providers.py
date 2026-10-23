@@ -23,10 +23,11 @@ from memspine.providers.settings import (
 ProviderSettings = StrictSettings
 ProviderSettingsMap = dict[str, JsonValue]
 
-FASTEMBED_MODEL_DIMS = {
+ONNX_MODEL_DIMS = {
     "BAAI/bge-small-en-v1.5": 384,
     "BAAI/bge-base-en-v1.5": 768,
     "sentence-transformers/all-MiniLM-L6-v2": 384,
+    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2": 384,
 }
 STATIC_MODEL_DIMS = {"minishlab/potion-base-8M": 256}
 SENTENCE_TRANSFORMERS_MODEL_DIMS = {
@@ -289,22 +290,27 @@ class TantivySettings(StrictSettings):
     date_tokens: bool = False
 
 
-class FastembedEmbeddingSettings(StrictSettings):
+class OnnxEmbeddingSettings(StrictSettings):
     model: str = "BAAI/bge-small-en-v1.5"
     query_instruction: str | None = None
     dim: int | None = Field(default=None, ge=1)
+    local_files_only: bool = False
+    threads: int = Field(default=0, ge=0)
+    batch_size: int = Field(default=32, ge=1)
+    providers: tuple[str, ...] = ("CPUExecutionProvider",)
+    model_spec: dict[str, JsonValue] | None = None
 
     @model_validator(mode="after")
-    def _dimension_matches_known_model(self) -> FastembedEmbeddingSettings:
-        known_dim = FASTEMBED_MODEL_DIMS.get(self.model)
+    def _dimension_matches_known_model(self) -> OnnxEmbeddingSettings:
+        known_dim = ONNX_MODEL_DIMS.get(self.model)
         if self.dim is None:
             if known_dim is None:
                 raise ValueError(
-                    "settings.dim is required for fastembed models without known dimensions"
+                    "settings.dim is required for onnx models without known dimensions"
                 )
             object.__setattr__(self, "dim", known_dim)
         elif known_dim is not None and self.dim != known_dim:
-            raise ValueError("settings.dim conflicts with the known fastembed model dimension")
+            raise ValueError("settings.dim conflicts with the known onnx model dimension")
         return self
 
 
@@ -381,8 +387,13 @@ class SentenceTransformersEmbeddingSettings(StrictSettings):
         return self
 
 
-class FastembedRerankerSettings(StrictSettings):
-    model: str = Field(default=constants.RERANK_FASTEMBED_MODEL, min_length=1)
+class OnnxRerankerSettings(StrictSettings):
+    model: str = Field(default=constants.RERANK_ONNX_MODEL, min_length=1)
+    local_files_only: bool = False
+    threads: int = Field(default=0, ge=0)
+    batch_size: int = Field(default=32, ge=1)
+    providers: tuple[str, ...] = ("CPUExecutionProvider",)
+    model_spec: dict[str, JsonValue] | None = None
 
 
 class FlashrankRerankerSettings(StrictSettings):

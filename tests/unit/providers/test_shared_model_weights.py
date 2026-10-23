@@ -17,7 +17,7 @@ import pytest
 
 from memspine.clients.weights.shared import SharedWeights
 from memspine.config.schema.providers import (
-    FastembedEmbeddingSettings,
+    OnnxEmbeddingSettings,
     SentenceTransformersEmbeddingSettings,
     StaticEmbeddingSettings,
 )
@@ -115,33 +115,34 @@ async def test_failed_load_is_not_cached_and_no_registry_means_private() -> None
 class _FakeTextEmbedding:
     loads: list[str] = []
 
-    def __init__(self, model_name: str) -> None:
-        self.model_name = model_name
-        _FakeTextEmbedding.loads.append(model_name)
+    def __init__(self, spec: Any, **kwargs: Any) -> None:
+        from memspine.clients.weights.onnx_catalogue import CATALOGUE
+        self.model_name = next(name for name, candidate in CATALOGUE.items() if candidate == spec)
+        _FakeTextEmbedding.loads.append(self.model_name)
 
-    def embed(self, texts: list[str]) -> list[list[float]]:
+    def embed(self, texts: list[str], **kwargs: Any) -> list[list[float]]:
         dim = 768 if "base" in self.model_name else 384
         return [[float(len(text)), *([1.0] * (dim - 1))] for text in texts]
 
 
 @pytest.fixture
-def fake_fastembed(monkeypatch: pytest.MonkeyPatch) -> list[str]:
-    import fastembed
+def fake_onnx(monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    from memspine.clients.weights import onnx
 
     _FakeTextEmbedding.loads = []
-    monkeypatch.setattr(fastembed, "TextEmbedding", _FakeTextEmbedding)
+    monkeypatch.setattr(onnx, "OnnxModel", _FakeTextEmbedding)
     return _FakeTextEmbedding.loads
 
 
-async def test_fastembed_weights_shared_across_engines_caches_stay_per_engine(
-    fake_fastembed: list[str],
+async def test_onnx_weights_shared_across_engines_caches_stay_per_engine(
+    fake_onnx: list[str],
 ) -> None:
     register()
-    builder = EMBEDDERS.get("fastembed").builder
+    builder = EMBEDDERS.get("onnx").builder
     engine_a, engine_b = _engine(), _engine()
-    built_a = await builder.build(FastembedEmbeddingSettings(), _shared(engine_a))
+    built_a = await builder.build(OnnxEmbeddingSettings(), _shared(engine_a))
     built_b = await builder.build(
-        FastembedEmbeddingSettings(query_instruction="q: "), _shared(engine_b)
+        OnnxEmbeddingSettings(query_instruction="q: "), _shared(engine_b)
     )
     assert engine_a.states and engine_b.states  # each Engine owns its own lease release
     kv_a, kv_b = MemoryKV(), MemoryKV()
@@ -150,7 +151,7 @@ async def test_fastembed_weights_shared_across_engines_caches_stay_per_engine(
 
     await cached_a.embed(["hello"])
     await cached_b.embed(["hello"])
-    assert fake_fastembed == ["BAAI/bge-small-en-v1.5"]  # one load for both Engines
+    assert fake_onnx == ["BAAI/bge-small-en-v1.5"]  # one load for both Engines
     # Results are never shared: Engine B missed even though A embedded the same text.
     assert (cached_a.misses, cached_b.misses, cached_b.hits) == (1, 1, 0)
     assert kv_a._data.keys() == kv_b._data.keys() and kv_a._data is not kv_b._data
@@ -158,27 +159,27 @@ async def test_fastembed_weights_shared_across_engines_caches_stay_per_engine(
     await cached_a.warm()  # forwards to the shared weights, never fills the cache
     assert len(kv_a._data) == 1
     assert (await engine_a.close_all()).complete
-    assert _held("model.embedding.fastembed") == [1]  # Engine B still holds the weights
+    assert _held("model.embedding.onnx") == [1]  # Engine B still holds the weights
     assert len(await cached_b.embed(["still served"])) == 1
     assert (await engine_b.close_all()).complete
-    assert _held("model.embedding.fastembed") == []
+    assert _held("model.embedding.onnx") == []
 
 
-async def test_different_embedder_settings_load_separately(fake_fastembed: list[str]) -> None:
+async def test_different_embedder_settings_load_separately(fake_onnx: list[str]) -> None:
     register()
-    builder = EMBEDDERS.get("fastembed").builder
+    builder = EMBEDDERS.get("onnx").builder
     engine = _engine()
-    small = await builder.build(FastembedEmbeddingSettings(), _shared(engine))
+    small = await builder.build(OnnxEmbeddingSettings(), _shared(engine))
     other = _engine()
     base = await builder.build(
-        FastembedEmbeddingSettings(model="BAAI/bge-base-en-v1.5"), _shared(other)
+        OnnxEmbeddingSettings(model="BAAI/bge-base-en-v1.5"), _shared(other)
     )
     await small.service.embed(["x"])
     await base.service.embed(["x"])
-    assert fake_fastembed == ["BAAI/bge-small-en-v1.5", "BAAI/bge-base-en-v1.5"]
+    assert fake_onnx == ["BAAI/bge-small-en-v1.5", "BAAI/bge-base-en-v1.5"]
     await engine.close_all()
     await other.close_all()
-    assert _held("model.embedding.fastembed") == []
+    assert _held("model.embedding.onnx") == []
 
 
 async def test_st_weight_key_excludes_prompts_and_includes_device(
@@ -333,10 +334,10 @@ async def test_llamacpp_native_options_separate_loads(fake_llama: type[_FakeLlam
 # -- rerankers -------------------------------------------------------------------------------
 
 
-async def test_fastembed_reranker_shared_across_engines_with_warm_hook(
+async def test_onnx_reranker_shared_across_engines_with_warm_hook(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    import fastembed.rerank.cross_encoder as cross_encoder
+    from memspine.clients.weights import onnx as cross_encoder
 
     from memspine.providers.rerank import RerankSettings, build_reranker_result
 
@@ -345,19 +346,19 @@ async def test_fastembed_reranker_shared_across_engines_with_warm_hook(
     lock = threading.Lock()
 
     class FakeCrossEncoder:
-        def __init__(self, model_name: str) -> None:
-            loads.append(model_name)
+        def __init__(self, spec: Any, **kwargs: Any) -> None:
+            loads.append(spec.repo)
 
-        def rerank(self, query: str, documents: list[str]) -> list[float]:
+        def rerank(self, query: str, documents: list[str], **kwargs: Any) -> list[float]:
             with lock:
                 scored.append(query)
             return [float(len(d)) for d in documents]
 
-    monkeypatch.setattr(cross_encoder, "TextCrossEncoder", FakeCrossEncoder)
+    monkeypatch.setattr(cross_encoder, "OnnxModel", FakeCrossEncoder)
     engine_a, engine_b = _engine(), _engine()
     built = [
         await build_reranker_result(
-            RerankSettings(mode="fastembed"), RerankerBuildContext(_shared(engine))
+            RerankSettings(mode="onnx"), RerankerBuildContext(_shared(engine))
         )
         for engine in (engine_a, engine_b)
     ]
@@ -371,22 +372,22 @@ async def test_fastembed_reranker_shared_across_engines_with_warm_hook(
     await engine_a.close_all()
     assert await services[1].rerank("q", ["abc"]) == [3.0]
     await engine_b.close_all()
-    assert _held("model.reranker.fastembed") == []
+    assert _held("model.reranker.onnx") == []
 
 
 async def test_standalone_reranker_build_stays_private(monkeypatch: pytest.MonkeyPatch) -> None:
-    import fastembed.rerank.cross_encoder as cross_encoder
+    from memspine.clients.weights import onnx as cross_encoder
 
     from memspine.providers.rerank import RerankSettings, build_reranker
 
     monkeypatch.setattr(
         cross_encoder,
-        "TextCrossEncoder",
-        lambda model_name: types.SimpleNamespace(rerank=lambda q, d: [1.0] * len(d)),
+        "OnnxModel",
+        lambda spec, **kwargs: types.SimpleNamespace(rerank=lambda q, d, **kw: [1.0] * len(d)),
     )
-    reranker = await build_reranker(RerankSettings(mode="fastembed"))
+    reranker = await build_reranker(RerankSettings(mode="onnx"))
     assert reranker is not None and await reranker.rerank("q", ["x"]) == [1.0]
-    assert _held("model.reranker.fastembed") == []
+    assert _held("model.reranker.onnx") == []
 
 
 # -- OpenDecider -----------------------------------------------------------------------------

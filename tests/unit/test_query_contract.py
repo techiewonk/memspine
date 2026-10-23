@@ -264,7 +264,7 @@ async def test_rerank_hint_reaches_the_reranker_only_when_asked(
     for use in (["header"], ["header", "rerank"]):
         eng = _engine(
             monkeypatch,
-            reranker="fastembed",
+            reranker="onnx",
             query_contract="heuristic",
             query_contract_use=use,
         )

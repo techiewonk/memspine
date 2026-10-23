@@ -1,10 +1,10 @@
 """model2vec static-embedding provider (E4, ``[static]`` extra, ADR-020).
 
 Static embeddings are a distilled lookup table — no transformer forward pass, so
-they embed on CPU orders of magnitude faster than fastembed at a quality cost.
+they embed on CPU orders of magnitude faster than onnx at a quality cost.
 E4 uses them as an OPT-IN prefilter: a cheap first pass narrows the candidate
 set before the real embedder + float32 rescore do the precise work. Never the
-production default (that is fastembed, D-08).
+production default (that is onnx, D-08).
 
 The extra is checked at construction (like the flashrank reranker) so a missing
 ``[static]`` fails fast with the D-10 fix-hint when chosen as a *provider*; as

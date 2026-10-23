@@ -79,7 +79,7 @@ def main() -> None:
     a = ap.parse_args()
     if a.provider == "dml" and a.device_id == 0:
         sys.exit("refusing DML device 0 (NVIDIA, busy)")
-    if a.provider == "dml":  # DirectML-recommended session options (fastembed does not set them)
+    if a.provider == "dml":  # DirectML-recommended session options (onnx does not set them)
         import onnxruntime as ort
 
         _orig = ort.InferenceSession.__init__
@@ -99,16 +99,11 @@ def main() -> None:
         else [("DmlExecutionProvider", {"device_id": a.device_id}), "CPUExecutionProvider"]
     )
     t0 = time.perf_counter()
-    if a.kind == "embed":
-        from fastembed import TextEmbedding
+    from memspine.clients.weights.onnx import OnnxModel
+    from memspine.clients.weights.onnx_catalogue import resolve_model_spec
 
-        m = TextEmbedding(model_name=a.model, providers=provs)
-        sess = m.model.model
-    else:
-        from fastembed.rerank.cross_encoder import TextCrossEncoder
-
-        m = TextCrossEncoder(model_name=a.model, providers=provs)
-        sess = m.model.model
+    m = OnnxModel(resolve_model_spec(a.model), providers=provs)
+    sess = m.session
     load_s = time.perf_counter() - t0
     texts = make_texts()
     query = "When does the ferry to the island leave and who drinks oat milk?"

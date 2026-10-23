@@ -64,7 +64,7 @@ _NAME_BY_TIER = {v: k for k, v in TIER_BY_NAME.items()}
 RERANK_MODE: dict[str, str] = {
     "jina-v3.5": "jina",
     "qwen3-reranker-0.6b": "qwen3",
-    "minilm": "fastembed",
+    "minilm": "onnx",
 }
 
 #: Estimated sizes of the owner-chosen reranker chain (Jina v3.5, Qwen3-Reranker-0.6B, MiniLM CPU).
