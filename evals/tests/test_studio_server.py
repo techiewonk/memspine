@@ -8,6 +8,7 @@ import os
 import subprocess
 import sys
 import threading
+from collections import deque
 from pathlib import Path
 
 import pytest
@@ -75,6 +76,17 @@ class Client:
             cwd=str(tmp),
         )
         self._id = 0
+        # The HTTP stub exercises real httpx logging. Drain stderr continuously:
+        # a full Windows pipe otherwise deadlocks the child before its JSON reply.
+        self._stderr: deque[str] = deque(maxlen=200)
+
+        def drain() -> None:
+            assert self.proc.stderr is not None
+            for line in self.proc.stderr:
+                self._stderr.append(line)
+
+        self._drainer = threading.Thread(target=drain, daemon=True)
+        self._drainer.start()
         self.dog = threading.Timer(600, self.proc.kill)
         self.dog.start()
 
@@ -91,9 +103,7 @@ class Client:
         if note:
             return None
         line = self.proc.stdout.readline()
-        assert line, "server closed stdout: " + (
-            self.proc.stderr.read() if self.proc.poll() is not None else ""
-        )
+        assert line, "server closed stdout: " + "".join(self._stderr)
         reply = json.loads(line)  # a non-JSON line on stdout would fail here
         assert reply["id"] == self._id
         return reply
@@ -118,6 +128,7 @@ class Client:
             self.proc.wait(timeout=60)
         except Exception:
             self.proc.kill()
+        self._drainer.join(timeout=1)
 
 
 @pytest.fixture(scope="module")

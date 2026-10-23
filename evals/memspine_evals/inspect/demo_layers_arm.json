@@ -68,7 +68,7 @@
     "provider": "openai_compatible",
     "timeout_s": 180.0,
     "settings": {
-     "model": "stub/window"
+     "model": "stub/window", "api_base": "http://localhost:8000/v1"
     }
    }
   },
