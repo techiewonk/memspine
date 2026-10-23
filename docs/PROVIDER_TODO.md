@@ -557,7 +557,7 @@ select different models; only identical effective resources share ownership.
 
 ## Progress log
 
-2026-10-23 — Claude: handed the session to Codex (see the 2026-10-23 handoff section). Landed today: RM-117 model slots, RM-118, RM-02, RM-112 (S3, Weaviate, MongoDB records + GridFS), RM-119 managed mongod, RM-120 graph mirror removed, RM-113 item 18, RM-96 pushdown walks; new open rows RM-121 and RM-122; RM-15 unblocked (RM-02 done). Hugging Face Hub 2.x upgrade was in flight on an agent branch at hand-off (task transfer T-07).
+2026-10-23 — Claude: handed the session to Codex (see the 2026-10-23 handoff section). Landed today: RM-117 model slots, RM-118, RM-02, RM-112 (S3, Weaviate, MongoDB records + GridFS), RM-119 managed mongod, RM-120 graph mirror removed, RM-113 item 18, RM-96 pushdown walks; new open rows RM-121 and RM-122; RM-15 unblocked (RM-02 done). Hugging Face Hub 2.x is blocked upstream: fastembed 0.9.0 and litellm 1.106.2 still cap it below 2.0 (documented in PYTHON313_DEPENDENCIES.md; task transfer T-07).
 
 2026-10-22 — Claude: implemented the semantic registry contracts in f17e476b (pure data, no extraction runtime): RM-45/46/47/48/51/52/53/57 contracts and RM-50, RM-58..RM-61 vocabulary in the default memspine.core pack (77 predicates/63 keys/33 roles); RM-62/RM-63 families in a packaged memspine.proposed pack, not active by default. RM-53, RM-58, RM-61 DONE for registry scope; others remain IN_PROGRESS for BI-06/BI-08 runtime work.
 
