@@ -1255,6 +1255,9 @@ async def preflight_projection_bindings(
             binding.projector_name == "vectors"
             and not config.model.embedding.versioned_spaces
             and binding.source_provider is None
+            # Adoption is safe only for backends preserving the original physical target.
+            # Other providers (for example Weaviate) need a verified rebuild/switch.
+            and config.storage.vector.provider in {"lancedb", "pgvector"}
         ):
             effective = resolved_embedding(config)
             if effective.provider == "onnx":
