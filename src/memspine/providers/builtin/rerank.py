@@ -24,7 +24,7 @@ from memspine.config.schema.providers import (
     Qwen3RerankerSettings,
 )
 from memspine.providers.contexts import SharedBuildContext
-from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef
+from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef, ResourceRef
 from memspine.providers.registry import RERANKERS, ProviderDescriptor
 from memspine.providers.shared import ResourceRegistry
 from memspine.services.base import CapabilityManifest
@@ -150,7 +150,7 @@ class _RerankerBuilder:
 
         http_ref = await share_model_http(service, shared, f"reranker.http:{self.ref.name}")
         release = getattr(service, "aclose", None)
-        refs = (
+        refs: tuple[ResourceRef, ...] = (
             (shared.resources.own(
                 f"reranker.weights:{self.ref.name}", release,
                 depends_on=() if http_ref is None else (http_ref.resource_id,),

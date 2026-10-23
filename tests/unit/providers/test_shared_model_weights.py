@@ -154,7 +154,8 @@ async def test_onnx_weights_shared_across_engines_caches_stay_per_engine(
     assert fake_onnx == ["BAAI/bge-small-en-v1.5"]  # one load for both Engines
     # Results are never shared: Engine B missed even though A embedded the same text.
     assert (cached_a.misses, cached_b.misses, cached_b.hits) == (1, 1, 0)
-    assert kv_a._data.keys() == kv_b._data.keys() and kv_a._data is not kv_b._data
+    assert kv_a._data is not kv_b._data
+    assert set(kv_a._data).isdisjoint(kv_b._data)  # instruction-specific space identities
 
     await cached_a.warm()  # forwards to the shared weights, never fills the cache
     assert len(kv_a._data) == 1

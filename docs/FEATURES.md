@@ -158,7 +158,7 @@ rows inspectable — never feed its output straight to a context window.
 | **E5** | assembly-time context compression | opt-in | `read.compression: {assembly: true}` + `memspine[compress]` |
 | **E6** | plan & tool-value caching → procedural plans | on by default (with procedural) | `record_plan` / `recall_plan` |
 | **E7** | sleep-time compute | reserved hook | 4th `sleep()` cycle slot (no-op default) |
-| **E8** | retrieval-quality stages — cross-encoder rerank + static prefilter | opt-in | `model.rerank.chain: [{provider: onnx}]` (or `flashrank`, `litellm`, `jina`, `qwen3`; `flashrank` needs `memspine[rerank]`; `litellm` needs `settings.model`); `read.static_prefilter: true` |
+| **E8** | retrieval-quality stages — cross-encoder rerank + static prefilter | opt-in | `model.rerank.chain: [{provider: onnx}]` (or `flashrank`, `openai_compatible`, `jina`, `qwen3`; `flashrank` needs `memspine[rerank]`; `openai_compatible` needs `settings.model`); `read.static_prefilter: true` |
 | **E9** | token micro-optimizations — YAML/CoD prompt formats + always-on `json-repair` | on by default | prompt `format` per prompt |
 
 **Defaults are safe:** with the shipped config, E5 and E8 are off and results are
@@ -204,7 +204,7 @@ storage:
 model:
   rerank:
     chain:                   # [] = off; first entry that builds and works wins
-      - {provider: onnx, settings: {}}   # or flashrank [rerank] | litellm | jina / qwen3 [st]
+      - {provider: onnx, settings: {}}   # or flashrank [rerank] | openai_compatible | jina / qwen3 [st]
 read:
   hybrid: true               # fuse vector + lexical BM25 via RRF (D-25)
   static_prefilter: true     # cheap lexical-overlap gate (post-vector)
@@ -271,8 +271,8 @@ truth. Startup selects the configured adapter; existing data needs a controlled 
 | Graph | `storage.graph.provider` | `auto` chooses a compatible local graph · `sql_adjacency` · `ladybug` `[graph]` · direct `neo4j` `[neo4j]` (real-server gate pending). One graph client runs at a time; the optional Neo4j mirror slot (`storage.graph_mirror`) was removed (ADR-081 amendment 2026-10-23) |
 | Cache / KV | `storage.cache.provider` | `memory` (default) · `disk` · `redis` · `valkey` (external caches need `[cache]`) |
 | Lexical (hybrid leg) | `storage.lexical.provider` | `tantivy` (core) · `opensearch` · `weaviate` |
-| Embedding | `model.embedding.provider` | `onnx` (default) · `hash` · `static` `[static]` · `litellm` (cloud; `settings.dim` required) |
-| LLM (per role) | `model.llm.<role>` (`provider`, `timeout_s`, `settings`) | Explicit `litellm`, `ollama`, `vllm`, `bedrock` (RM-113: own descriptors over the LiteLLM connector) or `llamacpp` adapter; `timeout_s` is required at the slot root, the model ID belongs in `settings`. A role not listed is off. Plugins may register other adapters. |
+| Embedding | `model.embedding.provider` | `onnx` (default) · `hash` · `static` `[static]` · `openai_compatible` (cloud; `settings.dim` required) |
+| LLM (per role) | `model.llm.<role>` (`provider`, `timeout_s`, `settings`) | Explicit `openai_compatible`, `ollama`, `vllm`, `lmstudio`, `llamacpp_server`, `bedrock` (`[aws]`) and `anyllm` (`[anyllm]`) or `llamacpp` adapter; `timeout_s` is required at the slot root, the model ID belongs in `settings`. A role not listed is off. Plugins may register other adapters. |
 | Reranker | `model.rerank.chain` | List of `{provider, settings}`; the first entry that builds and works wins, `[]` is off. Shares provider validation and lifecycle. |
 | Extraction (GLiNER) | `model.extraction.<consumer>` | `semantic`, `prepass`, `topic`, `sensitivity`; provider `gliner2` `[ner]`. A consumer not listed is off. |
 | Decider | `model.decider.route` / `model.decider.read` | `heuristic` · `opendecider` `[decider]` · `gliner2` `[ner]`; `read` absent = the heuristic rules. |

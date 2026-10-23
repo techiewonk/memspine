@@ -89,7 +89,7 @@ class _EmbeddingBuilder:
 
         http_ref = await share_model_http(service, ctx, f"embedding.http:{self.ref.name}")
         release = getattr(service, "aclose", None)
-        refs = (
+        refs: tuple[ResourceRef, ...] = (
             (ctx.resources.own(
                 f"embedding.weights:{self.ref.name}", release,
                 depends_on=() if http_ref is None else (http_ref.resource_id,),

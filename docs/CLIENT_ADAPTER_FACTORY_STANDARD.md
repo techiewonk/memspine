@@ -72,17 +72,21 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | model.embedding | onnx | ✅ `clients/weights/onnx` | ✅ `services/embedding/onnx.py` | ✅ `providers/builtin/models.py` | ✅ | ADR-084; pinned catalogue, parity fixtures, metadata adoption |
 | model.embedding | sentence_transformers | ✅ `clients/weights/sentence_transformers` | ✅ `services/embedding/st.py` | ✅ | ✅ | F (fa543ba0) |
 | model.embedding | static (model2vec) | ✅ `clients/weights/model2vec` | ✅ `services/embedding/static.py` | ✅ | ✅ | F (fa543ba0) |
-| model.embedding | litellm | ✅ `clients/litellm` | ✅ `services/embedding/litellm.py` | ✅ | ✅ | F (fa543ba0) |
+| model.embedding | openai_compatible | ✅ `clients/openai_compat` | ✅ `services/embedding/openai_compat.py` | ✅ | ✅ | ADR-085; HTTP transport tests |
 | model.embedding | hash | n/a | ✅ `services/embedding/hash.py` | ✅ | ✅ | F (fa543ba0) |
-| model.llm | litellm | ✅ `clients/litellm` | ✅ `services/llm/litellm.py` | ✅ | ✅ | F (fa543ba0) |
-| model.llm | ollama | ✅ `clients/litellm` | ✅ `services/llm/litellm.py` | ✅ own descriptor (route fixed by the descriptor) | ✅ | F (fa543ba0) |
-| model.llm | vllm | ✅ `clients/litellm` | ✅ `services/llm/litellm.py` | ✅ own descriptor | ✅ | F (fa543ba0) |
-| model.llm | bedrock | ✅ `clients/litellm` | ✅ `services/llm/litellm.py` | ✅ own descriptor | ✅ | F (fa543ba0) |
+| model.llm | openai_compatible | ✅ `clients/openai_compat` | ✅ `services/llm/openai_compat.py` | ✅ | ✅ | ADR-085; HTTP transport tests |
+| model.llm | ollama | ✅ `clients/openai_compat` | ✅ `services/llm/openai_compat.py` | ✅ own descriptor (route fixed by the descriptor) | ✅ | ADR-085; HTTP transport tests |
+| model.llm | vllm | ✅ `clients/openai_compat` | ✅ `services/llm/openai_compat.py` | ✅ own descriptor | ✅ | ADR-085; HTTP transport tests |
+| model.llm | bedrock | ✅ `clients/bedrock` | ✅ `services/llm/openai_compat.py` | ✅ own descriptor | ✅ | ADR-085; boto3 [aws] |
+| model.llm | lmstudio / llamacpp_server | ? `clients/openai_compat` | ? `services/llm/openai_compat.py` | ? presets | ? | ADR-085 |
+| model.llm | anyllm | ? `clients/anyllm` | ? `services/llm/openai_compat.py` | ? optional `[anyllm]` | ? | ADR-085; fake provider and missing-extra tests |
+| model.embedding | bedrock | ? `clients/bedrock` | ? `services/embedding/openai_compat.py` | ? | ? | ADR-085; Stubber |
+| model.rerank | bedrock | ? `clients/bedrock` | ? `services/rerank/openai_compat.py` | ? | ? | ADR-085; Stubber |
 | model.llm | llamacpp | ✅ `clients/weights/llama_cpp` | ✅ `services/llm/llamacpp.py` | ✅ | ✅ | F (fa543ba0) |
 | model.rerank | onnx | ✅ `clients/weights/onnx` | ✅ `services/rerank/onnx.py` | ✅ one factory `providers/builtin/rerank.py` | ✅ | ADR-084; pinned catalogue, parity fixtures, metadata adoption |
 | model.rerank | flashrank | ✅ `clients/weights/flashrank` | ✅ `services/rerank/flashrank.py` | ✅ one factory | ✅ | F (fa543ba0) |
 | model.rerank | qwen3 / jina | ✅ `clients/weights/transformers` | ✅ `services/rerank/{qwen3,jina}.py` | ✅ one factory | ✅ | F (fa543ba0) |
-| model.rerank | litellm | ✅ `clients/litellm` | ✅ `services/rerank/litellm.py` | ✅ one factory | ✅ | F (fa543ba0) |
+| model.rerank | openai_compatible | ✅ `clients/openai_compat` | ✅ `services/rerank/openai_compat.py` | ✅ one factory | ✅ | ADR-085; HTTP transport tests |
 | model.extraction | gliner2 | ✅ `clients/weights/gliner2` (the only `snapshot_download`) | ✅ `services/extraction` (port `base.py`, pool `gliner2.py`) | ✅ `extraction` descriptor, container builds through it | ✅ | F (fa543ba0) |
 | model.decider | opendecider | ✅ `clients/weights/opendecider` | ✅ `services/decider/opendecider_nano.py` | ✅ `decider` descriptor via `providers/decider.py`; slot `model.decider.read` | ✅ | F (fa543ba0), RM-117 |
 | model.decider | gliner2 | ✅ leases the extraction pool (one load shared with the extraction consumers) | ✅ `services/decider/gliner2_decision.py` | ✅ `decider` descriptor; slot `model.decider.route` (own `min_confidence` floor; `workers` must stay 1, concurrency is the pool's `inference_concurrency`); read slot not implemented | ✅ | F (fa543ba0), RM-117 |

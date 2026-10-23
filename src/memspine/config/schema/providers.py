@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import Literal
 
-from pydantic import Field, JsonValue, model_validator
+from pydantic import Field, JsonValue, field_validator, model_validator
 
 from memspine.config import constants
 from memspine.providers.settings import (
@@ -297,8 +297,13 @@ class OnnxEmbeddingSettings(StrictSettings):
     local_files_only: bool = False
     threads: int = Field(default=0, ge=0)
     batch_size: int = Field(default=32, ge=1)
-    providers: tuple[str, ...] = ("CPUExecutionProvider",)
+    providers: tuple[str, ...] = Field(default=("CPUExecutionProvider",), min_length=1)
     model_spec: dict[str, JsonValue] | None = None
+
+    @field_validator("providers", mode="before")
+    @classmethod
+    def _provider_list(cls, value: object) -> object:
+        return tuple(value) if isinstance(value, list) else value
 
     @model_validator(mode="after")
     def _dimension_matches_known_model(self) -> OnnxEmbeddingSettings:
@@ -417,8 +422,13 @@ class OnnxRerankerSettings(StrictSettings):
     local_files_only: bool = False
     threads: int = Field(default=0, ge=0)
     batch_size: int = Field(default=32, ge=1)
-    providers: tuple[str, ...] = ("CPUExecutionProvider",)
+    providers: tuple[str, ...] = Field(default=("CPUExecutionProvider",), min_length=1)
     model_spec: dict[str, JsonValue] | None = None
+
+    @field_validator("providers", mode="before")
+    @classmethod
+    def _provider_list(cls, value: object) -> object:
+        return tuple(value) if isinstance(value, list) else value
 
     @model_validator(mode="after")
     def _score_head(self) -> OnnxRerankerSettings:

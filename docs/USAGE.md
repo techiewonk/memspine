@@ -947,51 +947,9 @@ storage:
       request_timeout_s: 5.0
 ```
 
-**LLM: local → cloud/Bedrock** — each role is a slot `model.llm.<role>` that names
-its adapter explicitly. The selected descriptor validates `settings`; a model-name
-prefix never selects another MemSpine adapter. LiteLLM itself accepts its usual
-model IDs. `timeout_s` is required on every role (`settings.timeout_seconds` is
-rejected).
-```yaml
-model:
-  llm:
-    extract:
-      provider: litellm
-      timeout_s: 30.0
-      settings:
-        model: ollama/llama3
-        api_base: http://localhost:11434
-        temperature: 0.0
-        max_tokens: 2048
-    judge:
-      provider: litellm
-      timeout_s: 30.0
-      settings:
-        model: bedrock/anthropic.claude-3-5-sonnet-20241022-v2:0
-        aws_region: us-east-1
-```
-LiteLLM defaults to `temperature: 0.2`, `top_p: 1.0`, and `max_tokens: 2048`.
-`llamacpp` defaults to `temperature: 0.8`, `top_p: 0.95`, and `max_tokens: 2048`;
-its native settings also include `n_ctx: 8192`, `n_gpu_layers: 0`, and
-`n_batch: 512`. Each role can override its provider's defaults in `settings`,
-and explicit per-call generation options take precedence. Use `provider: llamacpp`
-for the in-process adapter. Pinned plugins can declare
-their own settings schema, including options unrelated to a model ID. A role
-without `provider` or `timeout_s` is invalid; a role that is not listed is off.
-Tiered LLM catalogue declarations (`model.placement.catalogue`) also require an
-explicit `timeout_seconds`; role binding does not silently extend that deadline.
-Shared/remote adapters require an explicit `deployment.id`.
-
-RM-113: `ollama`, `vllm` and `bedrock` are their own LLM providers over the same LiteLLM
-connector. Their `settings.model` is the bare model id; the provider adds the route
-(`ollama_chat/`, `hosted_vllm/`, `bedrock/`) and rejects a model id that repeats it.
-`litellm` keeps accepting any LiteLLM model id, unchanged.
-
-| Provider | Settings beyond the shared generation keys (`model`, `temperature`, `top_p`, `max_tokens`, `no_think`) | Local for `consent.remote_llm_max_tier` |
-|---|---|---|
-| `ollama` | `api_base` (default `http://localhost:11434`) | when `api_base` is a local host |
-| `vllm` | `api_base` (required, e.g. `http://host:8000/v1`), `api_key` | when `api_base` is a local host |
-| `bedrock` | `aws_region` (credentials from the boto3 chain) | never |
+**LLM: local ? OpenAI-compatible endpoints / Bedrock** ? every role selects an
+explicit provider and `timeout_s`. An unlisted role is off. Provider settings own
+`model`, sampling options, and endpoint configuration; use bare model IDs.
 
 ```yaml
 model:
@@ -999,20 +957,51 @@ model:
     extract:
       provider: ollama
       timeout_s: 30.0
-      settings: {model: "qwen3:8b"}
+      settings:
+        model: qwen3:8b
+        temperature: 0.0
+        max_tokens: 2048
+    judge:
+      provider: bedrock
+      timeout_s: 30.0
+      settings:
+        model: anthropic.claude-3-5-sonnet-20241022-v2:0
+        aws_region: us-east-1
 ```
 
-**Embedding: local → cloud (LiteLLM)** — a cloud embedder's output dimension is not
-locally discoverable, so `settings.dim` is **required** when `provider: litellm`.
+The HTTP adapters default to temperature 0.2, top_p 1.0 and max_tokens 2048.
+`llamacpp` remains the in-process adapter with its own generation/native defaults.
+Per-call generation options override role defaults. Shared/remote adapters require
+an explicit `deployment.id`; install `[aws]` for Bedrock. Health never calls a model.
+
+| Provider | Endpoint / credentials | Behavior |
+|---|---|---|
+| `openai_compatible` | required `settings.api_base`; optional `api_key_env` | OpenAI chat and embeddings; explicit schema/grammar capability flags |
+| `ollama` | `http://localhost:11434` by default | native `/api/chat`, schema translated to `format`, Qwen no-thinking switch preserved |
+| `vllm` | required `settings.api_base` | OpenAI-compatible chat/embeddings, vLLM rerank |
+| `lmstudio` | `http://localhost:1234/v1` by default | OpenAI-compatible chat |
+| `llamacpp_server` | `http://localhost:8080/v1` by default | OpenAI-compatible chat |
+| `bedrock` | `aws_region`, boto3 credential chain | Converse, embeddings and rerank via `[aws]` |
+| `anyllm` | `upstream_provider`, optional `api_key_env` / `api_base` | hosted LLM providers via `[anyllm]`; install the upstream SDK extra separately |
+
+The removed `litellm` provider is rejected with a rewrite hint. Migrate JSON/YAML
+configs with `python scripts/migrate_config_keys_adr085.py config.yaml` (`--check`
+detects pending changes). For example `ollama/llama3` becomes provider `ollama`
+with model `llama3`; `bedrock/...` becomes `bedrock`; OpenAI-compatible endpoints
+need an explicit `api_base`, and other hosted routes become `anyllm`.
+
+**Embedding: local ? hosted** ? endpoint dimensions must be configured explicitly.
+
 ```yaml
 model:
   embedding:
-    provider: litellm
+    provider: openai_compatible
     settings:
-      model: openai/text-embedding-3-small
+      model: text-embedding-3-small
+      api_base: https://api.openai.com/v1
+      api_key_env: OPENAI_API_KEY
       dim: 1536
       request_timeout_s: 30.0
-      # api_base / api_key / aws_region as your provider needs
 ```
 
 **Secrets: env → AWS Secrets Manager** *(needs `memspine[aws]`)* — secrets resolve
@@ -1033,8 +1022,8 @@ storage:
 model:
   rerank:
     chain:                     # [] (default) = off; the first entry that builds and works wins
-      - {provider: onnx, settings: {}}   # onnx | flashrank [rerank] | litellm | jina [st] | qwen3 [st]
-    # - {provider: litellm, settings: {model: cohere/rerank-english-v3.0}}
+      - {provider: onnx, settings: {}}   # onnx | flashrank [rerank] | openai_compatible | jina [st] | qwen3 [st]
+    # - {provider: openai_compatible, settings: {model: rerank-english-v3.0, api_base: https://api.cohere.com/v2, request_timeout_s: 30.0}}
 ```
 
 ### Model slots
@@ -1044,7 +1033,7 @@ counterpart of the `storage` slots. One slot per category:
 
 | Slot | What it selects | Off when |
 |---|---|---|
-| `model.embedding` | the embedder (`onnx` default, `hash`, `static`, `litellm`, `st`) | never (always built) |
+| `model.embedding` | the embedder (`onnx` default, `hash`, `static`, `openai_compatible`, `st`) | never (always built) |
 | `model.llm.<role>` | the LLM of one prompt role (`extract`, `judge`, `chat`, ...) | the role is not listed |
 | `model.rerank` | a reranker chain plus the rerank behaviour keys | `chain: []` (default) |
 | `model.extraction.<consumer>` | a GLiNER (or other extraction) model for `semantic`, `prepass`, `topic`, `sensitivity` | the consumer is not listed |
@@ -1091,7 +1080,7 @@ model:
     settings: {model: BAAI/bge-small-en-v1.5}
   llm:
     extract:
-      provider: litellm
+      provider: openai_compatible
       timeout_s: 60
       structured: {retry_on_error: true, constrained_retry: false}
       escalation:
@@ -1100,7 +1089,7 @@ model:
         timeout_s: 120
         max_tokens_per_attempt: 2048
         targets:
-          - {provider: litellm, timeout_s: 120, settings: {model: ollama/qwen3.5:27b}}
+          - {provider: openai_compatible, timeout_s: 120, settings: {model: qwen3.5:27b}}
       settings: {model: ollama/qwen3.5:9b, api_base: http://localhost:11434}
     judge:
       provider: llamacpp
@@ -1272,7 +1261,7 @@ in the schema — or if the schema gains a key not documented here.
 | `model.embedding.migrate_preset` | `false` | MD-02 (was `embedding.migrate_profile`): accept a preset change on open (the pin is replaced, the old hash kept as `previous`). Needs `model.embedding.versioned_spaces`; run `VersionedSpaceStore.reembed` (F-03) to move the old records. |
 | `model.embedding.pin_preset` | `false` | MD-02 (was `embedding.pin_profile`): write the resolved embedding preset (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and refuse to open the store with a different one. Off = nothing written or checked. In-memory stores pin nothing. |
 | `model.embedding.preset` | `null` | MD-02 (was `embedding.profile` and `models.embedder_profile`): a shipped embedding preset that fills provider, model, dim and query instruction. `gpu` = Qwen3-Embedding-0.6B, 1024 dims, bf16 on CUDA, with the evals retrieval instruction (`[st]`); `cpu_multilingual` = paraphrase-multilingual-MiniLM-L12-v2 (ONNX, 384 dims, onnx). Null (`auto`) = the slot fields are used as written. |
-| `model.embedding.provider` | `onnx` | D-08: `onnx` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud; `settings.dim` required) \| `st` (sentence-transformers, `[st]`). |
+| `model.embedding.provider` | `onnx` | D-08: `onnx` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `openai_compatible` (cloud; `settings.dim` required) \| `st` (sentence-transformers, `[st]`). |
 | `model.embedding.settings` | `{}` | Provider-owned settings (model id, dim, api_base, ...), validated by the selected provider's descriptor. |
 | `model.embedding.versioned_spaces` | `false` | F-03 (P-25 C): version the vector space. Each vector belongs to a space (embedder model, dim, dtype, query instruction, normalisation); after an embedder change new writes go to the new space, reads query only a namespace's active space, and `reembed` builds the new space in batches and switches atomically. Off = one table per embedder, unchanged. |
 | `model.extraction.prepass` | `null` | ADR-082 (was the `gliner_prepass` binding): the GLiNER slot of `write.prepass: gliner` (which raises naming this slot when it is absent). `{provider: gliner2, settings}`; the model needs task `entities`. |
@@ -1280,7 +1269,7 @@ in the schema — or if the schema gains a key not documented here.
 | `model.extraction.sensitivity` | `null` | ADR-082 (RM-99; was the `gliner_sensitivity` binding): the opt-in GLiNER sensitivity labeller, on whenever the slot is set. Needs task `entities` and `settings.local_files_only: true` (offline only). |
 | `model.extraction.topic` | `null` | ADR-082 (RM-106; was the `gliner_topic` binding + `models.topic`): the opt-in GLiNER topic tagger, on whenever the slot is set. Needs task `classification` and `settings.local_files_only: true` (offline only). Typed keys: `labels` (free topic label -> hierarchical domain id, `{cinema: media/film}`, added to the pack-domain labels; a target that is not a domain id fails config load) and `min_confidence` (default `0.5`; a hit sets the domain only at or above it). |
 | `model.llm.*.escalation` | `null` | ADR-082 (was `models.escalation.<role>`): opt-in bounded retry ladder for one role. `targets` (ordered, unique inline LLM slots `{provider, timeout_s, settings}` tried after the primary; a target equal to the primary is an error), `triggers` (non-empty list of `error`, `empty`, `invalid_json`; default `[error]`), `max_attempts` (total including the primary; at least 2 with targets, at most 1 + targets; default 2), `timeout_s` (required, seconds per attempt), `max_tokens_per_attempt` (required). Every candidate keeps the consent gates; cancellation propagates. |
-| `model.llm.*.provider` | required | ADR-082 (was `llm.roles.<role>.provider`): explicit LLM provider for the role (`litellm`, `ollama`, `vllm`, `bedrock`, `llamacpp`, ...); model prefixes never select a provider. A role that is not listed is off. Roles must be known prompt or catalogue roles. |
+| `model.llm.*.provider` | required | ADR-082 (was `llm.roles.<role>.provider`): explicit LLM provider for the role (`openai_compatible`, `ollama`, `vllm`, `bedrock`, `llamacpp`, ...); model prefixes never select a provider. A role that is not listed is off. Roles must be known prompt or catalogue roles. |
 | `model.llm.*.settings` | `{}` | Provider-owned settings (`model`, `api_base`, `temperature`, `max_tokens`, `n_ctx`, ...) validated by the selected descriptor. `settings.timeout_seconds` is rejected: use `timeout_s`. |
 | `model.llm.*.structured.constrained_retry` | `false` | I69 (was `llm.structured.constrained_retry`): on that retry only, request JSON-schema constrained decoding (`response_format`; OpenAI-compatible servers, Ollama via LiteLLM, llama.cpp); a backend that refuses it falls back to a plain retry. Set per role. |
 | `model.llm.*.structured.retry_on_error` | `false` | I69 (was `llm.structured.retry_on_error`): when a structured reply fails validation, re-prompt ONCE with the validation error appended. Measure first with `engine.structured_stats()`. Set per role. |
@@ -1302,7 +1291,7 @@ in the schema — or if the schema gains a key not documented here.
 | `model.placement.tiers_v2` | `false` | MD-01 (P-01, P-02, P-03, P-15, P-19). Roles with no `model.llm.<role>` slot resolve through tier, placement and fallback; an explicit slot wins. A role no model serves gets no provider. Taps: `models.resolve`, `models.placement`, `models.rerank_chain`. `describe()["models"]` holds the plan. |
 | `model.rerank.balanced` | `false` | GR-15 (Graphiti's balanced shortlist): the pool cut before reranking takes each leg's best remaining hit in turn (vector, lexical, then the extra legs), so one leg cannot fill the pool. |
 | `model.rerank.blend` | `null` | N41: null = the reranker's relevance replaces the retrieval score. A weight `w` in [0, 1] blends them: `w * rerank + (1 - w) * retrieval`, each min-max normalised over the candidates. |
-| `model.rerank.chain` | `[]` | ADR-082 (was `read.rerank` + `read.rerank_settings` and `read.rerank_v2` + `rerank_v2_chain`): rerankers `{provider, settings}` in preference order; the first that builds and works wins, `[]` = off, one entry = a single reranker. Providers: `onnx` (ONNX/CPU MiniLM), `flashrank` (`[rerank]`), `litellm` (`settings.model`, e.g. `cohere/rerank-english-v3.0`), `jina` (`[st]`, Jina v3.5 listwise, CC-BY-NC weights), `qwen3` (`[st]`, Qwen3-Reranker-0.6B) — E8 cross-encoder (D-51). Unscored candidates stay unscored and follow the scored ones. Tap: `read.rerank.scored`. |
+| `model.rerank.chain` | `[]` | ADR-082 (was `read.rerank` + `read.rerank_settings` and `read.rerank_v2` + `rerank_v2_chain`): rerankers `{provider, settings}` in preference order; the first that builds and works wins, `[]` = off, one entry = a single reranker. Providers: `onnx` (ONNX/CPU MiniLM), `flashrank` (`[rerank]`), `openai_compatible` (`settings.model`, e.g. `cohere/rerank-english-v3.0`), `jina` (`[st]`, Jina v3.5 listwise, CC-BY-NC weights), `qwen3` (`[st]`, Qwen3-Reranker-0.6B) — E8 cross-encoder (D-51). Unscored candidates stay unscored and follow the scored ones. Tap: `read.rerank.scored`. |
 | `model.rerank.chunk_chars` | `null` | I9: `null` = a record longer than the reranker's context is cut and its tail dropped. N = records longer than N characters are scored in overlapping windows of N characters and take the MAX window score. |
 | `model.rerank.chunk_overlap` | `0` | I9: characters shared by neighbouring windows. |
 | `model.rerank.context` | `0` | N42: the reranker sees each candidate with this many neighbouring turns of its episodic session on each side (0–3). The stored record and the context shown to the reader are unchanged. |

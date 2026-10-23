@@ -7,6 +7,18 @@ from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 
 
+def test_execution_providers_accept_json_list_and_freeze_it() -> None:
+    from memspine.config.schema.providers import OnnxEmbeddingSettings, OnnxRerankerSettings
+    from pydantic import ValidationError
+
+    for settings in (OnnxEmbeddingSettings, OnnxRerankerSettings):
+        assert settings.model_validate({"providers": ["CPUExecutionProvider"]}).providers == (
+            "CPUExecutionProvider",
+        )
+        with pytest.raises(ValidationError):
+            settings.model_validate({"providers": []})
+
+
 @pytest.mark.parametrize("slot", ["embedding", "rerank"])
 def test_fastembed_rejected(slot: str) -> None:
     selection = {"provider": "fastembed", "settings": {}}
