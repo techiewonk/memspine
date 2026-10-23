@@ -35,6 +35,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import contextlib
 import datetime as dt
 import importlib
 import importlib.metadata
@@ -47,7 +48,7 @@ import statistics
 import tempfile
 import time
 import uuid
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Iterator, Sequence
 from functools import partial
 from pathlib import Path
 from types import SimpleNamespace
@@ -318,16 +319,37 @@ def _no_plan(*args: Any, **kwargs: Any) -> None:
     return None
 
 
-async def measure_pushdown(store: Any, seeds: Sequence[str], reps: int) -> dict[str, Any]:
-    """RM-96: the qualified walk with the filter compiled into its level queries (pushdown)
-    vs the shared level-by-level walk it replaces (``frontier_edges`` per level + the Python
-    filter, forced by disabling the adapter's plan), on the same store and seeds. Every
-    seed's result is checked identical (node ids, hop order, labels, properties) before
-    timing; ``walk_d<n>_queries`` counts the database queries of one walk (min..max)."""
+@contextlib.contextmanager
+def _shared_walk(store: Any) -> Iterator[None]:
+    """Force the adapter's shared-walk fallback (the path before RM-96): LadybugDB without
+    its pushdown plan, Neo4j with an executor that does not compile filters."""
     module: Any = importlib.import_module(type(store).__module__)
-    if not hasattr(module, "_walk_plan"):
+    if hasattr(module, "_walk_plan"):
+        real_plan = module._walk_plan
+        module._walk_plan = _no_plan
+        try:
+            yield
+        finally:
+            module._walk_plan = real_plan
+        return
+    store._ex.compiles_qualifier_filters = False
+    try:
+        yield
+    finally:
+        del store._ex.compiles_qualifier_filters
+
+
+async def measure_pushdown(store: Any, seeds: Sequence[str], reps: int) -> dict[str, Any]:
+    """RM-96: the qualified walk with the filter compiled into the database query (pushdown)
+    vs the shared level-by-level walk it replaces (``frontier_edges`` per level + the Python
+    filter, forced by :func:`_shared_walk`), on the same store and seeds. Every seed's result
+    is checked identical (node ids, hop order, labels, properties) before timing;
+    ``walk_d<n>_queries`` counts the database queries of one walk (min..max)."""
+    module: Any = importlib.import_module(type(store).__module__)
+    if not hasattr(module, "_walk_plan") and not hasattr(
+        getattr(store, "_ex", None), "compiles_qualifier_filters"
+    ):
         return {}
-    real_plan = module._walk_plan
     exec_name = "_execute" if hasattr(store, "_execute") else "_run"
     real_exec = getattr(store, exec_name)
     calls: list[int] = []
@@ -336,6 +358,8 @@ async def measure_pushdown(store: Any, seeds: Sequence[str], reps: int) -> dict[
         calls.append(1)
         return await real_exec(*args, **kwargs)
 
+    # one pushed-down walk first: Neo4j creates its id index and backfills once per store
+    await store.neighbors(seeds[0], depth=1, namespace=NS, qualifier_filter=FILTER)
     out: dict[str, Any] = {}
     for depth in (1, 2):
 
@@ -347,18 +371,17 @@ async def measure_pushdown(store: Any, seeds: Sequence[str], reps: int) -> dict[
         queries: dict[str, list[int]] = {"pushdown": [], "shared": []}
         for seed in seeds:
             setattr(store, exec_name, counted)
-            calls.clear()
-            got = await walk(seed)
-            queries["pushdown"].append(len(calls))
-            module._walk_plan = _no_plan
             try:
                 calls.clear()
-                want = await walk(seed)
-                queries["shared"].append(len(calls))
-                delattr(store, exec_name)
-                shared += await _time(partial(walk, seed), max(1, reps // len(seeds)), 1)
+                got = await walk(seed)
+                queries["pushdown"].append(len(calls))
+                with _shared_walk(store):
+                    calls.clear()
+                    want = await walk(seed)
+                    queries["shared"].append(len(calls))
+                    delattr(store, exec_name)
+                    shared += await _time(partial(walk, seed), max(1, reps // len(seeds)), 1)
             finally:
-                module._walk_plan = real_plan
                 if exec_name in vars(store):
                     delattr(store, exec_name)
             key = [(n.node_id, n.labels, n.properties) for n in got]
@@ -627,45 +650,54 @@ async def neo4j_store(data: list[tuple[str, str, str, dict[str, Any]]], _path: P
     label, rel = f"Rm96N{uuid.uuid4().hex[:8]}", f"Rm96R{uuid.uuid4().hex[:8]}"
     store = Neo4jGraphStore(DriverExecutor(driver, node_label=label, rel_type=rel), scoped=True)
     await store.node_count()  # creates the key constraint
-    sep = "\x1f"
-    ids = sorted({x for s, d, _, _ in data for x in (s, d)})
-    async with driver.session() as session:
-        for i in range(0, len(ids), 5_000):
-            await session.run(
-                f"UNWIND $rows AS r CREATE (:{label} {{key: $ns + $sep + r, id: r, "
-                "namespace: $ns, labels: [], props: '{}', compiled: '', bare: true})",
-                rows=ids[i : i + 5_000],
-                ns=NS,
-                sep=sep,
-            )
-        rows = [
-            {
-                "s": NS + sep + s,
-                "d": NS + sep + d,
-                "key": f"{NS}{sep}{s}{sep}{d}{sep}{r}",
-                "r": r,
-                "p": json.dumps(p, sort_keys=True, default=str),
-                "w": float(p["weight"]),
-                "k": str(p.get("kind") or ""),
-            }
-            for s, d, r, p in data
-        ]
-        for i in range(0, len(rows), 5_000):
-            await session.run(
-                f"UNWIND $rows AS x MATCH (a:{label} {{key: x.s}}) MATCH (b:{label} {{key: x.d}}) "
-                f"CREATE (a)-[:{rel} {{key: x.key, rel_type: x.r, namespace: $ns, weight: x.w, "
-                "kind: x.k, props: x.p}]->(b)",
-                rows=rows[i : i + 5_000],
-                ns=NS,
-            )
+    await _neo4j_load(store, data)
 
     async def close() -> None:
         await store.clear()
         async with driver.session() as session:
             await session.run(f"DROP CONSTRAINT {label}_key IF EXISTS")
+            await session.run(f"DROP INDEX {label}_id IF EXISTS")
         await driver.close()
 
     return store, close
+
+
+async def _neo4j_load(store: Any, data: list[tuple[str, str, str, dict[str, Any]]]) -> None:
+    """Bulk rows in the exact layout ``Neo4jGraphStore.upsert_edge`` writes (keys from the
+    store's own scoping, RM-96 qualifier properties included), through its executor."""
+    executor = store._ex
+    label, rel = executor._fmt["N"], executor._fmt["R"]
+    ids = sorted({x for s, d, _, _ in data for x in (s, d)})
+    nodes = [{"key": store.node_key(i, NS), "id": i} for i in ids]
+    rows = [
+        {
+            "s": store.node_key(s, NS),
+            "d": store.node_key(d, NS),
+            "key": store.edge_key(s, d, r, NS),
+            "r": r,
+            "p": json.dumps(p, sort_keys=True, default=str),
+            "w": float(p["weight"]),
+            "k": str(p.get("kind") or ""),
+            "q": qualifier_columns(p),
+        }
+        for s, d, r, p in data
+    ]
+    async with executor._driver.session(database=executor._database) as session:
+        for i in range(0, len(nodes), 5_000):
+            await session.run(
+                f"UNWIND $rows AS n CREATE (:{label} {{key: n.key, id: n.id, "
+                "namespace: $ns, labels: [], props: '{}', compiled: '', bare: true})",
+                rows=nodes[i : i + 5_000],
+                ns=NS,
+            )
+        for i in range(0, len(rows), 5_000):
+            await session.run(
+                f"UNWIND $rows AS x MATCH (a:{label} {{key: x.s}}) MATCH (b:{label} {{key: x.d}}) "
+                f"CREATE (a)-[r:{rel} {{key: x.key, rel_type: x.r, namespace: $ns, weight: x.w, "
+                "kind: x.k, props: x.p}]->(b) SET r += x.q",
+                rows=rows[i : i + 5_000],
+                ns=NS,
+            )
 
 
 async def engine_read(
@@ -683,6 +715,16 @@ async def engine_read(
     from memspine import Engine
     from memspine.memories.associative import entity_cache
 
+    extra: dict[str, Any] = {}
+    if provider == "neo4j":  # RM-96: Neo4j as the one graph client (ADR-081 amendment)
+        for name in ("URL", "USER", "PASSWORD"):
+            value = os.environ.get(f"MEMSPINE_TEST_NEO4J_{name}")
+            if value is not None:
+                os.environ[f"MEMSPINE_NEO4J_{name}"] = value
+        extra["deployment"] = {"id": "rm96-benchmark"}
+    graph_slot: dict[str, Any] = {"provider": provider}
+    if provider == "neo4j":
+        graph_slot["settings"] = {"connect_timeout_s": 30.0, "request_timeout_s": 60.0}
     eng = Engine(
         template="core",
         dotenv_path=None,
@@ -691,8 +733,9 @@ async def engine_read(
                 "provider": "sqlite",
                 "settings": {"path": str(path), "busy_timeout_s": 5.0},
             },
-            "graph": {"provider": provider},
+            "graph": graph_slot,
         },
+        **extra,
         model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {"enabled": True},
@@ -710,7 +753,8 @@ async def engine_read(
     )
     await eng.start()
     try:
-        graph = eng._graph
+        graph: Any = eng._graph
+        assert graph is not None
         query = _query(seeds)
         # the Engine's fixed read cost (every other leg, no graph world yet)
         empty = await _time(
@@ -718,6 +762,9 @@ async def engine_read(
         )
         if provider == "sql_adjacency":
             await _sqlite_load(graph._client.engine, data)
+        elif provider == "neo4j":
+            await graph.clear()
+            await _neo4j_load(graph, data)
         else:
             await graph.node_count()
             await _ladybug_load(graph._client, data)
@@ -782,6 +829,8 @@ async def engine_read(
             },
         }
     finally:
+        if provider == "neo4j" and eng._graph is not None:
+            await eng._graph.clear()
         await eng.stop()
 
 
@@ -838,7 +887,7 @@ async def main() -> None:
                 }
             finally:
                 await close()
-            if name in ("sql_adjacency", "ladybug") and args.engine_reps > 0:
+            if name in ("sql_adjacency", "ladybug", "neo4j") and args.engine_reps > 0:
                 read = await engine_read(
                     name, data, seeds, args.engine_reps, Path(tmp) / f"engine-{name}.db"
                 )

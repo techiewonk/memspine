@@ -31,8 +31,21 @@ level-by-level walk (:func:`~memspine.services.graph.qualifiers.qualified_hops`)
 ``frontier_edges`` query per hop returns the live edges touching the frontier inside the
 namespace and relation filter, and the shared Python filter then drops edges the
 :class:`~memspine.services.graph.qualifiers.QualifierFilter` does not admit before the fan-out
-cap ranks what is left. So every provider answers one contract; Cypher pushdown of qualifier
-predicates is deferred to RM-96.
+cap ranks what is left. So every provider answers one contract.
+
+RM-96 pushdown. Each edge also carries its qualifiers as flat relationship properties
+(:mod:`~memspine.services.graph.qualifier_columns`, ``SET r += $q`` on upsert; edges written
+before RM-96 are backfilled once per store before its first pushed-down walk and never
+traversed while stale). With an executor that runs Cypher (``compiles_qualifier_filters``),
+a qualified walk of depth 1 or 2 is ONE ``qualified_walk`` query: the QualifierFilter
+compiled into its WHERE clause, the shared walk's caps and ordering in Cypher (per-seed
+``collect`` after ``ORDER BY weight DESC, id`` sliced to ``max_degree``; the level-2
+frontier of the ``QUALIFIED_WALK_FRONTIER_CAP`` strongest level-1 nodes, each sliced to the
+deep degree), plus the reached nodes' rows and, for ``subgraph``, the admitted induced
+edges. Depth 0 or above 2, a cap below 1, an unknown filter field, and the in-memory test
+recorder run the shared walk (the reference). Known divergence: Neo4j orders strings by
+UTF-16 code unit, Python by code point, so a weight tie between two ids that differ only by
+a supplementary-plane character versus U+E000..U+FFFF could break differently.
 """
 
 from __future__ import annotations
@@ -43,6 +56,10 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Protocol
 
+from memspine.config.constants import (
+    QUALIFIED_WALK_DEEP_MAX_DEGREE,
+    QUALIFIED_WALK_FRONTIER_CAP,
+)
 from memspine.exceptions import MissingServiceError
 from memspine.observability import tap
 from memspine.services.graph.base import (
@@ -53,8 +70,14 @@ from memspine.services.graph.base import (
     edge_namespace,
     edge_weight,
 )
+from memspine.services.graph.qualifier_columns import (
+    QUALIFIER_COLUMNS_VERSION,
+    compile_filter,
+    qualifier_columns,
+)
 from memspine.services.graph.qualifiers import (
     QualifierFilter,
+    _deep_degree,
     qualified_hops,
     qualified_subgraph,
     sanitize_qualifiers,
@@ -75,6 +98,8 @@ _IDENT = re.compile(r"^[A-Za-z][A-Za-z0-9_]{0,40}$")
 _SEP = "\x1f"
 #: The deepest single-query walk; a deeper request is clamped (the loop it replaces had no cap).
 MAX_WALK_DEPTH = 16
+#: RM-96: edges re-derived per round trip by the qualifier-property backfill.
+_BACKFILL_BATCH = 2000
 
 #: op name -> Cypher. ``{N}`` / ``{R}`` are the (validated) node label and relationship type.
 CYPHER: dict[str, str] = {
@@ -93,7 +118,7 @@ CYPHER: dict[str, str] = {
         "b.compiled = '', b.bare = true "
         "MERGE (a)-[r:{R} {{key: $ekey}}]->(b) "
         "SET r.rel_type = $rel, r.namespace = $ns, r.weight = $weight, r.kind = $kind, "
-        "r.props = $props"
+        "r.props = $props SET r += $q"  # RM-96: the qualifier properties (null = removed)
     ),
     # Delete in three statements (a read of a deleted node's edges inside one query is unsafe):
     # the bare neighbours first, then the node with its edges, then the bare ones left edgeless.
@@ -159,6 +184,60 @@ CYPHER: dict[str, str] = {
         "RETURN startNode(r).id AS src, endNode(r).id AS dst, r.rel_type AS rel, "
         "r.namespace AS ns, r.props AS props"
     ),
+    # RM-96: the qualified walk (depth 1 or 2) in ONE query. ``{W}`` is the QualifierFilter
+    # compiled over ``r`` by services/graph/qualifier_columns.py (parameter names only; the
+    # executor formats it in, see DriverExecutor.run). Level 1: each seed's ``$deg1`` strongest
+    # admitted neighbours (weight desc, then id); level 2: the ``$cap`` strongest level-1 nodes
+    # (strength desc, then id) each follow their ``$deg2`` strongest admitted neighbours (the
+    # shared qualified_hops rules; a null cap is no cap). Then the reached nodes' rows and, with
+    # ``$edges``, the admitted induced edges. Aggregating subqueries always return one row.
+    "qualified_walk": (
+        "CALL () {{ "
+        "UNWIND $seeds AS sid MATCH (s:{N}) WHERE s.id = sid "
+        "MATCH (s)-[r:{R}]-(o:{N}) WHERE o.id <> sid AND r.weight > 0 "
+        "AND ($ns IS NULL OR r.namespace = $ns) AND ($rel IS NULL OR r.rel_type = $rel) AND {W} "
+        "WITH sid, o.id AS oid, max(r.weight) AS w ORDER BY w DESC, oid "
+        "WITH sid, collect([oid, w]) AS ranked "
+        "UNWIND CASE WHEN $deg1 IS NULL THEN ranked ELSE ranked[..$deg1] END AS p "
+        "WITH p[0] AS oid, max(p[1]) AS strength WHERE NOT oid IN $seeds "
+        "RETURN collect([oid, strength]) AS l1 }} "
+        "CALL (l1) {{ "
+        "UNWIND CASE WHEN $qdepth >= 2 THEN l1 ELSE [] END AS x "
+        "WITH x ORDER BY x[1] DESC, x[0] WITH collect(x[0]) AS ordered "
+        "UNWIND CASE WHEN $cap IS NULL THEN ordered ELSE ordered[..$cap] END AS fid "
+        "MATCH (f:{N}) WHERE f.id = fid "
+        "MATCH (f)-[r:{R}]-(o:{N}) WHERE o.id <> fid AND r.weight > 0 "
+        "AND ($ns IS NULL OR r.namespace = $ns) AND ($rel IS NULL OR r.rel_type = $rel) AND {W} "
+        "WITH fid, o.id AS oid, max(r.weight) AS w ORDER BY w DESC, oid "
+        "WITH fid, collect(oid) AS ranked "
+        "UNWIND CASE WHEN $deg2 IS NULL THEN ranked ELSE ranked[..$deg2] END AS pick "
+        "RETURN collect(DISTINCT pick) AS l2 }} "
+        "WITH [x IN l1 | x[0]] AS l1ids, l2 "
+        "WITH l1ids, [y IN l2 WHERE NOT y IN l1ids AND NOT y IN $seeds] AS l2new "
+        "CALL (l1ids, l2new) {{ "
+        "UNWIND l1ids + l2new AS nid MATCH (n:{N}) WHERE n.id = nid "
+        "RETURN collect({{id: n.id, labels: n.labels, props: n.props, ns: n.namespace}}) "
+        "AS nodes }} "
+        "CALL (l1ids, l2new) {{ "
+        "WITH $seeds + l1ids + l2new AS reach WHERE $edges "
+        "MATCH (a:{N})-[r:{R}]->(b:{N}) WHERE a.id IN reach AND b.id IN reach "
+        "AND a.id <> b.id AND r.weight > 0 AND ($ns IS NULL OR r.namespace = $ns) AND {W} "
+        "RETURN collect({{src: a.id, dst: b.id, rel: r.rel_type, ns: r.namespace, "
+        "props: r.props}}) AS edges }} "
+        "RETURN l1ids, l2new, nodes, edges"
+    ),
+    # RM-96: the walk looks nodes up by id per seed / frontier node / reached node, so it needs
+    # an index on id (the key constraint indexes key only); created before the first pushdown.
+    "id_index": "CREATE INDEX {N}_id IF NOT EXISTS FOR (n:{N}) ON (n.id)",
+    "await_indexes": "CALL db.awaitIndexes(300)",
+    # RM-96: edges whose qualifier properties are missing or of another version (backfill).
+    "qualifier_stale": (
+        "MATCH ()-[r:{R}]->() WHERE r.q_v IS NULL OR r.q_v <> $v "
+        "RETURN elementId(r) AS eid, r.props AS props LIMIT $limit"
+    ),
+    "qualifier_set": (
+        "UNWIND $rows AS x MATCH ()-[r:{R}]->() WHERE elementId(r) = x.eid SET r += x.q"
+    ),
     "node_count": "MATCH (n:{N}) RETURN count(n) AS c",
     "edge_count": "MATCH (:{N})-[r:{R}]->(:{N}) RETURN count(r) AS c",
     "clear": "MATCH (n:{N}) DETACH DELETE n",
@@ -200,14 +279,22 @@ class DriverExecutor:
         self._timeout = request_timeout_s
         self._fmt = {"N": _check_ident(node_label, "label"), "R": _check_ident(rel_type, "type")}
 
+    #: RM-96: this executor runs Cypher, so the store may send a compiled qualifier filter
+    #: (the ``qualified_walk`` op). An executor without it (the in-memory test recorder)
+    #: gets the shared level-by-level walk.
+    compiles_qualifier_filters = True
+
     async def run(self, op: str, params: Mapping[str, Any]) -> list[dict[str, Any]]:
         fmt = self._fmt
         if "depth" in params:  # a variable-length bound is text, validated here
             fmt = {**fmt, "D": max(1, min(int(params["depth"]), MAX_WALK_DEPTH))}  # type: ignore[dict-item]  # CI-GREEN: pre-existing typing debt
+        sent = dict(params)
+        if "_where" in sent:  # RM-96: compiled by qualifier_columns.compile_filter, params only
+            fmt = {**fmt, "W": str(sent.pop("_where"))}
         text = CYPHER[op].format(**fmt)
 
         async def work(tx: Any) -> list[dict[str, Any]]:
-            result = await tx.run(text, dict(params))
+            result = await tx.run(text, sent)
             return [dict(record) async for record in result]
 
         async with asyncio.timeout(self._timeout):
@@ -258,6 +345,8 @@ class Neo4jGraphStore:
         self._ex = executor
         self.scoped = scoped
         self._schema_done = False
+        self._qualifier_columns_done = False  # RM-96 backfill ran (once per store)
+        self._id_index_done = False  # RM-96 node id index ensured (once per store)
 
     # -- keys ------------------------------------------------------------------------------
     def node_key(self, node_id: str, namespace: str) -> str:
@@ -322,6 +411,7 @@ class Neo4jGraphStore:
             weight=edge_weight(props),
             kind=edge_kind(props) or "",
             props=_dump(props),
+            q=qualifier_columns(props),
         )
         tap.event(
             "graph.neo4j.merge_edge",
@@ -447,7 +537,16 @@ class Neo4jGraphStore:
         max_degree: int | None = None,
         qualifier_filter: QualifierFilter | None = None,
     ) -> list[GraphEdge]:
-        if qualifier_filter is not None:  # RM-94: the shared walk over ``frontier_edges``
+        if qualifier_filter is not None:  # RM-96: one query; RM-94: the shared walk otherwise
+            walk = await self._qualified_walk(
+                seeds, depth, qualifier_filter, namespace, None, max_degree, edges=True
+            )
+            if walk is not None:
+                induced: dict[tuple[str, str, str], GraphEdge] = {}
+                for row in walk["edges"]:
+                    edge = self._edge(row)
+                    induced.setdefault((edge.src, edge.dst, edge.rel_type), edge)
+                return [induced[key] for key in sorted(induced)]
 
             async def frontier(nodes: Sequence[str]) -> list[GraphEdge]:
                 return await self.frontier_edges(nodes, namespace=namespace)
@@ -477,6 +576,7 @@ class Neo4jGraphStore:
         """RM-94/RM-104: the live edges touching ``nodes`` (one ``frontier_edges`` op)."""
         if not nodes:
             return []
+        await self._ensure_id_index()
         rows = await self._run(
             "frontier_edges", ids=list(dict.fromkeys(nodes)), ns=namespace, rel=rel_type
         )
@@ -492,7 +592,15 @@ class Neo4jGraphStore:
         namespace: str | None,
         max_degree: int | None,
     ) -> list[GraphNode]:
-        """RM-94: ``neighbors`` over the edges ``qualifier_filter`` admits only."""
+        """RM-94: ``neighbors`` over the edges ``qualifier_filter`` admits only (RM-96: one
+        ``qualified_walk`` query when the executor runs Cypher, else the shared walk)."""
+        walk = await self._qualified_walk(
+            [node_id], depth, qualifier_filter, namespace, rel_type, max_degree, edges=False
+        )
+        if walk is not None:
+            hops = {str(n): 1 for n in walk["l1ids"]}
+            hops.update({str(n): 2 for n in walk["l2new"]})
+            return self._hop_nodes(hops, list(walk["nodes"]), namespace)
 
         async def frontier_edges(frontier: Sequence[str]) -> list[GraphEdge]:
             return await self.frontier_edges(frontier, namespace=namespace, rel_type=rel_type)
@@ -501,8 +609,79 @@ class Neo4jGraphStore:
         hops.pop(node_id, None)
         if not hops:
             return []
-        rows = await self._run("nodes", ids=list(hops))
-        by_id: dict[str, dict[str, Any]] = {}
+        return self._hop_nodes(hops, await self._run("nodes", ids=list(hops)), namespace)
+
+    async def _qualified_walk(
+        self,
+        seeds: Sequence[str],
+        depth: int,
+        qualifier_filter: QualifierFilter,
+        namespace: str | None,
+        rel_type: str | None,
+        max_degree: int | None,
+        *,
+        edges: bool,
+    ) -> dict[str, Any] | None:
+        """RM-96: the ``qualified_walk`` row, or None for the shared-walk fallback (an
+        executor that does not run Cypher, depth outside 1..2, no seeds, a cap below 1, or a
+        filter field the compiler does not know)."""
+        if not getattr(self._ex, "compiles_qualifier_filters", False):
+            return None
+        deep = _deep_degree(max_degree, QUALIFIED_WALK_DEEP_MAX_DEGREE)
+        caps = (max_degree, QUALIFIED_WALK_FRONTIER_CAP, deep)
+        if depth not in (1, 2) or not seeds or any(c is not None and c < 1 for c in caps):
+            return None
+        params: dict[str, Any] = {}
+        where = compile_filter(qualifier_filter, "r", params, prefix="qf")
+        if where is None:
+            return None
+        await self._ensure_qualifier_columns()
+        rows = await self._run(
+            "qualified_walk",
+            seeds=list(dict.fromkeys(seeds)),
+            qdepth=depth,
+            ns=namespace,
+            rel=rel_type,
+            deg1=max_degree,
+            cap=QUALIFIED_WALK_FRONTIER_CAP,
+            deg2=deep,
+            edges=edges,
+            _where=where,
+            **params,
+        )
+        return rows[0]
+
+    async def _ensure_qualifier_columns(self) -> None:
+        """RM-96: once per store, before the first pushed-down walk: the node ``id`` index
+        the walk's lookups need, then the qualifier properties of edges written without them
+        (before RM-96) or with another version. Until then such an edge fails the ``q_v``
+        check (never traversed, fail closed)."""
+        if self._qualifier_columns_done:
+            return
+        await self._ensure_id_index()
+        while rows := await self._run(
+            "qualifier_stale", v=QUALIFIER_COLUMNS_VERSION, limit=_BACKFILL_BATCH
+        ):
+            await self._run(
+                "qualifier_set",
+                rows=[{"eid": r["eid"], "q": qualifier_columns(_load(r["props"]))} for r in rows],
+            )
+        self._qualifier_columns_done = True
+
+    async def _ensure_id_index(self) -> None:
+        """RM-96: the node ``id`` index (once per store) on an executor that runs Cypher; the
+        walk and ``frontier_edges`` look nodes up by id (the key constraint indexes key)."""
+        if self._id_index_done or not getattr(self._ex, "compiles_qualifier_filters", False):
+            return
+        await self._run("id_index")
+        await self._run("await_indexes")
+        self._id_index_done = True
+
+    @staticmethod
+    def _hop_nodes(
+        hops: Mapping[str, int], rows: Sequence[Mapping[str, Any]], namespace: str | None
+    ) -> list[GraphNode]:
+        by_id: dict[str, Mapping[str, Any]] = {}
         for row in rows:  # unscoped ids are unique; scoped ones prefer the walked namespace
             rid = str(row["id"])
             if rid not in by_id or (namespace is not None and row.get("ns") == namespace):

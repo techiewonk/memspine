@@ -19,10 +19,14 @@ and without ``max_degree``, ``rel_type`` and ``namespace``.
 
 from __future__ import annotations
 
+import importlib.util
+import os
 import random
 import re
+import sys
 from collections.abc import AsyncIterator, Callable
 from datetime import UTC, datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -239,14 +243,112 @@ def _filters(seed: int, count: int) -> list[QualifierFilter]:
     return out
 
 
-@pytest.fixture
-async def store() -> AsyncIterator[Any]:
+LIVE_NEO4J = bool(os.environ.get("MEMSPINE_TEST_NEO4J_URL")) and (
+    importlib.util.find_spec("neo4j") is not None
+)
+
+
+class _Backend:
+    """One adapter under test: its store, how to force its shared-walk fallback (the
+    reference) and how to forbid it, and how to select edges with a compiled clause."""
+
+    name: str
+    store: Any
+
+    def reference(self, mp: pytest.MonkeyPatch) -> None:
+        raise NotImplementedError
+
+    def forbid(self, mp: pytest.MonkeyPatch) -> None:
+        async def boom(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("the pushed-down walk fell back to the shared walk")
+
+        # the shared walk reads its levels through frontier_edges; the pushdown never does
+        mp.setattr(type(self.store), "frontier_edges", boom)
+
+    async def select(self, qf: QualifierFilter) -> list[tuple[str, str, str]]:
+        raise NotImplementedError
+
+
+class _Ladybug(_Backend):
+    name = "ladybug"
+
+    def __init__(self, store: Any) -> None:
+        self.store = store
+
+    def reference(self, mp: pytest.MonkeyPatch) -> None:
+        mp.setattr(ladybug_mod, "_walk_plan", lambda *a, **k: None)
+
+    async def select(self, qf: QualifierFilter) -> list[tuple[str, str, str]]:
+        params: dict[str, Any] = {}
+        where = compile_filter(qf, "e", params)
+        assert where is not None
+        rows = await self.store._execute(
+            f"{ladybug_mod._EDGE_MATCH} WHERE {where} {ladybug_mod._EDGE_RETURN}", params
+        )
+        return sorted((str(r[0]), str(r[1]), str(r[2])) for r in rows)
+
+
+class _Neo4j(_Backend):
+    name = "neo4j"
+
+    def __init__(self, store: Any, executor: Any) -> None:
+        self.store = store
+        self.executor = executor
+
+    def reference(self, mp: pytest.MonkeyPatch) -> None:
+        mp.setattr(self.executor, "compiles_qualifier_filters", False, raising=False)
+
+    async def select(self, qf: QualifierFilter) -> list[tuple[str, str, str]]:
+        params: dict[str, Any] = {}
+        where = compile_filter(qf, "r", params)
+        assert where is not None
+        label, rel = self.executor._fmt["N"], self.executor._fmt["R"]
+        query = (
+            f"MATCH (a:{label})-[r:{rel}]->(b:{label}) WHERE {where} "
+            "RETURN a.id AS s, b.id AS d, r.rel_type AS t"
+        )
+        async with self.executor._driver.session(database=self.executor._database) as session:
+            result = await session.run(query, params)
+            rows = [record async for record in result]
+        return sorted((str(r["s"]), str(r["d"]), str(r["t"])) for r in rows)
+
+
+async def _ladybug_backend() -> AsyncIterator[_Backend]:
     from memspine.clients.ladybug import LadybugClient, LadybugSpec
 
     client = LadybugClient(LadybugSpec(":memory:"))
     await client.open()
-    yield ladybug_mod.LadybugGraphStore(client)
+    yield _Ladybug(ladybug_mod.LadybugGraphStore(client))
     await client.close()
+
+
+async def _neo4j_backend() -> AsyncIterator[_Backend]:
+    if not LIVE_NEO4J:
+        pytest.skip("needs the neo4j driver and MEMSPINE_TEST_NEO4J_URL (a live server)")
+    from memspine.services.graph.neo4j import Neo4jGraphStore
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "wiring"))
+    from test_f_16e_neo4j_outbox import live_executor  # type: ignore[import-not-found]
+
+    connector, executor = await live_executor("Rm96")
+    try:
+        yield _Neo4j(Neo4jGraphStore(executor, scoped=True), executor)
+    finally:
+        await executor.run("clear", {})
+        await connector.close()
+
+
+@pytest.fixture(params=["ladybug", "neo4j"])
+async def backend(request: pytest.FixtureRequest) -> AsyncIterator[_Backend]:
+    factory = _ladybug_backend if request.param == "ladybug" else _neo4j_backend
+    async for item in factory():
+        yield item
+
+
+@pytest.fixture
+async def store() -> AsyncIterator[Any]:
+    async for item in _ladybug_backend():
+        yield item.store
 
 
 async def _load(store: Any, world: list[tuple[str, str, str, str, dict[str, Any]]]) -> None:
@@ -259,23 +361,17 @@ async def _load(store: Any, world: list[tuple[str, str, str, str, dict[str, Any]
 class _Reference:
     """Runs the store's shared-walk fallback (the pre-RM-96 path) as the reference."""
 
-    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def __init__(self, monkeypatch: pytest.MonkeyPatch, backend: _Backend | None = None) -> None:
         self._mp = monkeypatch
+        self._backend = backend
 
     async def __call__(self, coro_fn: Callable[[], Any]) -> Any:
         with self._mp.context() as mp:
-            mp.setattr(ladybug_mod, "_walk_plan", lambda *a, **k: None)
+            if self._backend is None:
+                mp.setattr(ladybug_mod, "_walk_plan", lambda *a, **k: None)
+            else:
+                self._backend.reference(mp)
             return await coro_fn()
-
-
-def _forbid_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The shared walk reads its levels through ``frontier_edges``; the pushed-down walk never."""
-
-    async def boom(*args: Any, **kwargs: Any) -> Any:
-        raise AssertionError("the pushed-down walk fell back to the shared walk")
-
-    monkeypatch.setattr(ladybug_mod.LadybugGraphStore, "frontier_edges", boom)
-    monkeypatch.setattr(ladybug_mod, "qualified_subgraph", boom)
 
 
 def _node_key(nodes: list[Any]) -> list[tuple[str, tuple[str, ...], dict[str, object]]]:
@@ -288,32 +384,26 @@ def _edge_key(edges: list[Any]) -> list[tuple[str, str, str, dict[str, object]]]
 
 @pytest.mark.parametrize("world_seed", WORLD_SEEDS)
 async def test_compiled_filter_admits_exactly_what_matches_admits(
-    store: Any, world_seed: int
+    backend: _Backend, world_seed: int
 ) -> None:
     """Per edge: the compiled WHERE clause selects exactly the edges ``admits`` keeps."""
     world = _world(world_seed)
-    await _load(store, world)
-    edges = await store.edge_list()
+    await _load(backend.store, world)
+    edges = await backend.store.edge_list()
     for qf in _filters(world_seed, 140):
-        params: dict[str, Any] = {}
-        where = compile_filter(qf, "e", params)
-        assert where is not None
-        rows = await store._execute(
-            f"{ladybug_mod._EDGE_MATCH} WHERE {where} {ladybug_mod._EDGE_RETURN}", params
-        )
-        got = sorted((str(r[0]), str(r[1]), str(r[2])) for r in rows)
         want = sorted((e.src, e.dst, e.rel_type) for e in edges if qf.admits(e))
-        assert got == want, qf
+        assert await backend.select(qf) == want, qf
 
 
 @pytest.mark.parametrize("world_seed", WORLD_SEEDS)
 async def test_pushed_down_walk_equals_the_shared_walk(
-    store: Any, world_seed: int, monkeypatch: pytest.MonkeyPatch
+    backend: _Backend, world_seed: int, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    store = backend.store
     world = _world(world_seed)
     await _load(store, world)
     rng = random.Random(world_seed + 1)
-    reference = _Reference(monkeypatch)
+    reference = _Reference(monkeypatch, backend)
     starts = [
         _node(0),
         _node(1),
@@ -350,7 +440,7 @@ async def test_pushed_down_walk_equals_the_shared_walk(
         want = await reference(walk)
         want_edges = await reference(sub)
         with monkeypatch.context() as mp:
-            _forbid_fallback(mp)
+            backend.forbid(mp)
             got = await walk()
             got_edges = await sub()
         assert _node_key(got) == _node_key(want), (seed, depth, max_degree, rel, ns, qf)
@@ -378,9 +468,12 @@ async def test_pushed_down_walk_equals_the_shared_walk(
             )
 
 
-async def test_hub_depth_two_applies_both_caps(store: Any, monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_hub_depth_two_applies_both_caps(
+    backend: _Backend, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """A hub whose first hop (20 nodes) and every first-hop degree (21) exceed the caps:
-    the single query and the shared walk reach the same capped set, strongest first."""
+    the pushed-down walk and the shared walk reach the same capped set, strongest first."""
+    store = backend.store
     hub = "hub"
     for i in range(20):
         mid = f"m{i:02d}"
@@ -396,14 +489,16 @@ async def test_hub_depth_two_applies_both_caps(store: Any, monkeypatch: pytest.M
                 namespace="h",
             )
     qf = QualifierFilter()
-    reference = _Reference(monkeypatch)
+    reference = _Reference(monkeypatch, backend)
     for depth in (1, 2):
 
         def walk(depth: int = depth) -> Any:
             return store.neighbors(hub, depth=depth, namespace="h", qualifier_filter=qf)
 
         want = await reference(walk)
-        got = await store.neighbors(hub, depth=depth, namespace="h", qualifier_filter=qf)
+        with monkeypatch.context() as mp:
+            backend.forbid(mp)
+            got = await walk()
         assert _node_key(got) == _node_key(want)
     assert 20 < len(want) <= 20 + 16 * 16  # level 1 whole; level 2 capped
 
@@ -482,3 +577,78 @@ def test_columns_cover_every_compiled_qualifier() -> None:
     used = set(re.findall(r"e\.(q_[a-z_]+)", where))
     assert used <= set(COLUMNS)
     assert edge_qualifiers({}) is None
+
+
+# ------------------------------------------------------------------------------- Neo4j
+@pytest.fixture
+async def neo4j() -> AsyncIterator[_Neo4j]:
+    async for item in _neo4j_backend():
+        assert isinstance(item, _Neo4j)
+        yield item
+
+
+async def test_neo4j_one_query_per_walk(neo4j: _Neo4j, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Neo4j runs the whole qualified walk as ONE ``qualified_walk`` query (depth 1 and 2,
+    node rows included; ``subgraph`` also takes its induced edges from that query)."""
+    store = neo4j.store
+    await _load(store, _world(7))
+    qf = QualifierFilter(assertion_modalities=frozenset({AssertionModality.ASSERTED}))
+    await store.neighbors(_node(0), depth=1, namespace=NAMESPACES[0], qualifier_filter=qf)
+    ops: list[str] = []
+    real = store._ex.run
+
+    async def counting(op: str, params: Any) -> Any:
+        ops.append(op)
+        return await real(op, params)
+
+    monkeypatch.setattr(store._ex, "run", counting)
+    for depth in (1, 2):
+        ops.clear()
+        await store.neighbors(_node(0), depth=depth, namespace=NAMESPACES[0], qualifier_filter=qf)
+        assert ops == ["qualified_walk"]
+        ops.clear()
+        await store.subgraph([_node(0), _node(5)], depth=depth, qualifier_filter=qf)
+        assert ops == ["qualified_walk"]
+
+
+async def test_neo4j_stale_properties_backfilled_and_never_walked_meanwhile(
+    neo4j: _Neo4j,
+) -> None:
+    """Edges without qualifier properties (written before RM-96) are re-derived before the
+    first pushed-down walk of a store; a stale edge is never traversed (fail closed)."""
+    from memspine.services.graph.neo4j import Neo4jGraphStore
+
+    store, executor = neo4j.store, neo4j.executor
+    erased = {QUALIFIERS_PROP: {"erasure_state": "erased"}}
+    await store.upsert_edge("a", "b", "r", {"weight": 1.0}, namespace="n")
+    await store.upsert_edge("a", "c", "r", {"weight": 1.0, **erased}, namespace="n")
+    label, rel = executor._fmt["N"], executor._fmt["R"]
+    async with executor._driver.session(database=executor._database) as session:
+        await session.run(
+            f"MATCH (:{label})-[r:{rel}]->(:{label}) SET r.q_v = null, r.q_erasure_state = null"
+        )
+    qf = QualifierFilter()
+    skipped = Neo4jGraphStore(executor, scoped=True)
+    skipped._qualifier_columns_done = True  # as if a concurrent writer left stale edges
+    assert await skipped.neighbors("a", namespace="n", qualifier_filter=qf) == []
+    fresh = Neo4jGraphStore(executor, scoped=True)
+    got = await fresh.neighbors("a", namespace="n", qualifier_filter=qf)
+    assert [n.node_id for n in got] == ["b"]  # backfilled; the erased edge stays untraversed
+    stale = await executor.run("qualifier_stale", {"v": QUALIFIER_COLUMNS_VERSION, "limit": 5})
+    assert stale == []
+
+
+async def test_neo4j_recorder_keeps_the_shared_walk() -> None:
+    """An executor that does not run Cypher (the in-memory recorder) gets the shared walk."""
+    from memspine.services.graph.neo4j import Neo4jGraphStore
+
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "wiring"))
+    from test_f_16e_neo4j_outbox import FakeNeo4j
+
+    fake = FakeNeo4j()
+    store = Neo4jGraphStore(fake, scoped=True)
+    await store.upsert_edge("a", "b", "r", {"weight": 1.0}, namespace="n")
+    got = await store.neighbors("a", depth=2, namespace="n", qualifier_filter=QualifierFilter())
+    assert [n.node_id for n in got] == ["b"]
+    assert "frontier_edges" in fake.calls
+    assert "qualified_walk" not in fake.calls

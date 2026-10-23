@@ -84,6 +84,12 @@ sensitivity and support.
     on its first relationship returns wrong results, and a MATCH after a WITH scans every
     relationship. The shared walk stays the reference and the fallback (depth 0 or above
     2, a cap below 1, a filter field the compiler does not know).
+    *2026-10-23 note, RM-96 pushdown (Neo4j):* Neo4j stores the same columns as
+    relationship properties (`SET r += $q`, backfilled once per store, fail-closed while
+    stale). It runs a qualified walk of depth 1 or 2 as one `qualified_walk` query: the
+    compiled filter, the caps and ordering in Cypher (ordered `collect` sliced to the
+    caps), the reached nodes' rows, and for `subgraph` the admitted induced edges. The
+    in-memory test recorder keeps the shared walk.
 11. **Backfill.** Old edges get qualifiers on the next sleep cycle, or through
     `memspine graph requalify`.
 12. **New model binding roles.** `gliner_sensitivity` and `gliner_topic` join
