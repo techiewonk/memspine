@@ -24,6 +24,7 @@ def test_builtin_names_match_config_values() -> None:
         "hash",
         "static",
         "openai_compatible",
+        "anyllm",
         "bedrock",
         "st",
         "ollama",

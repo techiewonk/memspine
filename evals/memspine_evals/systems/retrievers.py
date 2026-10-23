@@ -144,7 +144,7 @@ class OnnxRetriever:
         self._embedder = OnnxModel(resolve_model_spec(model))
         self.model = model
         self.batch_size = batch_size
-        self.retriever_id = f"embed:{model}"
+        self.retriever_id = f"onnx:{model}"
         self._units: list[Unit] = []
         self._vectors: list[Sequence[float]] = []
 

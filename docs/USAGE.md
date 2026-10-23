@@ -982,7 +982,7 @@ an explicit `deployment.id`; install `[aws]` for Bedrock. Health never calls a m
 | `lmstudio` | `http://localhost:1234/v1` by default | OpenAI-compatible chat |
 | `llamacpp_server` | `http://localhost:8080/v1` by default | OpenAI-compatible chat |
 | `bedrock` | `aws_region`, boto3 credential chain | Converse, embeddings and rerank via `[aws]` |
-| `anyllm` | `upstream_provider`, optional `api_key_env` / `api_base` | hosted LLM providers via `[anyllm]`; install the upstream SDK extra separately |
+| `anyllm` | `upstream_provider`, optional `api_key_env` / `api_base` | hosted LLM and embedding providers via `[anyllm]`; install the upstream SDK extra separately |
 
 The removed `litellm` provider is rejected with a rewrite hint. Migrate JSON/YAML
 configs with `python scripts/migrate_config_keys_adr085.py config.yaml` (`--check`
@@ -2019,3 +2019,9 @@ selection of `ollama` is rejected with an `onnx` / `vllm` replacement hint; use 
 local ONNX cross-encoder or a rerank endpoint instead. See the [Ollama API
 index](https://docs.ollama.com/api/introduction) and [upstream rerank
 request](https://github.com/ollama/ollama/issues/10467).
+
+Hosted embedding IDs include the endpoint and server-family digest; `anyllm`
+embeddings additionally identify the upstream provider. Changing endpoints is a
+new vector space. The ADR-085 codemod validates rewritten slots; a hosted rerank
+route without a supported SDK or an explicit compatible endpoint is reported for
+manual migration, and the original file is preserved.

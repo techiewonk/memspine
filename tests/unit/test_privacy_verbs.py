@@ -387,9 +387,9 @@ async def test_remote_llm_gate_withholds_high_tier_text() -> None:
                     "settings": {"api_base": "http://test.invalid/v1", "model": "openai/gpt-4o"},
                 },
                 "extract": {
-                    "provider": "openai_compatible",
+                    "provider": "ollama",
                     "timeout_s": 30.0,
-                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/llama3"},
+                    "settings": {"model": "llama3"},
                 },
             }
         },

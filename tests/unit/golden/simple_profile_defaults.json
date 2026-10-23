@@ -68,7 +68,7 @@
         "migrate_preset": false,
         "pin_preset": false,
         "preset": null,
-        "provider": "fastembed",
+        "provider": "onnx",
         "settings": {},
         "versioned_spaces": false
       },

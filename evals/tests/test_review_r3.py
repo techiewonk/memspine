@@ -879,7 +879,7 @@ def test_r4_6_dense_same_embedder_and_matched_budget_arms(
     class FakeEmbed(retrievers.BM25Retriever):
         def __init__(self, model: str) -> None:
             super().__init__()
-            self.retriever_id = f"embed:{model}"
+            self.retriever_id = f"onnx:{model}"
 
     monkeypatch.setattr(retrievers, "OnnxRetriever", FakeEmbed)
     cfg = experiments.C01Config(
@@ -893,7 +893,7 @@ def test_r4_6_dense_same_embedder_and_matched_budget_arms(
     ids = [s.system_id for s in systems]
     assert "naive-rag-dense-memspine-embedder" in ids and "naive-rag-bm25-matched900" in ids
     dense = systems[ids.index("naive-rag-dense-memspine-embedder")]
-    assert dense.describe()["retriever"]["retriever_id"] == "embed:BAAI/x"
+    assert dense.describe()["retriever"]["retriever_id"] == "onnx:BAAI/x"
     capped = systems[ids.index("naive-rag-bm25-matched900")]
     assert capped.describe()["matched_budget_tokens"] == 900
     with pytest.raises(ValueError, match="onnx"):

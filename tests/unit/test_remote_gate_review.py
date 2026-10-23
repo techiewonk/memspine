@@ -95,9 +95,9 @@ def _engine() -> Engine:
                     "settings": {"api_base": "http://test.invalid/v1", "model": "openai/gpt-4o"},
                 },
                 "summarize": {
-                    "provider": "openai_compatible",
+                    "provider": "ollama",
                     "timeout_s": 30.0,
-                    "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/llama3"},
+                    "settings": {"model": "llama3"},
                 },
             },
         },

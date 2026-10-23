@@ -73,6 +73,7 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | model.embedding | sentence_transformers | ✅ `clients/weights/sentence_transformers` | ✅ `services/embedding/st.py` | ✅ | ✅ | F (fa543ba0) |
 | model.embedding | static (model2vec) | ✅ `clients/weights/model2vec` | ✅ `services/embedding/static.py` | ✅ | ✅ | F (fa543ba0) |
 | model.embedding | openai_compatible | ✅ `clients/openai_compat` | ✅ `services/embedding/openai_compat.py` | ✅ | ✅ | ADR-085; HTTP transport tests |
+| model.embedding | anyllm | yes `clients/anyllm` | yes `services/embedding/openai_compat.py` | yes optional `[anyllm]` | yes | ADR-085; fake SDK, bounded calls, endpoint identities |
 | model.embedding | ollama | ✅ `clients/openai_compat` | ✅ `services/embedding/openai_compat.py` | ✅ | ✅ | ADR-085; HTTP transport tests |
 | model.embedding | vllm | ✅ `clients/openai_compat` | ✅ `services/embedding/openai_compat.py` | ✅ | ✅ | ADR-085; HTTP transport tests |
 | model.embedding | lmstudio | ✅ `clients/openai_compat` | ✅ `services/embedding/openai_compat.py` | ✅ | ✅ | ADR-085; HTTP transport tests |
