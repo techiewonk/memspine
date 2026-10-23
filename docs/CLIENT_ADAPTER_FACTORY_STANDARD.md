@@ -43,14 +43,14 @@ memory metadata cache, Tantivy writer heap and commit retries) moved from
 
 ## 2a. Live status by provider (updated after each merge; RM-113 row holds the evidence)
 
-Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`) and the RM-113 leftovers (items 6, 7, 11, 12, `8226befe`); import contracts 18 kept / 0 broken. WP6 locality + documents slot landed (`72855bb5`); pgvector live-tested (`d9a87db6`). Next: RM-117 model slots (ADR-082).
+Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`) and the RM-113 leftovers (items 6, 7, 11, 12, `8226befe`); import contracts 18 kept / 0 broken. WP6 locality + documents slot landed (`72855bb5`); pgvector live-tested (`d9a87db6`). RM-117 model slots (ADR-082) landed (`80490893`..`778ccaca`): every model.* row is configured through its `model.<slot>`; regression green, import contracts 18 kept / 0 broken. Next: RM-118 follow-ups, RM-112, RM-96.
 ✅ done · 🔧 in progress (agent) · ⏳ queued · ⚠️ known gap
 
 | Slot | Provider | Connector | Adapter | Factory | Status | Work |
 |---|---|---|---|---|---|---|
 | records | sqlite | ✅ `clients/sqlite` (spec, `SELECT 1`, sync engines, migration connection) | ✅ records port + conformance; Alembic over the lent connection | ✅ slot wiring (A) | ✅ | — |
 | records | postgres | ✅ `clients/postgres` (spec, `SELECT 1`, sync engines, advisory lock) | ✅ records port + conformance; Alembic over the lent connection | ✅ slot wiring (A) | ✅ | A |
-| records | mongodb | ✅ `clients/mongodb` (replica-set check, `hello` health, driver vocabulary in `driver.py`) | ✅ records port, 14/14 conformance on a replica set | ⏳ registration after the slot rewrite; uv.lock refresh (RM-02) | 🔧 b41eadaf | I (RM-112) |
+| records | mongodb | ✅ `clients/mongodb` (replica-set check, `hello` health, driver vocabulary in `driver.py`) | ✅ records port, 14/14 conformance on a replica set | ⏳ registration after the slot rewrite; uv.lock refreshed for the `mongodb` extra (`c375ffa3`) | 🔧 b41eadaf | I (RM-112) |
 | vector | lancedb | ✅ Connector + `list_tables` health | ✅ | ✅ slot wiring (A); `acquire()` | ✅ | A |
 | vector | pgvector | ✅ borrows the records slot's Postgres connector (`ManagedSqlAccess.connector`) | ✅ `PgVectorStore(connector, PgVectorProjection)`; `ensure_table()` in `start()` honours `provision_projection` / `create_extension`; async over the connector pool; no providers import | ✅ no DDL, no sync lease | ✅ live-tested 2026-10-23 on pgvector/pgvector:pg16 with the locked pgvector 0.5.1 (provider contract + adapter + multi_node e2e: 10 passed, 0 skipped) | 8226befe |
 | vector | weaviate | ✅ Connector + single identity, `is_ready` health (shared with lexical/documents) | ✅ connector + `WeaviateCollectionBinding` (name, properties); `ensure_collection` in `start()`; helper in private `services/_weaviate/` | ✅ `acquire()`, identity from the connector | ✅ | 8226befe |
@@ -84,13 +84,13 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | model.rerank | qwen3 / jina | ✅ `clients/weights/transformers` | ✅ `services/rerank/{qwen3,jina}.py` | ✅ one factory | ✅ | F (fa543ba0) |
 | model.rerank | litellm | ✅ `clients/litellm` | ✅ `services/rerank/litellm.py` | ✅ one factory | ✅ | F (fa543ba0) |
 | model.extraction | gliner2 | ✅ `clients/weights/gliner2` (the only `snapshot_download`) | ✅ `services/extraction` (port `base.py`, pool `gliner2.py`) | ✅ `extraction` descriptor, container builds through it | ✅ | F (fa543ba0) |
-| model.decider | opendecider | ✅ `clients/weights/opendecider` | ✅ `services/decider/opendecider_nano.py` | ✅ `decider` descriptor via `providers/decider.py` | ✅ | F (fa543ba0) |
-| model.decider | gliner2 | ✅ leases the extraction pool | ✅ `services/decider/gliner2_decision.py` | ✅ `decider` descriptor | ✅ | F (fa543ba0) |
+| model.decider | opendecider | ✅ `clients/weights/opendecider` | ✅ `services/decider/opendecider_nano.py` | ✅ `decider` descriptor via `providers/decider.py`; slot `model.decider.read` | ✅ | F (fa543ba0), RM-117 |
+| model.decider | gliner2 | ✅ leases the extraction pool (one load shared with the extraction consumers) | ✅ `services/decider/gliner2_decision.py` | ✅ `decider` descriptor; slot `model.decider.route` (read slot: not implemented, RM-118) | ✅ | F (fa543ba0), RM-117 |
 | model.decider | jepa (JEPA-style, joint-embedding predictive) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/jepa.py` | ⏳ future descriptor | ⏳ future | not scheduled |
 | model.decider | yolo-style (fast single-pass classifier) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/<name>.py` | ⏳ future descriptor | ⏳ future | not scheduled |
-| model.vision | ollama | ✅ `clients/http` | 🔧 `services/assets/vision.py` (moves to `services/vision/`) | ⏳ no descriptor (built inline from `ingest.asset_vision*`) | 🔧 | RM-117 |
+| model.vision | ollama | ✅ `clients/http` | ⚠️ `services/assets/vision.py` (move to `services/vision/` open, RM-118) | ⚠️ no descriptor (built from `model.vision`) | ✅ config, ⚠️ layout | RM-117, RM-118 |
 
-Config keys: the model.* rows are the ADR-082 slot names. The configuration still uses the old keys (`embedding`, `llm.roles`, `models.*`, `decision.provider`, `read.rerank*`, `read.decider*`, `ingest.asset_vision*`) until RM-117 moves them to `model.<slot>` ([plan](MODEL_SLOTS_MIGRATION_PLAN.md)).
+Config keys: the model.* rows are the ADR-082 slot names and the configuration uses them (RM-117, [plan](MODEL_SLOTS_MIGRATION_PLAN.md)); the old keys (`embedding`, `llm.roles`, `models.*`, `decision.provider`, `read.rerank*`, `read.decider*`, `ingest.asset_vision*`) are rejected naming their new key. The rerank rows are entries of `model.rerank.chain`; the extraction row serves `model.extraction.{semantic,prepass,topic,sensitivity}`.
 | assets | fetch / vision | ✅ `clients/http` (one pooled httpx client per Engine, no redirect following) | ✅ takes the connector; the asset registry's sqlite3 stays (item 18) | n/a | ✅ | G (7a7493b3) |
 | external | provider / wikipedia | ✅ `clients/http` | ✅ takes the connector | n/a | ✅ | G (7a7493b3) |
 | secrets | aws | ✅ `clients/aws` (boto3 session, STS health) | ✅ takes the connector | n/a | ✅ | G (7a7493b3) |
