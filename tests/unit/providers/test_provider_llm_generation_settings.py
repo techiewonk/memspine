@@ -28,7 +28,8 @@ async def test_openai_compat_settings_flow_to_native_defaults_and_call_options(
         seen.update(kwargs)
         return Response()
 
-    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+    from scripts.model_transport_stub import install_transport
+    from scripts.model_transport_stub import transport_stub as openai_compat
 
     install_transport(monkeypatch)
 

@@ -11,8 +11,8 @@ from memspine import Engine
 from memspine.config.loader import load_config
 from memspine.config.schema.providers import (
     HashEmbeddingSettings,
-    OpenAICompatEmbeddingSettings,
     OnnxEmbeddingSettings,
+    OpenAICompatEmbeddingSettings,
     SentenceTransformersEmbeddingSettings,
     StaticEmbeddingSettings,
 )
@@ -192,6 +192,7 @@ def test_embedding_target_identity_requires_exact_dimension_without_loading_mode
     from dataclasses import asdict
 
     from memspine.clients.weights.onnx_catalogue import CATALOGUE, model_embedder_id
+
     spec = {**asdict(CATALOGUE["BAAI/bge-small-en-v1.5"]), "dim": 512, "additional_files": []}
     unknown = OnnxEmbeddingSettings(model="organization/private-model", model_spec=spec)
     identity = provider_target_identity(onnx, unknown)
@@ -277,6 +278,7 @@ async def test_mock_embedding_dimensions_must_match_the_declared_table(
     from dataclasses import asdict
 
     from memspine.clients.weights.onnx_catalogue import CATALOGUE
+
     spec = asdict(CATALOGUE["BAAI/bge-small-en-v1.5"])
     spec["dim"] = 3
     fast = OnnxEmbedding(model="organization/private-model", dim=3, model_spec=spec)

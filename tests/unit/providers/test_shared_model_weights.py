@@ -117,6 +117,7 @@ class _FakeTextEmbedding:
 
     def __init__(self, spec: Any, **kwargs: Any) -> None:
         from memspine.clients.weights.onnx_catalogue import CATALOGUE
+
         self.model_name = next(name for name, candidate in CATALOGUE.items() if candidate == spec)
         _FakeTextEmbedding.loads.append(self.model_name)
 
@@ -141,9 +142,7 @@ async def test_onnx_weights_shared_across_engines_caches_stay_per_engine(
     builder = EMBEDDERS.get("onnx").builder
     engine_a, engine_b = _engine(), _engine()
     built_a = await builder.build(OnnxEmbeddingSettings(), _shared(engine_a))
-    built_b = await builder.build(
-        OnnxEmbeddingSettings(query_instruction="q: "), _shared(engine_b)
-    )
+    built_b = await builder.build(OnnxEmbeddingSettings(query_instruction="q: "), _shared(engine_b))
     assert engine_a.states and engine_b.states  # each Engine owns its own lease release
     kv_a, kv_b = MemoryKV(), MemoryKV()
     cached_a = CachedEmbedding(built_a.service, kv_a)
@@ -172,9 +171,7 @@ async def test_different_embedder_settings_load_separately(fake_onnx: list[str])
     engine = _engine()
     small = await builder.build(OnnxEmbeddingSettings(), _shared(engine))
     other = _engine()
-    base = await builder.build(
-        OnnxEmbeddingSettings(model="BAAI/bge-base-en-v1.5"), _shared(other)
-    )
+    base = await builder.build(OnnxEmbeddingSettings(model="BAAI/bge-base-en-v1.5"), _shared(other))
     await small.service.embed(["x"])
     await base.service.embed(["x"])
     assert fake_onnx == ["BAAI/bge-small-en-v1.5", "BAAI/bge-base-en-v1.5"]
@@ -339,7 +336,6 @@ async def test_onnx_reranker_shared_across_engines_with_warm_hook(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     from memspine.clients.weights import onnx as cross_encoder
-
     from memspine.providers.rerank import RerankSettings, build_reranker_result
 
     loads: list[str] = []
@@ -378,7 +374,6 @@ async def test_onnx_reranker_shared_across_engines_with_warm_hook(
 
 async def test_standalone_reranker_build_stays_private(monkeypatch: pytest.MonkeyPatch) -> None:
     from memspine.clients.weights import onnx as cross_encoder
-
     from memspine.providers.rerank import RerankSettings, build_reranker
 
     monkeypatch.setattr(

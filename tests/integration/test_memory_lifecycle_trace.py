@@ -62,7 +62,8 @@ async def test_one_file_backed_message_reaches_derived_offline_and_retrieval(
 async def test_openai_compat_transport_is_restored_after_success_and_failure(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+    from scripts.model_transport_stub import install_transport
+    from scripts.model_transport_stub import transport_stub as openai_compat
 
     install_transport(monkeypatch)
 

@@ -19,7 +19,7 @@
 | D-05 | `clients/` meaning | service clients (LLM, AWS) with settings — not the user API |
 | D-06 | Protocols | REST only in v1; layout reserves WS/gRPC/MCP |
 | D-07 | LLM providers v1 | local (Ollama/OpenAI-compatible) + AWS Bedrock |
-| D-08 | Embedder default | fastembed (ONNX, CPU-friendly) |
+| D-08 | Embedder default | ONNX/CPU; implementation superseded by D-108 / ADR-084 (`onnx`, pinned catalogue, identity `embedder:<model>`) |
 | D-09 | Stores | SQLite (relational/event-log/FTS5) · **LanceDB core** (vector, ADR-021) · **LadybugDB** (graph, `[graph]` extra) · **LMDB** (cache, `[lmdb]`) — see **D-26** for graph alt; storage access layer = **SQLAlchemy Core + Alembic** (D-36). Graph default amended by D-49/ADR-015: v0.1 ships `sql_adjacency` |
 | D-10 | Missing service | hard-fail; `strict_services: false` dev escape hatch |
 | D-11 | Config layering | defaults → template → user YAML → env (.env ∥ AWS Secrets Manager as peers) → runtime kwargs |
@@ -44,7 +44,7 @@
 | **D-30** | **File-native profile** | **Skipped for v0.1** — vector/graph/SQLite-first; not a goal, interface not reserved |
 | **D-31** | **Structured LLM output** | **instructor** for extract/judge roles (`[structured]`); **json-repair** always-on safety net (core) (E9) |
 | **D-32** | **Cold-tier compression** | **zstandard** for dormant/cold memory compression + fingerprinting (M6) |
-| **D-33** | **LLM gateway** | keep `services/llm` per-role providers (D-07/D-22); **litellm only as an optional adapter**, never core |
+| **D-33** | **LLM gateway** | Superseded by D-109 / ADR-085: owned OpenAI-compatible httpx client; Bedrock `[aws]`; hosted long tail `[anyllm]`; litellm removed |
 | **D-34** | ~~Multilingual lexical~~ | **REVERSED → SKIP.** CJK/jieba not needed; no `[cjk]` extra. (cn2an/xpinyin/hanziconv were CJK-normalization in MemoryBear only.) |
 | **D-35** | **Eval assertions** | **deepeval** in `evals/` only, not shipped in the wheel (respects D-19) |
 | **D-36** | **Storage access layer** | **SQLAlchemy Core + Alembic** — Core (not full ORM) preserves the single-write-door/event-log discipline (D0.1) while replacing hand-rolled numbered `.sql`; Alembic owns migrations. `sqlmodel` still rejected. |
@@ -206,9 +206,9 @@ memspine/
 │   │   │   │                       #   via clients/http (all expose the OpenAI schema)
 │   │   │   ├── llama_cpp.py        # ★D-39: in-process open-weight inference   [extra: llmlocal]
 │   │   │   ├── bedrock.py          # AWS Bedrock via clients/aws           [extra: aws]
-│   │   │   └── litellm_adapter.py  # ★NEW D-33: OPTIONAL unified gateway; never a core dep [extra: litellm]
+│   │   │   └── openai_compat.py    # ★NEW D-33: owned HTTP client; optional hosted providers through anyllm (ADR-085)
 │   │   ├── secrets/                # base.py, env.py (default), aws.py [extra: aws]
-│   │   ├── embedding/              # base.py, fastembed_local.py (DEFAULT D-08), bedrock.py [aws]
+│   │   ├── embedding/              # base.py, onnx.py (DEFAULT D-108), bedrock.py [aws]
 │   │   ├── lexical/                # base.py (LexicalStore port + rrf_fuse here), sqlite_fts5.py (core DEFAULT),
 │   │   │                           #   projector.py (rebuildable projection), tantivy.py [tantivy] (IMPLEMENTED),
 │   │   │                           #   (LIKE fallback lives in sqlite_fts5.py; postgres_tsvector / vchord_bm25 [postgres] later)
@@ -308,7 +308,7 @@ memspine/
 | `taskiq` | taskiq, taskiq-redis | broker runner (Valkey Streams) |
 | `rest` | fastapi, uvicorn | REST protocol |
 | `aws` | boto3 | Bedrock LLM/embeddings + Secrets Manager |
-| `litellm` | **litellm** ★NEW | optional unified LLM gateway adapter (D-33) |
+| `anyllm` | **any-llm-sdk** | optional hosted LLM/embedding providers; upstream SDK extras selected by caller (ADR-085) |
 | `all` | everything above | kitchen sink / CI |
 
 Notes: **zstandard** (D-32) and **datasketch** (D-27) are small pure-ish wheels → folded into **core**. **deepeval** (D-35) and **fakeredis** (D-41) live in `evals/`/dev deps, never in the wheel. **orjson/xxhash/fastuuid** (D-37/38) are tiny compiled wheels → core.

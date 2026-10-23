@@ -345,9 +345,12 @@ def test_provider_capability_detection() -> None:
             self.__dict__.update(kw)
 
     s = window_schema(("facts",))
-    assert schema_options(P("openai_compatible:ollama_chat/qwen3"), s, "x")[0] == "json_schema"
-    assert schema_options(P("openai_compatible:openai/gpt"), s, "x")[0] == "json_schema"
-    assert schema_options(P("openai_compatible:bedrock/claude"), s, "x") == ("none", {})
+    assert schema_options(P("ollama:qwen3", supports_json_schema=True), s, "x")[0] == "json_schema"
+    assert (
+        schema_options(P("openai_compatible:gpt", supports_json_schema=True), s, "x")[0]
+        == "json_schema"
+    )
+    assert schema_options(P("bedrock:claude", supports_json_schema=False), s, "x") == ("none", {})
     mode, opts = schema_options(P("llama_cpp:/m.gguf"), s, "x")
     assert mode == "grammar" and opts["response_format"]["schema"] == s
     assert schema_options(P("openai_compatible:ollama/x", supports_json_schema=False), s, "x") == (

@@ -39,7 +39,8 @@ class _Response:
 
 
 def _capture(monkeypatch: pytest.MonkeyPatch, reply: str) -> list[dict[str, Any]]:
-    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+    from scripts.model_transport_stub import install_transport
+    from scripts.model_transport_stub import transport_stub as openai_compat
 
     install_transport(monkeypatch)
 

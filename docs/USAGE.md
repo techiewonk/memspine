@@ -947,7 +947,7 @@ storage:
       request_timeout_s: 5.0
 ```
 
-**LLM: local ? OpenAI-compatible endpoints / Bedrock** ? every role selects an
+**LLM: local to OpenAI-compatible endpoints / Bedrock** ? every role selects an
 explicit provider and `timeout_s`. An unlisted role is off. Provider settings own
 `model`, sampling options, and endpoint configuration; use bare model IDs.
 
@@ -990,7 +990,7 @@ detects pending changes). For example `ollama/llama3` becomes provider `ollama`
 with model `llama3`; `bedrock/...` becomes `bedrock`; OpenAI-compatible endpoints
 need an explicit `api_base`, and other hosted routes become `anyllm`.
 
-**Embedding: local ? hosted** ? endpoint dimensions must be configured explicitly.
+**Embedding: local to hosted** ? endpoint dimensions must be configured explicitly.
 
 ```yaml
 model:
@@ -1080,7 +1080,7 @@ model:
     settings: {model: BAAI/bge-small-en-v1.5}
   llm:
     extract:
-      provider: openai_compatible
+      provider: ollama
       timeout_s: 60
       structured: {retry_on_error: true, constrained_retry: false}
       escalation:
@@ -1089,8 +1089,8 @@ model:
         timeout_s: 120
         max_tokens_per_attempt: 2048
         targets:
-          - {provider: openai_compatible, timeout_s: 120, settings: {model: qwen3.5:27b}}
-      settings: {model: ollama/qwen3.5:9b, api_base: http://localhost:11434}
+          - {provider: ollama, timeout_s: 120, settings: {model: qwen3.5:27b}}
+      settings: {model: qwen3.5:9b, api_base: http://localhost:11434}
     judge:
       provider: llamacpp
       timeout_s: 60
@@ -2013,3 +2013,9 @@ table and values. Custom exports and changed prefixes require a controlled vecto
 space change. `scripts/make_onnx_parity_fixtures.py` documents regenerating the
 reference fixtures in an isolated environment with fastembed installed.
 
+
+Ollama supports embedding through `/v1/embeddings`, but has no rerank API. A rerank
+selection of `ollama` is rejected with an `onnx` / `vllm` replacement hint; use a
+local ONNX cross-encoder or a rerank endpoint instead. See the [Ollama API
+index](https://docs.ollama.com/api/introduction) and [upstream rerank
+request](https://github.com/ollama/ollama/issues/10467).

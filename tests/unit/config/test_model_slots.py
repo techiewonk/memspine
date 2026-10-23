@@ -370,7 +370,9 @@ def test_escalation_targets_are_bounded_unique_and_differ_from_the_primary() -> 
         "settings": {"api_base": "http://test.invalid/v1", "model": "b"},
     }
     invalid = [
-        _escalation(targets=[{**target, "settings": {"model": "a"}}]),  # same as primary
+        _escalation(
+            targets=[{**target, "settings": {**target["settings"], "model": "a"}}]
+        ),  # same endpoint and model as primary
         _escalation(targets=[target, {**target, "timeout_s": 20.0}]),  # duplicate model
         _escalation(max_attempts=3),  # beyond primary + one target
         _escalation(max_attempts=1),  # targets need two attempts

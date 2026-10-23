@@ -91,10 +91,13 @@ class _EmbeddingBuilder:
         http_ref = await share_model_http(service, ctx, f"embedding.http:{self.ref.name}")
         release = getattr(service, "aclose", None)
         refs: tuple[ResourceRef, ...] = (
-            (ctx.resources.own(
-                f"embedding.weights:{self.ref.name}", release,
-                depends_on=() if http_ref is None else (http_ref.resource_id,),
-            ),)
+            (
+                ctx.resources.own(
+                    f"embedding.weights:{self.ref.name}",
+                    release,
+                    depends_on=() if http_ref is None else (http_ref.resource_id,),
+                ),
+            )
             if callable(release)
             else ()
         )
@@ -177,8 +180,11 @@ def _embed_onnx(settings: OnnxEmbeddingSettings, registry: ResourceRegistry | No
         batch_size=settings.batch_size,
         model_spec=settings.model_spec,
         weights=text_weights(
-            settings.model, model_spec=settings.model_spec, threads=settings.threads,
-            providers=settings.providers, local_files_only=settings.local_files_only,
+            settings.model,
+            model_spec=settings.model_spec,
+            threads=settings.threads,
+            providers=settings.providers,
+            local_files_only=settings.local_files_only,
             registry=registry,
         ),
     )
@@ -460,8 +466,11 @@ def _embedding_target_identity(name: str) -> Callable[[Any], dict[str, Any]]:
         def onnx_identity(settings: OnnxEmbeddingSettings) -> dict[str, Any]:
             spec = resolve_model_spec(settings.model, settings.model_spec)
             return {
-                "embedder_id": model_embedder_id(settings.model, settings.model_spec,
-                    query_instruction=settings.query_instruction),
+                "embedder_id": model_embedder_id(
+                    settings.model,
+                    settings.model_spec,
+                    query_instruction=settings.query_instruction,
+                ),
                 "dimension": spec.dim,
             }
 

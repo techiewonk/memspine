@@ -75,7 +75,8 @@ async def test_llm_route_is_fixed_by_the_descriptor(
     api_base: str | None,
     provider_id: str,
 ) -> None:
-    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+    from scripts.model_transport_stub import install_transport
+    from scripts.model_transport_stub import transport_stub as openai_compat
 
     install_transport(monkeypatch)
 

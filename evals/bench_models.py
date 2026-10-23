@@ -122,8 +122,8 @@ def bench_llm() -> None:
 async def main() -> None:
     from memspine.services.embedding.onnx import OnnxEmbedding
     from memspine.services.embedding.st import SentenceTransformersEmbedding
-    from memspine.services.rerank.onnx import OnnxReranker
     from memspine.services.rerank.jina import JinaReranker
+    from memspine.services.rerank.onnx import OnnxReranker
     from memspine.services.rerank.qwen3 import Qwen3Reranker
 
     mode = sys.argv[2] if len(sys.argv) > 2 else "all"  # all | llm | nollm

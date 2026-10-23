@@ -24,7 +24,12 @@ from memspine.config.schema.providers import (
     Qwen3RerankerSettings,
 )
 from memspine.providers.contexts import SharedBuildContext
-from memspine.providers.contracts import BuildResult, DependencyRequirement, ProviderRef, ResourceRef
+from memspine.providers.contracts import (
+    BuildResult,
+    DependencyRequirement,
+    ProviderRef,
+    ResourceRef,
+)
 from memspine.providers.registry import RERANKERS, ProviderDescriptor
 from memspine.providers.shared import ResourceRegistry
 from memspine.services.base import CapabilityManifest
@@ -37,10 +42,15 @@ def _onnx(settings: OnnxRerankerSettings, registry: ResourceRegistry | None) -> 
     from memspine.services.rerank.onnx import OnnxReranker
 
     return OnnxReranker(
-        settings.model, batch_size=settings.batch_size, model_spec=settings.model_spec,
+        settings.model,
+        batch_size=settings.batch_size,
+        model_spec=settings.model_spec,
         weights=rerank_weights(
-            settings.model, model_spec=settings.model_spec, threads=settings.threads,
-            providers=settings.providers, local_files_only=settings.local_files_only,
+            settings.model,
+            model_spec=settings.model_spec,
+            threads=settings.threads,
+            providers=settings.providers,
+            local_files_only=settings.local_files_only,
             registry=registry,
         ),
     )
@@ -170,10 +180,13 @@ class _RerankerBuilder:
         http_ref = await share_model_http(service, shared, f"reranker.http:{self.ref.name}")
         release = getattr(service, "aclose", None)
         refs: tuple[ResourceRef, ...] = (
-            (shared.resources.own(
-                f"reranker.weights:{self.ref.name}", release,
-                depends_on=() if http_ref is None else (http_ref.resource_id,),
-            ),)
+            (
+                shared.resources.own(
+                    f"reranker.weights:{self.ref.name}",
+                    release,
+                    depends_on=() if http_ref is None else (http_ref.resource_id,),
+                ),
+            )
             if callable(release)
             else ()
         )

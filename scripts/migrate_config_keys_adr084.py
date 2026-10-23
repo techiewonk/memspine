@@ -47,8 +47,12 @@ def migrate_python(source: str) -> str:
     for node in candidates:
         if isinstance(node, ast.Constant) and node.value == "fastembed":
             assert node.end_lineno is not None and node.end_col_offset is not None
-            edits.append((offsets[node.lineno - 1] + node.col_offset,
-                          offsets[node.end_lineno - 1] + node.end_col_offset))
+            edits.append(
+                (
+                    offsets[node.lineno - 1] + node.col_offset,
+                    offsets[node.end_lineno - 1] + node.end_col_offset,
+                )
+            )
     result = source.encode("utf-8")
     for start, end in sorted(set(edits), reverse=True):
         result = result[:start] + b'"onnx"' + result[end:]
@@ -91,7 +95,9 @@ def main() -> int:
             changed = True
             print(file)
             if args.dry_run:
-                print("".join(difflib.unified_diff(source.splitlines(True), target.splitlines(True))))
+                print(
+                    "".join(difflib.unified_diff(source.splitlines(True), target.splitlines(True)))
+                )
             elif not args.check:
                 file.write_text(target, encoding="utf-8", newline="\n")
     return int(args.check and changed)

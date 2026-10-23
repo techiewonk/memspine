@@ -42,13 +42,13 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 | Graph | **auto** selects compatible LadybugDB `[graph]` or `sql_adjacency` (SQLite or Postgres; renamed from `sqlite_adjacency`, no alias), resolved once and pinned in the projector binding (ADR-081); explicit Neo4j is separately configured; no kuzu alias | D-26/D-49/D-60/ADR-068/ADR-081 |
 | Cache/KV | **memory** (in-process) default; disk / redis / valkey via cashews `[cache]` | D-09/ADR-022 amendment; LMDB replaced |
 | Lexical | **FTS5 / Tantivy** BM25, RRF fusion | D-25; **CJK dropped** (D-34) |
-| Embedder | **fastembed** (ONNX, CPU) | torch behind `[st]` only (D-08) |
-| LLM | local: **Ollama/vLLM/llama.cpp/LM Studio/OpenAI-compatible** + Bedrock | per-role providers; litellm adapter-only (D-07/D-33/D-39) |
+| Embedder | **onnx** (ONNX Runtime, CPU; pinned certified catalogue) | id `embedder:<model>`; torch behind `[st]` only (D-108/ADR-084) |
+| LLM | local: **Ollama/vLLM/llama.cpp/LM Studio/OpenAI-compatible** + Bedrock | own httpx client; Bedrock `[aws]`, hosted long tail `[anyllm]` (ADR-085) |
 | Workers | **inline** default, **Temporal + embedded Resonate** durable, **taskiq** brokered | ADR-071; Temporal requires external cluster + persistent local journal |
 | Dedup | **datasketch** MinHash-LSH → cosine confirm | D-27 |
 | Entities | **GLiNER2** CPU NER `[ner]` (default checkpoint GLiNER2.5 Base, `fastino/gliner2.5-base-v1`), selected via named `models.profiles` + `models.bindings` (off unless bound) + LLM fallback | D-28/D-97/ADR-075 |
 | Ingest | **markitdown + chonkie** `[ingest]` | D-29 |
-| Structured output | **instructor** + always-on **json-repair** | D-31 |
+| Structured output | built-in schema recovery + always-on **json-repair** | no instructor dependency; explicit provider capabilities |
 | Compression | **zstandard** cold-tier + **llmlingua** assembly `[compress]` | D-32/E5 |
 | Hashing/IDs | **xxhash** fingerprints + **fastuuid** ids | D-37 |
 | Serialization | **pydantic** models + **orjson** hot-path | D-38 |
@@ -137,4 +137,4 @@ D-106 / ADR-082 (RM-117 landed 2026-10-23): model providers move to one `model` 
 
 D-107 / ADR-083 (RM-119 landed 2026-10-23): the `mongodb` provider may launch a local mongod (`launch.mode: managed`, exact version pin, explicit port, download only with `download: true` and SHA-256 verification, one-member replica set on loopback, host-local). Default stays `external`; SQLite + filesystem remain the embedded default.
 
-D-108 / ADR-084 and D-109 / ADR-085 (accepted designs, planned as RM-123 / RM-124, not implemented; plan docs/FASTEMBED_LITELLM_REPLACEMENT_PLAN.md): fastembed is replaced by an own `onnx` embedder and cross-encoder (embedder id `embedder:<model>`, parity-certified models keep their vector space), and litellm by an own OpenAI-compatible httpx client (presets ollama/vllm/lmstudio/llamacpp_server, Bedrock on boto3, optional `[anyllm]`). Until they land, the Embedder and LLM rows of the defaults table still describe fastembed and litellm.
+D-108 / ADR-084 and D-109 / ADR-085 (implementation and verification tracked by RM-123 / RM-124; plan docs/FASTEMBED_LITELLM_REPLACEMENT_PLAN.md): fastembed is replaced by an own `onnx` embedder and cross-encoder (embedder id `embedder:<model>`, parity-certified models keep their vector space), and litellm by an own OpenAI-compatible httpx client (presets ollama/vllm/lmstudio/llamacpp_server, Bedrock on boto3, optional `[anyllm]`). Hugging Face Hub 2.x now resolves; current verification lives in the tracker.

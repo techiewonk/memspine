@@ -1,5 +1,15 @@
 # Dependency Analysis — code-level scan of `D:\mem` for `memspine` adoption
 
+> ADR-084/085 implementation update (2026-10-23): fastembed and litellm are removed.
+> Core owns the small pinned-model inference path (`onnxruntime`, `tokenizers`,
+> `huggingface-hub`) and OpenAI-compatible transport on existing `httpx`. The five
+> exact exports have committed fastembed parity references. Bedrock uses existing
+> `[aws]` boto3; the optional `[anyllm]` extra depends on `any-llm-sdk` base only
+> (1.40.1 baseline), with upstream SDK extras installed by the caller. The SDK's
+> pinned anthropic compatibility range can select an older transitive anthropic;
+> it does not constrain the core model client. Hub 2.3.0 resolves after removing
+> both blockers. Earlier package comparisons below are historical evidence.
+
 > Orchestration update (2026-10-17): DBOS has been removed from active packaging
 > and runtime. The durable runner is Temporal Server + embedded Resonate with an
 > application-owned SQLite result journal, installed through `[temporal]`; see

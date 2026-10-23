@@ -1,12 +1,12 @@
 {
-  "checked_at": "2026-10-23T17:00:47.198294+00:00",
+  "checked_at": "2026-10-23T17:12:30.645876+00:00",
   "target_python": "3.13.0",
   "evidence_level": "Published Requires-Python and release-file metadata, not runtime proof",
   "host_wheel_scope": "Interpreter/platform running this audit only; not a cross-platform guarantee",
   "manifest_source": "pyproject.toml and uv.lock",
   "source_sha256": {
-    "pyproject.toml": "cb7e02a674d2ac1cc1914b44afc220c61f99ebadd63cd9486226bc2b41421d89",
-    "uv.lock": "09c3d2b98f1a32acce1d07c5748ebbbd250cd350065e791ab677d892ae0d3a12"
+    "pyproject.toml": "0303505984370c7739466c5df557d6d77bc067e4ef85d3ed101de73bc260c124",
+    "uv.lock": "36c2e5bed4c84ef6ae8f1d83c4e760ef5bd0f36e86d3c2b2f5735478a8e11778"
   },
   "packages": [
     {
@@ -593,7 +593,7 @@
       "references": [
         {
           "area": "core",
-          "requirement": "huggingface-hub>=1.33.0,<3"
+          "requirement": "huggingface-hub>=2.2.0,<3"
         },
         {
           "area": "decider",
@@ -1032,7 +1032,7 @@
       "references": [
         {
           "area": "core",
-          "requirement": "onnxruntime>=1.24.3"
+          "requirement": "onnxruntime>=1.31.0"
         }
       ],
       "locked": [

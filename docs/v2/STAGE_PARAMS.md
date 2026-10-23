@@ -169,7 +169,7 @@ Models:
 | `model.embedding.migrate_preset` | `false` | bool | Accept a preset change on open (the pin is replaced, the old hash kept as `previous`). | - | - |
 | `model.embedding.pin_preset` | `false` | bool | Write the resolved embedding preset (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and re | - | - |
 | `model.embedding.preset` | `null` | str \| None min_length 1 | A shipped embedding preset that fills provider, model, dim and query instruction. | - | - |
-| `model.embedding.provider` | `onnx` | str min_length 1 | `onnx` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud; | - | - |
+| `model.embedding.provider` | `onnx` | str min_length 1 | `onnx` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `openai_compatible` (cloud; | - | - |
 | `model.embedding.settings` | `{}` | dict[str, JsonValue] | Provider-owned settings (model id, dim, api_base, ...), validated by the selected provider's descriptor. | - | - |
 | `model.embedding.versioned_spaces` | `false` | bool | Version the vector space. | - | - |
 
@@ -893,7 +893,7 @@ Models:
 | `model.embedding.migrate_preset` | `false` | bool | Accept a preset change on open (the pin is replaced, the old hash kept as `previous`). | - | - |
 | `model.embedding.pin_preset` | `false` | bool | Write the resolved embedding preset (model, dim, dtype, instruction, normalisation, version hash) beside the store at creation (`<db>.embedding-profile.json`, and into the Lance table metadata) and re | - | - |
 | `model.embedding.preset` | `null` | str \| None min_length 1 | A shipped embedding preset that fills provider, model, dim and query instruction. | - | - |
-| `model.embedding.provider` | `onnx` | str min_length 1 | `onnx` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `litellm` (cloud; | - | - |
+| `model.embedding.provider` | `onnx` | str min_length 1 | `onnx` (ONNX/CPU) \| `hash` (deterministic, tests) \| `static` (model2vec `[static]`) \| `openai_compatible` (cloud; | - | - |
 | `model.embedding.settings` | `{}` | dict[str, JsonValue] | Provider-owned settings (model id, dim, api_base, ...), validated by the selected provider's descriptor. | - | - |
 | `model.embedding.versioned_spaces` | `false` | bool | Version the vector space. | - | - |
 

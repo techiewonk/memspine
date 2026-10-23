@@ -17,12 +17,17 @@ async def test_model_pool_lifetime_and_per_request_credentials(monkeypatch) -> N
     descriptor = get_registry("llm_providers").get("openai_compatible")
     services = []
     for index, owner in enumerate(owners):
-        settings = validate_settings(descriptor, {
-            "model": "model", "api_base": "http://localhost:8000/v1",
-            "api_key_env": "MODEL_A_KEY" if index == 0 else "MODEL_B_KEY",
-            "timeout_seconds": 2.0, "supports_json_schema": False,
-            "supports_grammar": True,
-        })
+        settings = validate_settings(
+            descriptor,
+            {
+                "model": "model",
+                "api_base": "http://localhost:8000/v1",
+                "api_key_env": "MODEL_A_KEY" if index == 0 else "MODEL_B_KEY",
+                "timeout_seconds": 2.0,
+                "supports_json_schema": False,
+                "supports_grammar": True,
+            },
+        )
         built = await descriptor.builder.build(
             settings, LLMBuildContext(SharedBuildContext(owner, "test", 1.0, registry), "chat")
         )

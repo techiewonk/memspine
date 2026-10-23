@@ -568,7 +568,14 @@ def test_decider_keys_without_selector_are_left() -> None:
 
 
 def test_read_rerank_with_settings_becomes_chain() -> None:
-    out, _ = mig({"read": {"rerank": "openai_compatible", "rerank_settings": {"model": "cohere"}}})
+    out, _ = mig(
+        {
+            "read": {
+                "rerank": "openai_compatible",
+                "rerank_settings": {"model": "cohere", "api_base": "http://test.invalid/v1"},
+            }
+        }
+    )
     assert out == {
         "model": {
             "rerank": {
@@ -609,9 +616,7 @@ def test_rerank_v2_without_chain_uses_the_old_default() -> None:
 
 
 def test_rerank_v2_wins_over_v1_and_the_conflict_is_reported() -> None:
-    out, notes = mig(
-        {"read": {"rerank": "onnx", "rerank_settings": {"a": 1}, "rerank_v2": True}}
-    )
+    out, notes = mig({"read": {"rerank": "onnx", "rerank_settings": {"a": 1}, "rerank_v2": True}})
     assert [e["provider"] for e in out["model"]["rerank"]["chain"]] == [
         "jina",
         "qwen3",
@@ -995,7 +1000,7 @@ YAML_TEXT = """\
 # deployment config
 llm:
   roles:
-    extract: {provider: openai_compat, settings: {model: ollama/q}}
+    extract: {provider: openai_compatible, settings: {api_base: http://test.invalid/v1, model: ollama/q}}
   structured: {retry_on_error: true}
 read:
   planner: decision   # stays

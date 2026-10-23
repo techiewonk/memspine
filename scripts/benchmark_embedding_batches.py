@@ -20,12 +20,13 @@ import sys
 import tempfile
 import time
 import traceback
-from importlib.metadata import PackageNotFoundError, version
 from datetime import UTC, datetime
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 from typing import Any
 
 import numpy as np
+
 from memspine.clients.weights.onnx import OnnxModel
 from memspine.clients.weights.onnx_catalogue import resolve_model_spec
 
@@ -79,8 +80,12 @@ def _version(package: str) -> str | None:
 def _probe_standard_cache(cache_dir: Path) -> dict[str, Any]:
     """Record whether onnx's normal offline resolver can load this cache."""
     try:
-        OnnxModel(resolve_model_spec(MODEL_NAME), threads=1,
-                  providers=["CPUExecutionProvider"], local_files_only=True)
+        OnnxModel(
+            resolve_model_spec(MODEL_NAME),
+            threads=1,
+            providers=["CPUExecutionProvider"],
+            local_files_only=True,
+        )
     except Exception as exc:
         return {"status": "unavailable", "error_type": type(exc).__name__, "error": str(exc)}
     return {"status": "available"}
@@ -150,8 +155,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="memspine-onnx-batch-") as temp:
         result["standard_offline_cache_probe"] = _probe_standard_cache(cache_dir)
         spec = resolve_model_spec(MODEL_NAME)
-        model = OnnxModel(spec, threads=1, providers=["CPUExecutionProvider"],
-                          local_files_only=True)
+        model = OnnxModel(
+            spec, threads=1, providers=["CPUExecutionProvider"], local_files_only=True
+        )
         result["model_info"] = {
             "runtime_class": type(model).__name__,
             "dimension": spec.dim,

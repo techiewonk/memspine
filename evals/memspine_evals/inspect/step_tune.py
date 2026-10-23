@@ -629,7 +629,6 @@ class TuneMixin:
     def _install_prompt_hook(self) -> None:
         """Wrap ``openai_compat.acompletion`` once: a call whose messages are a code-constant prompt gets the edited text."""
         from memspine.clients.openai_compat import OpenAICompatConnector as openai_compat
-
         from memspine.prompts import structured as S
 
         inner = openai_compat.acompletion

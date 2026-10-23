@@ -6,9 +6,9 @@ from pydantic import ValidationError
 from memspine.config.schema.providers import SqliteSettings
 from memspine.providers.settings import (
     EmptySettings,
-    OpenAICompatRoleSettings,
     LlamaCppRoleSettings,
     Neo4jSettings,
+    OpenAICompatRoleSettings,
     ProviderServicesSettings,
     StrictSettings,
     freeze_settings,

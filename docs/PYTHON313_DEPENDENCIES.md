@@ -7,13 +7,14 @@
 > measurements and DBOS comparisons below are historical, not current setup instructions.
 
 
-Lock refresh (RM-02, 2026-10-23, uv 0.13.5): 15 direct entries moved to the
-latest allowed release (alembic 1.20.1, boto3 1.43.118, fastapi 0.161.1,
-json-repair 0.64.2, litellm 1.106.2, markitdown 0.1.9, mkdocstrings 1.0.8,
-pydantic-settings 2.16.1, ruff 0.17.2, sentence-transformers 6.2.0,
-sqlalchemy 2.1.6, tantivy 0.27.0 (same on-disk index format v7 as 0.26.2),
-transformers 5.20.2, weaviate-client 4.24.0, xxhash 4.0.2); no constraint
-changes. The table below is regenerated from that audit.
+Provider replacement refresh (RM-123/RM-124, 2026-10-23, uv 0.13.5):
+fastembed and litellm are removed. Core directly declares ONNX Runtime,
+tokenizers and Hugging Face Hub. `[anyllm]` adds any-llm-sdk 1.40.1 base only;
+provider SDK extras are caller-selected. The `[decider]` Hub cap is now
+`>=2.2.0,<3`; the universal lock resolves Hub 2.3.0 (236 packages).
+The installed environment passes `uv pip check`; obsolete DeepEval was removed.
+The public metadata audit reports 69 direct/build dependencies and zero outdated
+entries. The table below is generated from that audit.
 
 Audit: 2026-10-17. Target: CPython 3.13; clean validation interpreter: 3.13.5,
 Windows x64. Sources: [PyPI JSON API](https://docs.pypi.org/api/json/), package
@@ -40,7 +41,7 @@ not an assertion that every transitive package can use its standalone latest.
 
 | Package / area | Decision | Reason / evidence |
 |---|---|---|
-| Hugging Face Hub | 1.33.0, below 2 | Latest standalone is 2.2.0. Sentence-transformers 6.2.0, transformers 5.20.2, tokenizers 0.23.3 and datasets 5.1.0 permit `<3`, and accelerate, peft and model2vec have no upper bound. Two **core** dependencies still require `huggingface-hub<2.0`: fastembed 0.9.0 (latest release, also current `main`) and litellm 1.106.2 (latest release; `main` at 1.108.0 still declares `>=0.34.0,<2.0`). Raising memspine's `[decider]` cap to `>=2.2.0,<3` fails `uv lock` with "fastembed>=0.9.0 depends on huggingface-hub>=0.20,<2.0". The `<2` cap therefore stays until both upstreams lift theirs. Checked 2026-10-23. Hub 2.0 itself only moves the HTTP stack to httpx2 and removes 1.x-deprecated upload/space/CLI APIs; memspine calls only `snapshot_download`, `hf_hub_download` and `try_to_load_from_cache`, and none of those changed. [fastembed metadata](https://pypi.org/pypi/fastembed/0.9.0/json), [litellm metadata](https://pypi.org/pypi/litellm/1.106.2/json), [Hub 2.0 migration guide](https://github.com/huggingface/huggingface_hub/blob/main/docs/source/en/concepts/migration_v2.md) |
+| Hugging Face Hub | 2.3.0; core and decider permit `<3` | The former fastembed/litellm `<2` blockers were removed by ADR-084/085. Universal lock and installed consistency checks pass; offline/cache and regression evidence is recorded with the provider replacement verification. |
 | Ladybug | Latest 0.21.2 within `<0.22` | Preserve the agreed graph storage-format compatibility boundary |
 | DBOS | Upgrade to 3.3.0, `<4` | Fresh-environment durable resume and runner parity passed; existing whole-pipeline recovery semantics remain |
 | GLiNER2 | Upgrade to 2.1.0 with `[local]`, `<3` | Publisher metadata permits 3.13 and Transformers 5.x; weights/inference were not run |
@@ -122,6 +123,7 @@ query time and manifest/lock hashes: [dependency-audit.json](provider_verificati
 |---|---|---|---|---|
 | aiosqlite | 0.22.1 | 0.22.1 | 0.22.1 | Yes |
 | alembic | 1.20.1 | 1.20.1 | 1.20.1 | Yes |
+| any-llm-sdk | 1.40.1 | 1.40.1 | 1.40.1 | Yes |
 | bitsandbytes | 0.50.2 | 0.50.2 | 0.50.2 | Yes |
 | boto3 | 1.43.118 | 1.43.118 | 1.43.118 | Yes |
 | cashews | 7.6.0 | 7.6.0 | 7.6.0 | Yes |
@@ -130,7 +132,6 @@ query time and manifest/lock hashes: [dependency-audit.json](provider_verificati
 | dishka | 1.10.1 | 1.10.1 | 1.10.1 | Yes |
 | fakeredis | 2.40.0 | 2.40.0 | 2.40.0 | Yes |
 | fastapi | 0.161.1 | 0.161.1 | 0.161.1 | Yes |
-| fastembed | 0.9.0 | 0.9.0 | 0.9.0 | Yes |
 | fastuuid | 0.14.0 | 0.14.0 | 0.14.0 | Yes |
 | flashrank | 0.2.10 | 0.2.10 | 0.2.10 | Yes |
 | gliner2 | 2.1.0 | 2.1.0 | 2.1.0 | Yes |
@@ -138,15 +139,14 @@ query time and manifest/lock hashes: [dependency-audit.json](provider_verificati
 | greenlet | 3.5.6 | 3.5.6 | 3.5.6 | Yes |
 | hatchling | build-isolated | 1.32.4 | 1.32.4 | Yes |
 | httpx | 0.28.1 | 0.28.1 | 0.28.1 | Yes |
-| huggingface-hub | 1.33.0 | 1.33.0 | 2.2.0 | Yes |
+| huggingface-hub | 2.3.0 | 2.3.0 | 2.3.0 | Yes |
 | import-linter | 2.15 | 2.15 | 2.15 | Yes |
 | jinja2 | 3.1.6 | 3.1.6 | 3.1.6 | Yes |
 | json-repair | 0.64.2 | 0.64.2 | 0.64.2 | Yes |
 | ladybug | 0.21.2 | 0.21.2 | 0.21.2 | Yes |
 | lancedb | 0.40.0 | 0.40.0 | 0.40.0 | Yes |
 | langmem | 0.0.30 | 0.0.30 | 0.0.30 | Yes |
-| litellm | 1.106.2 | 1.106.2 | 1.106.2 | Yes |
-| llama-cpp-python | 0.3.36 | 0.3.36 | 0.3.36 | No; native build check needed |
+| llama-cpp-python | 0.3.36 | 0.3.36 | 0.3.36 | No |
 | llmlingua | 0.2.2 | 0.2.2 | 0.2.2 | Yes |
 | markitdown | 0.1.9 | 0.1.9 | 0.1.9 | Yes |
 | mkdocs-material | 9.7.7 | 9.7.7 | 9.7.7 | Yes |
@@ -154,6 +154,7 @@ query time and manifest/lock hashes: [dependency-audit.json](provider_verificati
 | model2vec | 0.10.0 | 0.10.0 | 0.10.0 | Yes |
 | mypy | 2.4.0 | 2.4.0 | 2.4.0 | Yes |
 | neo4j | 6.4.1 | 6.4.1 | 6.4.1 | Yes |
+| onnxruntime | 1.31.0 | 1.31.0 | 1.31.0 | Yes |
 | opensearch-py | 3.2.0 | 3.2.0 | 3.2.0 | Yes |
 | opentelemetry-api | 1.45.1 | 1.45.1 | 1.45.1 | Yes |
 | opentelemetry-sdk | 1.45.1 | 1.45.1 | 1.45.1 | Yes |
@@ -179,6 +180,7 @@ query time and manifest/lock hashes: [dependency-audit.json](provider_verificati
 | taskiq | 0.13.0 | 0.13.0 | 0.13.0 | Yes |
 | taskiq-redis | 1.2.4 | 1.2.4 | 1.2.4 | Yes |
 | temporalio | 1.34.0 | 1.34.0 | 1.34.0 | Yes |
+| tokenizers | 0.23.3 | 0.23.3 | 0.23.3 | Yes |
 | torch | 2.14.1 | 2.14.1 | 2.14.1 | Yes |
 | transformers | 5.20.2 | 5.20.2 | 5.20.2 | Yes |
 | typer | 0.27.3 | 0.27.3 | 0.27.3 | Yes |

@@ -27,7 +27,8 @@ class _Response:
 
 
 async def test_openai_compat_chat_passes_model_and_options(monkeypatch: pytest.MonkeyPatch) -> None:
-    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+    from scripts.model_transport_stub import install_transport
+    from scripts.model_transport_stub import transport_stub as openai_compat
 
     install_transport(monkeypatch)
 
@@ -51,7 +52,8 @@ async def test_openai_compat_chat_passes_model_and_options(monkeypatch: pytest.M
 async def test_openai_compat_native_defaults_and_call_options(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+    from scripts.model_transport_stub import install_transport
+    from scripts.model_transport_stub import transport_stub as openai_compat
 
     install_transport(monkeypatch)
 
@@ -78,7 +80,8 @@ async def test_openai_compat_native_defaults_and_call_options(
 
 
 async def test_openai_compat_wraps_provider_errors(monkeypatch: pytest.MonkeyPatch) -> None:
-    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+    from scripts.model_transport_stub import install_transport
+    from scripts.model_transport_stub import transport_stub as openai_compat
 
     install_transport(monkeypatch)
 
@@ -92,7 +95,8 @@ async def test_openai_compat_wraps_provider_errors(monkeypatch: pytest.MonkeyPat
 
 
 async def test_openai_compat_empty_content_raises(monkeypatch: pytest.MonkeyPatch) -> None:
-    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+    from scripts.model_transport_stub import install_transport
+    from scripts.model_transport_stub import transport_stub as openai_compat
 
     install_transport(monkeypatch)
 
@@ -143,7 +147,8 @@ async def test_openai_compat_unanswered_request_times_out(monkeypatch: pytest.Mo
     """A request the server accepts but never answers ends in LLMError, never a silent hang (f-gc3, 2026-10-12)."""
     import asyncio
 
-    from scripts.model_transport_stub import install_transport, transport_stub as openai_compat
+    from scripts.model_transport_stub import install_transport
+    from scripts.model_transport_stub import transport_stub as openai_compat
 
     install_transport(monkeypatch)
 

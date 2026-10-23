@@ -8,8 +8,9 @@ from memspine.exceptions import ConfigError
 
 
 def test_execution_providers_accept_json_list_and_freeze_it() -> None:
-    from memspine.config.schema.providers import OnnxEmbeddingSettings, OnnxRerankerSettings
     from pydantic import ValidationError
+
+    from memspine.config.schema.providers import OnnxEmbeddingSettings, OnnxRerankerSettings
 
     for settings in (OnnxEmbeddingSettings, OnnxRerankerSettings):
         assert settings.model_validate({"providers": ["CPUExecutionProvider"]}).providers == (
@@ -27,11 +28,14 @@ def test_fastembed_rejected(slot: str) -> None:
         MemspineConfig.model_validate({"model": {slot: value}})
 
 
-@pytest.mark.parametrize("suffix,source", [
-    (".py", 'config = {"model": {"embedding": {"provider": "fastembed"}}}\n'),
-    (".yaml", 'model:\n  rerank:\n    chain:\n      - provider: fastembed\n'),
-    (".json", '{"model":{"embedding":{"provider":"fastembed"}}}'),
-])
+@pytest.mark.parametrize(
+    "suffix,source",
+    [
+        (".py", 'config = {"model": {"embedding": {"provider": "fastembed"}}}\n'),
+        (".yaml", "model:\n  rerank:\n    chain:\n      - provider: fastembed\n"),
+        (".json", '{"model":{"embedding":{"provider":"fastembed"}}}'),
+    ],
+)
 def test_migration_idempotent(suffix: str, source: str) -> None:
     target = migrate_source(source, suffix)
     assert "onnx" in target and "fastembed" not in target
@@ -40,4 +44,6 @@ def test_migration_idempotent(suffix: str, source: str) -> None:
 
 def test_python_leaves_non_provider_strings_and_unicode_intact() -> None:
     source = 'x = {"label": "fastembed", "é": "🤖", "provider": "fastembed"} # preserved\n'
-    assert migrate_source(source, ".py") == source.replace('"provider": "fastembed"', '"provider": "onnx"')
+    assert migrate_source(source, ".py") == source.replace(
+        '"provider": "fastembed"', '"provider": "onnx"'
+    )

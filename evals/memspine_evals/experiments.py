@@ -39,9 +39,7 @@ from .readers import (
     NO_MEMORY_QA_PROMPT,
     ContextOnlyReader,
     CtxGuard,
-    OpenAICompatReader,
     SamplerConfig,
-    openai_compat_chat,
 )
 from .results import RunSummary
 from .runner import RunConfig, run_matrix
@@ -339,7 +337,7 @@ def _retriever(config: C01Config) -> Any:
     and 3. Which one ran is recorded in the manifest; a hash-vector control is
     never labelled dense, because the retriever reports its own model id."""
     if config.hybrid:
-        from .systems.retrievers import OnnxRetriever, HybridRetriever
+        from .systems.retrievers import HybridRetriever, OnnxRetriever
 
         return HybridRetriever(BM25Retriever(), OnnxRetriever(model=config.embedding_model))
     if not config.dense:

@@ -1,6 +1,6 @@
 # ADR-024 — LiteLLM as the unified LLM / embedding / rerank gateway
 
-**Status:** accepted · **Date:** 2026-07-10 · **Register:** amends D-03 (slim core), D-33 (litellm adapter-only), D-39 (openai_compat) · **Phase:** services/* completion — Phase 4
+**Status:** superseded by [ADR-085](ADR-085-own-openai-compatible-client-and-anyllm-extra.md) · **Date:** 2026-07-10 · **Register:** amends D-03 (slim core), D-33 (litellm adapter-only), D-39 (openai_compat) · **Phase:** services/* completion — Phase 4
 
 ## Context
 
