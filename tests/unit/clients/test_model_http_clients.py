@@ -317,3 +317,77 @@ async def test_bedrock_throttling_is_retryable_and_auth_errors_are_redacted() ->
         assert not isinstance(failure.value, BedrockTransientError)
         assert "secret-vendor-detail" not in str(failure.value)
     await connector.close()
+
+
+@pytest.mark.parametrize(
+    ("preset", "base"),
+    [
+        ("ollama", "http://localhost:11434"),
+        ("vllm", "http://localhost:8000/v1"),
+        ("lmstudio", "http://localhost:1234/v1"),
+        ("llamacpp_server", "http://localhost:8080/v1"),
+    ],
+)
+async def test_embedding_presets_have_typed_endpoints_and_dimensions(
+    preset, base, monkeypatch
+) -> None:
+    from scripts.model_transport_stub import install_transport, transport_stub
+
+    from memspine.providers.registry import get_registry, validate_settings
+
+    install_transport(monkeypatch)
+
+    async def response(**kwargs):
+        return SimpleNamespace(data=[{"index": 0, "embedding": [0.5, 0.25]}])
+
+    monkeypatch.setattr(transport_stub, "aembedding", response)
+    descriptor = get_registry("embedders").get(preset)
+    settings = validate_settings(
+        descriptor, {"model": "embedding-model", "dim": 2, "request_timeout_s": 3.0}
+    )
+    service = (await descriptor.builder.build(settings, None)).service
+    assert service._connector.spec.api_base == base
+    assert service._connector.spec.family == preset
+    assert service.embedder_id == f"{preset}:embedding-model"
+    assert await service.embed(["x"]) == [[0.5, 0.25]]
+    await service.aclose()
+
+
+async def test_vllm_reranker_preset_and_unsupported_ollama() -> None:
+    from memspine.exceptions import ConfigError
+    from memspine.providers.registry import get_registry, validate_settings
+
+    descriptor = get_registry("rerankers").get("vllm")
+    service = (
+        await descriptor.builder.build(
+            validate_settings(descriptor, {"model": "ranker", "request_timeout_s": 3.0}), None
+        )
+    ).service
+    assert service._connector.spec.family == "vllm"
+    assert service.reranker_id == "vllm:ranker"
+    await service.aclose()
+    descriptor = get_registry("rerankers").get("ollama")
+    with pytest.raises(ConfigError, match="does not expose a rerank API"):
+        await descriptor.builder.build(
+            validate_settings(descriptor, {"model": "ranker", "request_timeout_s": 3.0}), None
+        )
+
+
+async def test_cohere_rerank_path_and_explicit_override() -> None:
+    seen = []
+
+    def respond(request):
+        seen.append(request.url.path)
+        return httpx.Response(200, json={"results": []})
+
+    pool = HttpConnector(HttpSpec(transport=httpx.MockTransport(respond)))
+    connector = OpenAICompatConnector(
+        OpenAICompatSpec(api_base="https://cohere.example", family="cohere"), http=pool
+    )
+    await connector.arerank(model="ranker", query="q", documents=[])
+    connector = OpenAICompatConnector(
+        OpenAICompatSpec(api_base="https://jina.example", rerank_path="/custom/rerank"), http=pool
+    )
+    await connector.arerank(model="ranker", query="q", documents=[])
+    assert seen == ["/v2/rerank", "/custom/rerank"]
+    await pool.close()

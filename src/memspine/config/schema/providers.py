@@ -358,6 +358,9 @@ class OpenAICompatEmbeddingSettings(StrictSettings):
     api_base: str | None = None
     api_key: str | None = None
     api_key_env: str | None = None
+    family: Literal["openai_compatible", "ollama", "vllm", "lmstudio", "llamacpp_server"] = (
+        "openai_compatible"
+    )
     request_dimensions: bool = False
     query_input_type: str | None = None
     document_input_type: str | None = None
@@ -377,6 +380,13 @@ class OpenAICompatEmbeddingSettings(StrictSettings):
                 "settings.dim conflicts with the known OpenAICompat model dimension unless request_dimensions is enabled"
             )
         return self
+
+
+class EndpointEmbeddingSettings(OpenAICompatEmbeddingSettings):
+    """A server preset requires an explicitly selected model and vector dimension."""
+
+    model: str = Field(min_length=1)
+    dim: int = Field(ge=1)
 
 
 class BedrockEmbeddingSettings(StrictSettings):
@@ -448,6 +458,8 @@ class OpenAICompatRerankerSettings(StrictSettings):
     api_base: str | None = None
     api_key: str | None = None
     api_key_env: str | None = None
+    family: Literal["openai_compatible", "vllm", "jina", "cohere", "ollama"] = "openai_compatible"
+    rerank_path: str | None = Field(default=None, pattern=r"^/[^/]")
     request_timeout_s: float = Field(gt=0)
 
 

@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 from memspine.config.schema.providers import (
     BedrockEmbeddingSettings,
+    EndpointEmbeddingSettings,
     HashEmbeddingSettings,
     OnnxEmbeddingSettings,
     OpenAICompatEmbeddingSettings,
@@ -224,10 +225,30 @@ def _embed_openai_compat(
             OpenAICompatSpec(
                 api_base=settings.api_base,
                 api_key=settings.api_key,
+                api_key_env=settings.api_key_env,
+                family=settings.family,
                 timeout_s=settings.request_timeout_s,
             )
         ),
     )
+
+
+def _embed_endpoint_preset(name: str) -> Callable[[Any, Any], Any]:
+    def build(settings: EndpointEmbeddingSettings, registry: ResourceRegistry | None) -> Any:
+        defaults = {
+            "ollama": "http://localhost:11434",
+            "vllm": "http://localhost:8000/v1",
+            "lmstudio": "http://localhost:1234/v1",
+            "llamacpp_server": "http://localhost:8080/v1",
+        }
+        configured = settings.model_copy(
+            update={"api_base": settings.api_base or defaults[name], "family": name}
+        )
+        service = _embed_openai_compat(configured, registry)
+        service._provider = name
+        return service
+
+    return build
 
 
 def _embed_bedrock(settings: BedrockEmbeddingSettings, _registry: ResourceRegistry | None) -> Any:
@@ -455,7 +476,7 @@ def _embedding_target_identity(name: str) -> Callable[[Any], dict[str, Any]]:
             "embedder_id": f"static:{settings.model}",
             "dimension": settings.dim,
         }
-    if name in {"openai_compatible", "bedrock"}:
+    if name in {"openai_compatible", "bedrock", "ollama", "vllm", "lmstudio", "llamacpp_server"}:
         return lambda settings: {
             "embedder_id": (
                 f"{name}:{settings.model}"
@@ -635,6 +656,18 @@ def register() -> None:
                 requires_deployment_id=deployment_id,
                 requirements=requirements,
                 extra=extra,
+            )
+
+    for preset in ("ollama", "vllm", "lmstudio", "llamacpp_server"):
+        if preset not in EMBEDDERS:
+            _register(
+                EMBEDDERS,
+                "embedding",
+                preset,
+                EndpointEmbeddingSettings,
+                _embed_endpoint_preset(preset),
+                "embedding",
+                requires_deployment_id=True,
             )
 
     if "llamacpp" not in LLM_PROVIDERS:

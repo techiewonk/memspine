@@ -58,6 +58,10 @@ def _flashrank(settings: FlashrankRerankerSettings, registry: ResourceRegistry |
 def _openai_compat(
     settings: OpenAICompatRerankerSettings, _registry: ResourceRegistry | None
 ) -> Any:
+    if settings.family == "ollama":
+        from memspine.exceptions import ConfigError
+
+        raise ConfigError("Ollama does not expose a rerank API; use provider onnx or vllm")
     from memspine.clients.openai_compat import OpenAICompatConnector, OpenAICompatSpec
     from memspine.services.rerank.openai_compat import OpenAICompatReranker
 
@@ -69,10 +73,25 @@ def _openai_compat(
                 api_base=settings.api_base,
                 api_key=settings.api_key,
                 api_key_env=settings.api_key_env,
+                family=settings.family,
+                rerank_path=settings.rerank_path,
                 timeout_s=settings.request_timeout_s,
             )
         ),
     )
+
+
+def _vllm(settings: OpenAICompatRerankerSettings, registry: ResourceRegistry | None) -> Any:
+    configured = settings.model_copy(
+        update={"family": "vllm", "api_base": settings.api_base or "http://localhost:8000/v1"}
+    )
+    service = _openai_compat(configured, registry)
+    service.reranker_id = f"vllm:{settings.model}"
+    return service
+
+
+def _ollama(settings: OpenAICompatRerankerSettings, registry: ResourceRegistry | None) -> Any:
+    return _openai_compat(settings.model_copy(update={"family": "ollama"}), registry)
 
 
 def _bedrock(settings: BedrockRerankerSettings, _registry: ResourceRegistry | None) -> Any:
@@ -182,6 +201,8 @@ _RERANKERS: tuple[
         "rerank",
     ),
     ("openai_compatible", OpenAICompatRerankerSettings, _openai_compat, (), None),
+    ("vllm", OpenAICompatRerankerSettings, _vllm, (), None),
+    ("ollama", OpenAICompatRerankerSettings, _ollama, (), None),
     (
         "bedrock",
         BedrockRerankerSettings,
@@ -229,6 +250,6 @@ def register() -> None:
                 service_manifest=CapabilityManifest(
                     name, "rerank", provides=("rerank",), extra=extra
                 ),
-                requires_deployment_id=name in {"openai_compatible", "bedrock"},
+                requires_deployment_id=name in {"openai_compatible", "bedrock", "vllm", "ollama"},
             ),
         )

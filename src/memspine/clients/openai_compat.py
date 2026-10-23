@@ -29,7 +29,7 @@ class OpenAICompatSpec:
     api_key: str | None = field(default=None, repr=False)
     timeout_s: float | None = None
     family: str = "openai_compatible"
-    rerank_path: str = "/rerank"
+    rerank_path: str | None = None
 
 
 class OpenAICompatConnector:
@@ -157,5 +157,9 @@ class OpenAICompatConnector:
 
     async def arerank(self, **kwargs: Any) -> dict[str, Any]:
         timeout = kwargs.pop("timeout", None)
-        path = "/v1/rerank" if self._spec.family == "vllm" else self._spec.rerank_path
+        if self._spec.family == "ollama":
+            raise ValueError("Ollama does not expose a rerank API; use provider onnx or vllm")
+        path = self._spec.rerank_path or {"vllm": "/v1/rerank", "cohere": "/v2/rerank"}.get(
+            self._spec.family, "/rerank"
+        )
         return await self.request(path, kwargs, timeout_s=timeout)
