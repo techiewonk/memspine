@@ -43,7 +43,7 @@ memory metadata cache, Tantivy writer heap and commit retries) moved from
 
 ## 2a. Live status by provider (updated after each merge; RM-113 row holds the evidence)
 
-Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`) and the RM-113 leftovers (items 6, 7, 11, 12, `8226befe`); import contracts 18 kept / 0 broken. WP6 locality + documents slot landed (`72855bb5`); pgvector live-tested (`d9a87db6`). RM-117 model slots (ADR-082) landed (`80490893`..`778ccaca`): every model.* row is configured through its `model.<slot>`; regression green, import contracts 18 kept / 0 broken. Next: RM-118 follow-ups, RM-112, RM-96.
+Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`) and the RM-113 leftovers (items 6, 7, 11, 12, `8226befe`); import contracts 18 kept / 0 broken. WP6 locality + documents slot landed (`72855bb5`); pgvector live-tested (`d9a87db6`). RM-117 model slots (ADR-082) landed (`80490893`..`778ccaca`): every model.* row is configured through its `model.<slot>`; regression green, import contracts 18 kept / 0 broken. RM-118 follow-ups (`28236a18`) and the RM-02 dependency refresh (`5d132e89`, audit 0 outdated) landed. Next: RM-112, RM-96.
 ✅ done · 🔧 in progress (agent) · ⏳ queued · ⚠️ known gap
 
 | Slot | Provider | Connector | Adapter | Factory | Status | Work |
@@ -85,10 +85,10 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | model.rerank | litellm | ✅ `clients/litellm` | ✅ `services/rerank/litellm.py` | ✅ one factory | ✅ | F (fa543ba0) |
 | model.extraction | gliner2 | ✅ `clients/weights/gliner2` (the only `snapshot_download`) | ✅ `services/extraction` (port `base.py`, pool `gliner2.py`) | ✅ `extraction` descriptor, container builds through it | ✅ | F (fa543ba0) |
 | model.decider | opendecider | ✅ `clients/weights/opendecider` | ✅ `services/decider/opendecider_nano.py` | ✅ `decider` descriptor via `providers/decider.py`; slot `model.decider.read` | ✅ | F (fa543ba0), RM-117 |
-| model.decider | gliner2 | ✅ leases the extraction pool (one load shared with the extraction consumers) | ✅ `services/decider/gliner2_decision.py` | ✅ `decider` descriptor; slot `model.decider.route` (read slot: not implemented, RM-118) | ✅ | F (fa543ba0), RM-117 |
+| model.decider | gliner2 | ✅ leases the extraction pool (one load shared with the extraction consumers) | ✅ `services/decider/gliner2_decision.py` | ✅ `decider` descriptor; slot `model.decider.route` (own `min_confidence` floor; `workers` must stay 1, concurrency is the pool's `inference_concurrency`); read slot not implemented | ✅ | F (fa543ba0), RM-117 |
 | model.decider | jepa (JEPA-style, joint-embedding predictive) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/jepa.py` | ⏳ future descriptor | ⏳ future | not scheduled |
 | model.decider | yolo-style (fast single-pass classifier) | ⏳ future `clients/weights/<lib>` | ⏳ future `services/decider/<name>.py` | ⏳ future descriptor | ⏳ future | not scheduled |
-| model.vision | ollama | ✅ `clients/http` | ⚠️ `services/assets/vision.py` (move to `services/vision/` open, RM-118) | ⚠️ no descriptor (built from `model.vision`) | ✅ config, ⚠️ layout | RM-117, RM-118 |
+| model.vision | ollama | ✅ `clients/http` | ✅ `services/vision/` (port `base`, `noop`, `ollama`; no re-export from `services.assets`) | ⚠️ no descriptor (built from `model.vision`) | ✅ | RM-117, RM-118 (28236a18) |
 
 Config keys: the model.* rows are the ADR-082 slot names and the configuration uses them (RM-117, [plan](MODEL_SLOTS_MIGRATION_PLAN.md)); the old keys (`embedding`, `llm.roles`, `models.*`, `decision.provider`, `read.rerank*`, `read.decider*`, `ingest.asset_vision*`) are rejected naming their new key. The rerank rows are entries of `model.rerank.chain`; the extraction row serves `model.extraction.{semantic,prepass,topic,sensitivity}`.
 | assets | fetch / vision | ✅ `clients/http` (one pooled httpx client per Engine, no redirect following) | ✅ takes the connector; the asset registry's sqlite3 stays (item 18) | n/a | ✅ | G (7a7493b3) |
