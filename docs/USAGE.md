@@ -817,6 +817,32 @@ index (it holds record text), disk caches, the embedding preset pin and the
 application-owned Resonate step journal are separate files; protect them with volume
 encryption (ADR-035). A lost key is a lost database.
 
+### Keep documents in S3 or Weaviate *(needs `memspine[aws]` or `memspine[weaviate]`)*
+`storage.documents` holds attachments and other payloads by namespace and SHA-256 (see the
+reference row below). Both remote providers are `cluster` stores, so they are accepted under
+`deployment.locality: multi_node` and need no `deployment.data_dir`.
+```yaml
+storage:
+  documents:
+    provider: s3
+    settings:
+      bucket: memspine-docs
+      prefix: prod/                        # empty or ending in "/"
+      endpoint_url_env: MEMSPINE_S3_URL    # MinIO/Ceph/R2; omit for AWS
+      region: eu-west-1
+      access_key_id_env: MEMSPINE_S3_KEY_ID      # names, never values;
+      secret_access_key_env: MEMSPINE_S3_SECRET  # omit both for the boto3 chain
+      addressing_style: path               # MinIO
+      connect_timeout_s: 5.0
+      request_timeout_s: 30.0
+```
+Payloads above one part (8 MiB) stream as a multipart upload; add bucket lifecycle rules
+for `AbortIncompleteMultipartUpload` and, on a versioned bucket, noncurrent-version
+expiry (a delete is logical; old versions stay until the rule removes them). With
+`storage.vector`/`lexical` on Weaviate, `provider: weaviate` with the same connection
+settings reuses their client and stores documents in a separate, non-vectorized
+`<collection_prefix>Documents…` collection as 1 MiB BLOB chunks.
+
 Every store is a port; configuration selects its adapter while the event log remains authoritative. Changing an existing deployment also requires the applicable controlled migration or projection rebuild.
 
 **Storage: SQLite → PostgreSQL** *(needs `memspine[postgres]`)* — one dialect-neutral
@@ -1628,7 +1654,7 @@ in the schema — or if the schema gains a key not documented here.
 | `runtime.shared_resources.warmup_timeout_s` | `120.0` | RM-74: overall deadline of one warm-up pass; resources not warm by then are reported `failed` (`TimeoutError`) and keep loading lazily on first use. |
 | `storage.cache.provider` | `memory` | ADR-081 cache slot (was `cache.provider`): `memory` (in-process) \| `disk` \| `redis` \| `valkey` (`[cache]`). An unset disk `settings.path` defaults under `deployment.data_dir` when one is set. |
 | `storage.cache.settings` | — | Provider and policy fields are validated by their typed configuration schema. |
-| `storage.documents` | `null` | ADR-081 optional slot for non-structured payloads (attachments, assets, large payloads, ingest blobs) by namespace and SHA-256 content hash; the event log keeps references. `null` = off. Provider `filesystem` (host-local, single-writer): `settings.root` (default `<records path>.documents`, under `deployment.data_dir` for a non-file records store), `settings.max_bytes` (default 64 MiB, refused above, never truncated), `settings.fsync` (default `true`; writes are atomic). `mongodb`, `s3` and `weaviate` are planned (RM-112) and rejected by name. A started Engine exposes the store as `engine.documents` (`put`/`get`/`stream`/`head`/`delete`/`list`); a hard forget or erasure removes documents whose last referencing record (`record_ids`) was erased, and `erase_namespace` removes every document of the namespace. Removing a file is a logical delete, not physical-erasure proof. |
+| `storage.documents` | `null` | ADR-081 optional slot for non-structured payloads (attachments, assets, large payloads, ingest blobs) by namespace and SHA-256 content hash; the event log keeps references. `null` = off. Provider `filesystem` (host-local, single-writer): `settings.root` (default `<records path>.documents`, under `deployment.data_dir` for a non-file records store), `settings.max_bytes` (default 64 MiB, refused above, never truncated), `settings.fsync` (default `true`; writes are atomic). Provider `s3` (`[aws]`, cluster, any S3-compatible store): `settings.bucket` (required), `prefix` (default `memspine/`), `endpoint_url_env` (the NAME of the variable holding a MinIO/Ceph/R2 endpoint; unset = AWS), `region`, credentials as variable names `access_key_id_env` + `secret_access_key_env` (+ `session_token_env`) or the boto3 chain (`profile`), `addressing_style`, `checksum_mode` (`when_required` for stores that reject CRC checksums), `connect_timeout_s` / `request_timeout_s` (required), `max_bytes` (default 64 MiB), `part_size_bytes` (multipart part, default 8 MiB, at least 5 MiB), `conditional_writes` (default `true`: head merges use `If-Match`), `create_bucket` (default `false`). Provider `weaviate` (`[weaviate]`, cluster, needs `deployment.id`): the vector/lexical connection settings (the same deployment shares one client) plus `max_bytes` (at most 64 MiB) and `chunk_bytes` (BLOB chunk objects, default 1 MiB, at most 4 MiB); documents are never vectorized. `mongodb` is planned (RM-112) and rejected by name. A started Engine exposes the store as `engine.documents` (`put`/`get`/`stream`/`head`/`delete`/`list`); a hard forget or erasure removes documents whose last referencing record (`record_ids`) was erased, and `erase_namespace` removes every document of the namespace. Removing a file is a logical delete, not physical-erasure proof. |
 | `storage.graph.provider` | `auto` | ADR-081 graph slot (was `graph.provider`). `auto` (GR-1, ADR-064): LadybugDB when the `ladybug` package is installed (`[graph]`), else `sql_adjacency` (SQLite or Postgres records). `auto` is resolved once and pinned in the projector binding. Explicit: `sql_adjacency` \| `ladybug` `[graph]` \| `neo4j` (D-26). `auto` takes no settings. |
 | `storage.graph.settings` | — | Provider and policy fields are validated by their typed configuration schema. |
 | `storage.graph_mirror` | `null` | ADR-081 optional graph mirror slot `{provider, settings}` fed through the outbox (was `graph.mirror.{enabled,provider,settings}`). Null = off. The provider must declare the `mirror` capability (`neo4j`). |

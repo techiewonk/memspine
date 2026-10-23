@@ -1,11 +1,11 @@
 """ADR-081 ``storage.documents``: one conformance suite for every DocumentStore provider.
 
 Each provider is built through its registered descriptor (settings -> spec -> shared connector
--> adapter), exactly as the container builds it. ``filesystem`` runs everywhere. The planned
-providers (RM-112) are listed so their factories join the suite when they ship: ``mongodb``
-(GridFS, needs ``MEMSPINE_TEST_MONGODB_URL``), ``s3`` (needs ``MEMSPINE_TEST_S3_URL``) and
-``weaviate`` (needs ``MEMSPINE_WEAVIATE_URL``). Until a descriptor is registered under the name
-the case is skipped with the reason.
+-> adapter), exactly as the container builds it. ``filesystem`` runs everywhere. The remote
+providers (RM-112) run against a live service when its variable is set: ``mongodb`` (GridFS,
+needs ``MEMSPINE_TEST_MONGODB_URL``), ``s3`` (needs ``MEMSPINE_TEST_S3_URL``, see
+:func:`_s3_settings`) and ``weaviate`` (needs ``MEMSPINE_TEST_WEAVIATE_URL``). A provider whose
+descriptor is not registered yet is skipped with the reason.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+import uuid
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -43,11 +44,47 @@ class Case:
     env: str | None = None
 
 
+def _s3_settings(tmp: Path) -> dict[str, Any]:
+    """MinIO or another S3-compatible store: ``MEMSPINE_TEST_S3_URL`` (endpoint),
+    ``MEMSPINE_TEST_S3_ACCESS_KEY`` / ``MEMSPINE_TEST_S3_SECRET_KEY`` (credentials; unset =
+    the boto3 chain) and ``MEMSPINE_TEST_S3_BUCKET`` (created when missing). Each test gets
+    its own key prefix."""
+    settings: dict[str, Any] = {
+        "bucket": os.environ.get("MEMSPINE_TEST_S3_BUCKET", "memspine-conformance"),
+        "prefix": f"conformance/{uuid.uuid4().hex}/",
+        "endpoint_url_env": "MEMSPINE_TEST_S3_URL",
+        "region": os.environ.get("MEMSPINE_TEST_S3_REGION", "us-east-1"),
+        "addressing_style": "path",
+        "connect_timeout_s": 10.0,
+        "request_timeout_s": 30.0,
+        "max_bytes": CAP,
+        "create_bucket": True,
+    }
+    if os.environ.get("MEMSPINE_TEST_S3_ACCESS_KEY"):
+        settings["access_key_id_env"] = "MEMSPINE_TEST_S3_ACCESS_KEY"
+        settings["secret_access_key_env"] = "MEMSPINE_TEST_S3_SECRET_KEY"
+    return settings
+
+
+def _weaviate_settings(tmp: Path) -> dict[str, Any]:
+    """``MEMSPINE_TEST_WEAVIATE_URL`` (and ``MEMSPINE_TEST_WEAVIATE_GRPC_PORT``); each test gets
+    its own collection, and a small chunk size so streams span several chunk objects."""
+    return {
+        "url_env": "MEMSPINE_TEST_WEAVIATE_URL",
+        "collection_prefix": f"Conf{uuid.uuid4().hex[:12]}",
+        "grpc_port": int(os.environ.get("MEMSPINE_TEST_WEAVIATE_GRPC_PORT", "50051")),
+        "connect_timeout_s": 10.0,
+        "request_timeout_s": 30.0,
+        "max_bytes": CAP,
+        "chunk_bytes": 1000,
+    }
+
+
 CASES = (
     Case("filesystem", lambda tmp: {"root": str(tmp / "docs"), "max_bytes": CAP}),
     Case("mongodb", lambda tmp: {"max_bytes": CAP}, env="MEMSPINE_TEST_MONGODB_URL"),
-    Case("s3", lambda tmp: {"max_bytes": CAP}, env="MEMSPINE_TEST_S3_URL"),
-    Case("weaviate", lambda tmp: {"max_bytes": CAP}, env="MEMSPINE_WEAVIATE_URL"),
+    Case("s3", _s3_settings, env="MEMSPINE_TEST_S3_URL"),
+    Case("weaviate", _weaviate_settings, env="MEMSPINE_TEST_WEAVIATE_URL"),
 )
 
 

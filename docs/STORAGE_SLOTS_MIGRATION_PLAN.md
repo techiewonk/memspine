@@ -237,15 +237,66 @@ fsync}}`.
   paths, an exclusive section shared by every Engine on the root). Adapter
   `services/documents/filesystem.py`; factory `providers/builtin/documents.py` (`acquire()`
   shares the connector per root). An unset `root` is `<records placement base>.documents`.
-- `mongodb`, `s3` and `weaviate` are rejected by name until RM-112 ships them; other unknown
-  names fail at start with the registry's valid list.
+- `mongodb` is rejected by name until RM-112 ships it; other unknown names fail at start with
+  the registry's valid list. `s3` and `weaviate` ship (RM-112, below).
 - Erasure: the hard path of `trust/pipeline/erasure.py::_forget_many` (hard forget, cascade,
   `erase_subject`, erasure v2 and re-derive all go through it) calls `erase_records(ns, ids)`,
   which drops those references and deletes documents left with none; `erase_namespace` deletes
   every document of the namespace. Nothing in the engine writes documents yet; callers use
   `engine.documents`. Removing a file is a logical delete, not physical-erasure proof.
 - Conformance: `tests/unit/services/documents/test_documents_conformance.py`, parametrized by
-  provider name; `mongodb`, `s3` and `weaviate` cases skip until their descriptors register.
+  provider name; the `mongodb` case skips until its descriptor registers, `s3` and `weaviate`
+  run live when `MEMSPINE_TEST_S3_URL` / `MEMSPINE_TEST_WEAVIATE_URL` are set.
+
+**S3 documents (RM-112).** `storage.documents: {provider: s3}`, `[aws]` (boto3; no new
+dependency), locality `cluster`, multi-writer.
+
+- Connector `clients/s3` (`S3Connector`, `S3Spec`): one boto3 client per endpoint, region,
+  bucket, prefix, principal and transport knobs (`acquire()` shares it). Sync boto3 runs in
+  worker threads (`asyncio.to_thread`, `scope = "thread"`); aioboto3/aiobotocore were rejected
+  because they pin botocore to an exact version (DEPENDENCY_ANALYSIS A14). `open()` builds the
+  client and runs `HeadBucket` within `connect_timeout_s` (`create_bucket` creates a missing
+  one); `health()` is `HeadBucket`. Credentials are named environment variables resolved by
+  the factory into `Secret` values, or the boto3 chain; the identity holds only an auth
+  digest. The connector owns every object call (keys relative to the prefix, confined; driver
+  errors become `StorageError` with the operation and S3 error code only), so the adapter never
+  imports boto3/botocore.
+- Adapter `services/documents/s3.py`. Keys: `ns/<sha256(ns)[:32]>/blobs/<digest>`,
+  `.../heads/<digest>.json`, `.../refs/<sha256(record)[:32]>/<digest>` (empty markers) and
+  `.../tmp/<uuid>` (multipart staging). A payload up to one part (`part_size_bytes`, default
+  8 MiB) is hashed in memory and written with one `PutObject`; a larger one streams as a
+  multipart upload to `tmp/` (one part in memory, cap enforced while streaming, aborted on
+  failure) and is moved into place by `CopyObject`. Blob first, reference markers next, head
+  last. The head is created with `If-None-Match: *` and merged with `If-Match: <etag>`,
+  retried on a lost race, so concurrent puts from any process merge every reference;
+  `conditional_writes: false` falls back to an in-process exclusive section.
+- Erasure without scanning the bucket: `erase_records` lists `refs/<record>/` per erased record
+  and reads only those heads; `erase_namespace` lists and deletes only the namespace prefix
+  (heads first). Not linearizable against a concurrent put of the same bytes; a delete is
+  logical (versioned buckets keep versions; use lifecycle rules, also
+  `AbortIncompleteMultipartUpload`).
+
+**Weaviate documents (RM-112).** `storage.documents: {provider: weaviate}`, `[weaviate]`,
+locality `cluster`, needs `deployment.id`.
+
+- Shares the `WeaviateClient` connector with the vector and lexical slots (same settings, same
+  identity, one `acquire()` key); the descriptor's target identity equals the vector slot's.
+- Adapter `services/documents/weaviate.py` with a dedicated collection
+  `<collection_prefix>Documents<owner digest>` (`services/_weaviate/documents.py`; the name
+  does not depend on a projection generation: documents are source data). Objects: `head`,
+  `chunk` (BLOB, `chunk_bytes` default 1 MiB, at most 4 MiB) and `ref` (one per record
+  reference), all exact-match `FIELD` properties, not BM25-indexed, a self-provided `flat`
+  vector index and no vectors (nothing is embedded).
+- `max_bytes` is capped at 64 MiB in the settings (refused above at config time); chunking keeps
+  every insert far below Weaviate's message limits (gRPC default about 100 MB).
+- A put streams chunks under a fresh upload id, inserts references, then creates the head
+  (insert-if-absent on its deterministic UUID); an existing head keeps its chunks and the new
+  ones are deleted. References are separate objects, so concurrent puts never lose one; a
+  metadata merge across processes is last-writer-wins. `erase_records` finds a record's
+  documents with one filtered query; listing uses keyset pagination on a `key` property, so no
+  result-window limit applies.
+- Live evidence (2026-10-23): conformance 19/19 for each provider on MinIO
+  (`cgr.dev/chainguard/minio`) and Weaviate (`cr.weaviate.io/semitechnologies/weaviate`).
 - Not done: the asset registry (`services/assets/registry.py`, a sqlite3 sidecar plus a blob
   directory) still owns its files; moving it onto `storage.records` (registry rows) and
   `storage.documents` (blobs) is RM-113 item 18. Until then `ingest.asset_dir` is a host-local

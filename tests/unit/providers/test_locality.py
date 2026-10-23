@@ -128,7 +128,11 @@ def test_multi_node_accepts_cluster_slots_and_a_process_cache() -> None:
         ("lexical", {"provider": "tantivy"}, "opensearch"),
         ("graph", {"provider": "ladybug"}, "neo4j"),
         ("cache", {"provider": "disk"}, "redis"),
-        ("documents", {"provider": "filesystem", "settings": {"root": "/srv/docs"}}, "RM-112"),
+        (
+            "documents",
+            {"provider": "filesystem", "settings": {"root": "/srv/docs"}},
+            "s3, weaviate",
+        ),
     ],
 )
 def test_multi_node_rejects_a_host_local_slot(slot: str, selected: Any, fix: str) -> None:
@@ -276,6 +280,21 @@ def test_data_dir_is_required_only_for_placed_host_slots() -> None:
         deployment={"data_dir": "/var/lib/memspine"},
     )
     validate_deployment_locality(placed)
+
+
+@pytest.mark.parametrize("name", ["s3", "weaviate"])
+def test_multi_node_accepts_remote_documents_providers(name: str) -> None:
+    # RM-112: both are cluster stores (declared trait), need no data_dir and no writer.
+    settings: dict[str, Any] = {"connect_timeout_s": 2.0, "request_timeout_s": 5.0}
+    if name == "s3":
+        settings["bucket"] = "memspine-docs"
+    config = _config(
+        "multi_node",
+        storage=_cluster_storage(documents={"provider": name, "settings": settings}),
+        deployment={"id": "dep-1"},
+    )
+    validate_deployment_locality(config)
+    assert _by_slot(config)["documents"] == (name, "cluster")
 
 
 def test_documents_with_an_explicit_root_need_no_data_dir() -> None:

@@ -122,7 +122,9 @@ The owner wants many data providers and service providers, each selected separat
   provider behind a loopback sidecar stays `cluster`; outside `single_process` an `auto` slot
   must be explicit; `storage.documents` ships with the `filesystem` provider (port
   `services/documents/base.py`, connector `clients/fs`), host-local and single-writer. Details
-  in `docs/STORAGE_SLOTS_MIGRATION_PLAN.md` section 9.
+  in `docs/STORAGE_SLOTS_MIGRATION_PLAN.md` section 9. RM-112 adds the `s3` (`[aws]`,
+  connector `clients/s3`) and `weaviate` (shared Weaviate connector, dedicated non-vectorized
+  collection) documents providers, both `cluster`; Weaviate still never serves `records`.
 - Behaviour flags stay where they are: `graph.edge_compiler_v2`, `graph.key_v2`,
   `graph.entity_embeddings`, `read.lexical_scorer` / `lexical_language`, `event_log.*`
   and `embedding.*`. Only the provider selection moves.

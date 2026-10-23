@@ -951,3 +951,15 @@ TOPIC_CACHE_SIZE = 4096
 # one staged payload well under a worker's memory, and 1 MiB is a common streaming chunk.
 DOCUMENT_MAX_BYTES = 64 * 1024 * 1024
 DOCUMENT_STREAM_CHUNK_BYTES = 1024 * 1024
+# RM-112 (docs/STORAGE_SLOTS_MIGRATION_PLAN.md section 9): the S3 documents provider uploads a
+# payload larger than one part as a multipart upload. S3 requires every part but the last to
+# be at least 5 MiB; 8 MiB is the boto3 transfer default, so a 64 MiB document is 8 parts.
+DOCUMENT_S3_PART_BYTES = 8 * 1024 * 1024
+DOCUMENT_S3_MIN_PART_BYTES = 5 * 1024 * 1024
+#: S3 caps one part (and one CopyObject) at 5 GiB; the S3 provider's max_bytes may not exceed it.
+DOCUMENT_S3_MAX_BYTES = 5 * 1024 * 1024 * 1024
+# RM-112: the Weaviate documents provider stores bytes as BLOB chunk objects (base64 on the
+# wire, +33%). 1 MiB keeps one insert far below Weaviate's gRPC/REST message limits (gRPC
+# default about 100 MB); 4 MiB is the configurable ceiling. Not measured.
+DOCUMENT_WEAVIATE_CHUNK_BYTES = 1024 * 1024
+DOCUMENT_WEAVIATE_MAX_CHUNK_BYTES = 4 * 1024 * 1024

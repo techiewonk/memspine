@@ -23,6 +23,7 @@ from memspine.clients.lancedb import LanceDBClient, LanceDBSpec
 from memspine.clients.neo4j import Neo4jClient, Neo4jSpec
 from memspine.clients.opensearch import OpenSearchClient, OpenSearchSpec
 from memspine.clients.postgres import PostgresClient, PostgresSpec
+from memspine.clients.s3 import S3Connector
 from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.clients.tantivy import TantivyConnector
 from memspine.clients.weaviate import WeaviateClient, WeaviateSpec
@@ -47,6 +48,7 @@ ALL = (
     TantivyConnector,
     HttpConnector,
     AwsConnector,
+    S3Connector,
 )
 
 

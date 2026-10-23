@@ -14,7 +14,7 @@ an object is a logical delete: it is not physical-erasure proof (media remanence
 object versioning), as for SQL ``DELETE``.
 
 Conformance: ``tests/unit/services/documents/test_documents_conformance.py`` runs one suite
-against every provider (filesystem today; MongoDB GridFS, S3 and Weaviate are RM-112).
+against every provider (filesystem, S3 and Weaviate; MongoDB GridFS is RM-112).
 """
 
 from __future__ import annotations
