@@ -34,7 +34,6 @@ from memspine.read.lead import query_names
 from memspine.read.lift import Candidate, Dropped, LiftPolicy
 from memspine.read.pipeline.state import _FORENSICS
 from memspine.schemas.durable.lineage import LineageEdge
-from memspine.store import lineage as lineage_store
 from memspine.store.records import MemoryRecord, RecordStatus
 
 _log = get_logger(__name__)
@@ -288,9 +287,7 @@ async def lineage_from_records(
         nxt: list[MemoryRecord] = []
         table: dict[str, list[LineageEdge]] = {}
         if use_table:
-            table = await lineage_store.parents_of(
-                storage._client.engine, [r.record_id for r in frontier]
-            )
+            table = await storage.lineage_parents([r.record_id for r in frontier])
         for rec in frontier:
             if rec.record_id in lineage:
                 continue

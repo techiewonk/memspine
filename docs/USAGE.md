@@ -870,6 +870,35 @@ every resolved address. Later pooled reconnects and the sync (Alembic) engine
 use the driver's own per-attempt timeout: whole seconds, at least 2 s, and
 repeated for each address (`localhost` is usually two).
 
+**Storage: MongoDB records and documents** *(needs `memspine[mongodb]`; RM-112)* — the
+records slot without SQL (contract: `docs/RECORDS_STORE_CONTRACT.md`). It needs a replica set
+or a sharded cluster, because every log append is a multi-document transaction; a one-member
+replica set (`mongod --replSet rs0`, then `rs.initiate()`) is enough for development, and a
+standalone `mongod` is refused at start. The documents slot can use GridFS on the same
+deployment: left unset, its connection settings come from the records slot, so both share one
+client.
+```yaml
+deployment:
+  id: memspine-prod                 # required: MongoDB is a cluster provider
+  data_dir: /var/lib/memspine       # LanceDB / Tantivy / LadybugDB stay host-local
+storage:
+  records:
+    provider: mongodb
+    settings:
+      url: "${secret:MEMSPINE_MONGODB_URL}"   # mongodb:// or mongodb+srv://
+      database: memspine
+  documents:
+    provider: mongodb               # GridFS bucket "documents" on the records deployment
+  graph:
+    provider: ladybug               # auto resolves to ladybug here, never sql_adjacency
+```
+Features that keep state in SQL tables are refused at start with every gap named:
+`workers.outbox`, `offline.sleep_v2` (the blocking `sleep()` works),
+`economy.ledger_persist`, `write.envelope_v2`, projection switches, `storage.vector: pgvector`
+and `storage.graph: sql_adjacency`. The intake gateway (`ingest_messages`, `ingest_data`,
+`ingest_asset`) needs a SQL records store and says so; `write()`, `search()`, `read()`,
+`forget()` and `sleep()` run on MongoDB.
+
 **Cache: in-process → Redis** *(needs `memspine[cache]`; `valkey` is wire-compatible)* —
 `disk` supplies a persistent single-process cache through the same extra.
 ```yaml
@@ -1653,14 +1682,14 @@ in the schema — or if the schema gains a key not documented here.
 | `runtime.shared_resources.warmup_timeout_s` | `120.0` | RM-74: overall deadline of one warm-up pass; resources not warm by then are reported `failed` (`TimeoutError`) and keep loading lazily on first use. |
 | `storage.cache.provider` | `memory` | ADR-081 cache slot (was `cache.provider`): `memory` (in-process) \| `disk` \| `redis` \| `valkey` (`[cache]`). An unset disk `settings.path` defaults under `deployment.data_dir` when one is set. |
 | `storage.cache.settings` | — | Provider and policy fields are validated by their typed configuration schema. |
-| `storage.documents` | `null` | ADR-081 optional slot for non-structured payloads (attachments, assets, large payloads, ingest blobs) by namespace and SHA-256 content hash; the event log keeps references. `null` = off. Provider `filesystem` (host-local, single-writer): `settings.root` (default `<records path>.documents`, under `deployment.data_dir` for a non-file records store), `settings.max_bytes` (default 64 MiB, refused above, never truncated), `settings.fsync` (default `true`; writes are atomic). Provider `s3` (`[aws]`, cluster, any S3-compatible store): `settings.bucket` (required), `prefix` (default `memspine/`), `endpoint_url_env` (the NAME of the variable holding a MinIO/Ceph/R2 endpoint; unset = AWS), `region`, credentials as variable names `access_key_id_env` + `secret_access_key_env` (+ `session_token_env`) or the boto3 chain (`profile`), `addressing_style`, `checksum_mode` (`when_required` for stores that reject CRC checksums), `connect_timeout_s` / `request_timeout_s` (required), `max_bytes` (default 64 MiB), `part_size_bytes` (multipart part, default 8 MiB, at least 5 MiB), `conditional_writes` (default `true`: head merges use `If-Match`), `create_bucket` (default `false`). Provider `weaviate` (`[weaviate]`, cluster, needs `deployment.id`): the vector/lexical connection settings (the same deployment shares one client) plus `max_bytes` (at most 64 MiB) and `chunk_bytes` (BLOB chunk objects, default 1 MiB, at most 4 MiB); documents are never vectorized. `mongodb` is planned (RM-112) and rejected by name. A started Engine exposes the store as `engine.documents` (`put`/`get`/`stream`/`head`/`delete`/`list`); a hard forget or erasure removes documents whose last referencing record (`record_ids`) was erased, and `erase_namespace` removes every document of the namespace. Removing a file is a logical delete, not physical-erasure proof. |
-| `storage.graph.provider` | `auto` | ADR-081 graph slot (was `graph.provider`). `auto` (GR-1, ADR-064): LadybugDB when the `ladybug` package is installed (`[graph]`), else `sql_adjacency` (SQLite or Postgres records). `auto` is resolved once and pinned in the projector binding. Explicit: `sql_adjacency` \| `ladybug` `[graph]` \| `neo4j` (D-26). `auto` takes no settings. One graph client runs at a time: the optional `storage.graph_mirror` slot (a Neo4j mirror fed through the outbox) was removed by the ADR-081 amendment of 2026-10-23 and is rejected, whatever its value, naming this slot; to run on Neo4j select it here. |
+| `storage.documents` | `null` | ADR-081 optional slot for non-structured payloads (attachments, assets, large payloads, ingest blobs) by namespace and SHA-256 content hash; the event log keeps references. `null` = off. Provider `filesystem` (host-local, single-writer): `settings.root` (default `<records path>.documents`, under `deployment.data_dir` for a non-file records store), `settings.max_bytes` (default 64 MiB, refused above, never truncated), `settings.fsync` (default `true`; writes are atomic). Provider `s3` (`[aws]`, cluster, any S3-compatible store): `settings.bucket` (required), `prefix` (default `memspine/`), `endpoint_url_env` (the NAME of the variable holding a MinIO/Ceph/R2 endpoint; unset = AWS), `region`, credentials as variable names `access_key_id_env` + `secret_access_key_env` (+ `session_token_env`) or the boto3 chain (`profile`), `addressing_style`, `checksum_mode` (`when_required` for stores that reject CRC checksums), `connect_timeout_s` / `request_timeout_s` (required), `max_bytes` (default 64 MiB), `part_size_bytes` (multipart part, default 8 MiB, at least 5 MiB), `conditional_writes` (default `true`: head merges use `If-Match`), `create_bucket` (default `false`). Provider `weaviate` (`[weaviate]`, cluster, needs `deployment.id`): the vector/lexical connection settings (the same deployment shares one client) plus `max_bytes` (at most 64 MiB) and `chunk_bytes` (BLOB chunk objects, default 1 MiB, at most 4 MiB); documents are never vectorized. Provider `mongodb` (`[mongodb]`, RM-112; cluster, any process may write): a GridFS bucket `settings.bucket` (default `documents`) plus `<bucket>.heads`; `settings.url` / `database` / timeouts default to the `storage.records` MongoDB settings, so both slots on one deployment share one client (`settings.url` is required when the records store is not MongoDB); `settings.max_bytes` as above. A started Engine exposes the store as `engine.documents` (`put`/`get`/`stream`/`head`/`delete`/`list`); a hard forget or erasure removes documents whose last referencing record (`record_ids`) was erased, and `erase_namespace` removes every document of the namespace. Removing a file is a logical delete, not physical-erasure proof. |
+| `storage.graph.provider` | `auto` | ADR-081 graph slot (was `graph.provider`). `auto` (GR-1, ADR-064): LadybugDB when the `ladybug` package is installed (`[graph]`), else `sql_adjacency` (SQLite or Postgres records). `auto` is resolved once and pinned in the projector binding. Explicit: `sql_adjacency` \| `ladybug` `[graph]` \| `neo4j` (D-26). `auto` takes no settings. One graph client runs at a time: the optional `storage.graph_mirror` slot (a Neo4j mirror fed through the outbox) was removed by the ADR-081 amendment of 2026-10-23 and is rejected, whatever its value, naming this slot; to run on Neo4j select it here. On a records store without SQL (`mongodb`) `auto` resolves only to `ladybug` and start fails naming `storage.graph` when it is not installed; `sql_adjacency` is refused there. |
 | `storage.graph.settings` | — | Provider and policy fields are validated by their typed configuration schema. |
 | `storage.lexical.provider` | `tantivy` | ADR-081 lexical slot (was `read.lexical_provider`); required. `tantivy` ships in core; `opensearch` and `weaviate` are optional adapters. Used when `read.hybrid` is on. |
 | `storage.lexical.settings` | — | Provider and policy fields are validated by their typed configuration schema. |
-| `storage.records.provider` | `sqlite` | ADR-081 records slot (was `storage.provider`): event log, records, lineage, offsets and outbox. `sqlite` \| `postgres` (`[postgres]`). Every durable SQL database is migrated with Alembic (Postgres under an advisory lock); `create_all` only for `:memory:`. `storage.profile` is removed: start from the `embedded` or `server` template. |
+| `storage.records.provider` | `sqlite` | ADR-081 records slot (was `storage.provider`): event log, records, lineage, offsets and outbox. `sqlite` \| `postgres` (`[postgres]`) \| `mongodb` (`[mongodb]`, RM-112: a replica set or sharded cluster; a standalone `mongod` is refused at start; `settings.url`, `database` (`memspine`), `collection_prefix`, `connect_timeout_s` (10), `server_selection_timeout_s` (10), `operation_timeout_s` (30); cluster locality, `deployment.id` required; `event_log.mode: ephemeral` refused). MongoDB has no SQL access, so `workers.outbox`, `offline.sleep_v2`, `economy.ledger_persist`, `write.envelope_v2`, projection switches, `storage.vector: pgvector` and `storage.graph: sql_adjacency` are refused at start, all gaps named at once; `ingest_messages` / `ingest_data` / `ingest_asset` (intake book) fail naming the gap. Every durable SQL database is migrated with Alembic (Postgres under an advisory lock); `create_all` only for `:memory:`. `storage.profile` is removed: start from the `embedded` or `server` template. |
 | `storage.records.settings` | — | Provider and policy fields are validated by their typed configuration schema. |
-| `storage.vector.provider` | `lancedb` | ADR-081 vector slot (was `vector.provider`); required. `lancedb` (core) \| `pgvector` (`[postgres]`, same database as a Postgres records slot) \| `weaviate`. |
+| `storage.vector.provider` | `lancedb` | ADR-081 vector slot (was `vector.provider`); required. `lancedb` (core) \| `pgvector` (`[postgres]`, same database as a Postgres records slot; refused with any other records provider) \| `weaviate`. |
 | `storage.vector.settings` | — | Provider and policy fields are validated by their typed configuration schema. |
 | `strict_services` | `true` | Missing service hard-fails naming the extra (D-10); `false` starts degraded. |
 | `workers.broker_url` | `redis://localhost:6379/0` | taskiq broker endpoint (ignored by other runners). |

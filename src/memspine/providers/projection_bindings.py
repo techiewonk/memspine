@@ -1,22 +1,19 @@
 """Persisted identity checks for event-log projector targets.
 
 Projector offsets are meaningful only for the projection target that produced
-them. This module fails closed when a checkpoint would otherwise be reused by
-a different provider or target. Controlled rebinds require an activated switch
-manifest, a matching persisted source binding, and the verified target checkpoint.
+them. This module builds the target identities; the records store persists them
+(``RecordsStore.projection_bindings()``, RM-112) and fails closed when a checkpoint
+would otherwise be reused by a different provider or target. Controlled rebinds
+require an activated switch manifest, a matching persisted source binding, and
+the verified target checkpoint.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
-from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from memspine.config.schema import MemspineConfig
@@ -31,6 +28,7 @@ from memspine.providers.registry import (
     validate_settings,
 )
 from memspine.services.embedding.base import EmbeddingService
+from memspine.services.storage.records_port import ProjectionTargetBinding
 from memspine.services.storage.sqlite.schema import (
     projector_offsets,
     provider_projector_bindings,
@@ -38,221 +36,6 @@ from memspine.services.storage.sqlite.schema import (
 from memspine.store.projections.projector import Projector
 
 _log = get_logger(__name__)
-
-
-@dataclass(frozen=True, slots=True)
-class ProjectionTargetBinding:
-    deployment_id: str
-    projector_name: str
-    provider: str
-    target_fingerprint: str
-    generation_id: str = "active"
-    source_provider: str | None = None
-    source_target_fingerprint: str | None = None
-    source_generation_id: str | None = None
-    verified_checkpoint_seq: int | None = None
-
-
-class SqlProjectionBindingStore:
-    """Atomically bind a projector checkpoint to its provider target."""
-
-    def __init__(self, engine: AsyncEngine) -> None:
-        self._engine = engine
-
-    async def bound_provider(self, deployment_id: str, projector_name: str) -> str | None:
-        """The provider NAME a projector is bound to (``graph:ladybug:v1`` -> ``ladybug``),
-        or None when it has no binding yet. ADR-081 pins ``auto`` selections to it."""
-        async with self._engine.connect() as conn:
-            provider = await conn.scalar(
-                select(provider_projector_bindings.c.provider).where(
-                    provider_projector_bindings.c.deployment_id == deployment_id,
-                    provider_projector_bindings.c.projector_name == projector_name,
-                )
-            )
-        if provider is None:
-            return None
-        parts = str(provider).split(":")
-        return parts[1] if len(parts) > 1 else str(provider)
-
-    async def adopt_renamed_provider(
-        self, target: ProjectionTargetBinding, old_provider: str
-    ) -> bool:
-        """ADR-081: rewrite a binding recorded under a renamed provider identity (for example
-        ``graph:sqlite_adjacency:v1``) to ``target`` (compare-and-swap on the old identity and
-        the active generation). Only for renames whose physical target is unchanged. Returns
-        True when a row was adopted."""
-        async with self._engine.begin() as conn:
-            result = await conn.execute(
-                update(provider_projector_bindings)
-                .where(
-                    provider_projector_bindings.c.deployment_id == target.deployment_id,
-                    provider_projector_bindings.c.projector_name == target.projector_name,
-                    provider_projector_bindings.c.provider == old_provider,
-                    provider_projector_bindings.c.generation_id == target.generation_id,
-                )
-                .values(
-                    provider=target.provider,
-                    target_fingerprint=target.target_fingerprint,
-                    updated_at=datetime.now(UTC).isoformat(),
-                )
-            )
-        adopted = bool(result.rowcount)
-        if adopted:
-            _log.info(
-                "provider.binding_renamed",
-                projector=target.projector_name,
-                old=old_provider,
-                new=target.provider,
-            )
-        return adopted
-
-    async def ensure(self, target: ProjectionTargetBinding) -> str:
-        """Bind a target generation, allowing only a verified compare-and-swap.
-
-        A non-zero legacy offset without a binding is ambiguous: the target may
-        have been changed while keeping the same projector name. It must be
-        rebuilt or moved through a verified switch before startup can continue.
-        """
-        async with self._engine.begin() as conn:
-            row = (
-                await conn.execute(
-                    select(
-                        provider_projector_bindings.c.provider,
-                        provider_projector_bindings.c.target_fingerprint,
-                        provider_projector_bindings.c.generation_id,
-                    ).where(
-                        provider_projector_bindings.c.deployment_id == target.deployment_id,
-                        provider_projector_bindings.c.projector_name == target.projector_name,
-                    )
-                )
-            ).first()
-            if row is not None:
-                if (
-                    row.provider == target.provider
-                    and row.target_fingerprint == target.target_fingerprint
-                    and row.generation_id == target.generation_id
-                ):
-                    return str(row.generation_id)
-                if target.source_provider is None:
-                    self._require_match(target, row.provider, row.target_fingerprint)
-                    raise ConfigError(
-                        f"projector {target.projector_name!r} is bound to generation "
-                        f"{row.generation_id!r}, but the selected generation is "
-                        f"{target.generation_id!r}; a verified projection switch is required"
-                    )
-                source_name = row.provider.split(":")
-                source_name = source_name[1] if len(source_name) > 1 else row.provider
-                source_matches = (
-                    source_name == target.source_provider
-                    and row.target_fingerprint == target.source_target_fingerprint
-                    and row.generation_id == target.source_generation_id
-                )
-                if not source_matches:
-                    raise ConfigError(
-                        f"projector {target.projector_name!r} no longer matches the verified "
-                        "switch source; refusing to reuse or replace its offset"
-                    )
-                offset = await conn.scalar(
-                    select(projector_offsets.c.last_seq).where(
-                        projector_offsets.c.projector_name == target.projector_name
-                    )
-                )
-                current_offset = int(offset or 0)
-                if current_offset != target.verified_checkpoint_seq:
-                    raise ConfigError(
-                        f"projector {target.projector_name!r} offset does not match the "
-                        "verified target checkpoint; startup is blocked"
-                    )
-                result = await conn.execute(
-                    update(provider_projector_bindings)
-                    .where(
-                        provider_projector_bindings.c.deployment_id == target.deployment_id,
-                        provider_projector_bindings.c.projector_name == target.projector_name,
-                        provider_projector_bindings.c.provider == row.provider,
-                        provider_projector_bindings.c.target_fingerprint == row.target_fingerprint,
-                        provider_projector_bindings.c.generation_id == row.generation_id,
-                    )
-                    .values(
-                        provider=target.provider,
-                        target_fingerprint=target.target_fingerprint,
-                        generation_id=target.generation_id,
-                        updated_at=datetime.now(UTC).isoformat(),
-                    )
-                )
-                if result.rowcount != 1:
-                    raise ConfigError("projector binding changed during verified activation")
-                return target.generation_id
-
-            offset = await conn.scalar(
-                select(projector_offsets.c.last_seq).where(
-                    projector_offsets.c.projector_name == target.projector_name
-                )
-            )
-            if offset is not None and int(offset) > 0:
-                raise ConfigError(
-                    f"projector {target.projector_name!r} has a non-zero legacy offset "
-                    "without a provider target binding; a verified projection rebuild or "
-                    "switch is required before startup"
-                )
-
-            if target.source_provider is not None:
-                raise ConfigError(
-                    f"projector {target.projector_name!r} has no source binding for the verified "
-                    "switch; refusing to create a target binding"
-                )
-            generation_id = target.generation_id
-            values = {
-                "deployment_id": target.deployment_id,
-                "projector_name": target.projector_name,
-                "provider": target.provider,
-                "target_fingerprint": target.target_fingerprint,
-                "generation_id": generation_id,
-                "updated_at": datetime.now(UTC).isoformat(),
-            }
-            dialect = conn.dialect.name
-            statement: Any
-            if dialect == "sqlite":
-                statement = sqlite_insert(provider_projector_bindings).values(**values)
-                statement = statement.on_conflict_do_nothing(
-                    index_elements=["deployment_id", "projector_name"]
-                )
-            elif dialect == "postgresql":
-                statement = pg_insert(provider_projector_bindings).values(**values)
-                statement = statement.on_conflict_do_nothing(
-                    index_elements=["deployment_id", "projector_name"]
-                )
-            else:
-                raise ConfigError("storage SQL dialect cannot persist projector target bindings")
-            await conn.execute(statement)
-
-            saved = (
-                await conn.execute(
-                    select(
-                        provider_projector_bindings.c.provider,
-                        provider_projector_bindings.c.target_fingerprint,
-                        provider_projector_bindings.c.generation_id,
-                    ).where(
-                        provider_projector_bindings.c.deployment_id == target.deployment_id,
-                        provider_projector_bindings.c.projector_name == target.projector_name,
-                    )
-                )
-            ).one()
-            self._require_match(target, saved.provider, saved.target_fingerprint)
-            return str(saved.generation_id)
-
-    @staticmethod
-    def _require_match(
-        target: ProjectionTargetBinding,
-        saved_provider: str,
-        saved_fingerprint: str,
-    ) -> None:
-        if saved_provider != target.provider or saved_fingerprint != target.target_fingerprint:
-            raise ConfigError(
-                f"projector {target.projector_name!r} is bound to provider "
-                f"{saved_provider!r}, but configuration selects {target.provider!r} or a "
-                "different target; startup is blocked until a verified projection switch "
-                "is completed"
-            )
 
 
 def projection_target_bindings(
@@ -477,8 +260,6 @@ __all__ = [
     "RETIRED_GRAPH_MIRROR_PROJECTOR",
     "RETIRED_GRAPH_MIRROR_SCOPE",
     "RETIRED_GRAPH_MIRROR_STAGE",
-    "ProjectionTargetBinding",
-    "SqlProjectionBindingStore",
     "projection_target_bindings",
     "projection_target_fingerprint",
     "retire_graph_mirror_state",

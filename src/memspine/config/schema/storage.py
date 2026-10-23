@@ -87,8 +87,9 @@ def reject_moved_keys(value: Any, area: str, keys: tuple[str, ...]) -> None:
 
 
 #: ADR-081 / RM-112: ``storage.documents`` providers that are designed but not shipped. Each is
-#: rejected by name until its provider lands (filesystem ships with RM-111).
-PLANNED_DOCUMENT_PROVIDERS: frozenset[str] = frozenset({"mongodb"})
+#: rejected by name until its provider lands (filesystem shipped with RM-111; s3, weaviate and
+#: mongodb with RM-112). Empty: every designed documents provider has shipped.
+PLANNED_DOCUMENT_PROVIDERS: frozenset[str] = frozenset()
 
 
 class SlotConfig(ConfigModel):
@@ -148,7 +149,7 @@ class StorageConfig(ConfigModel):
     ``vector`` and ``lexical`` are required (never null). ``graph`` is the one graph client
     (the ``graph_mirror`` slot was removed, ADR-081 amendment 2026-10-23). ``documents`` is optional
     (null = off): non-structured payloads by namespace and content hash; the built-in providers
-    are ``filesystem``, ``s3`` and ``weaviate`` (MongoDB GridFS is planned, RM-112)."""
+    are ``filesystem``, ``s3``, ``weaviate`` and ``mongodb`` (GridFS, RM-112)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -182,8 +183,8 @@ class StorageConfig(ConfigModel):
                 if provider in PLANNED_DOCUMENT_PROVIDERS:
                     raise ConfigError(
                         f"storage.documents provider {provider!r} is planned (RM-112) but not "
-                        "available yet; use provider 'filesystem', 's3' or 'weaviate', or leave "
-                        "storage.documents null"
+                        "available yet; use provider 'filesystem', 's3', 'weaviate' or "
+                        "'mongodb', or leave storage.documents null"
                     )
         return value
 

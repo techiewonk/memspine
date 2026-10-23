@@ -18,7 +18,9 @@ Collections (``<prefix><name>``; schema version :data:`SCHEMA_REVISION` in ``met
 * ``leases`` - epoch-fenced leases, judged by the server clock (``$$NOW``), on a sync client.
 * ``records`` - the read model: the record as its pydantic JSON plus the indexed key fields.
 * ``lineage`` - (child, parent, role) edges, unique, ordered by a counter-assigned ``order``.
-* ``counters`` / ``meta`` - sequence counters and the schema version document.
+* ``counters`` / ``meta`` - sequence counters, the schema version document and the deployment
+  identity document (``_id: "deployment"``).
+* ``projector_bindings`` - the provider target each projector checkpoint belongs to (RM-112).
 
 Event-log modes: ``full`` and ``rolling``. ``ephemeral`` is refused: a cluster store that
 persists nothing has no reason to exist, and an in-process seq is not shared by processes.
@@ -48,9 +50,15 @@ from memspine.clients.mongodb.driver import (
     WriteConcern,
 )
 from memspine.config.constants import ZSTD_LEVEL
-from memspine.exceptions import StorageError
+from memspine.exceptions import ConfigError, StorageError
+from memspine.observability.logging import get_logger
 from memspine.schemas.durable.lineage import LineageEdge
 from memspine.services.base import CapabilityManifest, ServiceAdapter
+from memspine.services.storage.records_port import (
+    ProjectionTargetBinding,
+    binding_source_name,
+    require_binding_match,
+)
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
 from memspine.store.leases import NamespaceLease
 from memspine.store.records import MemoryRecord
@@ -68,7 +76,18 @@ if TYPE_CHECKING:
     from memspine.schemas.durable.common import OwnerScope
     from memspine.services.storage.records_port import OutboxItem
 
-__all__ = ["SCHEMA_REVISION", "SCHEMA_VERSION", "MongoLeaseTable", "MongoRecordsStore"]
+__all__ = [
+    "SCHEMA_REVISION",
+    "SCHEMA_VERSION",
+    "MongoLeaseTable",
+    "MongoProjectionBindingStore",
+    "MongoRecordsStore",
+]
+
+_log = get_logger(__name__)
+
+#: Record statuses that count as live in :meth:`MongoRecordsStore.layer_counts` (as in SQL).
+_LIVE_STATUSES = ("activated", "resolving")
 
 #: Collection-setup version (bump with a migration step in :meth:`MongoRecordsStore.start`).
 SCHEMA_VERSION = 1
@@ -117,6 +136,7 @@ _INDEXES: tuple[tuple[str, list[tuple[str, int]], Doc], ...] = (
     ),
     ("lineage", [("parent", 1), ("order", 1)], {"name": "parent_order"}),
     ("lineage", [("child", 1), ("order", 1)], {"name": "child_order"}),
+    ("records", [("namespace", 1), ("quarantined", 1), ("order", 1)], {"name": "ns_quarantine"}),
 )
 
 #: The server's clock in epoch seconds (aggregation expression, MongoDB >= 4.2).
@@ -227,6 +247,142 @@ class MongoLeaseTable:
         """Nothing to release: the connector owns the sync client."""
 
 
+class MongoProjectionBindingStore:
+    """The :class:`~memspine.services.storage.records_port.ProjectionBindingPort` on MongoDB.
+
+    One document per ``(deployment, projector)``; creation is an insert that loses to a
+    concurrent first writer (the winner's binding is then checked), and a verified switch is
+    a compare-and-swap on the old provider, target and generation. The offset it checks is the
+    store's own ``offsets`` document, as on SQL."""
+
+    def __init__(self, bindings: AsyncCollection[Doc], offsets: AsyncCollection[Doc]) -> None:
+        self._bindings = bindings
+        self._offsets = offsets
+
+    @staticmethod
+    def _key(deployment_id: str, projector_name: str) -> Doc:
+        return {"_id": {"deployment": deployment_id, "projector": projector_name}}
+
+    async def _offset(self, projector_name: str) -> int:
+        doc = await self._offsets.find_one({"_id": projector_name})
+        return int(doc["last_seq"]) if doc is not None else 0
+
+    async def bound_provider(self, deployment_id: str, projector_name: str) -> str | None:
+        doc = await self._bindings.find_one(self._key(deployment_id, projector_name))
+        return None if doc is None else binding_source_name(str(doc["provider"]))
+
+    async def adopt_renamed_provider(
+        self, target: ProjectionTargetBinding, old_provider: str
+    ) -> bool:
+        result = await self._bindings.update_one(
+            {
+                **self._key(target.deployment_id, target.projector_name),
+                "provider": old_provider,
+                "generation_id": target.generation_id,
+            },
+            {
+                "$set": {
+                    "provider": target.provider,
+                    "target_fingerprint": target.target_fingerprint,
+                    "updated_at": _iso(datetime.now(UTC)),
+                }
+            },
+        )
+        adopted = result.modified_count == 1
+        if adopted:
+            _log.info(
+                "provider.binding_renamed",
+                projector=target.projector_name,
+                old=old_provider,
+                new=target.provider,
+            )
+        return adopted
+
+    async def ensure(self, target: ProjectionTargetBinding) -> str:
+        """As :meth:`SqlProjectionBindingStore.ensure` (same refusals, same messages)."""
+        key = self._key(target.deployment_id, target.projector_name)
+        row = await self._bindings.find_one(key)
+        if row is not None:
+            provider, fingerprint, generation = (
+                str(row["provider"]),
+                str(row["target_fingerprint"]),
+                str(row["generation_id"]),
+            )
+            if (provider, fingerprint, generation) == (
+                target.provider,
+                target.target_fingerprint,
+                target.generation_id,
+            ):
+                return generation
+            if target.source_provider is None:
+                require_binding_match(target, provider, fingerprint)
+                raise ConfigError(
+                    f"projector {target.projector_name!r} is bound to generation "
+                    f"{generation!r}, but the selected generation is "
+                    f"{target.generation_id!r}; a verified projection switch is required"
+                )
+            source_matches = (
+                binding_source_name(provider) == target.source_provider
+                and fingerprint == target.source_target_fingerprint
+                and generation == target.source_generation_id
+            )
+            if not source_matches:
+                raise ConfigError(
+                    f"projector {target.projector_name!r} no longer matches the verified "
+                    "switch source; refusing to reuse or replace its offset"
+                )
+            if await self._offset(target.projector_name) != target.verified_checkpoint_seq:
+                raise ConfigError(
+                    f"projector {target.projector_name!r} offset does not match the "
+                    "verified target checkpoint; startup is blocked"
+                )
+            result = await self._bindings.update_one(
+                {
+                    **key,
+                    "provider": provider,
+                    "target_fingerprint": fingerprint,
+                    "generation_id": generation,
+                },
+                {
+                    "$set": {
+                        "provider": target.provider,
+                        "target_fingerprint": target.target_fingerprint,
+                        "generation_id": target.generation_id,
+                        "updated_at": _iso(datetime.now(UTC)),
+                    }
+                },
+            )
+            if result.modified_count != 1:
+                raise ConfigError("projector binding changed during verified activation")
+            return target.generation_id
+
+        if await self._offset(target.projector_name) > 0:
+            raise ConfigError(
+                f"projector {target.projector_name!r} has a non-zero legacy offset "
+                "without a provider target binding; a verified projection rebuild or "
+                "switch is required before startup"
+            )
+        if target.source_provider is not None:
+            raise ConfigError(
+                f"projector {target.projector_name!r} has no source binding for the verified "
+                "switch; refusing to create a target binding"
+            )
+        with contextlib.suppress(DuplicateKeyError):  # a concurrent first binder won
+            await self._bindings.insert_one(
+                {
+                    **key,
+                    "provider": target.provider,
+                    "target_fingerprint": target.target_fingerprint,
+                    "generation_id": target.generation_id,
+                    "updated_at": _iso(datetime.now(UTC)),
+                }
+            )
+        saved = await self._bindings.find_one(key)
+        assert saved is not None  # inserted above or by the concurrent winner
+        require_binding_match(target, str(saved["provider"]), str(saved["target_fingerprint"]))
+        return str(saved["generation_id"])
+
+
 class MongoRecordsStore(ServiceAdapter):
     """Event log, outbox, offsets, leases, read model and lineage in one MongoDB database."""
 
@@ -313,7 +469,16 @@ class MongoRecordsStore(ServiceAdapter):
                 f"memspine ({SCHEMA_VERSION}); upgrade memspine"
             )
         existing = set(await self._db.list_collection_names())
-        for name in ("events", "outbox", "offsets", "leases", "records", "lineage", "counters"):
+        for name in (
+            "events",
+            "outbox",
+            "offsets",
+            "leases",
+            "records",
+            "lineage",
+            "counters",
+            "projector_bindings",
+        ):
             full = self._prefix + name
             options: Doc = {"validator": _OUTBOX_VALIDATOR} if name == "outbox" else {}
             if full not in existing:
@@ -358,6 +523,28 @@ class MongoRecordsStore(ServiceAdapter):
             sync_db: Database[Doc] = self._connector.sync_database()
             self._leases = MongoLeaseTable(sync_db[self._prefix + "leases"])
         return self._leases
+
+    # ---------------------------------------------------------------- provider metadata
+    async def claim_deployment_id(self, candidate: str) -> str:
+        """First writer wins: ``$setOnInsert`` on the ``meta`` deployment document."""
+        meta = self._c("meta")
+        with contextlib.suppress(DuplicateKeyError):  # two first claims raced the insert
+            await meta.update_one(
+                {"_id": "deployment"},
+                {
+                    "$setOnInsert": {
+                        "deployment_id": candidate,
+                        "created_at": _iso(datetime.now(UTC)),
+                    }
+                },
+                upsert=True,
+            )
+        doc = await meta.find_one({"_id": "deployment"})
+        assert doc is not None  # upserted above or by the concurrent winner
+        return str(doc["deployment_id"])
+
+    def projection_bindings(self) -> MongoProjectionBindingStore:
+        return MongoProjectionBindingStore(self._c("projector_bindings"), self._c("offsets"))
 
     # ---------------------------------------------------------------- event log
     def _event_doc(self, event: MemoryEvent, seq: int) -> Doc:
@@ -514,6 +701,7 @@ class MongoRecordsStore(ServiceAdapter):
             "open": record.valid_to is None,
             "status": record.status.value,
             "quarantined": bool(record.quarantined),
+            "layer": record.layer,
             "recorded_key": _sort_key(record.recorded_at),
             "session_key": record.source.message_id,
             "source_role": record.source.role,
@@ -591,6 +779,54 @@ class MongoRecordsStore(ServiceAdapter):
 
     async def delete_all_records(self) -> None:
         await self._c("records").delete_many({})
+
+    async def quarantined_ids(self, record_ids: Sequence[str]) -> set[str]:
+        ids = list(dict.fromkeys(str(r) for r in record_ids if r))
+        if not ids:
+            return set()
+        cursor = self._c("records").find({"_id": {"$in": ids}, "quarantined": True}, {"_id": 1})
+        return {str(doc["_id"]) async for doc in cursor}
+
+    async def recent_contents(self, namespace: str, limit: int) -> list[str]:
+        """The newest ``limit`` live contents, oldest first (ties in insertion order)."""
+        if limit <= 0:
+            return []
+        cursor = self._c("records").find(
+            {"namespace": namespace, "quarantined": False},
+            {"doc": 1},
+            sort=[("recorded_key", DESCENDING), ("order", DESCENDING)],
+            limit=limit,
+        )
+        newest = [str(orjson.loads(doc["doc"])["content"]) async for doc in cursor]
+        return newest[::-1]
+
+    async def layer_counts(self, namespace: str) -> dict[str, int]:
+        live: Doc = {
+            "namespace": namespace,
+            "status": {"$in": list(_LIVE_STATUSES)},
+            "quarantined": False,
+        }
+        records = self._c("records")
+        cursor = await records.aggregate(
+            [
+                {"$match": {**live, "layer": {"$type": "string"}}},
+                {"$group": {"_id": "$layer", "n": {"$sum": 1}}},
+            ]
+        )
+        counts = {str(doc["_id"]): int(doc["n"]) async for doc in cursor}
+        # A document written before the layer field existed counts on the layer it hydrates to.
+        async for doc in records.find({**live, "layer": {"$exists": False}}, {"doc": 1}):
+            layer = self._doc_to_record(doc).layer
+            counts[layer] = counts.get(layer, 0) + 1
+        return counts
+
+    async def count_quarantined(self, namespace: str) -> int:
+        return int(
+            await self._c("records").count_documents({"namespace": namespace, "quarantined": True})
+        )
+
+    async def list_quarantined(self, namespace: str) -> list[MemoryRecord]:
+        return await self._find_records({"namespace": namespace, "quarantined": True})
 
     # ---------------------------------------------------------------- lineage
     async def add_lineage(self, edges: Sequence[LineageEdge], namespace: str | None = None) -> int:

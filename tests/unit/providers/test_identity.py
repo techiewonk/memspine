@@ -1,10 +1,12 @@
 from pathlib import Path
+from typing import Any
 
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from memspine.exceptions import ConfigError
-from memspine.providers.identity import DEPLOYMENT_METADATA, resolve_deployment
+from memspine.providers.identity import resolve_deployment
+from memspine.services.storage.provider_metadata import DEPLOYMENT_METADATA, sql_claim_deployment_id
 
 
 async def test_identity_survives_reopen_and_rejects_conflicting_explicit_owner(tmp_path: Path):
@@ -12,10 +14,13 @@ async def test_identity_survives_reopen_and_rejects_conflicting_explicit_owner(t
     async with engine.begin() as conn:
         await conn.run_sync(DEPLOYMENT_METADATA.create)
 
-    class Sql:
-        pass
+    class Store:  # the records port's claim_deployment_id over one SQL engine
+        engine: Any
 
-    sql = Sql()
+        async def claim_deployment_id(self, candidate: str) -> str:
+            return await sql_claim_deployment_id(self.engine, candidate)
+
+    sql = Store()
     sql.engine = engine
     first = await resolve_deployment(sql, None, "development")
     assert first == await resolve_deployment(sql, None, "development")

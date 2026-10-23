@@ -131,7 +131,7 @@ def test_multi_node_accepts_cluster_slots_and_a_process_cache() -> None:
         (
             "documents",
             {"provider": "filesystem", "settings": {"root": "/srv/docs"}},
-            "s3, weaviate",
+            "mongodb",
         ),
     ],
 )

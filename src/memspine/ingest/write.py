@@ -68,7 +68,7 @@ from memspine.observability.logging import (
 from memspine.read.pipeline import scope_guard
 from memspine.semantics.domains import TOPIC_TAG_PREFIX, atopic_tags, topic_hook
 from memspine.services.embedding.base import EmbeddingService
-from memspine.services.storage.sql_base import SqlStorage
+from memspine.services.storage.records_port import RecordsStore
 from memspine.services.vector.base import VectorHit
 from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
 from memspine.store.records import (
@@ -681,7 +681,7 @@ async def write_episode(
 
 async def _write_locked(
     eng: Any,
-    storage: SqlStorage,
+    storage: RecordsStore,
     ns: str,
     record: MemoryRecord,
     memory_type: str,
@@ -694,7 +694,7 @@ async def _write_locked(
 
 async def _write_locked_ex(
     eng: Any,
-    storage: SqlStorage,
+    storage: RecordsStore,
     ns: str,
     record: MemoryRecord,
     memory_type: str,
@@ -752,7 +752,7 @@ def _stamp_covers_seq(record: MemoryRecord) -> MemoryRecord:
     return record.model_copy(update={"fingerprint": fp})
 
 
-async def _stamp_derived_times(storage: SqlStorage, record: MemoryRecord) -> MemoryRecord:
+async def _stamp_derived_times(storage: RecordsStore, record: MemoryRecord) -> MemoryRecord:
     """F-02b: a derived record inherits ``source_at`` from its earliest dated parent; window-derived
     records say their event time is the window start (basis ``inferred``). Fills only unset."""
     if record.source_at is not None or not record.source.parents:
@@ -1125,7 +1125,7 @@ async def _scope_check(eng: Any, query: str) -> Callable[[MemoryRecord], bool] |
 
 async def _write_screened(
     eng: Any,
-    storage: SqlStorage,
+    storage: RecordsStore,
     ns: str,
     record: MemoryRecord,
     memory_type: str,

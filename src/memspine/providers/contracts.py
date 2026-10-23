@@ -88,9 +88,11 @@ class BuildResult[PortT]:
 
 @dataclass(frozen=True, slots=True)
 class StorageBuildResult[PortT](BuildResult[PortT]):
-    """Storage result exposing its SQL access capability as a typed field."""
+    """Storage (``storage.records``) result exposing its SQL access capability as a typed
+    field; None for a records store without SQL (MongoDB, RM-112), whose service is the whole
+    ``RecordsStore`` port and which declares no ``sql`` capability."""
 
-    sql: SqlAccess
+    sql: SqlAccess | None
 
 
 class LifecycleManager(Protocol):

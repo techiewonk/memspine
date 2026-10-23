@@ -261,7 +261,10 @@ _BUILTIN_MODULES: dict[str, tuple[str, ...]] = {
     "rerankers": ("memspine.providers.builtin.rerank",),
     "extractors": ("memspine.providers.builtin.extraction",),
     "deciders": ("memspine.providers.builtin.decider",),
-    "storage_backends": ("memspine.providers.builtin.storage",),
+    "storage_backends": (
+        "memspine.providers.builtin.storage",
+        "memspine.providers.builtin.mongodb",
+    ),
     "vector_stores": (
         "memspine.providers.builtin.vector",
         "memspine.providers.builtin.pgvector",
@@ -274,7 +277,10 @@ _BUILTIN_MODULES: dict[str, tuple[str, ...]] = {
         "memspine.providers.builtin.weaviate",
     ),
     "cache_backends": ("memspine.providers.builtin.cache",),
-    "document_stores": ("memspine.providers.builtin.documents",),
+    "document_stores": (
+        "memspine.providers.builtin.documents",
+        "memspine.providers.builtin.mongodb",
+    ),
 }
 _BUILTINS_LOADED: set[str] = set()
 

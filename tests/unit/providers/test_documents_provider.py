@@ -48,14 +48,6 @@ def _engine(tmp_path: Path, documents: dict[str, Any] | None, **overrides: Any) 
     )
 
 
-@pytest.mark.parametrize("name", ["mongodb"])
-def test_planned_providers_are_rejected_naming_rm_112(name: str) -> None:
-    with pytest.raises(ConfigError, match=f"provider {name!r} is planned \\(RM-112\\)"):
-        MemspineConfig.model_validate(
-            {"runtime": _RUNTIME, "storage": {"documents": {"provider": name}}}
-        )
-
-
 def test_filesystem_slot_is_accepted_and_descriptor_declares_host_single_writer() -> None:
     config = MemspineConfig.model_validate(
         {"runtime": _RUNTIME, "storage": {"documents": {"provider": "filesystem"}}}
@@ -63,6 +55,17 @@ def test_filesystem_slot_is_accepted_and_descriptor_declares_host_single_writer(
     assert config.storage.documents is not None
     descriptor = get_registry("document_stores").get("filesystem")
     assert (descriptor.locality, descriptor.single_writer) == ("host", True)
+
+
+def test_mongodb_documents_descriptor_is_cluster_and_not_single_writer() -> None:
+    """RM-112: GridFS documents live on the cluster; every process may write them."""
+    config = MemspineConfig.model_validate(
+        {"runtime": _RUNTIME, "storage": {"documents": {"provider": "mongodb"}}}
+    )
+    assert config.storage.documents is not None
+    descriptor = get_registry("document_stores").get("mongodb")
+    assert (descriptor.locality, descriptor.single_writer) == ("cluster", False)
+    assert not descriptor.placement_needed(descriptor.settings_model.model_validate({}))
 
 
 async def test_unknown_provider_fails_at_start(tmp_path: Path) -> None:

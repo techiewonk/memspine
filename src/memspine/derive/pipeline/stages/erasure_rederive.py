@@ -38,7 +38,6 @@ from memspine.exceptions import MemspineError
 from memspine.memories.episodic.sessions import _session_key
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
-from memspine.store import lineage as lineage_store
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.trust.firewall import instruction_shaped
 from memspine.trust.pipeline import erasure_v2
@@ -160,12 +159,11 @@ async def _purge_row(eng: Any, storage: Any, ns: str, rid: str) -> bool:
     except MemspineError:
         return False
     await eng._forget_many(storage, ns, [rid], True)
-    engine = storage._client.engine
-    gone = await lineage_store.parents_of(engine, [rid])
-    kids = await lineage_store.children_of(engine, [rid])
+    gone = await storage.lineage_parents([rid])
+    kids = await storage.lineage_children([rid])
     edges = [e for es in (*gone.values(), *kids.values()) for e in es]
     if edges:
-        await lineage_store.delete_edges(engine, edges)
+        await storage.delete_lineage(edges)
     return True
 
 

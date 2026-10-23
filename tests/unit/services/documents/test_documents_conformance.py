@@ -3,7 +3,8 @@
 Each provider is built through its registered descriptor (settings -> spec -> shared connector
 -> adapter), exactly as the container builds it. ``filesystem`` runs everywhere. The remote
 providers (RM-112) run against a live service when its variable is set: ``mongodb`` (GridFS,
-needs ``MEMSPINE_TEST_MONGODB_URL``), ``s3`` (needs ``MEMSPINE_TEST_S3_URL``, see
+needs ``MEMSPINE_TEST_MONGO_URL``, a replica set, the same variable as the records suite; each
+test gets a throwaway database), ``s3`` (needs ``MEMSPINE_TEST_S3_URL``, see
 :func:`_s3_settings`) and ``weaviate`` (needs ``MEMSPINE_TEST_WEAVIATE_URL``). A provider whose
 descriptor is not registered yet is skipped with the reason.
 """
@@ -14,7 +15,7 @@ import asyncio
 import hashlib
 import os
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -82,15 +83,34 @@ def _weaviate_settings(tmp: Path) -> dict[str, Any]:
 
 CASES = (
     Case("filesystem", lambda tmp: {"root": str(tmp / "docs"), "max_bytes": CAP}),
-    Case("mongodb", lambda tmp: {"max_bytes": CAP}, env="MEMSPINE_TEST_MONGODB_URL"),
+    Case(
+        "mongodb",
+        lambda tmp: {
+            "url": os.environ["MEMSPINE_TEST_MONGO_URL"],
+            "database": f"dc_{uuid.uuid4().hex[:12]}",
+            "max_bytes": CAP,
+        },
+        env="MEMSPINE_TEST_MONGO_URL",
+    ),
     Case("s3", _s3_settings, env="MEMSPINE_TEST_S3_URL"),
     Case("weaviate", _weaviate_settings, env="MEMSPINE_TEST_WEAVIATE_URL"),
 )
 
 
+#: throwaway MongoDB databases made by the mongodb case, dropped after the test
+_MONGO_DATABASES: list[str] = []
+
+
 @pytest.fixture(autouse=True)
-def _fresh_registry(monkeypatch: pytest.MonkeyPatch) -> None:
+def _fresh_registry(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     monkeypatch.setattr(shared, "_REGISTRY", ResourceRegistry())
+    yield
+    if _MONGO_DATABASES:
+        from pymongo import MongoClient
+
+        with MongoClient(os.environ["MEMSPINE_TEST_MONGO_URL"]) as admin:
+            while _MONGO_DATABASES:
+                admin.drop_database(_MONGO_DATABASES.pop())
 
 
 async def _build(case: Case, tmp_path: Path, resources: ProviderLifecycleManager) -> Any:
@@ -100,7 +120,10 @@ async def _build(case: Case, tmp_path: Path, resources: ProviderLifecycleManager
         pytest.skip(f"documents provider {case.name!r} is planned (RM-112), not registered yet")
     if case.env is not None and not os.environ.get(case.env):
         pytest.skip(f"documents provider {case.name!r}: set {case.env}")
-    settings = validate_settings(descriptor, case.settings(tmp_path))
+    raw = case.settings(tmp_path)
+    settings = validate_settings(descriptor, raw)
+    if case.name == "mongodb":
+        _MONGO_DATABASES.append(str(raw["database"]))
     ctx = DocumentsBuildContext(
         SharedBuildContext(resources, "conformance-owner", 5.0),
         ProjectionPlacement(tmp_path / "records.db", False, "conformance-owner"),

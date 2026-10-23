@@ -11,8 +11,8 @@ from memspine.providers.changes import ChangeContext, ChangeResult
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.control import ProviderChangeRuntime
 from memspine.providers.health import ProbeStatus
-from memspine.providers.identity import DEPLOYMENT_METADATA
 from memspine.providers.lifecycle import LifecycleState
+from memspine.services.storage.provider_metadata import DEPLOYMENT_METADATA
 
 
 def _engine(path: Path) -> Engine:

@@ -16,7 +16,7 @@ from memspine.models.encoders.query.shape import content_words
 from memspine.models.encoders.query.temporal_query import forget_mentions
 from memspine.observability.logging import EVENT_FORGET, get_logger
 from memspine.scope import system_scope
-from memspine.services.storage.sql_base import SqlStorage
+from memspine.services.storage.records_port import RecordsStore
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.store.scope import validate_namespace
@@ -76,7 +76,7 @@ async def forget(
     await eng._audit_action("forget", ns, ids, actor=actor, reason=reason, hard=hard)
 
 
-async def _sole_source_window_facts(storage: SqlStorage, ns: str, record_id: str) -> list[str]:
+async def _sole_source_window_facts(storage: RecordsStore, ns: str, record_id: str) -> list[str]:
     """FU-HARDERASE: live window facts (mined verbatim from turns; tag ``window_fact``) whose only
     parent is ``record_id``. A soft forget has no cascade by default (generic derived records,
     summaries and cues stay), but a window fact repeats the forgotten turn's content, so it must
@@ -150,7 +150,7 @@ async def erase_namespace(
     return ids
 
 
-async def _descendants(eng: Any, storage: SqlStorage, ns: str, seeds: Sequence[str]) -> list[str]:
+async def _descendants(eng: Any, storage: RecordsStore, ns: str, seeds: Sequence[str]) -> list[str]:
     """Every record of ``ns`` derived from ``seeds``, transitively, in discovery
     order (seeds excluded), that is still in the read model.
 
@@ -176,7 +176,7 @@ async def _descendants(eng: Any, storage: SqlStorage, ns: str, seeds: Sequence[s
     return present
 
 
-async def _log_derivations(storage: SqlStorage, ns: str) -> dict[str, list[str]]:
+async def _log_derivations(storage: RecordsStore, ns: str) -> dict[str, list[str]]:
     """parent id -> ids of the records of ``ns`` whose log events name it: in
     a WRITE snapshot's ``source.parents`` or a ``member_record_ids`` list
     (one pass over the log)."""
@@ -216,7 +216,7 @@ async def _log_derivations(storage: SqlStorage, ns: str) -> dict[str, list[str]]
 
 async def _forget_many(
     eng: Any,
-    storage: SqlStorage,
+    storage: RecordsStore,
     ns: str,
     record_ids: Sequence[str],
     hard: bool,
@@ -298,7 +298,7 @@ async def _erased_entity_nodes(
 
 
 async def _forget_target(
-    eng: Any, storage: SqlStorage, ns: str, record_id: str, hard: bool
+    eng: Any, storage: RecordsStore, ns: str, record_id: str, hard: bool
 ) -> MemoryRecord | None:
     """The record to forget after the scope and legal-hold checks; None when
     a hard forget finds no row (an idempotent retry of the log redaction)."""
@@ -361,7 +361,7 @@ async def _purge_caches(eng: Any, texts: Sequence[str]) -> None:
 
 
 async def _forget_locked(
-    eng: Any, storage: SqlStorage, ns: str, record_id: str, hard: bool, *, redact: bool = True
+    eng: Any, storage: RecordsStore, ns: str, record_id: str, hard: bool, *, redact: bool = True
 ) -> None:
     """Forget one record (lock held): FORGET event, log redaction when
     ``redact`` and hard, and the memory types' delete hooks."""

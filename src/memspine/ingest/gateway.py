@@ -43,6 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from memspine.config import constants
 from memspine.derive import role_filter
 from memspine.derive.intent import DerivationIntent
+from memspine.exceptions import ConfigError
 from memspine.ingest import intake_store as store
 from memspine.ingest import role_wiring
 from memspine.ingest import write as ingest_write
@@ -169,16 +170,14 @@ class SourceVersioner:
         edges_removed = 0
         if eng._config().write.lineage_table:
             from memspine.schemas.durable.lineage import LineageEdge
-            from memspine.store import lineage as lineage_store
 
-            engine = storage._client.engine
             drop = [
                 LineageEdge(child=c, parent=p, role="support")
                 for c, ps in repointed.items()
                 for p in ps
             ]
             if drop:
-                edges_removed = await lineage_store.delete_edges(engine, drop)
+                edges_removed = await storage.delete_lineage(drop)
             old = sorted(retracted)
             links = [
                 LineageEdge(
@@ -187,7 +186,7 @@ class SourceVersioner:
                 for new, o in zip(fresh, old, strict=False)
             ]
             if links:
-                await lineage_store.add_edges(engine, links, ns)
+                await storage.add_lineage(links, ns)
         tap.event(
             "write.intake.retire",
             retracted=len(retracted),
@@ -284,6 +283,16 @@ class IntakeGateway:
 
     async def _engine(self) -> AsyncEngine:
         storage = self.eng._require_started()
+        if getattr(storage, "_client", None) is None:
+            # RM-112: the intake book and the message index are SQL tables of the records
+            # database; a records store without SQL (MongoDB) has neither.
+            provider = self.eng._config().storage.records.provider
+            raise ConfigError(
+                "ingestion through the intake gateway (ingest_messages, ingest_data, "
+                "ingest_asset) needs a SQL records store: storage.records.provider "
+                f"{provider!r} keeps no intake book or message index; use write() or a "
+                "SQLite/Postgres records store"
+            )
         db: AsyncEngine = storage._client.engine
         if db is not self._db:
             await store.ensure_schema(db)

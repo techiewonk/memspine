@@ -11,7 +11,7 @@ structurally (store and trust are sibling layers, so nothing is imported from tr
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from typing import Any
+from typing import Any, Protocol
 
 from sqlalchemy import and_, delete, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -33,6 +33,22 @@ __all__ = [
 ]
 
 _CHUNK = 400  # stay under SQLite's bound-parameter limit
+
+
+class LineagePorts(Protocol):
+    """The lineage queries of the records port (``RecordsStore``, RM-112)."""
+
+    async def lineage_parents(
+        self, child_ids: Sequence[str], roles: Sequence[str] | None = None
+    ) -> dict[str, list[LineageEdge]]: ...
+
+    async def lineage_children(
+        self, parent_ids: Sequence[str], roles: Sequence[str] | None = None
+    ) -> dict[str, list[LineageEdge]]: ...
+
+
+#: Where :func:`load_edges` reads: a records store (port methods) or a SQL engine.
+LineageSource = LineagePorts | AsyncEngine
 
 
 def _row_to_edge(row: Any) -> LineageEdge:
@@ -136,14 +152,28 @@ async def children_of(
 
 
 async def load_edges(
-    engine: AsyncEngine,
+    source: LineageSource,
     roots: Iterable[str],
     *,
     up: bool = True,
     down: bool = True,
     max_depth: int = 32,
 ) -> list[LineageEdge]:
-    """Edges reachable from ``roots`` toward ancestors (``up``) and/or descendants (``down``)."""
+    """Edges reachable from ``roots`` toward ancestors (``up``) and/or descendants (``down``).
+
+    ``source`` is any records store (its ``lineage_parents`` / ``lineage_children`` port
+    methods, RM-112) or a SQL engine holding the lineage table."""
+
+    async def up_of(ids: list[str]) -> dict[str, list[LineageEdge]]:
+        if isinstance(source, AsyncEngine):
+            return await parents_of(source, ids)
+        return await source.lineage_parents(ids)
+
+    async def down_of(ids: list[str]) -> dict[str, list[LineageEdge]]:
+        if isinstance(source, AsyncEngine):
+            return await children_of(source, ids)
+        return await source.lineage_children(ids)
+
     seen: dict[tuple[str, str, str], LineageEdge] = {}
     start = set(roots)
     frontier_up, frontier_down = set(start), set(start)
@@ -155,14 +185,14 @@ async def load_edges(
         if up and frontier_up:
             todo = sorted(frontier_up - visited_up)
             visited_up.update(todo)
-            for edges in (await parents_of(engine, todo)).values():
+            for edges in (await up_of(todo)).values():
                 for e in edges:
                     seen[(e.child, e.parent, e.role)] = e
                     nxt_up.add(e.parent)
         if down and frontier_down:
             todo = sorted(frontier_down - visited_down)
             visited_down.update(todo)
-            for edges in (await children_of(engine, todo)).values():
+            for edges in (await down_of(todo)).values():
                 for e in edges:
                     seen[(e.child, e.parent, e.role)] = e
                     nxt_down.add(e.child)

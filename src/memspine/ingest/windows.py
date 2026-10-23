@@ -37,7 +37,7 @@ from memspine.models.encoders.query.perspective import (
 from memspine.observability.logging import get_logger
 from memspine.prompts.structured import STRUCTURED_PROMPT_ID, STRUCTURED_VERSION
 from memspine.read.pending_barrier import BarrierResult, PendingBarrier
-from memspine.services.storage.sql_base import SqlStorage
+from memspine.services.storage.records_port import RecordsStore
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import (
     MemoryRecord,
@@ -65,7 +65,7 @@ def register_outbox_factory(factory: OutboxFactory | None) -> None:
     _outbox_factory = factory
 
 
-async def _reopen_session(eng: Any, storage: SqlStorage, ns: str, session: str | None) -> None:
+async def _reopen_session(eng: Any, storage: RecordsStore, ns: str, session: str | None) -> None:
     """#53: a write to a PASSIVE session reopens it (one SESSION ``active`` event
     listing its members), so the whole conversation is back in default reads."""
     if session is None:

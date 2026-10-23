@@ -736,7 +736,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "94dc0f7b5cbbde36dc9574d1a2d241cb195c63f74439f94b904e7b132ff166d2",
+ "json_schema_sha256": "828330df2e7a215f95ff3c63b9d96f5730a645c7a2e0016949aff30e6d68a643",
  "preset:chat_roles": {
   "audit": {
    "actions": false,

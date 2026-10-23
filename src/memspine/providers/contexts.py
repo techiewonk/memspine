@@ -83,6 +83,10 @@ class DocumentsBuildContext:
 
     shared: SharedBuildContext
     placement: ProjectionPlacement
+    #: RM-112: the ``storage.records`` slot as ``(provider, raw settings)``, so a documents
+    #: provider on the same deployment (MongoDB GridFS) can inherit its connection settings
+    #: and share its connector. None outside an Engine.
+    records: tuple[str, Mapping[str, JsonValue]] | None = None
 
 
 @dataclass(frozen=True)

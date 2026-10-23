@@ -26,18 +26,28 @@ Facets (each a Protocol; :class:`RecordsStore` is their union):
   erasure walks.
 * :class:`SchemaPort` - versioned schema and index setup (``start`` is idempotent and brings
   the store to its current version; ``schema_revision`` names it), and ``stop``.
+* :class:`ProviderMetadataPort` - the deployment identity and the projector target bindings
+  (RM-112): what a projector checkpoint may be reused for lives with the checkpoint.
+
+RM-112 widened the read-model and erasure facets with the helpers the engine calls
+(``quarantined_ids``, ``recent_contents``, ``layer_counts``, ``count_quarantined``,
+``list_quarantined``, ``scrub_marker_payloads``), so the engine needs nothing beyond this port
+from ``storage.records``. SQL-only features (the outbox job book, the side tables, the intake
+book, ``sql_adjacency``, pgvector) are refused for a records store without SQL by
+:mod:`memspine.providers.records_features`.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 
+from memspine.exceptions import ConfigError
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.lineage import LineageEdge
-from memspine.store.events import MemoryEvent
+from memspine.store.events import EventLogMode, MemoryEvent
 from memspine.store.records import MemoryRecord
 
 __all__ = [
@@ -49,9 +59,14 @@ __all__ = [
     "OffsetPort",
     "OutboxAppendPort",
     "OutboxItem",
+    "ProjectionBindingPort",
+    "ProjectionTargetBinding",
+    "ProviderMetadataPort",
     "RecordReadModelPort",
     "RecordsStore",
     "SchemaPort",
+    "binding_source_name",
+    "require_binding_match",
 ]
 
 
@@ -176,6 +191,25 @@ class RecordReadModelPort(Protocol):
 
     async def delete_all_records(self) -> None: ...
 
+    async def quarantined_ids(self, record_ids: Sequence[str]) -> set[str]:
+        """The ids among ``record_ids`` whose record exists and is quarantined."""
+        ...
+
+    async def recent_contents(self, namespace: str, limit: int) -> list[str]:
+        """Contents of the ``limit`` most recently recorded non-quarantined records of
+        ``namespace``, oldest first (ties keep :meth:`list_records` order)."""
+        ...
+
+    async def layer_counts(self, namespace: str) -> dict[str, int]:
+        """Live (activated or resolving, not quarantined) records of ``namespace`` by layer."""
+        ...
+
+    async def count_quarantined(self, namespace: str) -> int: ...
+
+    async def list_quarantined(self, namespace: str) -> list[MemoryRecord]:
+        """:meth:`list_records` narrowed to quarantined records, in the same order."""
+        ...
+
 
 @runtime_checkable
 class LineagePort(Protocol):
@@ -202,6 +236,14 @@ class ErasurePort(Protocol):
         """Scrub every snapshot of the records from the log; seq, kind, fingerprint stay."""
         ...
 
+    async def scrub_marker_payloads(
+        self, marker: str, scrub: Callable[[dict[str, Any]], bool]
+    ) -> list[int]:
+        """The redaction pass for MARKER events named ``marker``: ``scrub`` mutates a decoded
+        payload and returns True when it changed it; changed payloads get ``redacted: true``
+        and keep seq and kind. Returns the rewritten seqs."""
+        ...
+
     async def delete_record(self, record_id: str) -> None: ...
 
     async def list_children(
@@ -222,6 +264,70 @@ class SchemaPort(Protocol):
     async def stop(self) -> None: ...
 
 
+@dataclass(frozen=True, slots=True)
+class ProjectionTargetBinding:
+    """The provider target a projector checkpoint belongs to (and, for a verified switch,
+    the source binding it replaces)."""
+
+    deployment_id: str
+    projector_name: str
+    provider: str  # "<category>:<name>:v<contract>"
+    target_fingerprint: str
+    generation_id: str = "active"
+    source_provider: str | None = None
+    source_target_fingerprint: str | None = None
+    source_generation_id: str | None = None
+    verified_checkpoint_seq: int | None = None
+
+
+def binding_source_name(provider: str) -> str:
+    """The provider NAME of a binding identity (``graph:ladybug:v1`` -> ``ladybug``)."""
+    parts = provider.split(":")
+    return parts[1] if len(parts) > 1 else provider
+
+
+def require_binding_match(
+    target: ProjectionTargetBinding, saved_provider: str, saved_fingerprint: str
+) -> None:
+    """Fail closed when the stored binding names another provider or target."""
+    if saved_provider != target.provider or saved_fingerprint != target.target_fingerprint:
+        raise ConfigError(
+            f"projector {target.projector_name!r} is bound to provider "
+            f"{saved_provider!r}, but configuration selects {target.provider!r} or a "
+            "different target; startup is blocked until a verified projection switch "
+            "is completed"
+        )
+
+
+@runtime_checkable
+class ProjectionBindingPort(Protocol):
+    """Projector target bindings, stored beside the projector offsets they gate.
+
+    ``ensure`` creates a binding once (refusing a non-zero offset with no binding: the target
+    may have changed under the same projector name), accepts the same target again, refuses a
+    different provider, target or generation, and replaces the binding only through a verified
+    switch: the stored binding equals the switch source and the offset equals the verified
+    checkpoint (a compare-and-swap)."""
+
+    async def bound_provider(self, deployment_id: str, projector_name: str) -> str | None: ...
+
+    async def adopt_renamed_provider(
+        self, target: ProjectionTargetBinding, old_provider: str
+    ) -> bool: ...
+
+    async def ensure(self, target: ProjectionTargetBinding) -> str: ...
+
+
+@runtime_checkable
+class ProviderMetadataPort(Protocol):
+    async def claim_deployment_id(self, candidate: str) -> str:
+        """Store ``candidate`` as the deployment identity unless one is stored (first writer
+        wins, concurrent callers agree); return the stored identity."""
+        ...
+
+    def projection_bindings(self) -> ProjectionBindingPort: ...
+
+
 @runtime_checkable
 class RecordsStore(
     EventLogPort,
@@ -231,9 +337,17 @@ class RecordsStore(
     LineagePort,
     ErasurePort,
     SchemaPort,
+    ProviderMetadataPort,
     Protocol,
 ):
     """Everything the engine needs from ``storage.records`` (ADR-081)."""
+
+    @property
+    def mode(self) -> EventLogMode:
+        """The event-log mode the store runs in."""
+        ...
+
+    async def health(self) -> bool: ...
 
     def leases(self) -> LeasePort:
         """The store's lease table (shared by every process on a cluster store)."""

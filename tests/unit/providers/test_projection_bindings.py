@@ -11,11 +11,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from memspine import Engine
 from memspine.exceptions import ConfigError, MemspineError
 from memspine.providers.contracts import BuildResult, ProviderRef
-from memspine.providers.projection_bindings import (
-    ProjectionTargetBinding,
-    SqlProjectionBindingStore,
-)
 from memspine.providers.registry import ProviderDescriptor, get_registry
+from memspine.services.storage.provider_metadata import SqlProjectionBindingStore
+from memspine.services.storage.records_port import ProjectionTargetBinding
 from memspine.services.storage.sqlite.schema import memory_events, metadata
 
 

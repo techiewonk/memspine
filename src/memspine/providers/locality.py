@@ -157,7 +157,7 @@ def _cluster_alternatives(slot: str) -> str:
     if slot == "graph":
         names.append("sql_adjacency on a Postgres storage.records")
     if not names:
-        planned = " (mongodb is planned, RM-112)" if slot == "documents" else ""
+        planned = ""
         return f"no cluster provider is available for this slot yet{planned}"
     return "choose a cluster provider: " + ", ".join(names)
 

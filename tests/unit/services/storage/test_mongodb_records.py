@@ -106,22 +106,55 @@ async def test_a_newer_schema_is_refused_and_ephemeral_is_rejected(database: str
         await connector.close()
 
 
-async def test_the_pending_factory_builds_a_started_store(database: str) -> None:
-    from memspine.providers.builtin.mongodb import (
-        RECORDS_MONGODB,
-        MongoRecordsSettings,
-        build_mongodb_records,
-    )
+async def test_the_registered_factory_builds_a_started_store(database: str) -> None:
+    """RM-112: ``storage.records: {provider: mongodb}`` builds through its descriptor (shared
+    connector, no SQL access) and the store it returns is started by the Engine."""
+    from memspine.config.schema.storage import EventLogConfig
+    from memspine.providers import shared
+    from memspine.providers.contexts import SharedBuildContext, StorageBuildContext
+    from memspine.providers.contracts import StorageBuildResult
+    from memspine.providers.lifecycle import ProviderLifecycleManager
+    from memspine.providers.registry import get_registry, validate_settings
 
     assert MONGO_URL is not None
-    assert (RECORDS_MONGODB.slot, RECORDS_MONGODB.locality) == ("records", "cluster")
-    assert RECORDS_MONGODB.wirable is False  # registered with the RM-111 slot rewrite
-    settings = MongoRecordsSettings(url=MONGO_URL, database=database, collection_prefix="m_")
-    connector, store = await build_mongodb_records(settings)
+    descriptor = get_registry("storage_backends").get("mongodb")
+    assert descriptor.locality == "cluster"
+    settings = validate_settings(
+        descriptor, {"url": MONGO_URL, "database": database, "collection_prefix": "m_"}
+    )
+    resources = ProviderLifecycleManager(close_timeout_s=5.0)
+    ctx = StorageBuildContext(
+        SharedBuildContext(resources, "owner", 5.0, registry=shared.ResourceRegistry()),
+        EventLogConfig(),
+    )
+    result = await descriptor.builder.build(settings, ctx)
+    assert isinstance(result, StorageBuildResult) and result.sql is None
+    assert "sql" not in result.effective_capabilities
+    store = result.service
     try:
+        await store.start()
+        connector = store._connector
         assert connector.topology is not None and connector.topology.startswith("replica_set:")
         assert await store.health()
+        assert result.health_probe is not None and await result.health_probe()
         assert "m_events" in await connector.database.list_collection_names()
     finally:
         await store.stop()
-        await connector.close()
+        assert (await resources.close_all()).complete
+
+
+async def test_ephemeral_mode_is_refused_by_the_factory() -> None:
+    from memspine.config.schema.storage import EventLogConfig
+    from memspine.exceptions import ConfigError
+    from memspine.providers.contexts import SharedBuildContext, StorageBuildContext
+    from memspine.providers.lifecycle import ProviderLifecycleManager
+    from memspine.providers.registry import get_registry, validate_settings
+
+    descriptor = get_registry("storage_backends").get("mongodb")
+    settings = validate_settings(descriptor, {"url": "mongodb://127.0.0.1:1"})
+    ctx = StorageBuildContext(
+        SharedBuildContext(ProviderLifecycleManager(close_timeout_s=5.0), "owner", 5.0),
+        EventLogConfig(mode=EventLogMode.EPHEMERAL),
+    )
+    with pytest.raises(ConfigError, match="ephemeral"):
+        await descriptor.builder.build(settings, ctx)

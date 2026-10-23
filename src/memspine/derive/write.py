@@ -24,7 +24,6 @@ from memspine.exceptions import MemspineError
 from memspine.observability import tap
 from memspine.schemas.durable.evidence import Span
 from memspine.schemas.durable.lineage import LINEAGE_ROLES, LineageEdge
-from memspine.store import lineage as lineage_store
 from memspine.store.events import fingerprint_payload
 from memspine.store.layers import LAYERS, derive_layer
 from memspine.store.records import MemoryRecord
@@ -250,7 +249,7 @@ async def add_lineage(
         for p in pids
         if p != written.record_id
     ]
-    added = await lineage_store.add_edges(storage._client.engine, edges, ns)
+    added = await storage.add_lineage(edges, ns)  # the records port (RM-112)
     if tap.enabled():
         tap.event(
             "derive.lineage.write",

@@ -34,6 +34,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from memspine.config.constants import RECORD_BATCH_CHUNK, STORAGE_HEALTH_DEADLINE_S, ZSTD_LEVEL
 from memspine.exceptions import StorageError
 from memspine.services.base import CapabilityManifest, ServiceAdapter
+
+# Imported for its table too: ``provider_deployment_identity`` joins ``metadata`` before any
+# ``create_all`` (``:memory:``) runs.
+from memspine.services.storage.provider_metadata import (
+    SqlProjectionBindingStore,
+    sql_claim_deployment_id,
+)
 from memspine.services.storage.sqlite.schema import (
     memory_events,
     memory_records,
@@ -47,7 +54,11 @@ from memspine.trust.erasure import redact_record, scrub_partition_nodes
 if TYPE_CHECKING:
     from memspine.schemas.durable.common import OwnerScope
     from memspine.schemas.durable.lineage import LineageEdge
-    from memspine.services.storage.records_port import LeasePort, OutboxItem
+    from memspine.services.storage.records_port import (
+        LeasePort,
+        OutboxItem,
+        ProjectionBindingPort,
+    )
 
 __all__ = ["SqlClient", "SqlStorage"]
 
@@ -267,6 +278,14 @@ class SqlStorage(ServiceAdapter):
     def leases(self) -> LeasePort:  # pragma: no cover - overridden
         """The lease table of this store (subclass-supplied: it needs a sync connection)."""
         raise NotImplementedError
+
+    # ── records port (RM-112): provider metadata ─────────────────────────────
+
+    async def claim_deployment_id(self, candidate: str) -> str:
+        return await sql_claim_deployment_id(self._client.engine, candidate)
+
+    def projection_bindings(self) -> ProjectionBindingPort:
+        return SqlProjectionBindingStore(self._client.engine)
 
     async def add_lineage(self, edges: Sequence[LineageEdge], namespace: str | None = None) -> int:
         from memspine.store.lineage import add_edges

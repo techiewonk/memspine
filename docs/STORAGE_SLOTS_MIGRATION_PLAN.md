@@ -242,8 +242,8 @@ fsync}}`.
   paths, an exclusive section shared by every Engine on the root). Adapter
   `services/documents/filesystem.py`; factory `providers/builtin/documents.py` (`acquire()`
   shares the connector per root). An unset `root` is `<records placement base>.documents`.
-- `mongodb` is rejected by name until RM-112 ships it; other unknown names fail at start with
-  the registry's valid list. `s3` and `weaviate` ship (RM-112, below).
+- Every designed documents provider ships (`s3` and `weaviate` below, `mongodb` in section
+  10); other unknown names fail at start with the registry's valid list.
 - Erasure: the hard path of `trust/pipeline/erasure.py::_forget_many` (hard forget, cascade,
   `erase_subject`, erasure v2 and re-derive all go through it) calls `erase_records(ns, ids)`,
   which drops those references and deletes documents left with none; `erase_namespace` deletes
@@ -251,8 +251,8 @@ fsync}}`.
   (RM-113 item 18); other callers use `engine.documents`. Removing a file is a logical delete,
   not physical-erasure proof.
 - Conformance: `tests/unit/services/documents/test_documents_conformance.py`, parametrized by
-  provider name; the `mongodb` case skips until its descriptor registers, `s3` and `weaviate`
-  run live when `MEMSPINE_TEST_S3_URL` / `MEMSPINE_TEST_WEAVIATE_URL` are set.
+  provider name; `mongodb`, `s3` and `weaviate` run live when `MEMSPINE_TEST_MONGO_URL`,
+  `MEMSPINE_TEST_S3_URL` / `MEMSPINE_TEST_WEAVIATE_URL` are set.
 
 **S3 documents (RM-112).** `storage.documents: {provider: s3}`, `[aws]` (boto3; no new
 dependency), locality `cluster`, multi-writer.
@@ -320,3 +320,48 @@ locality `cluster`, needs `deployment.id`.
   transaction and renames both to `*.imported` (bytes stay in place without a documents slot).
   The legacy file is read through `clients/sqlite/files.py`; no `sqlite3.connect` remains in
   `services/`.
+
+## 10. Provider notes: MongoDB records and documents (RM-112, 2026-10-23)
+
+**Records.** `storage.records: {provider: mongodb, settings: {url, database, collection_prefix,
+connect_timeout_s, server_selection_timeout_s, operation_timeout_s}}` (`[mongodb]`, pymongo's
+native asyncio API).
+
+- Descriptor `providers/builtin/mongodb.py`: locality `cluster`, `deployment.id` required,
+  target identity from the connector (credential-free), placement `<data_dir>/memspine` like
+  Postgres, so host-local projections (LanceDB, Tantivy, LadybugDB) need `deployment.data_dir`.
+- The build `acquire()`s the shared `MongoConnector` (registry key = hosts, database, options,
+  auth digest, transport knobs) and returns a `StorageBuildResult` with `sql=None`. The
+  descriptor declares no `sql` capability; the container's storage check accepts that when the
+  service satisfies the records port.
+- A standalone `mongod` is refused at open (no multi-document transactions); `event_log.mode:
+  ephemeral` is refused by the factory.
+- The engine reads the deployment identity and the projector bindings through the port
+  (`RecordsStore.claim_deployment_id`, `RecordsStore.projection_bindings`; contract section 9),
+  so the graph `auto` pin and the projection target preflight work without SQL.
+- `storage.graph: auto` resolves only to `ladybug` on a records store without SQL. Without the
+  `[graph]` extra the start fails naming `storage.graph`; it never silently selects
+  `sql_adjacency`, which is refused explicitly, as is `storage.vector: pgvector`.
+- SQL-only features are refused before anything opens (`providers/records_features.py`; contract
+  section 10): the outbox, `offline.sleep_v2`, `economy.ledger_persist`,
+  `write.envelope_v2` (the RM-111 WP5 side tables) and projection switches. The intake gateway
+  fails at call time. There are no side files to import.
+
+**Documents.** `storage.documents: {provider: mongodb, settings: {bucket, max_bytes, url,
+database, connect_timeout_s, server_selection_timeout_s, operation_timeout_s}}`.
+
+- A GridFS bucket (`<bucket>.files`, `<bucket>.chunks`) plus `<bucket>.heads`, one head per
+  `(namespace, sha256)`.
+- Unset connection fields come from the records slot when it is MongoDB (the new
+  `DocumentsBuildContext.records`), so both slots resolve to one spec and share one connector.
+  `settings.url` is required otherwise.
+- A put streams into GridFS while hashing and aborts the upload past `max_bytes` or on an
+  `expected_digest` mismatch. The head is then inserted, or merged by a revision compare-and-set,
+  so concurrent puts keep every reference.
+- Locality `cluster`, not single-writer, no placement.
+- Conformance: the shared documents suite, 19 of 19.
+
+**Tests.** Records conformance 20 of 20 on `mongodb` (sqlite_file and postgres 20 of 20 too) with
+the RM-112 cases for the added port methods; `tests/unit/providers/test_records_features.py`;
+`tests/e2e/test_mongodb_engine.py` (Engine write, search, read, forget and sleep on a replica set,
+documents sharing the connector, refusals).

@@ -25,13 +25,11 @@ from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 from memspine.providers.lifecycle import ProviderLifecycleManager
-from memspine.providers.projection_bindings import (
-    ProjectionTargetBinding,
-    SqlProjectionBindingStore,
-)
 from memspine.providers.registry import GRAPH_STORES, UnknownProviderError
 from memspine.providers.selection import ProviderSelectionError, select_provider
 from memspine.runtime.container import Wiring, _graph_descriptor, resolve_graph_pin
+from memspine.services.storage.provider_metadata import SqlProjectionBindingStore
+from memspine.services.storage.records_port import ProjectionTargetBinding
 from memspine.services.storage.sqlite.schema import metadata, provider_projector_bindings
 
 PG_URL = os.environ.get("MEMSPINE_TEST_PG_URL")
@@ -215,9 +213,16 @@ def _config(**overrides: Any) -> MemspineConfig:
     return MemspineConfig(runtime=runtime, **overrides)
 
 
-def _wiring(sql: Any) -> Wiring:
+def _wiring(sql: Any, owner_id: str = "dep-1") -> Wiring:
+    # RM-112: the binding store comes from the records port.
+    records = SimpleNamespace(projection_bindings=lambda: SqlProjectionBindingStore(sql.engine))
     return Wiring(
-        ProviderLifecycleManager(close_timeout_s=2.0), 2.0, None, owner_id="dep-1", sql=sql
+        ProviderLifecycleManager(close_timeout_s=2.0),
+        2.0,
+        None,
+        owner_id=owner_id,
+        sql=sql,
+        records=records,  # type: ignore[arg-type]
     )
 
 
@@ -237,9 +242,7 @@ async def test_resolve_graph_pin_per_dialect(sql: Any, ladybug: dict[str, bool])
     assert _graph_descriptor(config, later).ref.name == "sql_adjacency"
     assert later.provider_drift == {"graph": ("sql_adjacency", "ladybug")}
     # a fresh deployment (no binding) resolves to ladybug once it is installed
-    fresh = Wiring(
-        ProviderLifecycleManager(close_timeout_s=2.0), 2.0, None, owner_id="dep-2", sql=sql
-    )
+    fresh = _wiring(sql, owner_id="dep-2")
     assert await resolve_graph_pin(config, fresh) == "ladybug"
     assert fresh.provider_drift == {}
     # an explicit provider is never pinned

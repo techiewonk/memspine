@@ -93,6 +93,7 @@ from memspine.providers.placement import (
     host_base_path,
     storage_placement,
 )
+from memspine.providers.records_features import validate_records_features
 from memspine.providers.registry import (
     CACHE_BACKENDS as PROVIDER_CACHE_BACKENDS,
 )
@@ -146,7 +147,7 @@ from memspine.services.rerank.base import Reranker
 from memspine.services.secrets.base import SecretsService
 from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
-from memspine.services.storage.sql_base import SqlStorage
+from memspine.services.storage.records_port import RecordsStore
 from memspine.services.vector.base import VectorStore
 from memspine.store.projections.projector import Projector
 from memspine.workers.inline import InlineRunner
@@ -330,7 +331,9 @@ async def _build_provider(
 
 
 _PROVIDER_BASE_CAPABILITIES: dict[str, frozenset[str]] = {
-    "storage": frozenset({"sql"}),
+    # RM-112: a records store need not be SQL; the storage branch below checks either the SQL
+    # access contract or the records port.
+    "storage": frozenset(),
     "cache": frozenset({"kv", "ttl"}),
     "vector": frozenset({"vector", "namespace_filter", "erase"}),
     "graph": frozenset({"graph", "namespace_filter", "erase"}),
@@ -367,8 +370,22 @@ def _validate_provider_result(
 
     if category == "storage":
         if not isinstance(result, StorageBuildResult):
-            raise ConfigError(f"provider {identity} did not expose the SQL access contract")
+            raise ConfigError(f"provider {identity} did not expose the storage build contract")
         access = result.sql
+        if access is None:
+            # RM-112: a records store without SQL (MongoDB) is the whole records port; it must
+            # not claim SQL, and the SQL-only features were refused in check_capabilities.
+            if "sql" in descriptor.declared_capabilities | result.effective_capabilities:
+                raise ConfigError(f"provider {identity} claims sql but exposes no SQL access")
+            if "records" not in descriptor.declared_capabilities:
+                raise ConfigError(
+                    f"provider {identity} descriptor omits required capabilities: records"
+                )
+            if not isinstance(result.service, RecordsStore):
+                raise ConfigError(f"provider {identity} service does not satisfy the records port")
+            return
+        if "sql" not in descriptor.declared_capabilities:
+            raise ConfigError(f"provider {identity} descriptor omits required capabilities: sql")
         if (
             not callable(getattr(access, "checkpoint", None))
             or not callable(getattr(access, "acquire_sync", None))
@@ -383,6 +400,8 @@ def _validate_provider_result(
 
         if not isinstance(getattr(access, "engine", None), AsyncEngine):
             raise ConfigError(f"provider {identity} exposed an invalid SQL engine")
+        if not isinstance(result.service, RecordsStore):
+            raise ConfigError(f"provider {identity} service does not satisfy the records port")
         return
 
     ports: dict[str, type[Any]] = {
@@ -479,6 +498,9 @@ class Wiring:
     explicit_owner_id: bool = False
     projection_routes: Mapping[str, Any] = field(default_factory=dict)
     sql: SqlAccess | None = None
+    #: RM-112: the ``storage.records`` store (the records port), set by :func:`build_storage`;
+    #: deployment identity and projector bindings are read through it, SQL or not.
+    records: RecordsStore | None = None
     provider_results: dict[str, BuildResult[Any]] = field(default_factory=dict)
     #: #43: the extraction cache, kept so erasure can purge an erased text's entry
     cached_extractor: CachedExtractor | None = None
@@ -752,6 +774,8 @@ def check_capabilities(config: MemspineConfig) -> Capabilities:
     enable_plugins(config.plugins)
     # ADR-081 WP6: deployment.locality and data_dir rules, before any provider opens.
     validate_deployment_locality(config, enabled=enabled)
+    # RM-112: features that need a SQL records store, refused for one without SQL (MongoDB).
+    validate_records_features(config, enabled=enabled)
     return Capabilities(enabled=enabled, auto_enabled=auto_enabled)
 
 
@@ -845,7 +869,7 @@ def shared_build_context(config: MemspineConfig, wiring: Wiring) -> SharedBuildC
 # ── APP providers: services ──────────────────────────────────────────────────────────────
 
 
-async def build_storage(config: MemspineConfig, wiring: Wiring) -> SqlStorage:
+async def build_storage(config: MemspineConfig, wiring: Wiring) -> RecordsStore:
     descriptor = _descriptor(
         PROVIDER_STORAGE_BACKENDS, config.storage.records.provider, "storage.records.provider"
     )
@@ -859,10 +883,13 @@ async def build_storage(config: MemspineConfig, wiring: Wiring) -> SqlStorage:
     )
     if not isinstance(result, StorageBuildResult):
         raise ConfigError(
-            f"storage provider {config.storage.records.provider!r} did not expose SQL access"
+            f"storage provider {config.storage.records.provider!r} did not expose the storage "
+            "build contract"
         )
-    wiring.sql = result.sql  # Engine receives only this capability, never the native client.
-    return cast(SqlStorage, result.service)
+    # Engine receives only this capability, never the native client; None without SQL (RM-112).
+    wiring.sql = result.sql
+    wiring.records = cast(RecordsStore, result.service)
+    return wiring.records
 
 
 async def build_cache(config: MemspineConfig, wiring: Wiring) -> KVCache:
@@ -893,7 +920,9 @@ async def build_documents(config: MemspineConfig, wiring: Wiring) -> DocumentSto
         descriptor,
         settings,
         DocumentsBuildContext(
-            shared_build_context(config, wiring), _storage_placement(config, wiring)
+            shared_build_context(config, wiring),
+            _storage_placement(config, wiring),
+            records=(config.storage.records.provider, config.storage.records.settings),
         ),
         result_key="documents",
     )
@@ -1066,14 +1095,25 @@ def _graph_auto_descriptor(config: MemspineConfig, wiring: Wiring) -> ProviderDe
     eligible_names = frozenset({"ladybug"})
     if {"sql.sqlite", "sql.postgres"} & available_capabilities:
         eligible_names |= {"sql_adjacency"}
-    selection = select_provider(
-        "graph",
-        config.storage.graph.provider,
-        required_capabilities=_GRAPH_REQUIRED,
-        preferred_names=("ladybug", "sql_adjacency"),
-        eligible_names=eligible_names,
-        available_capabilities=available_capabilities,
-    )
+    try:
+        selection = select_provider(
+            "graph",
+            config.storage.graph.provider,
+            required_capabilities=_GRAPH_REQUIRED,
+            preferred_names=("ladybug", "sql_adjacency"),
+            eligible_names=eligible_names,
+            available_capabilities=available_capabilities,
+        )
+    except ProviderSelectionError as exc:
+        if wiring.sql is not None:
+            raise
+        # RM-112: never fall back to sql_adjacency on a records store without SQL.
+        raise ConfigError(
+            "storage.graph.provider 'auto' cannot resolve: storage.records.provider "
+            f"{config.storage.records.provider!r} has no SQL, so sql_adjacency is not eligible, "
+            "and ladybug is not installed (pip install memspine[graph]); choose "
+            "storage.graph.provider ladybug or neo4j"
+        ) from exc
     return selection.descriptor
 
 
@@ -1113,15 +1153,13 @@ async def resolve_graph_pin(config: MemspineConfig, wiring: Wiring) -> str | Non
     binding of this deployment, or to today's resolution when there is no binding yet (the
     binding preflight then records it). A binding written before the ``sql_adjacency``
     rename is adopted under the new name. Returns the pin (None when not ``auto``)."""
-    from memspine.providers.projection_bindings import SqlProjectionBindingStore
-
     if config.storage.graph.provider != "auto":
         return None
-    if wiring.sql is None or wiring.owner_id is None:
-        raise ConfigError("graph auto pinning requires started SQL and deployment identity")
-    bound = await SqlProjectionBindingStore(wiring.sql.engine).bound_provider(
-        wiring.owner_id, "graph"
-    )
+    if wiring.records is None or wiring.owner_id is None:
+        raise ConfigError(
+            "graph auto pinning requires a started records store and deployment identity"
+        )
+    bound = await wiring.records.projection_bindings().bound_provider(wiring.owner_id, "graph")
     if bound is None:
         wiring.graph_pin = _graph_auto_descriptor(config, wiring).ref.name
     else:
@@ -1135,15 +1173,12 @@ async def preflight_projection_bindings(
     enabled: Collection[str],
 ) -> None:
     """Reject active projection target drift before constructing its providers."""
-    from memspine.providers.projection_bindings import (
-        ProjectionTargetBinding,
-        SqlProjectionBindingStore,
-        projection_target_fingerprint,
-    )
+    from memspine.providers.projection_bindings import projection_target_fingerprint
+    from memspine.services.storage.records_port import ProjectionTargetBinding
 
-    if wiring.sql is None or wiring.owner_id is None:
+    if wiring.records is None or wiring.owner_id is None:
         raise ConfigError(
-            "projection target preflight requires started SQL and deployment identity"
+            "projection target preflight requires a started records store and deployment identity"
         )
 
     candidates: list[tuple[str, str, ProviderDescriptor, Any]] = []
@@ -1208,7 +1243,7 @@ async def preflight_projection_bindings(
             )
         )
 
-    binding_store = SqlProjectionBindingStore(wiring.sql.engine)
+    binding_store = wiring.records.projection_bindings()
     for binding in bindings:
         if binding.projector_name == "graph" and binding.provider.startswith(
             "graph:sql_adjacency:"
@@ -1749,7 +1784,7 @@ def make_outbox_runner(
     return runner
 
 
-def build_outbox(config: MemspineConfig, wiring: Wiring, _storage: SqlStorage) -> OutboxHandle:
+def build_outbox(config: MemspineConfig, wiring: Wiring, _storage: RecordsStore) -> OutboxHandle:
     """Provider: the runner when ``workers.outbox`` is on (after storage, so the schema exists)."""
     if not config.workers.outbox:
         return OutboxHandle(None)
@@ -1789,7 +1824,7 @@ def _provider() -> Provider:
     p.provide(config_of, provides=MemspineConfig)
     p.provide(check_capabilities, provides=Capabilities)
     p.provide(wiring_of, provides=Wiring)
-    p.provide(build_storage, provides=SqlStorage)
+    p.provide(build_storage, provides=RecordsStore)
     p.provide(build_cache, provides=KVCache)
     p.provide(provide_embedder, provides=EmbeddingService)
     p.provide(build_vector_store, provides=VectorStore)

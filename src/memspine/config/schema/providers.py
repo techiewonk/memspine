@@ -70,6 +70,34 @@ class PostgresSettings(StrictSettings):
     statement_timeout_s: float = Field(gt=0)
 
 
+class MongoRecordsSettings(StrictSettings):
+    """``storage.records`` provider ``mongodb`` (RM-112, ``[mongodb]``): a replica set or a
+    sharded cluster (multi-document transactions; a standalone server is refused at start)."""
+
+    url: str = Field(min_length=1, description="mongodb:// or mongodb+srv:// URL")
+    database: str = Field(default="memspine", min_length=1)
+    collection_prefix: str = ""
+    connect_timeout_s: float = Field(default=10.0, gt=0)
+    server_selection_timeout_s: float = Field(default=10.0, gt=0)
+    operation_timeout_s: float | None = Field(default=30.0, gt=0)
+
+
+class MongoDocumentsSettings(StrictSettings):
+    """``storage.documents`` provider ``mongodb`` (RM-112): GridFS bucket ``bucket``.
+
+    Unset connection fields come from the ``storage.records`` MongoDB settings, so both slots on
+    one deployment share one connector; ``url`` is required when the records store is not
+    MongoDB."""
+
+    url: str | None = Field(default=None, min_length=1)
+    database: str | None = Field(default=None, min_length=1)
+    bucket: str = Field(default="documents", min_length=1, pattern=r"^[A-Za-z0-9_\-]+$")
+    max_bytes: int = Field(default=constants.DOCUMENT_MAX_BYTES, ge=1)
+    connect_timeout_s: float | None = Field(default=None, gt=0)
+    server_selection_timeout_s: float | None = Field(default=None, gt=0)
+    operation_timeout_s: float | None = Field(default=None, gt=0)
+
+
 class LanceDBSettings(StrictSettings):
     quantization: Literal["auto", "none", "int8", "binary"] = "auto"
     namespace_index: bool = False

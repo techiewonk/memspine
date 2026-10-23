@@ -1,9 +1,8 @@
 # Records store contract (`storage.records`)
 
 ADR-081 makes `storage.records` the authoritative slot and requires it to be independent of
-SQL. This page is the contract a provider must meet. It is written for the next provider
-(MongoDB, RM-112), but SQLite and Postgres are held to it today. Status lives in
-`docs/PROVIDER_TODO.md` (RM-111, RM-112).
+SQL. This page is the contract a provider must meet. SQLite, Postgres and MongoDB (RM-112) are
+held to it. Status lives in `docs/PROVIDER_TODO.md` (RM-111, RM-112).
 
 - **Port:** `src/memspine/services/storage/records_port.py` (`RecordsStore` and its
   facets). The engine needs nothing from the authoritative store beyond this port.
@@ -16,6 +15,10 @@ SQL. This page is the contract a provider must meet. It is written for the next 
   and `PostgresStorage` supplying schema bring-up and leases; `MongoRecordsStore`
   (`services/storage/mongodb.py`, `[mongodb]` extra, RM-112) over the `MongoConnector`
   (`clients/mongodb/connector.py`). See "MongoDB" below.
+- **One contract.** The engine reaches the records store only through this port. RM-112 moved
+  the read-model helpers, the marker scrub, the deployment identity and the projector bindings
+  into it, and routed every lineage call through the lineage facet. Features that keep their
+  own SQL tables are outside the port and are refused for a provider without SQL (section 10).
 
 ## 1. Event log
 
@@ -74,6 +77,16 @@ MongoDB uses one `$in` query), `list_records`
 (semantic only, open validity, not quarantined, latest), `list_session_records`, and
 `delete_all_records` (rebuild: the read model is dropped and the log is kept).
 
+Read-model helpers (RM-112; the firewall, the profile card and the sleep stages call them):
+
+- `quarantined_ids(ids)`: the ids among `ids` whose record exists and is quarantined.
+- `recent_contents(namespace, limit)`: the contents of the `limit` most recently recorded
+  non-quarantined records, oldest first. Records with equal `recorded_at` keep the
+  `list_records` order; `limit <= 0` gives an empty list.
+- `layer_counts(namespace)`: live records (status `activated` or `resolving`, not quarantined)
+  by layer. A record stored without a layer counts on the layer it hydrates to.
+- `count_quarantined(namespace)` and `list_quarantined(namespace)` (in `list_records` order).
+
 ## 6. Lineage
 
 `add_lineage` is idempotent per `(child, parent, role)` and returns the number of edges
@@ -86,6 +99,10 @@ and can filter by role. `delete_lineage` returns the number of edges removed.
   every snapshot of the records' content from every event. Each affected event keeps its
   `seq`, kind and original fingerprint, and gets `redacted: true`.
 - It returns the rewritten sequence numbers. Running it again rewrites nothing.
+- `scrub_marker_payloads(marker, scrub)` (in the port since RM-112) is the same pass for
+  MARKER events named `marker` (the profile card). `scrub` mutates a decoded payload and returns
+  True when it changed it; a changed event gets `redacted: true` and keeps its seq, kind and
+  fingerprint. It returns the rewritten seqs and is idempotent.
 - `delete_record` hard-deletes from the read model. `list_children(namespace, parent_ids)`
   finds the derived records that erasure must visit.
 - After erasure the content cannot be read back through any port method.
@@ -99,10 +116,54 @@ and can filter by role. `delete_lineage` returns the number of edges removed.
   collection-setup version for MongoDB.
 - `stop()` releases what the store opened, including the lease connection.
 
+## 9. Provider metadata (RM-112)
+
+- `claim_deployment_id(candidate)` stores `candidate` as the deployment identity unless one is
+  stored, and returns the stored one. The first writer wins, and concurrent callers in one
+  process or several agree. `providers/identity.py::resolve_deployment` rejects a configured
+  `deployment.id` that differs from the stored one.
+- `projection_bindings()` returns the projector target bindings (`ProjectionBindingPort`),
+  stored beside the offsets they gate.
+  - `ensure(binding)` creates a binding once. It refuses a non-zero offset that has no binding
+    (the target may have changed under the same projector name), accepts the same target again,
+    and refuses another provider, target or generation. It replaces a binding only through a
+    verified switch: the stored binding equals the switch source and the offset equals the
+    verified checkpoint (a compare-and-swap).
+  - `bound_provider` names the provider a projector is bound to (the ADR-081 `auto` pin).
+  - `adopt_renamed_provider` rewrites a binding recorded under a renamed provider, once.
+- SQL: `services/storage/provider_metadata.py` (tables `provider_deployment_identity` and
+  `provider_projector_bindings`). MongoDB: the `meta` document `deployment` and the
+  `projector_bindings` collection.
+
+## 10. Features outside the port
+
+These features keep their state in SQL tables of the records database and are not part of the
+contract. `providers/records_features.py::validate_records_features` refuses them when the
+records descriptor declares no `sql` capability. It runs before any provider opens and names
+every gap at once.
+
+| Feature | Why it needs SQL |
+|---|---|
+| `workers.outbox` | the outbox job book (`runtime/outbox.py`) is a SQL table |
+| `offline.sleep_v2` | sleep leases, cycle watermarks and triggers are side tables (RM-111 WP5); the blocking `sleep()` works |
+| `economy.ledger_persist` | the persisted cost ledger is a side table |
+| `write.envelope_v2` | its dead-letter list is a side table |
+| `runtime.service_switches.projections` | controlled projection switches keep their manifests in SQL tables |
+| `storage.vector: pgvector` | the vectors live in the Postgres records database |
+| `storage.graph: sql_adjacency` | the graph lives in the SQL records database; `auto` resolves only to `ladybug` and fails naming `storage.graph` when it is not installed |
+
+Two more need SQL and fail at call time, naming the gap: the intake gateway
+(`ingest_messages`, `ingest_data` and `ingest_asset` use the intake book and the message index)
+and the provider-change controller. The side-file import and the projection switch diagnostics
+are skipped. Moving these onto the port is follow-up work.
+
 ## MongoDB (RM-112, 2026-10-23)
 
 `MongoRecordsStore` meets every case of the suite against a one-member replica set
-(`mongo:7`). How it maps the contract:
+(`mongo:7`). It is registered as `storage.records: {provider: mongodb}` (`[mongodb]` extra,
+`providers/builtin/mongodb.py`): settings `MongoRecordsSettings`, descriptor locality `cluster`,
+`deployment.id` required, `acquire()` through the shared connector, no SQL access. How it maps
+the contract:
 
 - **Topology.** `MongoConnector.open()` runs `hello` within the connect deadline and refuses
   a standalone `mongod` (`StandaloneServerError`: no multi-document transactions, so
@@ -138,6 +199,12 @@ and can filter by role. `delete_lineage` returns the number of edges removed.
   old payload bytes. It is not one transaction over the whole log (as in SQL), but each
   rewrite is atomic and the pass is idempotent, so a crash mid-pass is finished by running
   it again.
+- **Read-model helpers.** Each record document also stores its `layer`. `recent_contents`
+  sorts by `(recorded_key, order)` descending with a limit; `layer_counts` is one `$group`.
+- **Provider metadata.** `meta._id = "deployment"` is claimed with `$setOnInsert`. A projector
+  binding is one document in `projector_bindings`: creation is an insert that loses to a
+  concurrent first writer, and a verified switch is an `update_one` filtered on the old
+  provider, target and generation.
 - **Schema.** `meta.schema` holds the collection-setup version (`mongodb-records-v1`).
   `start()` creates collections, the validator and indexes idempotently and refuses a
   database written by a newer version.
@@ -145,18 +212,18 @@ and can filter by role. `delete_lineage` returns the number of edges removed.
   refused: a cluster store that persists nothing has no use, and an in-process seq would
   not be shared.
 
-Not part of the port, so not built: the sleep scheduler's cycle, watermark and trigger
-tables (`LeaseStore` beyond `claim/heartbeat/release/get_lease`) and the read-model helpers
-outside the port that `SqlStorage` also offers (`quarantined_ids`, `recent_contents`,
-`layer_counts`, `count_quarantined`, `list_quarantined`). Wiring MongoDB as the engine's
-storage needs either those or callers that stay on the port.
+Engine end to end (`tests/e2e/test_mongodb_engine.py`, live replica set): write, search,
+read, hard forget and sleep; a restart that keeps the identity; `storage.graph: auto` pinned to
+LadybugDB; a GridFS documents slot sharing the records connector; and every SQL-only feature
+refused before a collection is created.
 
 ## Known gaps found by the suite (2026-10-23)
 
 - **SQLite `:memory:` with concurrent writers.** The in-memory store is a shared-cache
   database. Its table locks (`SQLITE_LOCKED`) are not retried by `busy_timeout`, so two write
-  transactions in flight at once fail with "database table is locked". The two
-  concurrent-writer cases are strict `xfail` for `sqlite_memory`. File SQLite and Postgres
+  transactions in flight at once fail with "database table is locked". The three
+  concurrent-writer cases (appenders, checkpoints and, since RM-112, identity claims) are
+  strict `xfail` for `sqlite_memory`. File SQLite and Postgres
   pass. The in-memory lease table is single-threaded, so the thread-race case is skipped
   there.
 - **Fixed in this change.** `add_lineage` on Postgres returned -1 per edge, because

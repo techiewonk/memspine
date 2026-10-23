@@ -39,6 +39,7 @@ from memspine.services.graph.base import GraphStore
 from memspine.services.lexical.base import LexicalStore
 from memspine.services.llm.base import LLMRouter
 from memspine.services.secrets.env import EnvSecrets
+from memspine.services.storage.records_port import RecordsStore
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.vector.base import VectorStore
 from memspine.workers.runner import TaskRunner
@@ -80,7 +81,7 @@ async def test_builds_the_default_services(container: Any) -> None:
     assert resolved.config.model.embedding.provider == "hash"
     caps = await container.get(Capabilities)
     assert caps.enabled  # the dependency closure of the enabled memory types
-    assert isinstance(await container.get(SqlStorage), SqlStorage)
+    assert isinstance(await container.get(RecordsStore), SqlStorage)
     assert isinstance(await container.get(KVCache), KVCache)
     embedder = await container.get(EmbeddingService)
     assert embedder.manifest.dim > 0
@@ -183,14 +184,14 @@ async def test_storage_result_must_expose_sync_sql_lease() -> None:
 
 
 async def test_app_scope_objects_are_shared(container: Any) -> None:
-    storage = await container.get(SqlStorage)
+    storage = await container.get(RecordsStore)
     wiring = await container.get(Wiring)
-    assert (await container.get(SqlStorage)) is storage
+    assert (await container.get(RecordsStore)) is storage
     assert (await container.get(Wiring)) is wiring
     assert wiring.sql is not None
     assert wiring.owner_id is None  # Engine resolves a persistent owner after SQL startup.
     async with request_scope(container) as request:
-        assert (await request.get(SqlStorage)) is storage  # APP objects reach inner scopes
+        assert (await request.get(RecordsStore)) is storage  # APP objects reach inner scopes
     async with job_scope(container) as job:
         assert (await job.get(Wiring)) is wiring
 
@@ -521,7 +522,7 @@ def test_graph_auto_uses_sql_capability_not_storage_provider_name(
 
 async def test_closing_the_container_closes_the_real_client() -> None:
     c = make_container(_SPEC)
-    await c.get(SqlStorage)
+    await c.get(RecordsStore)
     wiring = await c.get(Wiring)
     closed: list[bool] = []
     resource = wiring.resources._resources["sql"]

@@ -520,3 +520,154 @@ async def test_retention_never_prunes_unapplied_events(handle: Handle) -> None:
     # full mode (the default): the audit log is never pruned
     assert await store.prune_events(datetime.now(UTC) + timedelta(days=1)) == 0
     assert len(await store.read_events()) == 1
+
+
+# ------------------------------------------------------------------------------- RM-112 helpers
+async def test_read_model_helpers_filter_quarantine_status_and_order(handle: Handle) -> None:
+    """RM-112: the read-model helpers the engine calls (firewall, profile, sleep) are port
+    methods with one meaning on every provider."""
+    from memspine.store.records import RecordStatus
+
+    store = handle.store
+    base = datetime(2026, 1, 1, tzinfo=UTC)
+    rows = [
+        _record("h-1", "first", recorded_at=base),
+        _record("h-2", "held", recorded_at=base + timedelta(minutes=1), quarantined=True),
+        _record("h-3", "third", recorded_at=base + timedelta(minutes=2)),
+        _record("h-4", "tie-a", recorded_at=base + timedelta(minutes=3), memory_type="episodic"),
+        _record("h-5", "tie-b", recorded_at=base + timedelta(minutes=3)),
+        _record(
+            "h-6",
+            "archived",
+            recorded_at=base + timedelta(minutes=4),
+            status=RecordStatus.ARCHIVED,
+        ),
+        _record("h-7", "elsewhere", namespace="ns/b", quarantined=True),
+    ]
+    for record in rows:
+        await store.upsert_record(record)
+    assert await store.quarantined_ids(["h-1", "h-2", "h-7", "missing", "h-2"]) == {"h-2", "h-7"}
+    assert await store.quarantined_ids([]) == set()
+    # newest non-quarantined contents, oldest first; equal recorded_at keeps list_records order
+    assert await store.recent_contents("ns/a", 3) == ["tie-a", "tie-b", "archived"]
+    assert await store.recent_contents("ns/a", 10) == [
+        "first",
+        "third",
+        "tie-a",
+        "tie-b",
+        "archived",
+    ]
+    assert await store.recent_contents("ns/a", 0) == []
+    assert await store.count_quarantined("ns/a") == 1
+    assert await store.count_quarantined("ns/b") == 1
+    assert await store.count_quarantined("ns/none") == 0
+    assert [r.record_id for r in await store.list_quarantined("ns/a")] == ["h-2"]
+    expected: dict[str, int] = {}
+    for rid in ("h-1", "h-3", "h-4", "h-5"):  # live: activated, not quarantined
+        loaded = await store.get_record(rid)
+        assert loaded is not None
+        expected[loaded.layer] = expected.get(loaded.layer, 0) + 1
+    assert await store.layer_counts("ns/a") == expected
+    assert await store.layer_counts("ns/none") == {}
+
+
+async def test_marker_scrub_rewrites_only_matching_markers(handle: Handle) -> None:
+    store = handle.store
+    keep = await store.append_event(ev(kind=EventKind.MARKER, marker="other", text="stays"))
+    card = await store.append_event(ev(kind=EventKind.MARKER, marker="card", text="secret entry"))
+    plain = await store.append_event(ev(content="secret entry"))
+
+    def scrub(payload: dict[str, Any]) -> bool:
+        if payload.get("text") == "secret entry":
+            payload["text"] = ""
+            return True
+        return False
+
+    assert await store.scrub_marker_payloads("card", scrub) == [card.seq]
+    events = {e.seq: e for e in await store.read_events()}
+    assert events[card.seq].payload == {"marker": "card", "text": "", "redacted": True}
+    assert events[card.seq].fingerprint == card.fingerprint
+    assert events[keep.seq].payload == {"marker": "other", "text": "stays"}
+    assert events[plain.seq].payload == {"content": "secret entry"}  # not a marker
+    assert await store.scrub_marker_payloads("card", scrub) == []  # idempotent
+
+
+# ------------------------------------------------------------------------------- RM-112 metadata
+async def test_deployment_identity_is_claimed_once_and_shared(handle: Handle) -> None:
+    store = handle.store
+    assert await store.claim_deployment_id("dep-a") == "dep-a"
+    assert await store.claim_deployment_id("dep-b") == "dep-a"  # first writer wins
+    if handle.reopen is not None:
+        assert await (await handle.reopen()).claim_deployment_id("dep-c") == "dep-a"
+
+
+async def test_concurrent_identity_claims_agree(
+    request: pytest.FixtureRequest, handle: Handle
+) -> None:
+    _concurrent_writers(request, handle)
+    stores = [handle.store]
+    if handle.reopen is not None:
+        stores.append(await handle.reopen())
+    claimed = await asyncio.gather(
+        *(store.claim_deployment_id(f"dep-{n}") for n in range(6) for store in stores)
+    )
+    assert len(set(claimed)) == 1
+
+
+async def test_projection_bindings_fail_closed_and_swap_only_when_verified(
+    handle: Handle,
+) -> None:
+    from dataclasses import replace
+
+    from memspine.exceptions import ConfigError
+    from memspine.services.storage.records_port import (
+        ProjectionBindingPort,
+        ProjectionTargetBinding,
+    )
+
+    store = handle.store
+    bindings = store.projection_bindings()
+    assert isinstance(bindings, ProjectionBindingPort)
+    first = ProjectionTargetBinding("dep-1", "graph", "graph:ladybug:v1", "a" * 64)
+    assert await bindings.bound_provider("dep-1", "graph") is None
+    assert await bindings.ensure(first) == "active"
+    assert await bindings.ensure(first) == "active"  # the same target again
+    assert await bindings.bound_provider("dep-1", "graph") == "ladybug"
+    assert await bindings.bound_provider("dep-2", "graph") is None  # per deployment
+    with pytest.raises(ConfigError, match="is bound to provider"):
+        await bindings.ensure(ProjectionTargetBinding("dep-1", "graph", "graph:neo4j:v1", "b" * 64))
+    with pytest.raises(ConfigError, match="selected generation"):
+        await bindings.ensure(replace(first, generation_id="g2"))
+    # a non-zero offset without a binding is ambiguous: refused
+    await store.set_offset("vectors", 4)
+    with pytest.raises(ConfigError, match="legacy offset"):
+        await bindings.ensure(ProjectionTargetBinding("dep-1", "vectors", "vector:x:v1", "c" * 64))
+    # a verified change: the source matches and the offset equals the verified checkpoint
+    await store.set_offset("graph", 7)
+    change = ProjectionTargetBinding(
+        "dep-1",
+        "graph",
+        "graph:neo4j:v1",
+        "d" * 64,
+        generation_id="g2",
+        source_provider="ladybug",
+        source_target_fingerprint="a" * 64,
+        source_generation_id="active",
+        verified_checkpoint_seq=6,
+    )
+    with pytest.raises(ConfigError, match="verified target checkpoint"):
+        await bindings.ensure(change)
+    assert await bindings.ensure(replace(change, verified_checkpoint_seq=7)) == "g2"
+    assert await bindings.bound_provider("dep-1", "graph") == "neo4j"
+    with pytest.raises(ConfigError, match="no longer matches the verified"):
+        await bindings.ensure(replace(change, target_fingerprint="e" * 64, generation_id="g3"))
+    # a renamed provider identity is adopted once (compare-and-swap on the old name)
+    old = ProjectionTargetBinding("dep-1", "lexical", "lexical:old_name:v1", "f" * 64)
+    assert await bindings.ensure(old) == "active"
+    renamed = replace(old, provider="lexical:new_name:v1")
+    assert await bindings.adopt_renamed_provider(renamed, "lexical:old_name:v1") is True
+    assert await bindings.adopt_renamed_provider(renamed, "lexical:old_name:v1") is False
+    assert await bindings.ensure(renamed) == "active"
+    if handle.reopen is not None:  # durable and shared by every handle
+        other = (await handle.reopen()).projection_bindings()
+        assert await other.bound_provider("dep-1", "lexical") == "new_name"

@@ -110,7 +110,7 @@ from memspine.services.graph.qualifiers import (
     edge_qualifiers,
 )
 from memspine.services.lexical.base import LexicalHit, rrf_fuse
-from memspine.services.storage.sql_base import SqlStorage
+from memspine.services.storage.records_port import RecordsStore
 from memspine.services.vector.base import VectorHit
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import (
@@ -1750,7 +1750,7 @@ async def _admitted_edge_sources(eng: Any, ns: str, fact: MemoryRecord) -> int:
     return count
 
 
-async def _edge_sources(eng: Any, storage: SqlStorage, fact: MemoryRecord) -> int:
+async def _edge_sources(eng: Any, storage: RecordsStore, fact: MemoryRecord) -> int:
     """GR-9: the live episodes stating ``fact``: its parents and the episodes
     duplicates added (``edge_source:`` tags), erased ones not counted."""
     prefix = constants.EDGE_SOURCE_TAG_PREFIX

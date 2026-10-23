@@ -40,7 +40,6 @@ from memspine.derive.pipeline.stages.envelope_adapter import is_fact, key_of, to
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.schemas.durable.lineage import LineageEdge
-from memspine.store import lineage as lineage_store
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 
@@ -152,11 +151,9 @@ async def _histories_one(ctx: PipelineContext, namespace: str, now: datetime) ->
             edges.extend(e for e in plan.edges if e.parent == member_id)
         counts["reinforcement"] += plan.reinforcement
     if edges and ctx.config.write.lineage_table:
-        client = getattr(ctx.storage, "_client", None)
-        if client is not None:
-            counts["lineage_edges"] += await lineage_store.add_edges(
-                client.engine, edges, namespace
-            )
+        add_lineage = getattr(ctx.storage, "add_lineage", None)  # the records port (RM-112)
+        if add_lineage is not None:
+            counts["lineage_edges"] += await add_lineage(edges, namespace)
     history = build_value_history(records, namespace)
     spans = sum(len(line.spans) for line in history.lines)
     contests = sum(len(line.open_contests()) for line in history.lines)

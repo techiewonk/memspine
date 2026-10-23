@@ -32,7 +32,7 @@ from memspine.memories.procedural.trajectory import (
     window_indices,
 )
 from memspine.observability.logging import EVENT_WRITE, get_logger
-from memspine.services.storage.sql_base import SqlStorage
+from memspine.services.storage.records_port import RecordsStore
 from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
 from memspine.store.records import (
     ArchivedVersion,
@@ -258,7 +258,7 @@ async def record_outcome(
 
 async def _write_lesson(
     eng: Any,
-    storage: SqlStorage,
+    storage: RecordsStore,
     ns: str,
     record: MemoryRecord,
     actor: str,
@@ -280,7 +280,7 @@ async def _write_lesson(
 
 
 async def _repeat_lesson(
-    eng: Any, storage: SqlStorage, ns: str, key_tag: str, note: str
+    eng: Any, storage: RecordsStore, ns: str, key_tag: str, note: str
 ) -> MemoryRecord | None:
     """N28: the live lesson carrying ``key_tag`` with one more repeat note, or None."""
     for existing in await storage.list_records(ns, "procedural"):
@@ -291,7 +291,7 @@ async def _repeat_lesson(
 
 
 async def _quarantine_lesson(
-    eng: Any, storage: SqlStorage, ns: str, held: MemoryRecord, reasons: list[str]
+    eng: Any, storage: RecordsStore, ns: str, held: MemoryRecord, reasons: list[str]
 ) -> None:
     """N24 (``memories.procedural.policies.quarantine_lesson``): a quarantine
     verdict becomes an advisory lesson naming the source, the reasons and the

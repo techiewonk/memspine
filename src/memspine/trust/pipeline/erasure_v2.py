@@ -232,7 +232,7 @@ async def build_graph(
     desc = await eng._descendants(storage, ns, [root])
     ids = [root, *desc]
     if eng._config().write.lineage_table:
-        for e in await lineage_store.load_edges(storage._client.engine, ids):
+        for e in await lineage_store.load_edges(storage, ids):
             graph.add_edge(e)
     roles = await _derivation_roles(storage, ns)
     wanted = set(ids)
@@ -347,17 +347,16 @@ async def forget(
         await eng._forget_many(storage, ns, [record_id], True)
         if dropped:
             await eng._forget_many(storage, ns, dropped, True)
-            engine = storage._client.engine
-            gone = await lineage_store.parents_of(engine, dropped)
-            gone_kids = await lineage_store.children_of(engine, dropped)
+            gone = await storage.lineage_parents(dropped)
+            gone_kids = await storage.lineage_children(dropped)
             edges = [e for es in (*gone.values(), *gone_kids.values()) for e in es]
             if edges:
-                await lineage_store.delete_edges(engine, edges)
+                await storage.delete_lineage(edges)
             if tap.enabled():
                 tap.event("trust.erasure.redact_hidden", manifest=manifest_id, dropped=len(dropped))
         keep_lineage = str(reason or "").startswith("retention")  # expiry keeps lineage (ER-27)
         if eng._config().write.lineage_table and plan.edges_to_remove and not keep_lineage:
-            await lineage_store.delete_edges(storage._client.engine, plan.edges_to_remove)
+            await storage.delete_lineage(plan.edges_to_remove)
         purges: dict[str, dict[str, Any]] = eng.__dict__.setdefault("_erasure_purges", {})
         purges[manifest_id] = {
             "state": "pending",
@@ -541,7 +540,7 @@ async def classify_descendants(
             continue
         parents = list(row.source.parents)
         if eng._config().write.lineage_table:
-            edges = await lineage_store.parents_of(storage._client.engine, [rid])
+            edges = await storage.lineage_parents([rid])
             parents.extend(e.parent for e in edges.get(rid, []))
         # FU-ERASE: a summary linked only by the member lists of the event log (consolidation,
         # reflection, CONSOLIDATE) is supported by those members, as build_graph plans it.

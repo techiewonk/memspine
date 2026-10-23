@@ -179,7 +179,6 @@ from memspine.providers.lifecycle import (
     ProviderResourceCleanupError,
 )
 from memspine.providers.projection_bindings import (
-    SqlProjectionBindingStore,
     projection_target_bindings,
     retire_graph_mirror_state,
 )
@@ -259,7 +258,7 @@ from memspine.services.graph.qualifiers import QualifierFilter
 from memspine.services.lexical.base import LexicalHit, LexicalStore
 from memspine.services.lexical.projector import LexicalProjector
 from memspine.services.storage.projector import RecordProjector
-from memspine.services.storage.sql_base import SqlStorage
+from memspine.services.storage.records_port import RecordsStore
 from memspine.services.vector.base import VectorHit, VectorStore
 from memspine.services.vector.projector import VectorProjector
 from memspine.store import side_tables as _side_tables
@@ -427,7 +426,7 @@ class Engine:
         self._cache: KVCache | None = None
         #: #43: the extraction cache, kept so erasure can purge an erased text's entry.
         self._cached_extractor: CachedExtractor | None = None
-        self._storage: SqlStorage | None = None
+        self._storage: RecordsStore | None = None
         self._projectors: list[Projector] = []
         self._embedder: EmbeddingService | None = None
         self._vector: VectorStore | None = None
@@ -667,7 +666,8 @@ class Engine:
         wiring = await container.get(Wiring)
 
         # 3./4. construct services + open the write door.
-        self._storage = await container.get(SqlStorage)
+        storage: RecordsStore = await container.get(RecordsStore)
+        self._storage = storage
         self._sql, self._provider_resources = wiring.sql, wiring.resources
         self._gliner_pool = wiring.gliner_pool
         self._topic_tagger = self._build_topic_tagger(config)
@@ -675,17 +675,18 @@ class Engine:
         self._resource_registry = wiring.registry  # RM-78: process or private (scope)
         self._wiring = wiring
         _snapshot_listings(self._storage)  # I2
-        await self._storage.start()
-        assert self._sql is not None
+        await storage.start()
+        # RM-112: the identity lives in the records store (a table, or a MongoDB document).
         wiring.owner_id = await resolve_deployment(
-            self._sql, config.deployment.id, config.runtime.environment
+            storage, config.deployment.id, config.runtime.environment
         )
         self._provider_owner_id = wiring.owner_id
         await self._import_side_files(store_base)
-        async with self._sql.engine.connect() as connection:
-            wiring.projection_routes = await verified_active_projection_routes(
-                connection, wiring.owner_id
-            )
+        if self._sql is not None:  # verified switches keep their manifests in SQL tables
+            async with self._sql.engine.connect() as connection:
+                wiring.projection_routes = await verified_active_projection_routes(
+                    connection, wiring.owner_id
+                )
         await preflight_projection_bindings(config, wiring, self._enabled)
         if config.event_log.mode is EventLogMode.EPHEMERAL:
             _log.warning(
@@ -879,11 +880,13 @@ class Engine:
         # A durable high-water mark is valid only for the provider target that
         # produced it. Fail closed before catch-up can serve data under a changed
         # graph/vector/lexical target.
-        assert self._sql is not None and self._provider_owner_id is not None
-        # ADR-081 amendment 2026-10-23: the graph mirror is gone. A store that once ran it
-        # keeps no offset, binding or queued outbox work for it (idempotent, never fails).
-        await retire_graph_mirror_state(self._storage, self._sql.engine)
-        binding_store = SqlProjectionBindingStore(self._sql.engine)
+        assert self._provider_owner_id is not None
+        if self._sql is not None:
+            # ADR-081 amendment 2026-10-23: the graph mirror is gone. A store that once ran it
+            # keeps no offset, binding or queued outbox work for it (idempotent, never fails).
+            # A records store without SQL (MongoDB, RM-112) never ran the mirror.
+            await retire_graph_mirror_state(self._storage, self._sql.engine)
+        binding_store = self._storage.projection_bindings()
         for binding in projection_target_bindings(
             config,
             self._provider_results,
@@ -983,12 +986,13 @@ class Engine:
         # Finish any accepted intake the last run did not apply.
         from memspine.ingest import gateway as intake_gateway
 
-        await intake_gateway.recover(self)
-        # Rebuild the lightweight source-identity projection for stores imported
-        # before it existed. This runs at startup, never on each message call.
-        from memspine.ingest.message_store import backfill_from_storage
+        if self._sql is not None:  # RM-112: the intake book and message index are SQL tables
+            await intake_gateway.recover(self)
+            # Rebuild the lightweight source-identity projection for stores imported
+            # before it existed. This runs at startup, never on each message call.
+            from memspine.ingest.message_store import backfill_from_storage
 
-        await backfill_from_storage(self._require_started())
+            await backfill_from_storage(self._require_started())
         if cleanup_settings.cleanup_interval_s is not None:
             runtime = self._provider_change_runtime
             assert runtime is not None
@@ -1551,7 +1555,7 @@ class Engine:
     async def _link_reply(self, ns: str, written: MemoryRecord, reply_to: str) -> None:
         return await ingest_write._link_reply(self, ns, written, reply_to)
 
-    async def _reopen_session(self, storage: SqlStorage, ns: str, session: str | None) -> None:
+    async def _reopen_session(self, storage: RecordsStore, ns: str, session: str | None) -> None:
         return await ingest_windows._reopen_session(self, storage, ns, session)
 
     async def write_ex(self, content: str, **kwargs: Any) -> WriteOutcome:
@@ -2144,7 +2148,7 @@ class Engine:
     async def _admitted_edge_sources(self, ns: str, fact: MemoryRecord) -> int:
         return await read_legs._admitted_edge_sources(self, ns, fact)
 
-    async def _edge_sources(self, storage: SqlStorage, fact: MemoryRecord) -> int:
+    async def _edge_sources(self, storage: RecordsStore, fact: MemoryRecord) -> int:
         return await read_legs._edge_sources(self, storage, fact)
 
     async def _current_state_view(
@@ -2365,7 +2369,7 @@ class Engine:
 
     async def _write_locked(
         self,
-        storage: SqlStorage,
+        storage: RecordsStore,
         ns: str,
         record: MemoryRecord,
         memory_type: str,
@@ -2378,7 +2382,7 @@ class Engine:
 
     async def _write_locked_ex(
         self,
-        storage: SqlStorage,
+        storage: RecordsStore,
         ns: str,
         record: MemoryRecord,
         memory_type: str,
@@ -2434,7 +2438,7 @@ class Engine:
 
     async def _write_screened(
         self,
-        storage: SqlStorage,
+        storage: RecordsStore,
         ns: str,
         record: MemoryRecord,
         memory_type: str,
@@ -3840,7 +3844,7 @@ class Engine:
         Returns the ids."""
         return await trust_erasure.erase_namespace(self, namespace, actor=actor, reason=reason)
 
-    async def _descendants(self, storage: SqlStorage, ns: str, seeds: Sequence[str]) -> list[str]:
+    async def _descendants(self, storage: RecordsStore, ns: str, seeds: Sequence[str]) -> list[str]:
         """Every record of ``ns`` derived from ``seeds``, transitively, in discovery
         order (seeds excluded), that is still in the read model.
 
@@ -3851,7 +3855,7 @@ class Engine:
         return await trust_erasure._descendants(self, storage, ns, seeds)
 
     @staticmethod
-    async def _log_derivations(storage: SqlStorage, ns: str) -> dict[str, list[str]]:
+    async def _log_derivations(storage: RecordsStore, ns: str) -> dict[str, list[str]]:
         """parent id -> ids of the records of ``ns`` whose log events name it: in
         a WRITE snapshot's ``source.parents`` or a ``member_record_ids`` list
         (one pass over the log)."""
@@ -3859,7 +3863,7 @@ class Engine:
 
     async def _forget_many(
         self,
-        storage: SqlStorage,
+        storage: RecordsStore,
         ns: str,
         record_ids: Sequence[str],
         hard: bool,
@@ -3889,7 +3893,7 @@ class Engine:
         return await trust_erasure._erased_entity_nodes(self, ns, names, forced=forced)
 
     async def _forget_target(
-        self, storage: SqlStorage, ns: str, record_id: str, hard: bool
+        self, storage: RecordsStore, ns: str, record_id: str, hard: bool
     ) -> MemoryRecord | None:
         """The record to forget after the scope and legal-hold checks; None when
         a hard forget finds no row (an idempotent retry of the log redaction)."""
@@ -3924,7 +3928,7 @@ class Engine:
         return await trust_erasure._purge_caches(self, texts)
 
     async def _forget_locked(
-        self, storage: SqlStorage, ns: str, record_id: str, hard: bool, *, redact: bool = True
+        self, storage: RecordsStore, ns: str, record_id: str, hard: bool, *, redact: bool = True
     ) -> None:
         """Forget one record (lock held): FORGET event, log redaction when
         ``redact`` and hard, and the memory types' delete hooks."""
@@ -4926,13 +4930,13 @@ class Engine:
         )
 
     async def _repeat_lesson(
-        self, storage: SqlStorage, ns: str, key_tag: str, note: str
+        self, storage: RecordsStore, ns: str, key_tag: str, note: str
     ) -> MemoryRecord | None:
         """N28: the live lesson carrying ``key_tag`` with one more repeat note, or None."""
         return await memory_procedural._repeat_lesson(self, storage, ns, key_tag, note)
 
     async def _quarantine_lesson(
-        self, storage: SqlStorage, ns: str, held: MemoryRecord, reasons: list[str]
+        self, storage: RecordsStore, ns: str, held: MemoryRecord, reasons: list[str]
     ) -> None:
         """N24 (``memories.procedural.policies.quarantine_lesson``): a quarantine
         verdict becomes an advisory lesson naming the source, the reasons and the
@@ -5575,7 +5579,12 @@ class Engine:
         self, runtime: ProviderChangeRuntime
     ) -> EngineProviderChanges:
         self._require_started()
-        assert self._sql is not None and self._provider_owner_id is not None
+        if self._sql is None:
+            raise ConfigError(
+                "provider changes need a SQL records store: storage.records.provider "
+                f"{self._config().storage.records.provider!r} keeps no change tables"
+            )
+        assert self._provider_owner_id is not None
         sql = self._sql
 
         def assert_active() -> None:
@@ -5632,9 +5641,10 @@ class Engine:
         diagnostics = {}
         diagnostic_error = False
         try:
-            assert self._sql is not None and self._provider_owner_id is not None
-            async with asyncio.timeout(config.runtime.provider_services.health_timeout_s):
-                diagnostics = await projection_diagnostics(self._sql, self._provider_owner_id)
+            assert self._provider_owner_id is not None
+            if self._sql is not None:  # projection switch diagnostics live in SQL tables
+                async with asyncio.timeout(config.runtime.provider_services.health_timeout_s):
+                    diagnostics = await projection_diagnostics(self._sql, self._provider_owner_id)
         except Exception:
             diagnostic_error = True
         rows = inspect_providers(
@@ -5724,7 +5734,7 @@ class Engine:
 
     # ── internals ────────────────────────────────────────────────────────────
 
-    def _require_started(self) -> SqlStorage:
+    def _require_started(self) -> RecordsStore:
         if not self._started or self._storage is None:
             raise MemspineError("Engine not started — call start() first")
         return self._storage
@@ -5852,7 +5862,7 @@ class Engine:
 
     async def _write_derived(
         self,
-        storage: SqlStorage,
+        storage: RecordsStore,
         ns: str,
         record: MemoryRecord,
         memory_type: str,

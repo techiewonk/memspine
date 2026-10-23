@@ -125,6 +125,11 @@ The owner wants many data providers and service providers, each selected separat
   in `docs/STORAGE_SLOTS_MIGRATION_PLAN.md` section 9. RM-112 adds the `s3` (`[aws]`,
   connector `clients/s3`) and `weaviate` (shared Weaviate connector, dedicated non-vectorized
   collection) documents providers, both `cluster`; Weaviate still never serves `records`.
+- Implementation note (RM-112, 2026-10-23): `storage.records: mongodb` and
+  `storage.documents: mongodb` (GridFS) ship. The records port gained the read-model helpers,
+  the marker scrub, the deployment identity and the projector bindings, so the engine needs no
+  SQL from the records store; features that keep SQL tables are refused for a store without
+  SQL (`docs/RECORDS_STORE_CONTRACT.md` sections 9 and 10, migration plan section 10).
 - Behaviour flags stay where they are: `graph.edge_compiler_v2`, `graph.key_v2`,
   `graph.entity_embeddings`, `read.lexical_scorer` / `lexical_language`, `event_log.*`
   and `embedding.*`. Only the provider selection moves.
