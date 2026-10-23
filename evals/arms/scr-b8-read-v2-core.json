@@ -32,7 +32,6 @@
   "legs_v2": true,
   "family_fusion": true,
   "lift_before_rerank": true,
-  "rerank_v2": true,
   "exact_budget": true,
   "contract_rules": true,
   "router_rules": true,
@@ -92,6 +91,24 @@
   },
   "structured": {
    "retry_on_error": true
+  }
+ },
+ "model": {
+  "rerank": {
+   "chain": [
+    {
+     "provider": "jina",
+     "settings": {}
+    },
+    {
+     "provider": "qwen3",
+     "settings": {}
+    },
+    {
+     "provider": "fastembed",
+     "settings": {}
+    }
+   ]
   }
  }
 }
