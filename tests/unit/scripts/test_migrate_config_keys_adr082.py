@@ -132,13 +132,64 @@ def test_llm_binding_and_profile_expand_inline() -> None:
     out, notes = mig(
         {
             "models": {
-                "profiles": {"small": {"kind": "llm", "provider": "litellm", "settings": {"m": 1}}},
+                "profiles": {
+                    "small": {
+                        "kind": "llm",
+                        "provider": "litellm",
+                        "settings": {"m": 1, "timeout_seconds": 30.0},
+                    }
+                },
                 "bindings": {"chat": "small"},
             }
         }
     )
-    assert out == {"model": {"llm": {"chat": {"provider": "litellm", "settings": {"m": 1}}}}}
+    assert out == {
+        "model": {"llm": {"chat": {"provider": "litellm", "timeout_s": 30.0, "settings": {"m": 1}}}}
+    }
     assert notes == []
+
+
+def test_llm_settings_timeout_seconds_becomes_slot_timeout_s() -> None:
+    out, notes = mig(
+        {
+            "llm": {
+                "roles": {
+                    "extract": {
+                        "provider": "litellm",
+                        "settings": {"model": "ollama/q", "timeout_seconds": 60.0},
+                    }
+                }
+            }
+        }
+    )
+    slot = out["model"]["llm"]["extract"]
+    assert slot == {"provider": "litellm", "timeout_s": 60.0, "settings": {"model": "ollama/q"}}
+    assert list(slot) == ["provider", "timeout_s", "settings"]
+    assert notes == []
+    again = copy.deepcopy(out)
+    assert mod.migrate_config(again) == [] and again == out
+
+
+def test_llm_slot_without_timeout_is_reported() -> None:
+    out, notes = mig({"llm": {"roles": {"chat": {"provider": "fake"}}}})
+    assert out == {"model": {"llm": {"chat": {"provider": "fake"}}}}
+    assert any("model.llm.chat: no settings.timeout_seconds" in n for n in notes)
+
+
+def test_python_llm_timeout_is_hoisted() -> None:
+    value = py_value(
+        """
+        cfg = {"llm": {"roles": {"extract": {"provider": "litellm",
+            "settings": {"model": "m", "timeout_seconds": 5.0}}}}}
+        """
+    )
+    assert value == {
+        "model": {
+            "llm": {
+                "extract": {"provider": "litellm", "timeout_s": 5.0, "settings": {"model": "m"}}
+            }
+        }
+    }
 
 
 def test_llm_structured_copied_into_every_role() -> None:
@@ -179,8 +230,16 @@ def test_escalation_targets_expand_to_inline_slots() -> None:
         {
             "models": {
                 "profiles": {
-                    "small": {"kind": "llm", "provider": "litellm", "settings": {"model": "9b"}},
-                    "big": {"kind": "llm", "provider": "litellm", "settings": {"model": "27b"}},
+                    "small": {
+                        "kind": "llm",
+                        "provider": "litellm",
+                        "settings": {"model": "9b", "timeout_seconds": 60.0},
+                    },
+                    "big": {
+                        "kind": "llm",
+                        "provider": "litellm",
+                        "settings": {"model": "27b", "timeout_seconds": 120.0},
+                    },
                 },
                 "bindings": {"extract": "small"},
                 "escalation": {
@@ -201,9 +260,16 @@ def test_escalation_targets_expand_to_inline_slots() -> None:
             "llm": {
                 "extract": {
                     "provider": "litellm",
+                    "timeout_s": 60.0,
                     "settings": {"model": "9b"},
                     "escalation": {
-                        "targets": [{"provider": "litellm", "settings": {"model": "27b"}}],
+                        "targets": [
+                            {
+                                "provider": "litellm",
+                                "timeout_s": 120.0,
+                                "settings": {"model": "27b"},
+                            }
+                        ],
                         "triggers": ["error", "invalid_json"],
                         "max_attempts": 2,
                         "timeout_s": 120,

@@ -286,6 +286,7 @@ def migrate_config(data: dict[str, Any], *, warmup: bool = True) -> list[str]:
     _llm_roles(m)
     _models(m)
     _llm_structured(m)
+    _llm_timeouts(m)
     _decision(m)
     _read(m)
     _ingest(m)
@@ -354,6 +355,41 @@ def _llm_structured(m: Migration) -> None:
         else:
             m.note(f"llm.structured: model.llm.{role} is not a literal; add structured by hand")
     del llm["structured"]
+
+
+def _hoist_timeout(slot: dict[str, Any], m: Migration, where: str) -> None:
+    """``settings.timeout_seconds`` -> the slot's typed ``timeout_s`` (required by ADR-082)."""
+    settings = slot.get("settings")
+    if isinstance(settings, dict) and "timeout_seconds" in settings:
+        value = settings.pop("timeout_seconds")
+        if "timeout_s" in slot and slot["timeout_s"] != value:
+            m.note(f"{where}: timeout_s and settings.timeout_seconds differ; kept timeout_s")
+            return
+        rebuilt = {k: slot[k] for k in ("provider",) if k in slot}
+        rebuilt["timeout_s"] = slot.get("timeout_s", value)
+        rebuilt.update((k, v) for k, v in slot.items() if k not in rebuilt)
+        slot.clear()
+        slot.update(rebuilt)
+    elif "timeout_s" not in slot and (isinstance(settings, dict) or "settings" not in slot):
+        m.note(f"{where}: no settings.timeout_seconds; add the required timeout_s by hand")
+    elif "timeout_s" not in slot:
+        m.note(f"{where}.settings is not a literal: move timeout_seconds to timeout_s by hand")
+
+
+def _llm_timeouts(m: Migration) -> None:
+    roles = m.model.get("llm")
+    if not isinstance(roles, dict):
+        return
+    for role, slot in roles.items():
+        if not isinstance(slot, dict):
+            continue
+        _hoist_timeout(slot, m, f"model.llm.{role}")
+        escalation = slot.get("escalation")
+        targets = escalation.get("targets") if isinstance(escalation, dict) else None
+        if isinstance(targets, list):
+            for i, target in enumerate(targets):
+                if isinstance(target, dict):
+                    _hoist_timeout(target, m, f"model.llm.{role}.escalation.targets[{i}]")
 
 
 def _decision_provider(m: Migration) -> Any:
