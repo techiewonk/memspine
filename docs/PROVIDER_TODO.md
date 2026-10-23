@@ -9,7 +9,6 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 <!-- CURRENT_SUMMARY_START -->
 | Current status | All work items |
 |---|---:|
-| BLOCKED | 1 |
 | DEFERRED | 6 |
 | DEPLOYMENT_CHECK | 19 |
 | DONE | 192 |
@@ -17,7 +16,7 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | IN_PROGRESS | 28 |
 | NEEDS_INPUT | 3 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 9 |
+| OPEN | 10 |
 | OPEN_REVIEW | 18 |
 | PLANNED | 11 |
 | PROPOSED | 3 |
@@ -259,7 +258,7 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-12 | DONE | P2 | Owning maintainer | **[local]** Stale-in-place sections in performance and enrichment docs (section 6). | 2026-10-22: fixed in 7956e1af (docs-only, 54 files); ruff clean | Completed; follow-ups recorded as RM-64..RM-70 where something was left | Prereq: none; roadmap Phase B: make the docs true |
 | RM-13 | DONE | P2 | Owning maintainer | **[local]** DBOS references in active `docs/v2` briefs/areas/plan.json/tracker.html. | 2026-10-22: fixed in 7956e1af (docs-only, 54 files); ruff clean | Completed; follow-ups recorded as RM-64..RM-70 where something was left | Prereq: none; roadmap Phase B: make the docs true |
 | RM-14 | DONE | P2 | Owning maintainer | **[local]** Fix UTF-8 mojibake in CPU_NON_LLM_BENCHMARK_RESULTS.md. | 2026-10-22: fixed in 7956e1af (docs-only, 54 files); ruff clean | Completed; follow-ups recorded as RM-64..RM-70 where something was left | Prereq: none; roadmap Phase B: make the docs true |
-| RM-15 | BLOCKED | P2 | Owning maintainer | **[local]** Chunked full unit run with `-p no:deepeval`, on the committed revision; record with `scripts/record_verification_run.py`. | Revalidated 2026-10-21: deepeval absent from uv.lock but still installed in .venv, so -p no:deepeval stays needed until RM-02 sync. Needs RM-01 commit first. Last full collection: 7,910 tests. | Owner selected 2026-10-22: run after RM-02 uv upgrade and extras sync; chunked full unit run recorded with scripts/record_verification_run.py | Prereq: RM-01, RM-02; Feeds: PA-039 |
+| RM-15 | OPEN | P2 | Owning maintainer | **[local]** Chunked full unit run with `-p no:deepeval`, on the committed revision; record with `scripts/record_verification_run.py`. | Revalidated 2026-10-21: deepeval absent from uv.lock but still installed in .venv, so -p no:deepeval stays needed until RM-02 sync. Needs RM-01 commit first. Last full collection: 7,910 tests. 2026-10-23: unblocked, its prerequisite RM-02 is DONE (uv 0.13.5, lock and audit green); run with the winget uv (see CODEX_SESSION_TRANSFER_2026-10-23.md section 3). | Owner selected 2026-10-22: run after RM-02 uv upgrade and extras sync; chunked full unit run recorded with scripts/record_verification_run.py | Prereq: RM-01, RM-02; Feeds: PA-039 |
 | RM-16 | REVIEW | P2 | Owning maintainer | **[local]** Rerun live Temporal gate (`MEMSPINE_TEST_TEMPORAL_ADDRESS`) and the strict native Docker gate on the same revision. | Revalidated 2026-10-21: claim still holds; not executed | Review scope/evidence and select explicitly; keep PA-107 deferred and no broad sweep/deploy/commit implied | Prereq: none; roadmap Phase C: re-establish a verified baseline |
 | RM-17 | DONE | P2 | Owning maintainer | **[local]** Close skip-review P2 milestones M-MODEL, M-BRANCH, M-LIVE, M-PLAN (review date 2026-10-25). | 2026-10-22: a94f79d3 closes M-MODEL (cache helpers only tolerate the absent package), M-BRANCH (7 negative import-gate tests simulate absence instead of skipping), M-LIVE (opted-in Postgres unreachability fails), M-PLAN (synthetic plan exercises the forbidden-owner branch). Focused 112 passed, 8 legitimate skips | Completed; live Postgres opt-in path checked by reading only. Unrelated skip-audit drift is RM-65 | Prereq: none; roadmap Phase C: re-establish a verified baseline |
 | RM-18 | DONE | P2 | Owning maintainer | **[local]** Scoped review of learned-alias isolation (engine-wide, not namespace-scoped); see also DS-11 (alias leak through known-entity context). | 2026-10-22: 6fba3c69 scopes learned aliases per namespace (hints, KNOWN prompt context, unseen-entity check, flush, reload) and adds learned.alias.reset on namespace erasure. Leak reproduced first; test_rm18_alias_scope 7 passed | Completed; aliases still lack source evidence links (DS-11); pre-fix logs reviewed under RM-66 | Prereq: none; roadmap Phase C: re-establish a verified baseline |
@@ -442,6 +441,10 @@ community timestamp defect and its targeted fix.
 Documentation-only reconciliation: the background plan no longer requires generative fact extraction in the selected target profile; the memory-type matrix reflects recorded PA-075..081/083 local completions and PA-082 deployment checks. No runtime tests were rerun, no provider status advanced, and no BI implementation marked done. Counts remain 103 DONE /5 OPEN plus separate disposition categories. Next buildable package: BI-01, then durable BI-02/03.
 
 
+## Current handoff to Codex - 2026-10-23
+
+[Session transfer](CODEX_SESSION_TRANSFER_2026-10-23.md) (branch state, environment, rules, decisions ADR-080..083, pitfalls) and [task transfer](CODEX_TASK_TRANSFER_2026-10-23.md) (suggested order by register ID, owner questions, verification steps) carry context only; statuses stay in this register.
+
 ## Deep working-tree review - 2026-10-21
 
 [Current architecture and code review](DEEP_SCAN_REVIEW_2026-10-21.md) maps actual ingestion, background derivation, providers/models, graph, retrieval/packing, erasure/compression and nine memory types. It records 21 DS findings separately from the 136 provider IDs: 2 isolated method failures, 1 unsafe rule-candidate finding, 2 reproduced contract gaps, 13 code-confirmed target gaps and 3 evidence/review limits. [Structured findings](schema_review/deep_scan_findings_2026-10-21.json) and [probe evidence](schema_review/deep_scan_probes_2026-10-21.json) distinguish these categories.
@@ -553,6 +556,8 @@ select different models; only identical effective resources share ownership.
 
 
 ## Progress log
+
+2026-10-23 — Claude: handed the session to Codex (see the 2026-10-23 handoff section). Landed today: RM-117 model slots, RM-118, RM-02, RM-112 (S3, Weaviate, MongoDB records + GridFS), RM-119 managed mongod, RM-120 graph mirror removed, RM-113 item 18, RM-96 pushdown walks; new open rows RM-121 and RM-122; RM-15 unblocked (RM-02 done). Hugging Face Hub 2.x upgrade was in flight on an agent branch at hand-off (task transfer T-07).
 
 2026-10-22 — Claude: implemented the semantic registry contracts in f17e476b (pure data, no extraction runtime): RM-45/46/47/48/51/52/53/57 contracts and RM-50, RM-58..RM-61 vocabulary in the default memspine.core pack (77 predicates/63 keys/33 roles); RM-62/RM-63 families in a packaged memspine.proposed pack, not active by default. RM-53, RM-58, RM-61 DONE for registry scope; others remain IN_PROGRESS for BI-06/BI-08 runtime work.
 
