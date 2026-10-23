@@ -15,6 +15,5 @@
 memspine/store/leases.py psycopg.connect -- RM-113 item 8: sleep-lease store borrows the postgres connector
 memspine/store/leases.py sqlite3.connect -- RM-113 item 8: sleep-lease store borrows the sqlite connector
 memspine/store/side_tables.py create_engine -- RM-113 item 8: side tables borrow the storage connector's sync engine
-memspine/store/side_tables.py sqlite3.connect -- RM-113 item 8: side tables borrow the storage connector
 memspine/observability/tap_report.py sqlite3.connect -- RM-113 section 2: tap report opens its own sqlite file; needs a clients/sqlite file connector
 memspine/observability/tap_sinks.py sqlite3.connect -- RM-113 section 2: tap sink opens its own sqlite file; needs a clients/sqlite file connector

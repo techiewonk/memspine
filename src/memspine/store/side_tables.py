@@ -16,7 +16,8 @@ with it on SQLite (the sync engine opens keyed connections), shared on Postgres.
   can release it (the same rule as ``runtime.runner.OutboxRunner._io``).
 * :func:`import_side_files` is the one-time import of an existing side file: its rows are copied
   idempotently (a content digest is recorded in ``side_file_imports`` in the same transaction) and
-  the file is renamed to ``*.imported``.
+  the file is renamed to ``*.imported``. The caller lends the file opener (RM-113: the store never
+  opens a connection; ``memspine.providers.connectors.legacy_sqlite_file``).
 
 ``:memory:`` stores keep their private in-memory tables (the stores accept a path there).
 """
@@ -31,6 +32,7 @@ import threading
 import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -51,10 +53,14 @@ from sqlalchemy import (
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import StaticPool
 
+#: Opens one legacy side file for reading (lent by the composition layer).
+FileOpener = Callable[[Path], AbstractContextManager[sqlite3.Connection]]
+
 __all__ = [
     "SIDE_FILES",
     "SIDE_TABLES",
     "BackgroundWriter",
+    "FileOpener",
     "SideImport",
     "ensure_side_tables",
     "import_side_files",
@@ -297,13 +303,12 @@ class SideImport:
 
 
 def _read_legacy(
-    path: Path, tables: Sequence[str]
+    path: Path, tables: Sequence[str], open_file: FileOpener
 ) -> dict[str, tuple[list[str], list[tuple[Any, ...]]]]:
     """Every row of the known tables of one side file, in insertion order, restricted to the
     columns the authoritative tables have. A table the old file lacks is skipped."""
     out: dict[str, tuple[list[str], list[tuple[Any, ...]]]] = {}
-    con = sqlite3.connect(str(path), timeout=10.0)
-    try:
+    with open_file(path) as con:
         present = {
             str(r[0]) for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")
         }
@@ -319,8 +324,6 @@ def _read_legacy(
             order = " ORDER BY rowid"
             rows = con.execute(f"SELECT {', '.join(cols)} FROM {name}{order}").fetchall()
             out[name] = (cols, [tuple(r) for r in rows])
-    finally:
-        con.close()
     return out
 
 
@@ -358,7 +361,11 @@ def _copy_rows(con: Connection, data: Mapping[str, tuple[list[str], list[tuple[A
 
 
 def import_side_files(
-    engine: Engine, base: str, *, clock: Callable[[], float] = time.time
+    engine: Engine,
+    base: str,
+    *,
+    open_file: FileOpener,
+    clock: Callable[[], float] = time.time,
 ) -> list[SideImport]:
     """The one-time import of ``<base>.sleep``, ``<base>.cost`` and ``<base>.deadletters.sqlite``.
 
@@ -374,7 +381,7 @@ def import_side_files(
         if not path.is_file():
             continue
         try:
-            data = _read_legacy(path, SIDE_TABLES[kind])
+            data = _read_legacy(path, SIDE_TABLES[kind], open_file)
         except sqlite3.Error as exc:
             _log.warning(
                 "side_file.import_skipped", kind=kind, path=str(path), error=type(exc).__name__

@@ -25,6 +25,7 @@ import pytest
 import sqlalchemy as sa
 
 from memspine import Engine
+from memspine.clients.sqlite.files import legacy_file_connection
 from memspine.clients.sqlite.sync import sqlite_sync_engine
 from memspine.derive.failure_ledger import FailureLedger
 from memspine.derive.job import LeaseStore
@@ -113,7 +114,9 @@ def test_import_copies_once_and_renames(tmp_path: Path) -> None:
     base = tmp_path / "m.db"
     engine = _sync_sqlite(base)
     _legacy_files(base)
-    first = import_side_files(engine, str(base), clock=lambda: 1.0)
+    first = import_side_files(
+        engine, str(base), open_file=legacy_file_connection, clock=lambda: 1.0
+    )
     assert {i.kind for i in first} == {"sleep", "cost", "deadletters"}
     assert not any(i.already_imported for i in first)
     assert _side_files(base) == []
@@ -129,13 +132,15 @@ def test_import_copies_once_and_renames(tmp_path: Path) -> None:
     # the same content again (a crash after the commit, before the rename): nothing is copied twice
     for imp in first:
         shutil.copy(imp.renamed_to, imp.source)
-    again = import_side_files(engine, str(base))
+    again = import_side_files(engine, str(base), open_file=legacy_file_connection)
     assert all(i.already_imported and i.rows == 0 for i in again)
     assert {Path(i.renamed_to).name.rsplit(".", 1)[-1] for i in again} == {"1"}
     with engine.connect() as con:
         assert con.execute(sa.text("SELECT COUNT(*) FROM cost_entry")).scalar() == 2
         assert con.execute(sa.text("SELECT COUNT(*) FROM dead_letters")).scalar() == 1
-    assert import_side_files(engine, str(base)) == []  # nothing left to import
+    assert (
+        import_side_files(engine, str(base), open_file=legacy_file_connection) == []
+    )  # nothing left to import
     engine.dispose()
 
 
@@ -383,11 +388,11 @@ def test_postgres_import_is_idempotent(tmp_path: Path) -> None:
         _legacy_files(base)
         with engine.connect() as con:
             before = con.execute(sa.text("SELECT COUNT(*) FROM cost_entry")).scalar() or 0
-        first = import_side_files(engine, str(base))
+        first = import_side_files(engine, str(base), open_file=legacy_file_connection)
         assert {i.kind for i in first} == {"sleep", "cost", "deadletters"}
         for imp in first:
             shutil.copy(imp.renamed_to, imp.source)
-        again = import_side_files(engine, str(base))
+        again = import_side_files(engine, str(base), open_file=legacy_file_connection)
         assert all(i.already_imported and i.rows == 0 for i in again)
         with engine.connect() as con:
             after = con.execute(sa.text("SELECT COUNT(*) FROM cost_entry")).scalar()

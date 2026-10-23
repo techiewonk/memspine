@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import dataclasses
+import functools
 import os
 import threading
 import uuid
@@ -166,6 +167,7 @@ from memspine.prompts.models import (
 )
 from memspine.prompts.registry import PromptRegistry
 from memspine.providers.changes import ChangeCategory, ChangeStrategy, RevisionGuard, SqlChangeStore
+from memspine.providers.connectors import legacy_sqlite_file
 from memspine.providers.contracts import SqlAccess
 from memspine.providers.control import EngineProviderChanges, ProviderChangeRuntime
 from memspine.providers.decider import build_read_decider, read_decider_slot
@@ -1133,7 +1135,14 @@ class Engine:
         if sql.is_memory or "sync_sql" not in sql.capabilities:
             return
         engine = sql.sync_lease(resources, "side_file_import").engine
-        await asyncio.to_thread(_side_tables.import_side_files, engine, str(store_base))
+        await asyncio.to_thread(
+            functools.partial(
+                _side_tables.import_side_files,
+                engine,
+                str(store_base),
+                open_file=legacy_sqlite_file,  # RM-113: the store never opens a connection
+            )
+        )
 
     async def _acquire_cost_ledger(
         self, config: MemspineConfig
