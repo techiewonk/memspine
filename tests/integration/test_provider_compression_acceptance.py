@@ -36,7 +36,7 @@ def _engine(path: Path, *, read: dict[str, Any] | None = None) -> Engine:
             "vector": {"provider": "lancedb", "settings": {"isolation": "shared"}},
             "cache": {"provider": "memory", "settings": {}},
         },
-        embedding={"provider": "hash", "settings": {"dim": 64}},
+        model={"embedding": {"provider": "hash", "settings": {"dim": 64}}},
         read=read or {"hybrid": True},
         memories={
             "semantic": {"enabled": True},

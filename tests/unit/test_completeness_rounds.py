@@ -26,7 +26,7 @@ async def test_rounds_add_new_queries_until_none_appear(rounds: int, expected: i
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"record_access": False, "completeness_check": True, "completeness_rounds": rounds},
     )
     await eng.start()

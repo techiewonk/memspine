@@ -21,7 +21,7 @@ async def _engine() -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     )
     await engine.start()

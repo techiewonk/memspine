@@ -19,10 +19,10 @@ ROLE = {
     "timeout_seconds": 180.0,
     "no_think": True,
 }
-SC = {"llm": {"roles": {"session_close": ROLE}}}
+SC = {"model": {"llm": {"session_close": ROLE}}}
 WX = {
     "write": {"window_extract": "facts", "window_async": False},
-    "llm": {"roles": {"window_extract": ROLE}},
+    "model": {"llm": {"window_extract": ROLE}},
 }
 
 #: arm name suffix -> overlay on the gc3 base
@@ -45,7 +45,7 @@ OVERLAYS: dict[str, dict] = {
     "tiers": {"read": {"tiers_v2": True}},
     "router": {"read": {"router_rules": True}},
     # FX-EVAL: the summarize role is what communities_v2 calls for 3+ member communities (else extractive)
-    "communities": {"offline": {"communities_v2": True}, "llm": {"roles": {"summarize": ROLE}}},
+    "communities": {"offline": {"communities_v2": True}, "model": {"llm": {"summarize": ROLE}}},
     "reconcile": {"offline": {"reconcile_v2": True}},
     "histories": {"offline": {"histories_v2": True}},
     "profilecard": {"offline": {"session_close_v2": True, "profile_card_v2": True}, **SC},
@@ -57,11 +57,11 @@ OVERLAYS: dict[str, dict] = {
     "windowfacts": WX,
     "envelope": {
         "write": {"window_extract": "facts", "window_async": False, "envelope_v2": True},
-        "llm": {"roles": {"window_extract": ROLE}},
+        "model": {"llm": {"window_extract": ROLE}},
     },
     "segmentation": {
         "write": {"window_extract": "facts", "window_async": False, "segmentation_v2": True},
-        "llm": {"roles": {"window_extract": ROLE}},
+        "model": {"llm": {"window_extract": ROLE}},
     },
 }
 

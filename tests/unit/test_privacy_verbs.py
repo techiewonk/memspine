@@ -31,7 +31,7 @@ def _engine(**extra: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        "embedding": {"provider": "hash", "settings": {}},
+        "model": {"embedding": {"provider": "hash", "settings": {}}},
         "read": {"hybrid": False},
         "memories": {"semantic": {"enabled": True}},
     }
@@ -127,7 +127,7 @@ async def test_correct_bypasses_contest_lower_trust() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     ).start()
     try:
         fact = await eng.write("Ana lives in Lyon", namespace="u", entity="ana", attribute="city")
@@ -376,15 +376,17 @@ class _FakeLLM:
 async def test_remote_llm_gate_withholds_high_tier_text() -> None:
     eng = await _engine(
         consent={"remote_llm_max_tier": "low"},
-        llm={
-            "roles": {
+        model={
+            "llm": {
                 "summarize": {
                     "provider": "litellm",
-                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "openai/gpt-4o"},
                 },
                 "extract": {
                     "provider": "litellm",
-                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "ollama/llama3"},
                 },
             }
         },

@@ -96,7 +96,7 @@ async def make(tmp_path, *, ingest: dict[str, Any] | None = None, **read: Any) -
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
         ingest=ingest or {},
         read={"hybrid": False, "record_access": False, **read},
@@ -177,7 +177,7 @@ async def asset_engine(tmp_path, fetcher: Fetcher, vision: Vision, mode: str = "
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
         ingest={"assets": "on", "asset_dir": str(tmp_path)},
         read={"hybrid": False, "record_access": False, "asset_evidence": mode},

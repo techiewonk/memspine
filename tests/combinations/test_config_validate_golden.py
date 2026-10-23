@@ -134,7 +134,7 @@ async def test_strict_services_is_the_gate_default(make_engine) -> None:
         ("embedding", "provider", "settings"),
         ("storage.lexical", "provider", "settings"),
         ("read", "rerank", "rerank_settings"),
-        ("llm.roles.window_extract", "provider", "settings"),
+        ("model.llm.window_extract", "provider", "settings"),
     ],
 )
 def test_provider_change_replaces_inherited_native_settings(
@@ -179,26 +179,28 @@ def test_provider_settings_overlay_merges_same_provider_and_refreshes_sources() 
     assert loaded.config.storage.records.settings == {"path": "first.db", "busy_timeout_s": 7.0}
     assert loaded.sources["storage.records.settings.path"] == "user"
     assert loaded.sources["storage.records.settings.busy_timeout_s"] == "kwargs"
-    assert "embedding.settings.model" not in loaded.sources
+    assert "model.model.embedding.settings.model" not in loaded.sources
 
 
 def test_provider_change_applies_across_yaml_environment_and_kwargs_layers() -> None:
     loaded = load_config(
         template="base",
-        user_config={"embedding": {"provider": "vendor-a", "settings": {"model": "old"}}},
+        user_config={
+            "model": {"embedding": {"provider": "vendor-a", "settings": {"model": "old"}}}
+        },
         env={
-            "MEMSPINE_EMBEDDING__PROVIDER": "vendor-b",
-            "MEMSPINE_EMBEDDING__SETTINGS__region": "region-a",
+            "MEMSPINE_MODEL__EMBEDDING__PROVIDER": "vendor-b",
+            "MEMSPINE_MODEL__EMBEDDING__SETTINGS__region": "region-a",
         },
         overrides={
-            "embedding": {"provider": "hash", "settings": {"test_seed": 17}},
+            "model": {"embedding": {"provider": "hash", "settings": {"test_seed": 17}}},
         },
     )
-    assert loaded.config.embedding.provider == "hash"
-    assert loaded.config.embedding.settings == {"test_seed": 17}
-    assert "embedding.settings.model" not in loaded.sources
-    assert "embedding.settings.region" not in loaded.sources
-    assert loaded.sources["embedding.settings.test_seed"] == "kwargs"
+    assert loaded.config.model.embedding.provider == "hash"
+    assert loaded.config.model.embedding.settings == {"test_seed": 17}
+    assert "model.model.embedding.settings.model" not in loaded.sources
+    assert "model.model.embedding.settings.region" not in loaded.sources
+    assert loaded.sources["model.model.embedding.settings.test_seed"] == "kwargs"
 
 
 # ── (c) reserved-key rejection ────────────────────────────────────────────────

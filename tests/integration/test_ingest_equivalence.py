@@ -184,7 +184,7 @@ async def _observe_engine(template: str, storage_path: str) -> dict[str, Any]:
                 "settings": {"path": storage_path, "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}, "batch_size": 32},
+        model={"embedding": {"provider": "hash", "settings": {}, "batch_size": 32}},
     )
     await engine.start()
     try:

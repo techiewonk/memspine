@@ -35,7 +35,7 @@ async def engine() -> AsyncIterator[Engine]:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},
@@ -439,7 +439,7 @@ async def test_ephemeral_invalidation_watch_warns_once() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         event_log={"mode": "ephemeral"},
         memories={"semantic": {"enabled": True}, "prospective": {"enabled": True}},
     )
@@ -466,7 +466,7 @@ async def test_verbs_fail_loudly_when_types_disabled() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     try:

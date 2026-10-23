@@ -824,7 +824,7 @@ def build() -> dict:
                 continue
             if re.search(
                 r"(^|\.)(\w*model|\w*_model_\w+|embedding\.provider)$", k["key"]
-            ) and not k["key"].startswith("models.catalogue"):
+            ) and not k["key"].startswith("model.placement.catalogue"):
                 m = {"role": k["key"], "source": k["key"], "default": k["default"]}
                 if m not in st["models"]:
                     st["models"].append(m)

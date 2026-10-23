@@ -112,18 +112,18 @@ async def _engine(
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        offline={k: v for k, v in write.items() if k != "lineage_table"},
-        **({"write": {"lineage_table": True}} if write.get("lineage_table") else {}),
-        llm={
-            "roles": {
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
                 role: {
                     "provider": "litellm",
                     "settings": {"model": "fake/close", "timeout_seconds": 60.0},
                 }
-            }
+            },
         },
+        memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
+        offline={k: v for k, v in write.items() if k != "lineage_table"},
+        **({"write": {"lineage_table": True}} if write.get("lineage_table") else {}),
     )
     await eng.start()
     return eng

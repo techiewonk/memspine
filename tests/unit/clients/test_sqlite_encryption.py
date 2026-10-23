@@ -103,7 +103,7 @@ async def test_engine_start_fails_with_missing_service_error(
                 },
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": False},
     )
     with pytest.raises(MissingServiceError, match=r"memspine\[encrypt\]"):
@@ -177,7 +177,7 @@ async def test_engine_round_trip_never_logs_the_key(
                 },
             }
         },
-        "embedding": {"provider": "hash", "settings": {}},
+        "model": {"embedding": {"provider": "hash", "settings": {}}},
         "read": {"hybrid": False},
     }
     caplog.set_level(logging.DEBUG)
@@ -229,7 +229,7 @@ async def test_real_sqlcipher_file_is_unreadable_without_the_key(
                 },
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": False},
     )
     await eng.start()

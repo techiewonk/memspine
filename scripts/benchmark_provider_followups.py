@@ -170,7 +170,7 @@ async def run_engine(args: argparse.Namespace) -> dict[str, Any]:
     repeated_dump_times: list[float] = []
 
     config_for_engine: dict[str, Any] = {
-        "embedding": {"provider": "hash"},
+        "model": {"embedding": {"provider": "hash"}},
         "read": {
             "record_access": False,
             "scoring": {

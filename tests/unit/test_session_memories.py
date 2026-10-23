@@ -17,7 +17,7 @@ async def test_lists_records_derived_from_the_session_turns() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {
                 "enabled": True,
@@ -59,7 +59,7 @@ async def test_ingest_messages_keeps_an_image_caption() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
     )
     await eng.start()
@@ -85,7 +85,7 @@ async def test_rating_profile_aggregates_by_domain() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
     )
     await eng.start()

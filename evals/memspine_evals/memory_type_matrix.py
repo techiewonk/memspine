@@ -106,7 +106,7 @@ def effective_flags(arm: dict[str, Any], *, template: str = "core") -> dict[str,
     """The effective memory-type / layer / leg / producer set of one arm, as plain data."""
     resolved = load_config(template=template, overrides=_arm_overrides(arm))
     cfg = getattr(resolved, "config", resolved)
-    roles = resolve_path(cfg, "llm.roles") or {}
+    roles = resolve_path(cfg, "model.llm") or {}
     worker = bool(roles)
     graph_store = _on(cfg, "graph.edge_compiler_v2") or _on(cfg, "memories.associative.enabled")
     enabled_layers = LayerTemplate.from_config(cfg, worker_model=worker, graph_store=graph_store)

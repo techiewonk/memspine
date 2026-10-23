@@ -55,7 +55,7 @@ def test_loader_preserves_attachment_identity_and_keeps_text_unchanged(tmp_path:
     assert att[0]["re_download"] is True
 
 
-_HASH = {"embedding": {"provider": "hash"}, "dotenv_path": None}
+_HASH = {"model": {"embedding": {"provider": "hash"}}, "dotenv_path": None}
 
 
 def _pic_turn() -> Turn:

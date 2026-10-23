@@ -26,7 +26,7 @@ def _engine(path: Path) -> Engine:
             },
             "cache": {"provider": "memory", "settings": {}},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
     )
 
@@ -72,7 +72,7 @@ def _cleanup_engine(path: Path, *, provider_change_runtime: ProviderChangeRuntim
             },
             "cache": {"provider": "memory", "settings": {}},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
         runtime={
             "service_switches": {
@@ -145,7 +145,7 @@ async def test_primary_graph_and_lexical_health_results_keep_distinct_ids(tmp_pa
             "cache": {"provider": "memory", "settings": {}},
             "graph": {"provider": "sql_adjacency", "settings": {}},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"associative": {"enabled": True}},
     )
     await engine.start()

@@ -13,7 +13,7 @@ from typing import Any
 from memspine_evals.contracts import Turn
 from memspine_evals.systems.memspine_system import MemspineSystem
 
-_HASH = {"embedding": {"provider": "hash"}, "dotenv_path": None}
+_HASH = {"model": {"embedding": {"provider": "hash"}}, "dotenv_path": None}
 
 
 def _turn(speaker: str, text: str, n: int) -> Turn:

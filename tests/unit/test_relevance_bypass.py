@@ -36,7 +36,7 @@ def _engine(**read: Any) -> tuple[Engine, EmptyingGate]:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "relevance_gate": "store_calibrated", **read},
     )

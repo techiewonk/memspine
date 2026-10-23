@@ -22,7 +22,7 @@ async def engine() -> AsyncIterator[Engine]:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     yield eng
@@ -77,7 +77,7 @@ async def test_personal_template_auto_enables_dependencies() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     try:
@@ -100,7 +100,7 @@ async def test_ephemeral_engine_writes_but_cannot_rebuild() -> None:
             }
         },
         event_log={"mode": "ephemeral"},
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     try:
@@ -143,7 +143,7 @@ async def test_working_memory_pages_out_to_episodic() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"working": {"enabled": True, "policies": {"page_size": 2}}},
     )
     await eng.start()
@@ -234,7 +234,7 @@ async def test_failed_start_leaks_nothing() -> None:
         },
         # A mid-start ConfigError (unknown embedder) fires AFTER the storage
         # client connects, exercising the teardown-on-failure leak path.
-        embedding={"provider": "bogus", "settings": {}},
+        model={"embedding": {"provider": "bogus", "settings": {}}},
     )
     with pytest.raises(Exception, match="bogus"):
         await eng.start()
@@ -298,7 +298,7 @@ async def test_prompt_override_flows_through_engine() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         prompts={"overrides": {"extract": {"body": "custom {{ content }}"}}},
     )
     await eng.start()
@@ -358,7 +358,7 @@ def test_sync_wrappers_round_trip() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     eng.start_sync()
     try:
@@ -379,7 +379,7 @@ async def test_sync_wrapper_refuses_running_loop() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     with pytest.raises(MemspineError, match="running event loop"):
         eng.start_sync()
@@ -396,7 +396,7 @@ async def test_describe_requires_started_even_after_stop() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     assert eng.describe()["profile"] == "core"
@@ -428,7 +428,7 @@ async def test_strict_services_hard_fails_with_extra_name(monkeypatch: pytest.Mo
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        "embedding": {"provider": "hash", "settings": {}},
+        "model": {"embedding": {"provider": "hash", "settings": {}}},
     }
 
     strict = Engine(template="core", dotenv_path=None, user_config=cfg)
@@ -453,7 +453,7 @@ async def test_rolling_engine_prunes_on_start(tmp_path: object) -> None:
             "records": {"provider": "sqlite", "settings": {"path": db, "busy_timeout_s": 5.0}}
         },
         "event_log": {"mode": "rolling", "retention_days": 1},
-        "embedding": {"provider": "hash", "settings": {}},
+        "model": {"embedding": {"provider": "hash", "settings": {}}},
     }
     eng = Engine(template="core", dotenv_path=None, user_config=cfg)
     await eng.start()

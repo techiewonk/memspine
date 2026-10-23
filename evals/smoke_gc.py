@@ -195,7 +195,7 @@ def make_stub() -> Any:
 def cpu_config(arm: dict[str, Any]) -> dict[str, Any]:
     """The arm with only its machine-bound keys swapped: hash embedder, reranker off, in-process store."""
     cfg = copy.deepcopy(arm)
-    cfg["embedding"] = {"provider": "hash"}
+    cfg.setdefault("model", {}).setdefault("embedding", {})["provider"] = "hash"
     read = cfg["read"]
     for key in ("rerank", "rerank_model", "rerank_device", "rerank_keep", "rerank_floor"):
         read.pop(key, None)

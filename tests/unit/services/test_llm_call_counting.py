@@ -80,7 +80,7 @@ async def test_model_calls_after_write_read_sleep(monkeypatch: pytest.MonkeyPatc
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {
                 "enabled": True,

@@ -34,7 +34,7 @@ def _engine(tmp_path: Path, documents: dict[str, Any] | None, **overrides: Any) 
         template="core",
         dotenv_path=None,
         storage=storage,
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         **overrides,
     )
 

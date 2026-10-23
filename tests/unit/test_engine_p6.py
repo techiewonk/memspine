@@ -32,7 +32,7 @@ async def engine() -> AsyncIterator[Engine]:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},
@@ -114,7 +114,7 @@ async def test_verbs_fail_loudly_when_associative_disabled() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
     )
     await eng.start()
@@ -148,7 +148,7 @@ async def test_reorganize_reports_skipped_without_a_graph() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
     )
     await eng.start()
@@ -203,7 +203,7 @@ async def test_evolution_failure_never_fails_the_write(
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
     )
     await eng.start()

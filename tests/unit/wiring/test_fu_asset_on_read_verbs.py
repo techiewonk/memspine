@@ -38,7 +38,7 @@ async def build(db: Path, **write: Any) -> Engine:
         storage={
             "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},

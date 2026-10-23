@@ -145,7 +145,7 @@ def _engine_config(threshold: float) -> dict[str, Any]:
     """The ``firewall-on`` arm of ``plans/aamas_runs.json`` with the hash embedder."""
     return {
         "dotenv_path": None,
-        "embedding": {"provider": "hash"},
+        "model": {"embedding": {"provider": "hash"}},
         "read": {
             "record_access": False,
             "scoring": {"recency_weight": 0.0, "importance_weight": 0.0, "utility_weight": 0.0},

@@ -37,7 +37,7 @@ def _engine(tmp_path: Path, *, page_size: int = 8, cache_provider: str = "memory
             },
             "lexical": {"provider": "tantivy", "settings": {}},
         },
-        embedding={"provider": "hash", "settings": {"dim": 64}},
+        model={"embedding": {"provider": "hash", "settings": {"dim": 64}}},
         read={"hybrid": True},
         memories={
             "semantic": {"enabled": True},

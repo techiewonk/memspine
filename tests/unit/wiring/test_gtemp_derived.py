@@ -125,9 +125,9 @@ async def test_replay_read_runs_with_both_flags_on() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}, "rerank": {"chain": []}},
         memories={"episodic": {"enabled": True}},
-        read={"record_access": False, "rerank": "off", "derived_dates": True, "derived_cap": 1},
+        read={"record_access": False, "derived_dates": True, "derived_cap": 1},
     )
     async with eng:
         await eng.write("Ilse moved to Lyon last spring", namespace="a", memory_type="episodic")

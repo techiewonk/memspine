@@ -449,7 +449,7 @@ async def test_tantivy_cleanup_route_survives_fresh_engine_restart(tmp_path) -> 
             },
             "cache": {"provider": "memory", "settings": {}},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
     )
     await engine.start()
@@ -600,7 +600,7 @@ async def test_tantivy_cleanup_route_survives_fresh_engine_restart(tmp_path) -> 
             },
             "cache": {"provider": "memory", "settings": {}},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
     )
     await restarted.start()

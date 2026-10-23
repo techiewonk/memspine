@@ -185,26 +185,21 @@ async def test_engine_binds_no_think_from_config(monkeypatch: pytest.MonkeyPatch
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        llm={
-            "roles": {
-                "extract": {
-                    "provider": "litellm",
-                    "settings": {"model": QWEN, "timeout_seconds": 30.0},
-                },
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
+                "extract": {"provider": "litellm", "timeout_s": 30.0, "settings": {"model": QWEN}},
                 "chat": {
                     "provider": "litellm",
-                    "settings": {
-                        "model": QWEN,
-                        "timeout_seconds": 30.0,
-                        "no_think": False,
-                    },
+                    "timeout_s": 30.0,
+                    "settings": {"model": QWEN, "no_think": False},
                 },
                 "judge": {
                     "provider": "litellm",
-                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "openai/gpt-4o"},
                 },
-            }
+            },
         },
     )
     await eng.start()

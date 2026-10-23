@@ -98,7 +98,7 @@ async def main():
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "fixture_hash", "settings": {"dim": 64}},
+        model={"embedding": {"provider": "fixture_hash", "settings": {"dim": 64}}},
     )
     await engine.start()
     try:

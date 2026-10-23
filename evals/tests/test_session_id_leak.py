@@ -16,7 +16,7 @@ from memspine_evals.systems.memspine_system import MemspineSystem
 
 pytest.importorskip("memspine")
 
-_HASH = {"embedding": {"provider": "hash"}, "dotenv_path": None}
+_HASH = {"model": {"embedding": {"provider": "hash"}}, "dotenv_path": None}
 
 
 def _turns() -> list[Turn]:

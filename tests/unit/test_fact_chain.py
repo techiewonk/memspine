@@ -82,7 +82,7 @@ def _projecting_engine(value: Any = "on") -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             # sessions come from the consolidate stage, which needs an active trigger
             "episodic": {"enabled": True, "policies": {"consolidation": {"mine_facts": True}}},

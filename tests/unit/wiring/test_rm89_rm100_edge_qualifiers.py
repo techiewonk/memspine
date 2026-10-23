@@ -37,7 +37,7 @@ def _engine(path: str = ":memory:") -> Engine:
         storage={
             "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}}
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},
@@ -318,7 +318,7 @@ async def test_requalify_refuses_without_the_compiled_layer() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     try:

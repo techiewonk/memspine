@@ -25,7 +25,7 @@ async def engine() -> AsyncIterator[Engine]:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     yield eng
@@ -117,7 +117,7 @@ async def test_legal_hold_blocks_hard_delete() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {
                 "enabled": True,
@@ -191,7 +191,7 @@ async def test_ingested_injection_is_firewalled(tmp_path: Path) -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"resource": {"enabled": True}},
     )
     await eng.start()
@@ -343,7 +343,7 @@ async def test_ingest_runs_the_full_anomaly_gate(tmp_path: Path) -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"resource": {"enabled": True}},
     )
     await eng.start()
@@ -390,7 +390,7 @@ async def test_verify_forget_unproven_for_ephemeral_log() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         event_log={"mode": "ephemeral"},
     )
     await eng.start()
@@ -433,7 +433,7 @@ async def test_consolidation_summary_inherits_min_member_trust() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     try:
@@ -478,7 +478,7 @@ async def test_out_of_range_trust_override_fails_loudly() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {
                 "enabled": True,
@@ -498,7 +498,7 @@ async def test_out_of_range_trust_override_fails_loudly() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {
                 "enabled": True,

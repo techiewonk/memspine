@@ -109,7 +109,7 @@ async def test_engine_usage_per_prompt_with_stub_llm(monkeypatch: pytest.MonkeyP
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True, "policies": {"entity_extraction": "llm"}}},
         read={"hybrid": False},
     )

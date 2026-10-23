@@ -45,7 +45,7 @@ def _engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "rerank": "off", **read},
     )
@@ -76,8 +76,20 @@ def test_default_off_and_requires() -> None:
         }
     }
     with pytest.raises(ConfigError, match="rerank_v2"):
-        MemspineConfig(read={"rerank_v2_search_pool": 20}, runtime=runtime)
-    MemspineConfig(read={"rerank_v2": True, "rerank_v2_search_pool": 20}, runtime=runtime)
+        MemspineConfig(model={"rerank": {"search_pool": 20}}, runtime=runtime)
+    MemspineConfig(
+        model={
+            "rerank": {
+                "chain": [
+                    {"provider": "jina", "settings": {}},
+                    {"provider": "qwen3", "settings": {}},
+                    {"provider": "fastembed", "settings": {}},
+                ],
+                "search_pool": 20,
+            }
+        },
+        runtime=runtime,
+    )
 
 
 async def test_narrow_pool_loses_the_evidence() -> None:

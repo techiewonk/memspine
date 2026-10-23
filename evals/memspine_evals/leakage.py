@@ -200,7 +200,7 @@ def _make_engine(read: Mapping[str, Any]) -> Any:
         template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        model={"embedding": {"provider": "hash"}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, **read},
     )

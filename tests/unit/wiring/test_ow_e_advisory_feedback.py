@@ -59,7 +59,7 @@ def _engine(memories: dict[str, Any] | None = None, write: dict[str, Any] | None
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, **(memories or {})},
         write=write or {},
         read={"hybrid": False},

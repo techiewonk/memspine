@@ -72,7 +72,7 @@ async def test_rule_mining_end_to_end_supersedes_home_without_an_llm() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {
                 "enabled": True,
@@ -124,7 +124,7 @@ async def test_auto_watch_turns_a_dated_plan_into_a_watch() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {
                 "enabled": True,
@@ -190,7 +190,7 @@ async def test_profile_slots_header_shows_the_current_slots() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {
                 "enabled": True,

@@ -61,7 +61,7 @@ def _engine(path: Path, **offline: object) -> Engine:
                 "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         offline=offline,
     )

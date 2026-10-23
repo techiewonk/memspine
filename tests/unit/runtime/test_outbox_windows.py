@@ -46,17 +46,18 @@ async def _engine(
                 "settings": {"path": str(path), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0, **write},
-        llm={
-            "roles": {
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
                 "window_extract": {
                     "provider": "litellm",
-                    "settings": {"model": "fake/window", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "fake/window"},
                 }
-            }
+            },
         },
+        memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
+        write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0, **write},
         workers={"outbox": outbox},
     )
     await eng.start()

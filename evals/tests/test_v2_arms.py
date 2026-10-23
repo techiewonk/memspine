@@ -28,7 +28,7 @@ PENDING_FLAGS = (
     "read.router_rules",
     "read.family_fusion",
     "read.lift_before_rerank",
-    "read.rerank_v2",
+    "model.rerank.chain",
     "read.exact_budget",
     "read.evidence_bundles",
     "read.trust_rendering",
@@ -42,7 +42,7 @@ PENDING_FLAGS = (
     "read.parallel_legs",
     "read.external_v2",
     "graph.key_v2",
-    "read.rerank_v2_search_pool",
+    "model.rerank.search_pool",
     # R14 builds (S69-S87)
     "read.inference_mode",
     "read.decompose_v2",
@@ -68,10 +68,10 @@ PICK2_KEYS = {
     "offline.session_close_v2",
     "offline.standing_v2",
     "offline.histories_v2",
-    "llm.roles.session_close.model",
-    "llm.roles.session_close.api_base",
-    "llm.roles.session_close.timeout_seconds",
-    "llm.roles.session_close.no_think",
+    "model.llm.session_close.model",
+    "model.llm.session_close.api_base",
+    "model.llm.session_close.timeout_seconds",
+    "model.llm.session_close.no_think",
 }
 
 

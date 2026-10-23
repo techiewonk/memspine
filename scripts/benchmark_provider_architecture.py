@@ -74,7 +74,7 @@ async def workload(args: argparse.Namespace) -> dict[str, Any]:
             template="core",
             dotenv_path=None,
             storage=storage,
-            embedding={"provider": "hash"},
+            model={"embedding": {"provider": "hash"}},
             read={
                 "record_access": False,
                 "scoring": {

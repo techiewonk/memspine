@@ -79,7 +79,7 @@ def _engine(path: Path | str = ":memory:", **kw: Any) -> Engine:
                 "settings": {"path": str(path), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={"lineage_table": kw.pop("lineage", False)},
         offline=kw.pop("offline", {}),

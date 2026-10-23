@@ -27,7 +27,7 @@ def _engine(path: Path, provider: str, **read: object) -> Engine:
             },
             "graph": {"provider": provider},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         graph={"entity_embeddings": True},
         memories={
             "semantic": {"enabled": True},
@@ -96,7 +96,7 @@ async def test_turn_mentions_let_the_graph_reach_raw_turns(tmp_path: Path, provi
             },
             "graph": {"provider": provider},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         graph={"entity_embeddings": True},
         memories={
             "episodic": {"enabled": True},

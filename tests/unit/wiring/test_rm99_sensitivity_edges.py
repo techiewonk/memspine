@@ -32,7 +32,7 @@ async def _engine() -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},
@@ -177,15 +177,13 @@ def _gliner_config(local_files_only: bool) -> dict[str, Any]:
                 "startup_timeout_s": None,
             }
         },
-        "models": {
-            "profiles": {
-                "pii": {
-                    "kind": "gliner",
+        "model": {
+            "extraction": {
+                "sensitivity": {
                     "provider": "gliner2",
                     "settings": {"tasks": ["entities"], "local_files_only": local_files_only},
                 }
-            },
-            "bindings": {"gliner_sensitivity": "pii"},
+            }
         },
     }
 

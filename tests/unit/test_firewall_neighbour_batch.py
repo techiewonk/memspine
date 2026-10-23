@@ -72,7 +72,7 @@ async def _ingest(batched: bool, monkeypatch: pytest.MonkeyPatch) -> dict[str, A
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     calls = {"query": 0, "query_many": 0}
@@ -140,7 +140,7 @@ async def test_single_write_does_not_batch(monkeypatch: pytest.MonkeyPatch) -> N
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     try:

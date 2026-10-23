@@ -34,7 +34,7 @@ from memspine_evals.stub_llm import StubLiteLLM, install_stub_litellm
 
 #: Engine overrides for fast offline engines: hash embeddings, mining on.
 MINING = {
-    "embedding": {"provider": "hash", "settings": {}},
+    "model": {"embedding": {"provider": "hash", "settings": {}}},
     "memories": {
         "episodic": {
             "enabled": True,
@@ -66,11 +66,12 @@ def _summary(out: Path, run_id: str) -> dict[str, Any]:
 
 def test_merge_binds_every_engine_role_and_keeps_explicit_ones() -> None:
     explicit = {
-        "llm": {
-            "roles": {
+        "model": {
+            "llm": {
                 "extract": {
                     "provider": "litellm",
-                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "ollama/llama3"},
                 }
             }
         },
@@ -155,11 +156,12 @@ def test_dollar_cap_needs_prices_and_bedrock() -> None:
     with pytest.raises(ValueError, match="no paid model"):
         check_dollar_cap(C01Config(mode="retrieval", max_usd=1.0))
     explicit = {
-        "llm": {
-            "roles": {
+        "model": {
+            "llm": {
                 "extract": {
                     "provider": "litellm",
-                    "settings": {"model": "openai/unpriced", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "openai/unpriced"},
                 }
             }
         }

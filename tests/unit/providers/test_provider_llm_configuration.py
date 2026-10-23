@@ -70,17 +70,14 @@ async def test_explicit_plugin_uses_its_schema_and_role_context_and_closes_once(
             template="core",
             dotenv_path=None,
             storage={"records": {"settings": {"path": ":memory:", "busy_timeout_s": 5.0}}},
-            embedding={"provider": "hash", "settings": {}},
-            llm={
-                "roles": {
+            model={
+                "embedding": {"provider": "hash", "settings": {}},
+                "llm": {
                     "chat": {
                         "provider": ref.name,
-                        "settings": {
-                            "deployment_name": "tenant-a",
-                            "request_timeout_s": 7.0,
-                        },
+                        "settings": {"deployment_name": "tenant-a", "request_timeout_s": 7.0},
                     }
-                }
+                },
             },
         )
         async with engine:
@@ -125,13 +122,13 @@ async def test_two_engines_keep_independent_structured_retry_policies() -> None:
             template="core",
             dotenv_path=None,
             storage={"records": {"settings": {"path": ":memory:", "busy_timeout_s": 5.0}}},
-            embedding={"provider": "hash", "settings": {}},
-            llm={
-                "structured": {"retry_on_error": retry},
-                "roles": {
+            model={
+                "embedding": {"provider": "hash", "settings": {}},
+                "llm": {
                     "chat": {
                         "provider": ref.name,
                         "settings": {"deployment_name": "test", "request_timeout_s": 1.0},
+                        "structured": {"retry_on_error": retry},
                     }
                 },
             },

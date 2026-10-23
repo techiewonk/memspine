@@ -1,8 +1,4 @@
 {
- "embedding": {
-  "provider": "hash",
-  "settings": {}
- },
  "storage": {
   "records": {
    "provider": "sqlite",
@@ -13,7 +9,6 @@
   }
  },
  "read": {
-  "rerank": "off",
   "record_access": false,
   "list_mode": true,
   "replay_window_before": 1,
@@ -51,17 +46,6 @@
   "integration_v2": true,
   "lineage_table": true
  },
- "llm": {
-  "roles": {
-   "window_extract": {
-    "provider": "litellm",
-    "settings": {
-     "model": "stub/window",
-     "timeout_seconds": 180.0
-    }
-   }
-  }
- },
  "offline": {
   "session_close_v2": true,
   "patterns_v2": true,
@@ -73,5 +57,23 @@
  "runtime": {},
  "deployment": {
   "id": "inspect-demo"
+ },
+ "model": {
+  "embedding": {
+   "provider": "hash",
+   "settings": {}
+  },
+  "llm": {
+   "window_extract": {
+    "provider": "litellm",
+    "timeout_s": 180.0,
+    "settings": {
+     "model": "stub/window"
+    }
+   }
+  },
+  "rerank": {
+   "chain": []
+  }
  }
 }

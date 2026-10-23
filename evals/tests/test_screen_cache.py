@@ -28,7 +28,7 @@ from memspine_evals.stub_llm import install_stub_litellm
 
 #: fast offline engine with LLM roles at write time: hash embeddings, fact mining on
 MINING = {
-    "embedding": {"provider": "hash"},
+    "model": {"embedding": {"provider": "hash"}},
     "memories": {
         "episodic": {
             "enabled": True,
@@ -250,7 +250,7 @@ def _retrieval_only(**extra: Any) -> C01Config:
         retrieval_only=True,
         include_memspine=True,
         only_systems=("memspine",),
-        memspine_config={"embedding": {"provider": "hash"}},
+        memspine_config={"model": {"embedding": {"provider": "hash"}}},
         **extra,
     )
 
@@ -292,7 +292,7 @@ def test_retrieval_only_matches_the_qa_read(tmp_path: Path) -> None:
                     max_model_calls=1000,
                     include_memspine=True,
                     only_systems=("memspine",),
-                    memspine_config={"embedding": {"provider": "hash"}},
+                    memspine_config={"model": {"embedding": {"provider": "hash"}}},
                 ),
                 tmp_path,
                 run_id="qa",

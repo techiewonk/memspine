@@ -36,7 +36,7 @@ def _engine(path: Path, *, graph_provider: str = "sql_adjacency") -> Engine:
             "graph": {"provider": graph_provider, "settings": {}},
             "lexical": {"provider": "tantivy", "settings": {}},
         },
-        embedding={"provider": "hash", "settings": {"dim": 64}},
+        model={"embedding": {"provider": "hash", "settings": {"dim": 64}}},
         read={"hybrid": True},
         memories={
             "semantic": {"enabled": True},

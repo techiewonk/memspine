@@ -383,7 +383,16 @@ async def engine(monkeypatch: pytest.MonkeyPatch, llm: Any, **write: Any) -> Eng
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
+                "window_extract": {
+                    "provider": "litellm",
+                    "timeout_s": 60.0,
+                    "settings": {"model": "fake/window"},
+                }
+            },
+        },
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={
             "window_extract": "facts",
@@ -391,14 +400,6 @@ async def engine(monkeypatch: pytest.MonkeyPatch, llm: Any, **write: Any) -> Eng
             "window_idle_s": 0.0,
             "envelope_v2": True,
             **write,
-        },
-        llm={
-            "roles": {
-                "window_extract": {
-                    "provider": "litellm",
-                    "settings": {"model": "fake/window", "timeout_seconds": 60.0},
-                }
-            }
         },
     )
     await eng.start()
@@ -553,8 +554,8 @@ def test_behavioural_inv_order_swap_passes_with_the_flag_and_fails_without(tmp_p
                         "settings": {"path": str(d / "b.db"), "busy_timeout_s": 5.0},
                     }
                 },
-                embedding={"provider": "hash", "settings": {}},
-                read={"rerank": "off", "record_access": False},
+                model={"embedding": {"provider": "hash", "settings": {}}, "rerank": {"chain": []}},
+                read={"record_access": False},
                 memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
                 write=(
                     {

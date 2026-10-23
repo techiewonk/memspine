@@ -99,7 +99,7 @@ async def test_engine_catalog_uses_actual_selected_services_without_settings() -
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     ) as engine:
         await engine.write(
             "A private diagnostic payload that must not enter the catalog", namespace="inspection"

@@ -401,7 +401,10 @@ class _RerankSystem(VerbatimSystem):
         self._mode = mode
 
     def describe(self) -> dict[str, Any]:
-        return {**dict(super().describe()), "config": {"read": {"rerank": self._mode}}}
+        return {
+            **dict(super().describe()),
+            "config": {"model": {"rerank": {"chain": [{"provider": self._mode, "settings": {}}]}}},
+        }
 
     async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
         ctx = await super().query(text, budget_tokens, top_k)

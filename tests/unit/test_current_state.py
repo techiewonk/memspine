@@ -19,7 +19,7 @@ def _engine(**extra: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
         **extra,
     )
@@ -246,7 +246,7 @@ async def test_contested_fact_keeps_one_current_and_shows_the_dispute() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True, "policies": {"conflict": {"contest_ties": True}}}},
         read={"current_state_view": True, "hybrid": False},
     )
@@ -291,7 +291,7 @@ async def test_rerank_gate_skips_reranker_for_large_top_k(monkeypatch) -> None: 
             calls.append(len(documents))
             return [float(i) for i in range(len(documents))]
 
-    eng = _engine(read={"hybrid": False, "rerank_max_top_k": 3})
+    eng = _engine(read={"hybrid": False}, model={"rerank": {"max_top_k": 3}})
     await eng.start()
     try:
 
@@ -351,7 +351,7 @@ async def test_rerank_date_prefix_and_ordering_skip(monkeypatch) -> None:  # typ
             return [0.0] * len(documents)
 
     eng = _engine(
-        read={"hybrid": False, "rerank_date_prefix": True, "skip_rerank_for_ordering": True}
+        read={"hybrid": False}, model={"rerank": {"date_prefix": True, "skip_for_ordering": True}}
     )
     await eng.start()
     try:

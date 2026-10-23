@@ -45,7 +45,7 @@ def _engine(**overrides: Any) -> Any:  # memspine is imported lazily
         "template": "base",
         "dotenv_path": None,
         "storage": {"path": ":memory:"},
-        "embedding": {"provider": "hash"},
+        "model": {"embedding": {"provider": "hash"}},
         "memories": {
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},

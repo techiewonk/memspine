@@ -17,7 +17,7 @@ from memspine.store.events import EventKind
 from memspine.store.records import MemoryRecord, ScoringState
 
 _BASE: dict[str, Any] = {
-    "embedding": {"provider": "hash"},
+    "model": {"embedding": {"provider": "hash"}},
     "read": {"hybrid": False},
 }
 
@@ -108,7 +108,7 @@ async def test_dislike_demotes_in_search_when_utility_weighted() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": False, "record_access": False, "scoring": {"utility_weight": 1.0}},
     )
     await eng.start()

@@ -82,7 +82,7 @@ def _engine(path: Path, **overrides: Any) -> Engine:
         template="core",
         dotenv_path=None,
         storage=storage,
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
         **overrides,
     )

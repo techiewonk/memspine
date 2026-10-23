@@ -94,7 +94,7 @@ async def test_embedded_storage_vector_lexical_graph_and_cache_contracts(
                 "graph": {"provider": "ladybug", "settings": {}},
                 "lexical": {"provider": "tantivy", "settings": {}},
             },
-            embedding={"provider": "hash", "settings": {"dim": 64}},
+            model={"embedding": {"provider": "hash", "settings": {"dim": 64}}},
             memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
         )
 
@@ -179,7 +179,7 @@ async def test_postgres_storage_contract(tmp_path: Path) -> None:
                 "vector": {"provider": "lancedb", "settings": {"isolation": "shared"}},
                 "cache": {"provider": "memory", "settings": {}},
             },
-            embedding={"provider": "hash", "settings": {"dim": 64}},
+            model={"embedding": {"provider": "hash", "settings": {"dim": 64}}},
             memories={"semantic": {"enabled": True}},
         )
 
@@ -235,7 +235,7 @@ async def test_neo4j_graph_contract() -> None:
                 },
             },
         },
-        embedding={"provider": "hash", "settings": {"dim": 64}},
+        model={"embedding": {"provider": "hash", "settings": {"dim": 64}}},
         memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
     )
     await engine.start()
@@ -302,7 +302,7 @@ async def test_remote_cache_contract(provider: str, url_env: str) -> None:
                     },
                 },
             },
-            embedding={"provider": "hash", "settings": {"dim": 64}},
+            model={"embedding": {"provider": "hash", "settings": {"dim": 64}}},
             memories={"semantic": {"enabled": True}},
         )
 

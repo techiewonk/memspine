@@ -52,7 +52,7 @@ def _engine(
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        "embedding": {"provider": "hash"},
+        "model": {"embedding": {"provider": "hash"}},
         "memories": memories,
         **extra,
     }

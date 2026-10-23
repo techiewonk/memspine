@@ -140,29 +140,32 @@ async def test_named_llamacpp_profiles_have_distinct_resources_and_shared_profil
                 "startup_timeout_s": None,
             }
         },
-        models={
-            "profiles": {
-                "primary": {
-                    "kind": "llm",
-                    "provider": "llamacpp",
-                    "settings": {"model": "llamacpp/primary.gguf", "timeout_seconds": 2.0},
-                },
-                "backup": {
-                    "kind": "llm",
-                    "provider": "llamacpp",
-                    "settings": {"model": "llamacpp/backup.gguf", "timeout_seconds": 2.0},
-                },
-            },
-            "bindings": {"chat": "primary", "extract": "primary"},
-            "escalation": {
+        model={
+            "llm": {
                 "chat": {
-                    "targets": ["backup"],
-                    "triggers": ["empty"],
-                    "max_attempts": 2,
-                    "timeout_s": 1.0,
-                    "max_tokens_per_attempt": 64,
-                }
-            },
+                    "provider": "llamacpp",
+                    "timeout_s": 2.0,
+                    "settings": {"model": "llamacpp/primary.gguf"},
+                    "escalation": {
+                        "targets": [
+                            {
+                                "provider": "llamacpp",
+                                "timeout_s": 2.0,
+                                "settings": {"model": "llamacpp/backup.gguf"},
+                            }
+                        ],
+                        "triggers": ["empty"],
+                        "max_attempts": 2,
+                        "timeout_s": 1.0,
+                        "max_tokens_per_attempt": 64,
+                    },
+                },
+                "extract": {
+                    "provider": "llamacpp",
+                    "timeout_s": 2.0,
+                    "settings": {"model": "llamacpp/primary.gguf"},
+                },
+            }
         },
     )
     resources = ProviderLifecycleManager(close_timeout_s=2.0)

@@ -22,7 +22,7 @@ from memspine_evals.datasets.synthetic import SyntheticDataset
 from memspine_evals.systems.memspine_system import MemspineSystem
 
 SNAPSHOT = Path(__file__).parent / "fixtures" / "adapter_parity_snapshot.json"
-_HASH = {"embedding": {"provider": "hash"}, "dotenv_path": None}
+_HASH = {"model": {"embedding": {"provider": "hash"}}, "dotenv_path": None}
 _ARMS: dict[str, dict[str, Any]] = {
     "assemble": {},
     "read-auto": {"read_mode": "auto"},

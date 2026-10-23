@@ -162,14 +162,19 @@ async def test_engine_start_rejects_shared_reranker_before_builder_invocation(
         template="core",
         dotenv_path=None,
         storage={"records": {"settings": {"path": str(tmp_path / "rerank-start.db")}}},
-        embedding={"provider": "hash", "settings": {}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "rerank": {
+                "chain": [
+                    {
+                        "provider": "litellm",
+                        "settings": {"model": "cohere/rerank-v3.5", "request_timeout_s": 5.0},
+                    }
+                ]
+            },
+        },
         read={
             "hybrid": False,
-            "rerank": "litellm",
-            "rerank_settings": {
-                "model": "cohere/rerank-v3.5",
-                "request_timeout_s": 5.0,
-            },
         },
         memories={"semantic": {"enabled": True}},
     )
@@ -208,11 +213,16 @@ async def test_engine_shares_async_lazy_build_and_closes_owned_resource_once(tmp
         template="core",
         dotenv_path=None,
         storage={"records": {"settings": {"path": str(tmp_path / "singleflight.db")}}},
-        embedding={"provider": "hash", "settings": {}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "rerank": {
+                "chain": [
+                    {"provider": "async_singleflight_test", "settings": {"model": "test-model"}}
+                ]
+            },
+        },
         read={
             "hybrid": False,
-            "rerank": "async_singleflight_test",
-            "rerank_settings": {"model": "test-model"},
         },
         memories={"semantic": {"enabled": True}},
     )
@@ -265,11 +275,14 @@ async def test_engine_stop_cancels_and_drains_blocked_async_builder(tmp_path) ->
         template="core",
         dotenv_path=None,
         storage={"records": {"settings": {"path": str(tmp_path / "stop-build.db")}}},
-        embedding={"provider": "hash", "settings": {}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "rerank": {
+                "chain": [{"provider": "async_stop_test", "settings": {"model": "test-model"}}]
+            },
+        },
         read={
             "hybrid": False,
-            "rerank": "async_stop_test",
-            "rerank_settings": {"model": "test-model"},
         },
         memories={"semantic": {"enabled": True}},
     )

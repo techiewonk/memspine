@@ -22,7 +22,7 @@ async def engine() -> AsyncIterator[Engine]:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"resource": {"enabled": True}},
     )
     await eng.start()
@@ -100,7 +100,7 @@ async def test_verbs_fail_loudly_when_type_disabled() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": False}},
     )
     await eng.start()
@@ -225,7 +225,7 @@ async def test_unknown_runner_is_config_error() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         workers={"runner": "quantum"},
     )
     with pytest.raises(ConfigError, match=r"workers\.runner"):
@@ -242,7 +242,7 @@ async def test_temporal_runner_requires_deployment_settings() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         workers={"runner": "temporal"},
     )
     with pytest.raises(ConfigError, match=r"invalid configuration: workers"):

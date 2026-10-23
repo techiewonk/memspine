@@ -22,7 +22,7 @@ async def _engine(**read: object) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "recent_exchanges": 4, **read},
     )

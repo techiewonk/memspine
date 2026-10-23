@@ -21,7 +21,7 @@ def _engine(path: str, mode: str) -> Engine:
             "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}}
         },
         event_log={"mode": mode},
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": False},
     )
 

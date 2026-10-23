@@ -40,18 +40,19 @@ async def _engine(
         storage={
             "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}}
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
+                "session_close": {
+                    "provider": "litellm",
+                    "timeout_s": 60.0,
+                    "settings": {"model": "fake/close"},
+                }
+            },
+        },
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         offline=offline,
         write={"lineage_table": True},
-        llm={
-            "roles": {
-                "session_close": {
-                    "provider": "litellm",
-                    "settings": {"model": "fake/close", "timeout_seconds": 60.0},
-                }
-            }
-        },
     )
     await eng.start()
     return eng

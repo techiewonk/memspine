@@ -133,7 +133,7 @@ def _engine(path: Path, **write: Any) -> Engine:
                 "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": True, "record_access": False},
         write=write,
     )

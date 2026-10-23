@@ -639,7 +639,7 @@ def _engine(*, mirror: bool = False, deployment_id: str | None = None) -> Engine
                 else None
             ),
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
@@ -673,7 +673,7 @@ async def test_mirror_provider_without_the_mirror_capability_is_refused() -> Non
             "graph": {"provider": "sql_adjacency"},
             "graph_mirror": {"provider": "sql_adjacency"},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
         deployment={"id": "test-deployment"},
     )
@@ -761,7 +761,7 @@ async def test_scope_keys_flag_reaches_the_neo4j_store(monkeypatch: pytest.Monke
             },
             "graph": {"provider": "sql_adjacency", "settings": {}},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}, "associative": {"enabled": True}},
         read={"record_access": False},
         deployment={"id": "test-deployment"},

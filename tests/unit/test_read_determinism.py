@@ -25,7 +25,7 @@ FIREWALL_ON: dict[str, Any] = {
     "storage": {
         "records": {"provider": "sqlite", "settings": {"path": ":memory:", "busy_timeout_s": 5.0}}
     },
-    "embedding": {"provider": "hash"},
+    "model": {"embedding": {"provider": "hash"}},
     "read": {
         "record_access": False,
         "scoring": {"recency_weight": 0.0, "importance_weight": 0.0, "utility_weight": 0.0},

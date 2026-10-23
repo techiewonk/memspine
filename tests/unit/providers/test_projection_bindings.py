@@ -160,7 +160,7 @@ def _graph_engine(database: Path, graph_provider: str) -> Engine:
             },
             "graph": {"provider": graph_provider},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"associative": {"enabled": True}},
     )
 
@@ -257,7 +257,7 @@ async def test_engine_rejects_same_primary_mirror_target_before_builder_connects
             "graph_mirror": {"provider": "neo4j", "settings": timeout_settings},
             "graph": {"provider": name, "settings": timeout_settings},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"associative": {"enabled": True}},
         runtime={
             "provider_services": {

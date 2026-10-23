@@ -101,8 +101,8 @@ def build_engine(storage_dir: Path) -> Engine:
         template="core",
         dotenv_path=None,
         storage={"path": str(storage_dir / "golden.db")},
-        embedding={"provider": "hash"},
-        read={"rerank": "off", "record_access": False},
+        model={"embedding": {"provider": "hash"}, "rerank": {"chain": []}},
+        read={"record_access": False},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},

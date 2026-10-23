@@ -23,7 +23,7 @@ def _engine(**extra: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        "embedding": {"provider": "hash"},
+        "model": {"embedding": {"provider": "hash"}},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     }
     config.update(extra)

@@ -112,7 +112,7 @@ async def test_engine_passes_the_newest_record_time_as_year_ref(
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, "temporal_leg": True, "temporal_infer_year": True},
     )

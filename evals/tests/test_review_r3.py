@@ -885,7 +885,9 @@ def test_r4_6_dense_same_embedder_and_matched_budget_arms(
     cfg = experiments.C01Config(
         naive_dense_same_embedder=True,
         matched_budget_tokens=900,
-        memspine_config={"embedding": {"provider": "fastembed", "settings": {"model": "BAAI/x"}}},
+        memspine_config={
+            "model": {"embedding": {"provider": "fastembed", "settings": {"model": "BAAI/x"}}}
+        },
     )
     systems = experiments.build_systems(cfg)
     ids = [s.system_id for s in systems]
@@ -897,7 +899,7 @@ def test_r4_6_dense_same_embedder_and_matched_budget_arms(
     with pytest.raises(ValueError, match="fastembed"):
         experiments.memspine_embedding_model(
             experiments.C01Config(
-                memspine_config={"embedding": {"provider": "litellm", "settings": {}}}
+                memspine_config={"model": {"embedding": {"provider": "litellm", "settings": {}}}}
             )
         )
 

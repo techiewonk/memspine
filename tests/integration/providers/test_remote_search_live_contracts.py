@@ -199,7 +199,7 @@ async def test_engine_builds_selected_remote_vector_and_lexical_providers(tmp_pa
                 },
             },
         },
-        embedding={"provider": "hash", "settings": {"dim": 64}},
+        model={"embedding": {"provider": "hash", "settings": {"dim": 64}}},
         memories={
             "semantic": {"enabled": True},
             "associative": {"enabled": True},

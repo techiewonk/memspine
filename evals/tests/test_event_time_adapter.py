@@ -22,7 +22,9 @@ def test_parse_benchmark_stamps() -> None:
 
 def test_insert_keeps_speaker_and_date_and_renders_dates() -> None:
     async def run() -> str:
-        system = MemspineSystem(config={"embedding": {"provider": "hash"}, "dotenv_path": None})
+        system = MemspineSystem(
+            config={"model": {"embedding": {"provider": "hash"}}, "dotenv_path": None}
+        )
         await system.reset("conv-1")
         await system.insert(
             Turn(

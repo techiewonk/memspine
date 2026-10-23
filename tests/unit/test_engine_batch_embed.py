@@ -165,7 +165,7 @@ async def test_batched_records_and_vectors_match_single_writes(
 
 async def test_batch_larger_than_batch_size_is_chunked(monkeypatch: pytest.MonkeyPatch) -> None:
     spy = SpyEmbedder()
-    engine = await _engine(monkeypatch, spy, embedding={"batch_size": 2})
+    engine = await _engine(monkeypatch, spy, model={"embedding": {"batch_size": 2}})
     try:
         await engine.ingest_messages(_messages(), namespace="chat/chunk")
         assert [len(call) for call in spy.calls] == [2, 2, 1]

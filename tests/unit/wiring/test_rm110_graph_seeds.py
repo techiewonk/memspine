@@ -77,7 +77,7 @@ async def _entity_engine(path: str = ":memory:", **extra: Any) -> Engine:
             "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}},
             **extra.pop("storage", {}),
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},

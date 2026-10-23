@@ -39,7 +39,7 @@ def make_engine(**read: object) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
         **({"read": read} if read else {}),  # type: ignore[arg-type]
     )
@@ -140,7 +140,7 @@ async def int8_engine() -> AsyncIterator[Engine]:
             },
             "vector": {"settings": {"quantization": "int8"}},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
     )
     await eng.start()

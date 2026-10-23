@@ -445,7 +445,7 @@ async def _dump_store(args: argparse.Namespace) -> dict[str, int]:
         template=args.template,
         dotenv_path=None,
         storage={"path": args.store},
-        embedding={"provider": "hash"},
+        model={"embedding": {"provider": "hash"}},
     )
     try:
         return await dump_snapshot(

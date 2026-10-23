@@ -59,7 +59,7 @@ def _engine(key_v2: bool, path: str = ":memory:") -> Engine:
         storage={
             "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}}
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},

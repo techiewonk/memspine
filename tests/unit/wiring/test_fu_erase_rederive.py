@@ -48,7 +48,7 @@ def _engine(path: Path | None = None, rederive: bool = True, **priv: Any) -> Eng
                 },
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": False, "record_access": False, "cache": {"enabled": True}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={"lineage_table": True},

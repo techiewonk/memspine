@@ -107,7 +107,7 @@ async def test_open_lifecycle_and_round_trip() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     )
     try:

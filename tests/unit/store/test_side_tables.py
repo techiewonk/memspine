@@ -146,7 +146,7 @@ def _engine(db: Path, **extra: Any) -> Engine:
         template="core",
         dotenv_path=None,
         storage={"records": {"provider": "sqlite", "settings": storage_settings}},
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         offline={"sleep_v2": True, "sleep_manual_only": True},
         economy={"ledger_v2": True, "ledger_persist": True},
@@ -413,7 +413,7 @@ async def test_postgres_engine_keeps_side_tables_in_the_database(tmp_path: Path)
             }
         },
         deployment={"data_dir": str(data_dir), "id": f"rm111-{uuid.uuid4().hex[:8]}"},
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         offline={"sleep_v2": True, "sleep_manual_only": True},
         economy={"ledger_v2": True, "ledger_persist": True},

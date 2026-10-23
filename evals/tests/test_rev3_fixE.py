@@ -374,7 +374,13 @@ def test_a_reranker_that_never_ran_is_flagged(tmp_path: Path) -> None:
 
 # -- C-6: paid embedder and reranker prices -----------------------------------------
 
-RERANK = {"read": {"rerank": "litellm", "rerank_settings": {"model": "cohere.rerank-v3-5:0"}}}
+RERANK = {
+    "model": {
+        "rerank": {
+            "chain": [{"provider": "litellm", "settings": {"model": "cohere.rerank-v3-5:0"}}]
+        }
+    }
+}
 QA = {"mode": "qa", "bedrock": True, "max_model_calls": 10, "max_usd": 1.0}
 
 
@@ -393,14 +399,13 @@ def test_dollar_cap_refuses_an_unpriced_reranker() -> None:
 
 def test_dollar_cap_refuses_an_unpriced_cloud_embedder() -> None:
     embed = {
-        "embedding": {
-            "provider": "litellm",
-            "settings": {"model": "bedrock/cohere.embed-v4:0"},
+        "model": {
+            "embedding": {"provider": "litellm", "settings": {"model": "bedrock/cohere.embed-v4:0"}}
         }
     }
     with pytest.raises(ValueError, match=re.escape("embed:bedrock/cohere.embed-v4:0")):
         check_dollar_cap(C01Config(include_memspine=True, memspine_config=embed, **QA))
-    local = {"embedding": {"provider": "hash", "settings": {}}}
+    local = {"model": {"embedding": {"provider": "hash", "settings": {}}}}
     check_dollar_cap(C01Config(include_memspine=True, memspine_config=local, **QA))
 
 

@@ -48,7 +48,7 @@ _SPEC = EngineSpec(
     dotenv_path=None,
     overrides={
         "storage": {"records": {"settings": {"path": ":memory:"}}},
-        "embedding": {"provider": "hash"},
+        "model": {"embedding": {"provider": "hash"}},
         "runtime": {
             "provider_services": {
                 "health_timeout_s": 2.0,
@@ -77,7 +77,7 @@ async def container() -> AsyncIterator[Any]:
 async def test_builds_the_default_services(container: Any) -> None:
     resolved = await container.get(ResolvedConfig)
     assert (await container.get(MemspineConfig)) is resolved.config
-    assert resolved.config.embedding.provider == "hash"
+    assert resolved.config.model.embedding.provider == "hash"
     caps = await container.get(Capabilities)
     assert caps.enabled  # the dependency closure of the enabled memory types
     assert isinstance(await container.get(SqlStorage), SqlStorage)
@@ -241,7 +241,7 @@ async def test_job_scope_needs_the_pipeline_hook() -> None:
 async def test_a_ready_config_skips_the_bootstrap() -> None:
     config = MemspineConfig(
         storage={"records": {"settings": {"path": ":memory:"}}},
-        embedding={"provider": "hash"},
+        model={"embedding": {"provider": "hash"}},
         runtime={
             "provider_services": {
                 "health_timeout_s": 2.0,
@@ -273,8 +273,8 @@ def test_resolve_config_preserves_source_provenance_when_freezing() -> None:
 
     resolved = resolve_config(_SPEC, Secrets())
 
-    assert resolved.sources["embedding.provider"] == "kwargs"
-    assert resolved.config.embedding.provider == "hash"
+    assert resolved.sources["model.model.embedding.provider"] == "kwargs"
+    assert resolved.config.model.embedding.provider == "hash"
 
 
 async def test_plugin_pins_in_config_apply(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -317,7 +317,7 @@ async def test_plugin_pins_in_config_apply(monkeypatch: pytest.MonkeyPatch) -> N
         dotenv_path=None,
         overrides={
             "storage": {"records": {"settings": {"path": ":memory:"}}},
-            "embedding": {"provider": "acme"},
+            "model": {"embedding": {"provider": "acme"}},
             "plugins": [pin],
         },
     )
@@ -327,7 +327,7 @@ async def test_plugin_pins_in_config_apply(monkeypatch: pytest.MonkeyPatch) -> N
         await c.get(Capabilities)  # enabling the pins is part of the capability check
         assert "acme" in EMBEDDERS
         config = await c.get(MemspineConfig)
-        descriptor = EMBEDDERS.get(config.embedding.provider)
+        descriptor = EMBEDDERS.get(config.model.embedding.provider)
         assert descriptor.settings_model is EmptySettings
         result = await descriptor.builder.build(EmptySettings(), None)
         assert result.service == "acme-embedder"

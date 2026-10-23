@@ -146,7 +146,7 @@ async def test_two_engines_on_one_file_share_sql_and_survive_one_stop(tmp_path: 
                 },
                 "cache": {"provider": "memory", "settings": {}},
             },
-            embedding={"provider": "hash", "settings": {}},
+            model={"embedding": {"provider": "hash", "settings": {}}},
             memories={"semantic": {"enabled": True}},
         )
 

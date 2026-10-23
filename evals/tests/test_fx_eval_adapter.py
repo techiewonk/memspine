@@ -46,19 +46,20 @@ class _CloseLLM:
 
 def _config(**offline: Any) -> dict[str, Any]:
     return {
-        "embedding": {"provider": "hash", "settings": {}},
+        "model": {
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
+                "session_close": {
+                    "provider": "litellm",
+                    "timeout_s": 30.0,
+                    "settings": {"model": "fake/close"},
+                }
+            },
+        },
         "deployment": {"id": "unit-test"},
         "dotenv_path": None,
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         "offline": {"session_close_v2": True, **offline},
-        "llm": {
-            "roles": {
-                "session_close": {
-                    "provider": "litellm",
-                    "settings": {"model": "fake/close", "timeout_seconds": 30.0},
-                }
-            }
-        },
     }
 
 

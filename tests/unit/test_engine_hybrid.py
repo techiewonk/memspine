@@ -81,7 +81,7 @@ def make_engine(hybrid: bool = False) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": hybrid},
         memories={"semantic": {"enabled": True}},
     )
@@ -153,7 +153,7 @@ async def test_hybrid_enabled_via_config_layer_not_just_kwargs() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
     )
     await eng.start()

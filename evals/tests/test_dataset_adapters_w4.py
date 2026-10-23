@@ -161,7 +161,9 @@ def test_mab_fact_consolidation_runs_offline_with_stub_llm(tmp_path: Path) -> No
         out_dir=tmp_path / "runs",
         expect_model_calls=False,
     )
-    system = MemspineSystem(config={"embedding": {"provider": "hash"}, "dotenv_path": None})
+    system = MemspineSystem(
+        config={"model": {"embedding": {"provider": "hash"}}, "dotenv_path": None}
+    )
 
     async def run_and_close():  # type: ignore[no-untyped-def]
         try:

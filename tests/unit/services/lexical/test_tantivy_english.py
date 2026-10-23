@@ -69,7 +69,7 @@ def _engine(path: Path, analyzer: str) -> Engine:
             },
             "lexical": {"provider": "tantivy", "settings": {"analyzer": analyzer}},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": True, "record_access": False},
     )
 
@@ -125,7 +125,7 @@ async def test_dates_variant_has_its_own_index_and_projector(tmp_path: Path) -> 
                 "settings": {"analyzer": "english", "date_tokens": True},
             },
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": True},
     )
     await eng.start()

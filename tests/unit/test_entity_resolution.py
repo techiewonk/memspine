@@ -157,7 +157,7 @@ def _engine(resolve: str = "llm") -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {
                 "enabled": True,
@@ -319,7 +319,7 @@ async def test_off_by_default_changes_nothing() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
     )
     await eng.start()
@@ -371,7 +371,26 @@ async def test_engine_binds_the_batched_prompts() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
+                "extract_edges": {
+                    "provider": "litellm",
+                    "timeout_s": 30.0,
+                    "settings": {"model": "ollama/llama3"},
+                },
+                "resolve_entity": {
+                    "provider": "litellm",
+                    "timeout_s": 30.0,
+                    "settings": {"model": "ollama/llama3"},
+                },
+                "summarize_entity": {
+                    "provider": "litellm",
+                    "timeout_s": 30.0,
+                    "settings": {"model": "ollama/llama3"},
+                },
+            },
+        },
         memories={
             "semantic": {"enabled": True, "policies": {"extract_graph": {"resolve": "llm"}}},
             "episodic": {"enabled": True},
@@ -379,22 +398,6 @@ async def test_engine_binds_the_batched_prompts() -> None:
                 "enabled": True,
                 "policies": {"entity_nodes": True, "entity_summaries": True},
             },
-        },
-        llm={
-            "roles": {
-                "extract_edges": {
-                    "provider": "litellm",
-                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
-                },
-                "resolve_entity": {
-                    "provider": "litellm",
-                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
-                },
-                "summarize_entity": {
-                    "provider": "litellm",
-                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
-                },
-            }
         },
     )
     await eng.start()
@@ -436,7 +439,7 @@ async def test_forgetting_any_cited_turn_erases_a_session_decision(forget: str) 
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {
                 "enabled": True,

@@ -251,9 +251,9 @@ def bedrock_engine_config(
         settings["query_input_type"] = "search_query"
         settings["document_input_type"] = "search_document"
     return {
-        "embedding": {"provider": "litellm", "settings": settings},
-        "llm": {
-            "roles": {
+        "model": {
+            "embedding": {"provider": "litellm", "settings": settings},
+            "llm": {
                 role: {
                     "provider": "litellm",
                     "settings": {
@@ -263,7 +263,7 @@ def bedrock_engine_config(
                     },
                 }
                 for role in roles
-            }
+            },
         },
         "deployment": {"id": "bedrock-evaluation"},
     }

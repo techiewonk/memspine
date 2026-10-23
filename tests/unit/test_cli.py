@@ -77,7 +77,7 @@ def test_forget_hard_verify_exit_codes(tmp_path: Path) -> None:
                     "settings": {"path": str(db), "busy_timeout_s": 5.0},
                 }
             },
-            embedding={"provider": "hash", "settings": {}},
+            model={"embedding": {"provider": "hash", "settings": {}}},
         )
         await eng.start()
         record = await eng.write("a secret to erase", namespace="default")
@@ -121,7 +121,7 @@ def test_export_writes_jsonl(tmp_path: Path) -> None:
                     "settings": {"path": str(db), "busy_timeout_s": 5.0},
                 }
             },
-            embedding={"provider": "hash", "settings": {}},
+            model={"embedding": {"provider": "hash", "settings": {}}},
         )
         await eng.start()
         record = await eng.write("Ana likes green tea", namespace="user/ana")

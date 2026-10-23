@@ -23,7 +23,7 @@ def _engine(path: Path) -> Engine:
             },
             "cache": {"provider": "memory", "settings": {}},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
     )
 

@@ -22,7 +22,7 @@ def _engine(mine: bool) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {"enabled": True, "policies": policies},
             "semantic": {"enabled": True},
@@ -178,7 +178,7 @@ async def test_mine_by_topic_calls_the_miner_once_per_segment(
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {
                 "enabled": True,

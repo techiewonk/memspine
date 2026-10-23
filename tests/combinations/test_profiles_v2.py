@@ -97,16 +97,17 @@ def _overrides(name: str, db: str | Path) -> dict[str, Any]:
         "storage": {
             "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
         },
-        "embedding": {"provider": "hash", "settings": {}},
-        "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        "llm": {
-            "roles": {
+        "model": {
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
                 "window_extract": {
                     "provider": "litellm",
-                    "settings": {"model": "stub/window", "timeout_seconds": 10.0},
+                    "timeout_s": 10.0,
+                    "settings": {"model": "stub/window"},
                 }
-            }
+            },
         },
+        "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         "write": {"window_async": False, "window_idle_s": 0.0},
         "economy": {"ledger_v2": True},
     }

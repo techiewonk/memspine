@@ -23,7 +23,7 @@ def _engine(read: dict[str, Any] | None = None, **extra: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories=memories,
         read={"hybrid": False, **(read or {})},
         **extra,

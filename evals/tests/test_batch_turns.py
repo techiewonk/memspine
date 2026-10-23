@@ -21,7 +21,7 @@ from memspine_evals.readers import ScriptedReader
 from memspine_evals.runner import EvalRunner, RunConfig
 from memspine_evals.systems.memspine_system import MemspineSystem
 
-_HASH = {"embedding": {"provider": "hash"}, "dotenv_path": None}
+_HASH = {"model": {"embedding": {"provider": "hash"}}, "dotenv_path": None}
 
 
 def _turns() -> list[Turn]:

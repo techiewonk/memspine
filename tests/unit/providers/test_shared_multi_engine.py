@@ -48,7 +48,7 @@ def _engine(path: Path | str, **overrides: Any) -> Engine:
                 "settings": {"path": str(path), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         **overrides,
     )
 
@@ -105,7 +105,7 @@ async def test_different_settings_get_their_own_resources(tmp_path: Path) -> Non
                 "settings": {"path": str(tmp_path / "a.db"), "busy_timeout_s": 9.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": False},  # a's Tantivy writer stays the only one on its path
     )
     engines = (base, other_path, other_knobs)

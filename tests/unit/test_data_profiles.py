@@ -49,13 +49,13 @@ def test_no_timestamps_turns_the_date_features_off() -> None:
 
 def test_real_timestamps_turn_the_date_prefix_on() -> None:
     got = _cfg(overrides={"data_profile": "auto", "data_shape": {"has_timestamps": True}}).config
-    assert got.read.render == "dated" and got.read.rerank_date_prefix
+    assert got.read.render == "dated" and got.model.rerank.date_prefix
 
 
 def test_long_turns_use_the_token_window_and_chunked_rerank() -> None:
     got = _cfg(overrides={"data_profile": "auto", "data_shape": {"turn_length": "long"}}).config
     assert got.read.replay_window_unit == "tokens"
-    assert got.read.rerank_chunk_chars == 2000
+    assert got.model.rerank.chunk_chars == 2000
 
 
 def test_named_speakers_vs_chat_roles() -> None:
@@ -137,7 +137,7 @@ async def test_chat_roles_profile_stops_assistant_boilerplate_quarantine() -> No
                     "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
                 }
             },
-            embedding={"provider": "hash", "settings": {}},
+            model={"embedding": {"provider": "hash", "settings": {}}},
             **kw,  # type: ignore[arg-type]
         )
         await eng.start()

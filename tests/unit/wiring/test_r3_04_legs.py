@@ -224,7 +224,7 @@ async def test_l1_legs_return_empty_on_the_no_model_template() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": True, "record_access": False},
     )
@@ -297,7 +297,7 @@ async def _engine(**read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": True, "record_access": False, **read},
     )

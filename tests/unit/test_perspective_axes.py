@@ -91,7 +91,7 @@ async def test_i55_invariant_one_active_state_per_owner_entity_attribute_subject
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {"enabled": True, "policies": {"conflict": {"perspective_key": True}}}
         },

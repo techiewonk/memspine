@@ -33,7 +33,7 @@ async def _engine(**isolation: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": False, "record_access": False},
         memories={
             "semantic": {"enabled": True},

@@ -30,7 +30,7 @@ ROLE = {
 }
 #: R3-12: one sufficiency check, at most one rewrite and one extra retrieval; without a bound role the deep tier
 #: is rules-only and logs ``agentic_unbound`` (audit finding 4)
-SUFF = {"llm": {"roles": {"sufficiency": ROLE}}}
+SUFF = {"model": {"llm": {"sufficiency": ROLE}}}
 #: a quarter of the 4096-token cap stays for the evidence: the reply reserve takes the other three quarters, so
 #: the budget binds (audit finding 6; the arms use candidate_pool 2 / rerank_keep 10 / list_mode)
 TIGHT = {"read": {"reply_reserve_tokens": 3072}}
@@ -60,10 +60,10 @@ B7: dict[str, tuple[str, dict]] = {
 B8: dict[str, dict] = {
     "read-v2-core": {},
     # FX-EVAL: summarize feeds communities_v2 summaries (extractive without it)
-    "read-v2-graph": {"llm": {"roles": {"session_close": ROLE, "summarize": ROLE}}},
-    "write-v2": {"write": {"window_async": False}, "llm": {"roles": {"window_extract": ROLE}}},
+    "read-v2-graph": {"model": {"llm": {"session_close": ROLE, "summarize": ROLE}}},
+    "write-v2": {"write": {"window_async": False}, "model": {"llm": {"window_extract": ROLE}}},
     "read-v2-safe": SUFF,
-    "offline-v2": {"llm": {"roles": {"session_close": ROLE, "summarize": ROLE}}},
+    "offline-v2": {"model": {"llm": {"session_close": ROLE, "summarize": ROLE}}},
     "trust-v2": {},
     "run-v2": {},
 }

@@ -27,7 +27,7 @@ def _engine(tmp_path: Any, **read: Any) -> Engine:
                 "settings": {"path": str(tmp_path / "t.db"), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"rerank": "off", "record_access": False, **read},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     )

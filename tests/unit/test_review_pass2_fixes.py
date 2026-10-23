@@ -37,7 +37,7 @@ def _engine(**extra: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        "embedding": {"provider": "hash"},
+        "model": {"embedding": {"provider": "hash"}},
         "memories": {
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},
@@ -88,7 +88,7 @@ async def test_n2_consolidation_summary_is_non_privileged_and_parent_capped() ->
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()  # the default (simple) profile: consolidation must still run
     try:

@@ -181,7 +181,7 @@ async def _run_trace_in_scope(database: Path) -> dict[str, Any]:
             "vector": {"provider": "lancedb", "settings": {"isolation": "shared"}},
             "lexical": {"provider": "tantivy", "settings": {}},
         },
-        "embedding": {"provider": "hash", "settings": {"dim": 64}},
+        "model": {"embedding": {"provider": "hash", "settings": {"dim": 64}}},
         "read": {**CONFIG["read"], "hybrid": True},
         "deployment": CONFIG["deployment"],
         "observability": {"tap": {"enabled": True, "sink": "memory", "content": False}},

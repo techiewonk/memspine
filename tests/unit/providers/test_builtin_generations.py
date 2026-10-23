@@ -401,7 +401,7 @@ async def test_tantivy_switch_replays_then_engine_reopens_activated_generation(
                     "settings": {"analyzer": "default", "date_tokens": False},
                 },
             },
-            embedding={"provider": "hash", "settings": {}},
+            model={"embedding": {"provider": "hash", "settings": {}}},
             read={"hybrid": True},
         )
 

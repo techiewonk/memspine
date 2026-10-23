@@ -52,7 +52,7 @@ async def _engine() -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},
@@ -278,10 +278,9 @@ async def test_topic_tagger_runs_only_when_bound() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        models={
-            "profiles": {"topics": {"kind": "gliner", "provider": "gliner2"}},
-            "bindings": {"gliner_topic": "topics"},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "extraction": {"topic": {"provider": "gliner2"}},
         },
     )
     await bound.start()

@@ -24,7 +24,7 @@ async def _run(verdict: str, contradictions: bool = True) -> tuple[list, dict, l
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {
                 "enabled": True,

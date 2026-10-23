@@ -47,7 +47,7 @@ async def test_engine_change_control_is_explicit_deployment_scoped_and_lifetime_
         template="core",
         dotenv_path=None,
         storage={"records": {"settings": {"path": ":memory:", "busy_timeout_s": 5.0}}},
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         deployment={"id": "control-test"},
     )
     async with engine:

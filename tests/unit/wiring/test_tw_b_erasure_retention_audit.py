@@ -38,7 +38,7 @@ def _engine(path: Path | None = None, **over: Any) -> Engine:
                 },
             }
         },
-        "embedding": {"provider": "hash", "settings": {}},
+        "model": {"embedding": {"provider": "hash", "settings": {}}},
         "read": {"hybrid": False, "record_access": False, "cache": {"enabled": True}},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     }

@@ -20,7 +20,7 @@ def _engine(path: Path, isolation: str) -> Engine:
             },
             "vector": {"provider": "lancedb", "settings": {"isolation": isolation}},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"record_access": False},
     )
 

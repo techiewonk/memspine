@@ -78,14 +78,15 @@ async def test_engine_routes_litellm_model_prefix() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        llm={
-            "roles": {
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
                 "chat": {
                     "provider": "litellm",
-                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "openai/gpt-4o"},
                 }
-            }
+            },
         },
     )
     await eng.start()
@@ -107,14 +108,9 @@ async def test_engine_empty_model_raises() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        llm={
-            "roles": {
-                "chat": {
-                    "provider": "litellm",
-                    "settings": {"model": "", "timeout_seconds": 30.0},
-                }
-            }
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {"chat": {"provider": "litellm", "timeout_s": 30.0, "settings": {"model": ""}}},
         },
     )
     with pytest.raises(ConfigError, match=r"invalid settings for llm\.litellm.*model"):
@@ -142,12 +138,14 @@ async def test_litellm_embedder_requires_dim() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={
-            "provider": "litellm",
-            "settings": {
-                "model": "custom/embedding-model-with-unknown-dimension",
-                "request_timeout_s": 30.0,
-            },
+        model={
+            "embedding": {
+                "provider": "litellm",
+                "settings": {
+                    "model": "custom/embedding-model-with-unknown-dimension",
+                    "request_timeout_s": 30.0,
+                },
+            }
         },
         memories={"semantic": {"enabled": True}},
     )
@@ -169,15 +167,21 @@ async def test_read_rerank_litellm_accepted_at_start() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        memories={"semantic": {"enabled": True}},
-        read={
-            "rerank": "litellm",
-            "rerank_settings": {
-                "model": "cohere/rerank-english-v3.0",
-                "request_timeout_s": 30.0,
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "rerank": {
+                "chain": [
+                    {
+                        "provider": "litellm",
+                        "settings": {
+                            "model": "cohere/rerank-english-v3.0",
+                            "request_timeout_s": 30.0,
+                        },
+                    }
+                ]
             },
         },
+        memories={"semantic": {"enabled": True}},
     )
     await eng.start()  # must NOT raise
     try:

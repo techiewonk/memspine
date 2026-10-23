@@ -611,7 +611,7 @@ async def engine_read(
             },
             "graph": {"provider": provider},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {"enabled": True},
             "episodic": {"enabled": True},

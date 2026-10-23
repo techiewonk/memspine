@@ -51,7 +51,7 @@ async def build(db: Path | str, **write: Any) -> Engine:
         storage={
             "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},
@@ -92,7 +92,7 @@ async def test_default_config_uses_canonical_gateway(tmp_path: Path) -> None:
                 "settings": {"path": str(tmp_path / "default.db"), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
     )
     await eng.start()
@@ -266,16 +266,17 @@ async def _windowed(db: Path, outbox: bool) -> Engine:
         storage={
             "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
         },
-        embedding={"provider": "hash", "settings": {}},
-        memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        llm={
-            "roles": {
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
                 "window_extract": {
                     "provider": "litellm",
-                    "settings": {"model": "stub/window", "timeout_seconds": 60.0},
+                    "timeout_s": 60.0,
+                    "settings": {"model": "stub/window"},
                 }
-            }
+            },
         },
+        memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={
             "window_extract": "facts",
             "window_async": False,

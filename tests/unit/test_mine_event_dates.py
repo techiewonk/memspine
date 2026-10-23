@@ -33,7 +33,7 @@ def _engine(**consolidation: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {
                 "enabled": True,
@@ -151,7 +151,7 @@ async def test_relative_week_applies_to_mined_dates(monkeypatch: pytest.MonkeyPa
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"relative_week": "preceding_7_days"},
         memories={
             "episodic": {

@@ -262,7 +262,14 @@ async def test_memory_store_pins_nothing() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "profile": "fake_a", "pin_profile": True, "settings": {}},
+        model={
+            "embedding": {
+                "provider": "hash",
+                "preset": "fake_a",
+                "pin_preset": True,
+                "settings": {},
+            }
+        },
         memories={"semantic": {"enabled": True}},
     )
     await eng.start()

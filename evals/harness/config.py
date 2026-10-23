@@ -683,7 +683,7 @@ class RunConfig(BaseModel):
 #: the cache (slow, correct) instead of under-invalidating it (fast, wrong).
 _READ_ONLY_OVERRIDE_PREFIXES: Final[tuple[str, ...]] = (
     "read.hybrid",
-    "read.rerank",
+    "model.rerank.chain",
     "read.static_prefilter",
     "read.assembly.",
     "read.compression.",

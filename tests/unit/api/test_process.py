@@ -47,7 +47,7 @@ def _spec(db: Path | str = ":memory:", **shared_resources: Any) -> EngineSpec:
                     "settings": {"path": str(db), "busy_timeout_s": 5.0},
                 }
             },
-            "embedding": {"provider": "hash", "settings": {}},
+            "model": {"embedding": {"provider": "hash", "settings": {}}},
             "read": {"hybrid": True},
             "runtime": {"shared_resources": shared_resources},
         },

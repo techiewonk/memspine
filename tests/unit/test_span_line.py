@@ -36,7 +36,7 @@ async def _read(query: str, **read: Any) -> list[str]:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, **read},
     )

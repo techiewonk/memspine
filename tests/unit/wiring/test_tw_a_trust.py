@@ -38,7 +38,7 @@ def _engine(**sections: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},
@@ -273,7 +273,7 @@ async def test_consent_registry_survives_restart_from_the_log(tmp_path: Any) -> 
                     "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
                 }
             },
-            embedding={"provider": "hash", "settings": {}},
+            model={"embedding": {"provider": "hash", "settings": {}}},
             memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
             consent={"v2": True},
         )

@@ -28,7 +28,7 @@ def _engine(**overrides: Any) -> Engine:
         template="core",
         dotenv_path=None,
         storage=storage,
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         **overrides,
     )
 

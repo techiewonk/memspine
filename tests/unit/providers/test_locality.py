@@ -177,7 +177,7 @@ def test_slots_that_are_not_built_are_not_checked() -> None:
             {"workers": {"runner": "temporal", "temporal": {"deployment_id": "d1"}}},
             "workers.resonate.journal_path",
         ),
-        ({"embedding": {"pin_profile": True}}, "embedding.pin_profile"),
+        ({"model": {"embedding": {"pin_preset": True}}}, "model.embedding.pin_preset"),
         ({"ingest": {"assets": "on", "asset_dir": "/var/cache/assets"}}, "ingest.asset_dir"),
     ],
 )
@@ -291,7 +291,7 @@ def test_documents_with_an_explicit_root_need_no_data_dir() -> None:
 
 
 def test_pin_file_needs_data_dir_on_a_non_file_records_store() -> None:
-    config = _config(storage=_cluster_storage(), embedding={"pin_profile": True})
+    config = _config(storage=_cluster_storage(), model={"embedding": {"pin_preset": True}})
     with pytest.raises(DeploymentLocalityError, match=r"embedding\.pin_profile writes a pin file"):
         validate_deployment_locality(config)
 
@@ -308,7 +308,7 @@ async def test_engine_refuses_before_opening_anything(tmp_path: Path) -> None:
         dotenv_path=None,
         deployment={"locality": "multi_node"},
         storage={"records": _sqlite(database)},
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     with pytest.raises(ConfigError, match="deployment.locality=multi_node"):
         await eng.start()
@@ -323,7 +323,7 @@ async def test_engine_refuses_a_non_writer_process_before_opening_tantivy(tmp_pa
         dotenv_path=None,
         deployment={"locality": "multi_process"},
         storage={"records": _sqlite(tmp_path / "w.db")},
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": True},
     )
     with pytest.raises(ConfigError, match="storage.lexical provider 'tantivy' is a single-writer"):

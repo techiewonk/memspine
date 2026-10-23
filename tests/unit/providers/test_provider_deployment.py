@@ -21,7 +21,7 @@ async def test_deployment_checks_preserve_data_and_do_not_probe_models(
         runtime={"environment": environment},
         deployment={"id": "deployment-validation-test"},
         storage={"records": {"settings": {"path": str(tmp_path / "events.db")}}},
-        embedding={"provider": "hash"},
+        model={"embedding": {"provider": "hash"}},
     )
     await engine.start()
     try:

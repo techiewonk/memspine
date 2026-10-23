@@ -133,22 +133,24 @@ async def _engine(
                 "settings": {"path": str(path), "busy_timeout_s": 5.0},
             }
         },
-        "embedding": {"provider": "hash", "settings": {}},
-        "read": {"rerank": "off", "record_access": True},
+        "model": {
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
+                "window_extract": {
+                    "provider": "litellm",
+                    "timeout_s": 30.0,
+                    "settings": {"model": "fake/window"},
+                }
+            },
+            "rerank": {"chain": []},
+        },
+        "read": {"record_access": True},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         "write": {
             "window_extract": "all",
             "window_async": False,
             "window_idle_s": 0.0,
             **(write or {}),
-        },
-        "llm": {
-            "roles": {
-                "window_extract": {
-                    "provider": "litellm",
-                    "settings": {"model": "fake/window", "timeout_seconds": 30.0},
-                }
-            }
         },
         "observability": {
             "inspect": inspect,
@@ -451,18 +453,21 @@ async def test_read_side_events(monkeypatch) -> None:
         inspect=True,
         content=True,
         roles={"plan": PlanLLM()},
-        read={"rerank": "off", "record_access": True, "planner": "llm"},
-        llm={
-            "roles": {
+        read={"record_access": True, "planner": "llm"},
+        model={
+            "llm": {
                 "window_extract": {
                     "provider": "litellm",
-                    "settings": {"model": "fake/window", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "fake/window"},
                 },
                 "plan": {
                     "provider": "litellm",
-                    "settings": {"model": "fake/plan", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "fake/plan"},
                 },
-            }
+            },
+            "rerank": {"chain": []},
         },
     )
     try:

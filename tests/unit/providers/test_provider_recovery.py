@@ -367,7 +367,7 @@ async def test_engine_provider_changes_uses_injected_recovery_guard(tmp_path) ->
             },
             "cache": {"provider": "memory", "settings": {}},
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"semantic": {"enabled": True}},
         provider_change_runtime=ProviderChangeRuntime(
             revision_guard=_RevisionGuard(),

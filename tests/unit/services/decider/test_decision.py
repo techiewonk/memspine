@@ -217,9 +217,11 @@ def _engine(**extra: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "decider": {"route": {"provider": "gliner2"}},
+        },
         read={"hybrid": False, "planner": "decision"},
-        decision={"provider": "gliner2"},
         models=models,
         **extra,
     )
@@ -256,8 +258,7 @@ async def test_core_start_does_not_import_or_load_gliner_when_off(
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        decision={"provider": "off"},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     try:
@@ -267,18 +268,7 @@ async def test_core_start_does_not_import_or_load_gliner_when_off(
 
 
 async def test_enabled_consumer_requires_its_configured_gliner_task() -> None:
-    eng = _engine(
-        models={
-            "profiles": {
-                "gliner-default": {
-                    "kind": "gliner",
-                    "provider": "gliner2",
-                    "settings": {"tasks": ["entities"]},
-                }
-            },
-            "bindings": {"gliner_decision": "gliner-default"},
-        }
-    )
+    eng = _engine()
     with pytest.raises(ConfigError, match="classification"):
         await eng.start()
 
@@ -414,12 +404,12 @@ async def test_engine_injects_one_owned_pool_into_enabled_consumers(
             "online_extractor_v2": True,
         },
         models={
-            "gliner_max_models": 2,
             "bindings": {
                 "gliner_semantic": "gliner-default",
                 "gliner_prepass": "gliner-default",
             },
         },
+        model={"placement": {"max_loaded_models": 2}},
     )
     await eng.start()
     try:
@@ -476,30 +466,12 @@ async def test_engine_profiles_select_distinct_models_and_share_equal_settings(
             "window_extract": "facts",
             "online_extractor_v2": True,
         },
-        models={
-            "gliner_max_models": 2,
-            "profiles": {
-                "semantic-a": {
-                    "kind": "gliner",
-                    "provider": "gliner2",
-                    "settings": shared_entities,
-                },
-                "prepass-copy": {
-                    "kind": "gliner",
-                    "provider": "gliner2",
-                    "settings": shared_entities,
-                },
-                "decision-b": {
-                    "kind": "gliner",
-                    "provider": "gliner2",
-                    "settings": {"model": "fake/classification", "tasks": ["classification"]},
-                },
+        model={
+            "extraction": {
+                "semantic": {"provider": "gliner2", "settings": shared_entities},
+                "prepass": {"provider": "gliner2", "settings": shared_entities},
             },
-            "bindings": {
-                "gliner_semantic": "semantic-a",
-                "gliner_prepass": "prepass-copy",
-                "gliner_decision": "decision-b",
-            },
+            "placement": {"max_loaded_models": 2},
         },
     )
     await eng.start()
@@ -556,16 +528,12 @@ async def test_confidence_gate_keeps_the_default_mode(
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "decider": {"route": {"provider": "gliner2", "settings": {}}},
+        },
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "planner": "decision", "planner_min_confidence": gate},
-        decision={"provider": "gliner2"},
-        models={
-            "profiles": {
-                "gliner-default": {"kind": "gliner", "provider": "gliner2", "settings": {}}
-            },
-            "bindings": {"gliner_decision": "gliner-default"},
-        },
     )
     await eng.start()
     try:
@@ -601,15 +569,11 @@ async def test_bare_label_confidence_is_unknown_not_sure(
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        read={"hybrid": False, "planner": "decision", "planner_min_confidence": gate},
-        decision={"provider": "gliner2"},
-        models={
-            "profiles": {
-                "gliner-default": {"kind": "gliner", "provider": "gliner2", "settings": {}}
-            },
-            "bindings": {"gliner_decision": "gliner-default"},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "decider": {"route": {"provider": "gliner2", "settings": {}}},
         },
+        read={"hybrid": False, "planner": "decision", "planner_min_confidence": gate},
     )
     await eng.start()
     try:
@@ -666,15 +630,11 @@ async def test_rules_route_before_the_provider(
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        read={"hybrid": False, "planner": "decision", "planner_min_confidence": 0.99},
-        decision={"provider": "gliner2"},
-        models={
-            "profiles": {
-                "gliner-default": {"kind": "gliner", "provider": "gliner2", "settings": {}}
-            },
-            "bindings": {"gliner_decision": "gliner-default"},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "decider": {"route": {"provider": "gliner2", "settings": {}}},
         },
+        read={"hybrid": False, "planner": "decision", "planner_min_confidence": 0.99},
     )
     await eng.start()
     try:

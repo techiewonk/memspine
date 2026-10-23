@@ -595,17 +595,18 @@ async def test_engine_flag_on_gives_the_same_facts_and_releases_the_gate(
                     "settings": {"path": str(tmp_path / f"{on}.db"), "busy_timeout_s": 5.0},
                 }
             },
-            embedding={"provider": "hash", "settings": {}},
-            memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-            write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0},
-            llm={
-                "roles": {
+            model={
+                "embedding": {"provider": "hash", "settings": {}},
+                "llm": {
                     "window_extract": {
                         "provider": "litellm",
-                        "settings": {"model": "fake/window", "timeout_seconds": 20.0},
+                        "timeout_s": 20.0,
+                        "settings": {"model": "fake/window"},
                     }
-                }
+                },
             },
+            memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
+            write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0},
             workers={"outbox": True},
             runtime=runtime,
         )

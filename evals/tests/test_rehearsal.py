@@ -42,7 +42,7 @@ SMALL_PLAN: dict[str, Any] = {
     "protocol": {"mode": "qa", "bedrock": True, "memspine_llm": "bedrock-qwen3"},
     "memspine_base": {
         "read_mode": "replay",
-        "config": {"embedding": {"provider": "hash"}, "read": {"record_access": False}},
+        "config": {"model": {"embedding": {"provider": "hash"}}, "read": {"record_access": False}},
     },
     "projection_assumptions": {"completion_tokens": {"reader": 20, "judge": 10, "extract": 500}},
     "arms": [

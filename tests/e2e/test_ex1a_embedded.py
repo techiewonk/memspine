@@ -174,18 +174,18 @@ def _overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[s
         "storage": {
             "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
         },
-        "embedding": {"provider": "hash"},
+        "model": {
+            "embedding": {"provider": "hash"},
+            "llm": {
+                "window_extract": {"provider": "litellm", "settings": {"model": "stub/window"}},
+                "session_close": {"provider": "litellm", "settings": {"model": "stub/close"}},
+            },
+        },
         "memories": {
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},
             "shared": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
-        },
-        "llm": {
-            "roles": {
-                "window_extract": {"provider": "litellm", "settings": {"model": "stub/window"}},
-                "session_close": {"provider": "litellm", "settings": {"model": "stub/close"}},
-            }
         },
         "read": {
             "hybrid": False,

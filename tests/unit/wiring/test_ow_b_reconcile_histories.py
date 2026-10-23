@@ -32,7 +32,7 @@ def _engine(path: Path, *, reconcile: bool = False, histories: bool = False, lin
                 "settings": {"path": str(path / "m.db"), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         offline={"reconcile_v2": reconcile, "histories_v2": histories},
         write={"lineage_table": lineage},

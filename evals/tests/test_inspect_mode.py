@@ -13,7 +13,7 @@ import pytest
 from memspine_evals.contracts import Turn
 from memspine_evals.systems.memspine_system import MemspineSystem
 
-_HASH = {"embedding": {"provider": "hash"}, "dotenv_path": None, "read": {"rerank": "off"}}
+_HASH = {"model": {"embedding": {"provider": "hash"}, "rerank": {"chain": []}}, "dotenv_path": None}
 
 
 def _turns() -> list[Turn]:

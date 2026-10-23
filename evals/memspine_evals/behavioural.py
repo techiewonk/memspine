@@ -139,8 +139,8 @@ def default_engine_factory(storage_dir: Path) -> Any:
         template="core",
         dotenv_path=None,
         storage={"path": str(storage_dir / "behavioural.db")},
-        embedding={"provider": "hash"},
-        read={"rerank": "off", "record_access": False},
+        model={"embedding": {"provider": "hash"}, "rerank": {"chain": []}},
+        read={"record_access": False},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     )
 

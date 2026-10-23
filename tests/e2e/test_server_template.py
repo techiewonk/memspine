@@ -67,7 +67,7 @@ async def test_server_template_boots_on_postgres(tmp_path: Path) -> None:
             },
             **vector,
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
     )
     await eng.start()
     try:

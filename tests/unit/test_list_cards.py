@@ -55,7 +55,7 @@ def _engine(read: dict[str, Any] | None = None, **consolidation: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": False, "record_access": False, **(read or {})},
         memories={
             "episodic": {
@@ -458,7 +458,7 @@ def _claim_engine(**top: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={
             "hybrid": False,
             "record_access": False,

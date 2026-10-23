@@ -161,7 +161,7 @@ READ_SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ),
     (
         "rerank",
-        ("read.rerank", "models.rerank", "read.coverage_select"),
+        ("model.rerank.chain", "models.rerank", "read.coverage_select"),
     ),
     ("headers / pack", ("compose.", "read.retrieve.writeback", "read.contract.header")),
 )
@@ -210,7 +210,8 @@ def offline_config(
     if not keep_models and emb.get("provider") not in (None, "hash"):
         model = (emb.get("settings") or {}).get("model")
         notes.append(f"embedder: hash (arm uses {emb.get('provider')}:{model})")
-        out["embedding"] = {"provider": "hash", "settings": {}}
+        out.setdefault("model", {}).setdefault("embedding", {})["provider"] = "hash"
+        out.setdefault("model", {}).setdefault("embedding", {})["settings"] = {}
     read = dict(out.get("read") or {})
     if not keep_models and read.get("rerank") not in (None, "off"):
         notes.append(f"reranker: off (arm uses {read.get('rerank')})")

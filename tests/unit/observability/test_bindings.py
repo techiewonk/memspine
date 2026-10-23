@@ -37,7 +37,7 @@ def _engine(path: Path, **overrides: Any) -> Engine:
                 "settings": {"path": str(path), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         **overrides,
     )
 

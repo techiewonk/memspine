@@ -52,7 +52,7 @@ async def test_pgvector_native_projection_contract(tmp_path: Path) -> None:
                 },
                 "cache": {"provider": "memory", "settings": {}},
             },
-            embedding={"provider": "hash", "settings": {"dim": 64}},
+            model={"embedding": {"provider": "hash", "settings": {"dim": 64}}},
             memories={"semantic": {"enabled": True}},
         )
 

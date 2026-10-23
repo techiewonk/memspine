@@ -174,7 +174,7 @@ async def evaluate() -> dict[str, Any]:
                     "cache": {"provider": "memory", "settings": {}},
                     "lexical": {"provider": "tantivy", "settings": {}},
                 },
-                embedding={"provider": "hash", "settings": {"dim": DIMENSION}},
+                model={"embedding": {"provider": "hash", "settings": {"dim": DIMENSION}}},
                 read={"hybrid": True},
             )
             await engine.start()

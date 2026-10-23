@@ -177,11 +177,9 @@ async def _engine(
                 "settings": {"path": str(path), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        memories={"episodic": {"enabled": True}, "semantic": semantic},
-        write={"window_extract": mode, "window_async": False, "window_idle_s": 0.0, **write},
-        llm={
-            "roles": {
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
                 "window_extract": {
                     "provider": "litellm",
                     "settings": {"model": "fake/window", "timeout_seconds": 60.0},
@@ -193,8 +191,10 @@ async def _engine(
                     }
                     for r in (extra_roles or {})
                 },
-            }
+            },
         },
+        memories={"episodic": {"enabled": True}, "semantic": semantic},
+        write={"window_extract": mode, "window_async": False, "window_idle_s": 0.0, **write},
         **({"firewall": firewall} if firewall is not None else {}),
     )
     await eng.start()
@@ -413,7 +413,7 @@ async def test_off_by_default_is_inert() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     )
     await eng.start()
@@ -436,7 +436,7 @@ async def test_missing_role_or_layer_fails_at_start() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={"window_extract": "facts"},
     )
@@ -782,7 +782,7 @@ async def test_close_session_without_windows_runs_only_the_stub() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
     )
     await eng.start()

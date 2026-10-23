@@ -20,7 +20,7 @@ async def test_brief_shows_the_last_turns_oldest_first_within_budget() -> None:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
     )
     await eng.start()

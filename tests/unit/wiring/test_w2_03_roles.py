@@ -308,7 +308,7 @@ async def build_gateway(tmp_path: Path, **write: Any) -> Engine:
                 "settings": {"path": str(tmp_path / "gw.db"), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},

@@ -29,7 +29,7 @@ def _engine() -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": False},
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
         audit={"actions": True},

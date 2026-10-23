@@ -23,7 +23,7 @@ async def test_relation_types_drop_undeclared_edges_and_hints_reach_the_extracto
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {
                 "enabled": True,

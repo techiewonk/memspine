@@ -19,28 +19,11 @@
   "list_mode": true,
   "perspective_mode": "subject_weight",
   "pool_protect_per_leg": 3,
-  "rerank": "jina",
-  "rerank_settings": {
-   "model": "jinaai/jina-reranker-v3.5",
-   "device": "cuda"
-  },
-  "rerank_keep": 10,
-  "rerank_floor": "skip",
   "graph_leg": true,
   "graph_leg_k": 10,
   "graph_depth": 2,
   "graph_node_search": true,
   "entity_summaries": true
- },
- "embedding": {
-  "provider": "st",
-  "settings": {
-   "model": "Qwen/Qwen3-Embedding-0.6B",
-   "dim": 1024,
-   "device": "cuda",
-   "dtype": "bfloat16",
-   "query_instruction": "Instruct: Given a question about a user's past conversations, retrieve memories that answer it\nQuery: "
-  }
  },
  "storage": {
   "records": {
@@ -76,37 +59,6 @@
  "graph": {
   "entity_embeddings": true
  },
- "llm": {
-  "roles": {
-   "extract_edges": {
-    "settings": {
-     "model": "ollama/qwen3.5:9b",
-     "api_base": "http://127.0.0.1:11434",
-     "timeout_seconds": 180.0,
-     "no_think": true
-    }
-   },
-   "summarize_entity": {
-    "settings": {
-     "model": "ollama/qwen3.5:9b",
-     "api_base": "http://127.0.0.1:11434",
-     "timeout_seconds": 180.0,
-     "no_think": true
-    }
-   },
-   "window_extract": {
-    "settings": {
-     "model": "ollama/qwen3.5:9b",
-     "api_base": "http://127.0.0.1:11434",
-     "timeout_seconds": 180.0,
-     "no_think": true
-    }
-   }
-  },
-  "structured": {
-   "retry_on_error": true
-  }
- },
  "write": {
   "window_extract": "facts",
   "segmentation_v2": true,
@@ -120,5 +72,65 @@
   "resolver_v2": true,
   "integration_v2": true,
   "window_async": false
+ },
+ "model": {
+  "embedding": {
+   "provider": "st",
+   "settings": {
+    "model": "Qwen/Qwen3-Embedding-0.6B",
+    "dim": 1024,
+    "device": "cuda",
+    "dtype": "bfloat16",
+    "query_instruction": "Instruct: Given a question about a user's past conversations, retrieve memories that answer it\nQuery: "
+   }
+  },
+  "llm": {
+   "extract_edges": {
+    "timeout_s": 180.0,
+    "settings": {
+     "model": "ollama/qwen3.5:9b",
+     "api_base": "http://127.0.0.1:11434",
+     "no_think": true
+    },
+    "structured": {
+     "retry_on_error": true
+    }
+   },
+   "summarize_entity": {
+    "timeout_s": 180.0,
+    "settings": {
+     "model": "ollama/qwen3.5:9b",
+     "api_base": "http://127.0.0.1:11434",
+     "no_think": true
+    },
+    "structured": {
+     "retry_on_error": true
+    }
+   },
+   "window_extract": {
+    "timeout_s": 180.0,
+    "settings": {
+     "model": "ollama/qwen3.5:9b",
+     "api_base": "http://127.0.0.1:11434",
+     "no_think": true
+    },
+    "structured": {
+     "retry_on_error": true
+    }
+   }
+  },
+  "rerank": {
+   "chain": [
+    {
+     "provider": "jina",
+     "settings": {
+      "model": "jinaai/jina-reranker-v3.5",
+      "device": "cuda"
+     }
+    }
+   ],
+   "keep": 10,
+   "floor": "skip"
+  }
  }
 }

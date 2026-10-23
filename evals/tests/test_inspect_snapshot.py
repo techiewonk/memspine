@@ -37,7 +37,7 @@ def _engine() -> Engine:
         template="core",
         dotenv_path=None,
         storage={"path": ":memory:"},
-        embedding={"provider": "hash"},
+        model={"embedding": {"provider": "hash"}},
         write={"lineage_table": True},
         memories={
             "semantic": {"enabled": True, "policies": {"extract_graph": {"resolve": "rules"}}},
@@ -302,7 +302,8 @@ async def test_harness_dumps_after_ingest_and_sleep_only_when_inspecting(
     async def run(directory: Path) -> None:
         monkeypatch.setenv("MEMSPINE_FORENSICS_DIR", str(directory))
         system = MemspineSystem(
-            build_sleep=True, config={"embedding": {"provider": "hash"}, "dotenv_path": None}
+            build_sleep=True,
+            config={"model": {"embedding": {"provider": "hash"}}, "dotenv_path": None},
         )
         system.begin_run("r--memspine")
         await system.reset("demo-1")

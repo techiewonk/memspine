@@ -10,7 +10,7 @@ from memspine_evals.contracts import DatasetInfo, DataShape, EvalItem, Turn
 from memspine_evals.shape import infer_shape, shape_for_item
 from memspine_evals.systems.memspine_system import MemspineSystem
 
-_HASH = {"embedding": {"provider": "hash"}, "dotenv_path": None}
+_HASH = {"model": {"embedding": {"provider": "hash"}}, "dotenv_path": None}
 
 
 def _item(turns: list[Turn], meta: dict | None = None) -> EvalItem:

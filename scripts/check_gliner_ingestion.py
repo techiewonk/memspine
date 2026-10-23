@@ -346,18 +346,17 @@ def _engine_config(database: Path, snapshot: Path) -> dict[str, Any]:
                 "settings": {"path": str(database), "busy_timeout_s": 5.0},
             }
         },
-        "embedding": {"provider": "hash", "settings": {"dim": 64}},
-        "memories": {
-            "episodic": {"enabled": True},
-            "semantic": {
-                "enabled": True,
-                "policies": {"entity_extraction": "gliner"},
+        "model": {
+            "embedding": {"provider": "hash", "settings": {"dim": 64}},
+            "llm": {
+                "window_extract": {
+                    "provider": "litellm",
+                    "timeout_s": 30.0,
+                    "settings": {"model": "stub/window"},
+                }
             },
-        },
-        "models": {
-            "profiles": {
-                "local-gliner": {
-                    "kind": "gliner",
+            "extraction": {
+                "prepass": {
                     "provider": "gliner2",
                     "settings": {
                         "model": str(snapshot),
@@ -367,13 +366,27 @@ def _engine_config(database: Path, snapshot: Path) -> dict[str, Any]:
                         "tasks": ["entities"],
                         "inference_concurrency": 1,
                     },
-                }
+                },
+                "semantic": {
+                    "provider": "gliner2",
+                    "settings": {
+                        "model": str(snapshot),
+                        "revision": snapshot.name,
+                        "device": "cpu",
+                        "local_files_only": True,
+                        "tasks": ["entities"],
+                        "inference_concurrency": 1,
+                    },
+                },
             },
-            "bindings": {
-                "gliner_prepass": "local-gliner",
-                "gliner_semantic": "local-gliner",
+            "placement": {"max_loaded_models": 1},
+        },
+        "memories": {
+            "episodic": {"enabled": True},
+            "semantic": {
+                "enabled": True,
+                "policies": {"entity_extraction": "gliner"},
             },
-            "gliner_max_models": 1,
         },
         "write": {
             "window_extract": "facts",
@@ -386,14 +399,6 @@ def _engine_config(database: Path, snapshot: Path) -> dict[str, Any]:
             "stamping_v2": True,
             "integration_v2": True,
             "lineage_table": True,
-        },
-        "llm": {
-            "roles": {
-                "window_extract": {
-                    "provider": "litellm",
-                    "settings": {"model": "stub/window", "timeout_seconds": 30.0},
-                }
-            }
         },
         "deployment": {"id": "pa121-local-acceptance"},
         "observability": {"tap": {"enabled": True, "sink": "memory", "content": False}},

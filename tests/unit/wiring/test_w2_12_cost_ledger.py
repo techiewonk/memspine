@@ -78,11 +78,9 @@ async def _engine(
                 "settings": {"path": str(path), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        memories={"episodic": {"enabled": True}, "semantic": semantic},
-        write={"window_extract": mode, "window_async": False, "window_idle_s": 0.0},
-        llm={
-            "roles": {
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
                 "window_extract": {
                     "provider": "litellm",
                     "settings": {"model": "fake/window", "timeout_seconds": 60.0},
@@ -94,8 +92,10 @@ async def _engine(
                     }
                     for r in (extra_roles or {})
                 },
-            }
+            },
         },
+        memories={"episodic": {"enabled": True}, "semantic": semantic},
+        write={"window_extract": mode, "window_async": False, "window_idle_s": 0.0},
         workers={"outbox": outbox},
         economy=economy or {},
     )

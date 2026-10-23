@@ -189,7 +189,7 @@ async def run_cycles(
                     },
                     "lexical": {"provider": "tantivy", "settings": {}},
                 },
-                embedding={"provider": "hash", "settings": {"dim": 64}},
+                model={"embedding": {"provider": "hash", "settings": {"dim": 64}}},
                 read={
                     "record_access": False,
                     "scoring": {

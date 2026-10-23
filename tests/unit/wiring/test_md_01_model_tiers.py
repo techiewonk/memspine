@@ -125,17 +125,18 @@ async def test_default_is_off_and_config_roles_resolve_as_before(
     stub_providers: list[_Stub],
 ) -> None:
     cfg = _config(
-        llm={
-            "roles": {
+        model={
+            "llm": {
                 "extract": {
                     "provider": "litellm",
-                    "settings": {"model": "ollama/x", "timeout_seconds": 60.0},
+                    "timeout_s": 60.0,
+                    "settings": {"model": "ollama/x"},
                 }
-            }
+            },
+            "placement": {"catalogue": [NINE]},
         },
-        models={"catalogue": [NINE]},
     )
-    assert cfg.models.tiers_v2 is False
+    assert cfg.model.placement.tiers_v2 is False
     router = await _build(cfg)
     assert router.roles == ["extract"]  # the catalogue is ignored while the flag is off
     assert router.model_plan is None
@@ -224,7 +225,7 @@ def _engine(models: ModelsConfig, **extra: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         models=models,
         runtime=_runtime(),
         **extra,
@@ -285,11 +286,12 @@ async def test_bound_roles_do_make_calls_counted_by_the_stub(stub_providers: lis
 
 async def test_explicit_llm_roles_win_over_the_plan(stub_providers: list[_Stub]) -> None:
     cfg = _config(
-        llm={
-            "roles": {
+        model={
+            "llm": {
                 "extract": {
                     "provider": "litellm",
-                    "settings": {"model": "ollama/pinned", "timeout_seconds": 60.0},
+                    "timeout_s": 60.0,
+                    "settings": {"model": "ollama/pinned"},
                 }
             }
         },
@@ -320,19 +322,19 @@ def test_placement_never_exceeds_the_vram_budget() -> None:
         ]
         rr = [
             ModelDecl(
-                id=f"rr{i}", kind="reranker", family=f, vram_mb=rng.randint(500, 3000), ram_mb=500
+                id=f"rr{i}", kind="rerank", family=f, vram_mb=rng.randint(500, 3000), ram_mb=500
             )
             for i, f in enumerate(["jina-v3.5", "qwen3-reranker-0.6b"])
         ]
         emb = [
             ModelDecl(
                 id="e-gpu",
-                kind="embedder",
+                kind="embedding",
                 profile="gpu",
                 vram_mb=rng.randint(500, 5000),
                 placement="gpu",
             ),
-            ModelDecl(id="e-cpu", kind="embedder", profile="cpu", ram_mb=500, placement="cpu"),
+            ModelDecl(id="e-cpu", kind="embedding", profile="cpu", ram_mb=500, placement="cpu"),
         ]
         gpu = GpuDecl(name="NVIDIA RTX", vram_mb=rng.choice([4096, 8192, 16303]))
         r = resolve_models(_models(catalogue=[*llms, *rr, *emb], gpus=[gpu], ram_mb=32768))
@@ -361,9 +363,9 @@ def test_igpu_is_ignored_only_cuda_is_planned() -> None:
 
 
 def test_encoders_share_the_gpu_only_when_they_fit() -> None:
-    emb = ModelDecl(id="instr-0.6b", kind="embedder", profile="gpu", vram_mb=1500, placement="gpu")
+    emb = ModelDecl(id="instr-0.6b", kind="embedding", profile="gpu", vram_mb=1500, placement="gpu")
     cpu_emb = ModelDecl(
-        id="multi-onnx", kind="embedder", profile="cpu", ram_mb=500, placement="cpu"
+        id="multi-onnx", kind="embedding", profile="cpu", ram_mb=500, placement="cpu"
     )
     roomy = resolve_models(_models(catalogue=[NINE, emb, cpu_emb], gpus=[RTX]))
     assert (roomy.plan.reranker_device, roomy.plan.embedder_device) == ("cuda:0", "cuda:0")

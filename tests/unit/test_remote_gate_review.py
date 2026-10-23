@@ -81,26 +81,29 @@ def _engine() -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
-        read={"hybrid": False},
-        memories={"semantic": {"enabled": True}},
-        consent={"remote_llm_max_tier": "low"},
-        llm={
-            "roles": {
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
                 "sufficiency": {
                     "provider": "litellm",
-                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "openai/gpt-4o"},
                 },
                 "verify_answer": {
                     "provider": "litellm",
-                    "settings": {"model": "openai/gpt-4o", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "openai/gpt-4o"},
                 },
                 "summarize": {
                     "provider": "litellm",
-                    "settings": {"model": "ollama/llama3", "timeout_seconds": 30.0},
+                    "timeout_s": 30.0,
+                    "settings": {"model": "ollama/llama3"},
                 },
-            }
+            },
         },
+        read={"hybrid": False},
+        memories={"semantic": {"enabled": True}},
+        consent={"remote_llm_max_tier": "low"},
     )
 
 

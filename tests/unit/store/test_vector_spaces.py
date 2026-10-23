@@ -352,7 +352,7 @@ def test_flag_off_by_default():
                     "startup_timeout_s": None,
                 }
             }
-        ).embedding.versioned_spaces
+        ).model.embedding.versioned_spaces
         is False
     )
 
@@ -373,7 +373,7 @@ async def test_engine_flag_on_matches_flag_off_and_names_table_by_space(tmp_path
                     "settings": {"path": str(tmp_path / sub / "m.db"), "busy_timeout_s": 5.0},
                 }
             },
-            embedding={"provider": "hash", "versioned_spaces": on, "settings": {}},
+            model={"embedding": {"provider": "hash", "versioned_spaces": on, "settings": {}}},
             read={"record_access": False},
         )
 

@@ -95,8 +95,10 @@ def test_commands_without_state_do_not_crash(tmp_path: Path) -> None:
 
 def test_resolve_arm_and_offline_swap() -> None:
     cfg = {
-        "embedding": {"provider": "st", "settings": {"model": "test/embedder"}},
-        "read": {"rerank": "qwen3", "rerank_settings": {"model": "test/reranker"}},
+        "model": {
+            "embedding": {"provider": "st", "settings": {"model": "test/embedder"}},
+            "rerank": {"chain": [{"provider": "qwen3", "settings": {"model": "test/reranker"}}]},
+        },
         "storage": {"records": {"provider": "sqlite", "settings": {"path": "tempdir"}}},
     }
     off, notes = step.offline_config(cfg)

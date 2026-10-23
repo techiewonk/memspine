@@ -54,7 +54,7 @@ def _engine(path: str = ":memory:", **shared: Any) -> Engine:
         storage={
             "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}}
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         runtime={"shared_resources": shared},
     )
 
@@ -125,7 +125,7 @@ async def test_lazy_warms_nothing(gate: _Gate) -> None:
 
 
 async def test_excluded_category_is_not_requested(gate: _Gate) -> None:
-    eng = await _engine(warmup_exclude=["embedder"]).start()
+    eng = await _engine(warmup_exclude=["embedding"]).start()
     try:
         assert eng.warm_state()["embedder"].status == "not_requested"
     finally:
@@ -233,7 +233,7 @@ async def test_configured_lexical_index_is_warmed(tmp_path: Path, gate: _Gate) -
                 "settings": {"path": str(tmp_path / "lex.db"), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": True},
     )
     await eng.start()

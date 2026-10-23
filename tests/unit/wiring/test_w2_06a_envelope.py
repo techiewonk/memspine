@@ -133,7 +133,16 @@ async def _engine(
                 "settings": {"path": str(path), "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={
+            "embedding": {"provider": "hash", "settings": {}},
+            "llm": {
+                "window_extract": {
+                    "provider": "litellm",
+                    "timeout_s": 60.0,
+                    "settings": {"model": "fake/window"},
+                }
+            },
+        },
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={
             "window_extract": "facts",
@@ -141,14 +150,6 @@ async def _engine(
             "window_idle_s": 0.0,
             "envelope_v2": True,
             **write,
-        },
-        llm={
-            "roles": {
-                "window_extract": {
-                    "provider": "litellm",
-                    "settings": {"model": "fake/window", "timeout_seconds": 60.0},
-                }
-            }
         },
         economy=economy or {},
     )

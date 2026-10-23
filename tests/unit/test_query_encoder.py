@@ -41,7 +41,7 @@ def _engine(encoder: str | None, **read: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read=read_cfg,
     )
 
@@ -131,7 +131,7 @@ async def test_index_reloads_from_storage_and_drops_forgotten_targets(tmp_path: 
         storage={
             "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}}
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         read={"hybrid": False, "query_encoder": "cues"},
     )
     await eng.start()

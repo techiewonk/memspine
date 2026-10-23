@@ -73,7 +73,7 @@ def _engine(url: str, deployment: dict[str, Any], **overrides: Any) -> Any:
         dotenv_path=None,
         deployment=deployment,
         storage=storage,
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         **overrides,
     )
 

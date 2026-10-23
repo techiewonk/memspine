@@ -85,8 +85,8 @@ def main(argv: list[str] | None = None) -> int:
                 template="core",
                 dotenv_path=None,
                 storage={"path": str(storage_dir / "behavioural.db")},
-                embedding={"provider": "hash"},
-                read={"rerank": "off", "record_access": False},
+                model={"embedding": {"provider": "hash"}, "rerank": {"chain": []}},
+                read={"record_access": False},
                 memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
             )
             for sec, vals in ov.items():

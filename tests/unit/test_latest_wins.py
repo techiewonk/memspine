@@ -118,7 +118,7 @@ async def _read(mode: str) -> list[str]:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
         read={"hybrid": False, "record_access": False, "latest_wins": mode},
     )
@@ -162,7 +162,7 @@ def _engine(**policies: Any) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        embedding={"provider": "hash", "settings": {}},
+        model={"embedding": {"provider": "hash", "settings": {}}},
         memories={
             "semantic": {"enabled": True, "policies": policies},
             "episodic": {"enabled": True},

@@ -361,42 +361,28 @@ async def test_target_remote_candidate_is_individually_privacy_gated(
             }
         },
         consent={"remote_llm_max_tier": "low"},
-        models={
-            "profiles": {
-                "local": {
-                    "kind": "llm",
-                    "provider": "litellm",
-                    "settings": {
-                        "model": "ollama/local",
-                        "timeout_seconds": 30,
-                        "max_tokens": 20,
-                    },
-                },
-                "remote": {
-                    "kind": "llm",
-                    "provider": "litellm",
-                    "settings": {
-                        "model": "openai/remote",
-                        "timeout_seconds": 30,
-                        "max_tokens": 7,
-                    },
-                },
-                "unused": {
-                    "kind": "llm",
-                    "provider": "missing-provider-plugin",
-                    "settings": {},
-                },
-            },
-            "bindings": {"chat": "local"},
-            "escalation": {
+        model={
+            "llm": {
                 "chat": {
-                    "targets": ["remote", "unused"],
-                    "triggers": ["empty"],
-                    "max_attempts": 2,
-                    "timeout_s": 1,
-                    "max_tokens_per_attempt": 16,
+                    "provider": "litellm",
+                    "timeout_s": 30,
+                    "settings": {"model": "ollama/local", "max_tokens": 20},
+                    "escalation": {
+                        "targets": [
+                            {
+                                "provider": "litellm",
+                                "timeout_s": 30,
+                                "settings": {"model": "openai/remote", "max_tokens": 7},
+                            },
+                            {"provider": "missing-provider-plugin", "settings": {}},
+                        ],
+                        "triggers": ["empty"],
+                        "max_attempts": 2,
+                        "timeout_s": 1,
+                        "max_tokens_per_attempt": 16,
+                    },
                 }
-            },
+            }
         },
     )
     wiring = container.Wiring(
@@ -451,25 +437,25 @@ async def test_profiles_reuse_one_provider_and_profiles_satisfy_tier_role(
             }
         },
         write={"window_extract": "facts"},
-        models={
-            "profiles": {
-                "shared": {
-                    "kind": "llm",
+        model={
+            "llm": {
+                "extract": {
                     "provider": "litellm",
-                    "settings": {"model": "ollama/shared", "timeout_seconds": 30},
+                    "timeout_s": 30,
+                    "settings": {"model": "ollama/shared"},
                 },
-                "reasoning": {
-                    "kind": "llm",
+                "chat": {
                     "provider": "litellm",
-                    "settings": {"model": "ollama/reasoning", "timeout_seconds": 30},
+                    "timeout_s": 30,
+                    "settings": {"model": "ollama/shared"},
+                },
+                "window_extract": {
+                    "provider": "litellm",
+                    "timeout_s": 30,
+                    "settings": {"model": "ollama/reasoning"},
                 },
             },
-            "bindings": {
-                "extract": "shared",
-                "chat": "shared",
-                "window_extract": "reasoning",
-            },
-            "tiers_v2": True,
+            "placement": {"tiers_v2": True},
         },
     )
     wiring = container.Wiring(
