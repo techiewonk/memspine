@@ -20,7 +20,11 @@ from typing import Any
 import xxhash
 
 from memspine.services.vector.base import VectorHit
-from memspine.services.vector.lancedb_store import LanceDBVectorStore, _table_name
+from memspine.services.vector.lancedb_store import (
+    LanceDBVectorStore,
+    _table_name,
+    physical_embedder_id,
+)
 
 __all__ = ["PerNamespaceVectorStore", "namespace_suffix"]
 
@@ -51,7 +55,7 @@ class PerNamespaceVectorStore:
 
     async def _all(self) -> list[LanceDBVectorStore]:
         """Every namespace table of this embedder in the database, opened lazily."""
-        prefix = _table_name(self._embedder.embedder_id) + "__ns_"
+        prefix = _table_name(physical_embedder_id(self._embedder)) + "__ns_"
         names = await asyncio.to_thread(lambda: list(self._client.db.table_names()))
         for name in names:
             if name.startswith(prefix):
@@ -114,7 +118,7 @@ class PerNamespaceVectorStore:
     async def drop_namespace(self, namespace: str) -> None:
         """Remove one namespace's whole table (erasure of a user's vectors)."""
         suffix = namespace_suffix(namespace)
-        name = _table_name(self._embedder.embedder_id) + suffix
+        name = _table_name(physical_embedder_id(self._embedder)) + suffix
         self._stores.pop(suffix, None)
         names = await asyncio.to_thread(lambda: list(self._client.db.table_names()))
         if name in names:

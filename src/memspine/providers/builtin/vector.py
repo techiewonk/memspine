@@ -96,7 +96,15 @@ class LanceDBBuilder:
                     f"{host_base_path(placement, 'vector', 'lancedb')}.spaces{generation_suffix}.json"
                 )
             )
-            service = cast(VectorStore, VersionedSpaceStore(factory, current, state))
+            service = cast(
+                VectorStore,
+                VersionedSpaceStore(
+                    factory,
+                    current,
+                    state,
+                    legacy_model_id=getattr(ctx.embedding, "legacy_embedder_id", None),
+                ),
+            )
         elif settings.isolation == "per_namespace":
             service = cast(VectorStore, PerNamespaceVectorStore(client, ctx.embedding, make))
         else:

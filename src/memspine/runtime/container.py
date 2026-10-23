@@ -1008,7 +1008,12 @@ def _pin_embedding_profile(
         else f"{derived_base(config)}.embedding-profile{generation_suffix}.json"
     )
     try:
-        status = check_or_pin(path, profile, migrate=cfg.migrate_preset)
+        status = check_or_pin(
+            path,
+            profile,
+            migrate=cfg.migrate_preset,
+            certified_legacy=getattr(embedder, "legacy_embedder_id", None) is not None,
+        )
     except EmbeddingProfileMismatch:
         tap.event("embed.profile_mismatch", profile=profile.name, version_hash=profile.version_hash)
         raise
@@ -1246,6 +1251,35 @@ async def preflight_projection_bindings(
 
     binding_store = wiring.records.projection_bindings()
     for binding in bindings:
+        if (
+            binding.projector_name == "vectors"
+            and not config.model.embedding.versioned_spaces
+            and binding.source_provider is None
+        ):
+            effective = resolved_embedding(config)
+            if effective.provider == "onnx":
+                from memspine.clients.weights.onnx_catalogue import legacy_embedder_id
+
+                legacy_id = legacy_embedder_id(
+                    str(effective.settings.get("model", "BAAI/bge-small-en-v1.5")),
+                    model_spec=effective.settings.get("model_spec"),
+                    query_instruction=effective.settings.get("query_instruction"),
+                )
+                if legacy_id is not None:
+                    descriptor = _descriptor(
+                        PROVIDER_VECTOR_STORES,
+                        config.storage.vector.provider,
+                        "storage.vector.provider",
+                    )
+                    old_fingerprint = projection_target_fingerprint(
+                        config,
+                        category="vector",
+                        provider=descriptor.ref,
+                        settings=_settings(descriptor, config.storage.vector.settings),
+                        deployment_id=wiring.owner_id,
+                        legacy_embedding_id=legacy_id,
+                    )
+                    await binding_store.adopt_equivalent_target(binding, old_fingerprint)
         if binding.projector_name == "graph" and binding.provider.startswith(
             "graph:sql_adjacency:"
         ):

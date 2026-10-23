@@ -73,6 +73,36 @@ class SqlProjectionBindingStore:
     def __init__(self, engine: AsyncEngine) -> None:
         self._engine = engine
 
+    async def adopt_equivalent_target(
+        self, target: ProjectionTargetBinding, old_fingerprint: str
+    ) -> bool:
+        """ADR-084: CAS a proven-equivalent vector identity, preserving its checkpoint."""
+        if target.projector_name != "vectors" or target.source_provider is not None:
+            return False
+        async with self._engine.begin() as conn:
+            result = await conn.execute(
+                update(provider_projector_bindings)
+                .where(
+                    provider_projector_bindings.c.deployment_id == target.deployment_id,
+                    provider_projector_bindings.c.projector_name == target.projector_name,
+                    provider_projector_bindings.c.provider == target.provider,
+                    provider_projector_bindings.c.generation_id == target.generation_id,
+                    provider_projector_bindings.c.target_fingerprint == old_fingerprint,
+                )
+                .values(
+                    target_fingerprint=target.target_fingerprint,
+                    updated_at=datetime.now(UTC).isoformat(),
+                )
+            )
+        adopted = bool(result.rowcount)
+        if adopted:
+            from memspine.observability import tap
+
+            fields = dict(old=old_fingerprint, new=target.target_fingerprint)
+            _log.info("provider.vector_identity_adopted", **fields)
+            tap.event("provider.vector_identity_adopted", **fields)
+        return adopted
+
     async def bound_provider(self, deployment_id: str, projector_name: str) -> str | None:
         """The provider NAME a projector is bound to (``graph:ladybug:v1`` -> ``ladybug``),
         or None when it has no binding yet. ADR-081 pins ``auto`` selections to it."""

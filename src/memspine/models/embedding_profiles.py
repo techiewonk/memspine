@@ -143,7 +143,13 @@ def resolve_profile(name: str, *, device: str | None = None) -> EmbeddingProfile
     return replace(profile, device=device) if device else profile
 
 
-def check_or_pin(path: str | None, profile: EmbeddingProfile, *, migrate: bool = False) -> str:
+def check_or_pin(
+    path: str | None,
+    profile: EmbeddingProfile,
+    *,
+    migrate: bool = False,
+    certified_legacy: bool = False,
+) -> str:
     """Pin ``profile`` at ``path`` on first open; on later opens require the same version hash.
 
     Returns ``"pinned"`` (written now), ``"ok"`` (matches), or ``"migrated"`` (``migrate`` was
@@ -161,6 +167,19 @@ def check_or_pin(path: str | None, profile: EmbeddingProfile, *, migrate: bool =
         return "pinned"
     if existing.get("version_hash") == profile.version_hash:
         return "ok"
+    if certified_legacy and profile.provider == "onnx":
+        old = replace(profile, provider="fastembed")
+        if existing == old.to_dict():
+            # Exact metadata match, including instruction/dtype/normalisation. An atomic
+            # file replacement preserves the original pin until the new one is complete.
+            _write(path, profile.to_dict())
+            from memspine.observability import tap
+            from memspine.observability.logging import get_logger
+
+            fields = dict(old=old.version_hash, new=profile.version_hash)
+            get_logger(__name__).info("provider.embedding_pin_adopted", **fields)
+            tap.event("provider.embedding_pin_adopted", **fields)
+            return "adopted"
     if not migrate:
         raise EmbeddingProfileMismatch(
             f"this store is pinned to embedding profile {existing.get('name')!r} "

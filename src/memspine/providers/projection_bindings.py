@@ -188,6 +188,7 @@ def projection_target_fingerprint(
     settings: Any,
     deployment_id: str,
     embedder: EmbeddingService | None = None,
+    legacy_embedding_id: str | None = None,
 ) -> str:
     """Fingerprint one resolved provider target before opening its native client.
 
@@ -250,6 +251,8 @@ def projection_target_fingerprint(
                 "runtime embedding table identity does not match the configured provider target"
             )
         identity["embedding_table"] = expected_table
+        if legacy_embedding_id is not None:
+            identity["embedding_table"] = {**expected_table, "embedder_id": legacy_embedding_id}
     target_identity = provider_target_identity(descriptor, settings)
     if target_identity is not None:
         identity["resolved_target"] = target_identity

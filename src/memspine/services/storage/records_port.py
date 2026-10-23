@@ -315,6 +315,10 @@ class ProjectionBindingPort(Protocol):
         self, target: ProjectionTargetBinding, old_provider: str
     ) -> bool: ...
 
+    async def adopt_equivalent_target(
+        self, target: ProjectionTargetBinding, old_fingerprint: str
+    ) -> bool: ...
+
     async def ensure(self, target: ProjectionTargetBinding) -> str: ...
 
 

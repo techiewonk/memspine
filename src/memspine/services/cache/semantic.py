@@ -49,6 +49,12 @@ class CachedEmbedding:
         return self._inner.embedder_id
 
     @property
+    def legacy_embedder_id(self) -> str | None:
+        """ADR-084 certified physical-table identity, forwarded through the cache."""
+        value = getattr(self._inner, "legacy_embedder_id", None)
+        return value if isinstance(value, str) else None
+
+    @property
     def dim(self) -> int:
         return self._inner.dim
 
