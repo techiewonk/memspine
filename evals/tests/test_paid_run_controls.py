@@ -86,10 +86,9 @@ def test_merge_binds_every_engine_role_and_keeps_explicit_ones() -> None:
         "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/llama3"},
     }  # the caller's binding wins
     assert roles["reflect"] == {
-        "provider": "openai_compatible",
+        "provider": "bedrock",
         "timeout_s": 180.0,
         "settings": {
-            "api_base": "http://test.invalid/v1",
             "model": QWEN3_32B,
             "aws_region": "eu-west-1",
         },

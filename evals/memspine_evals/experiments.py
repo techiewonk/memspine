@@ -39,7 +39,9 @@ from .readers import (
     NO_MEMORY_QA_PROMPT,
     ContextOnlyReader,
     CtxGuard,
+    OpenAICompatReader,
     SamplerConfig,
+    openai_compat_chat,
 )
 from .results import RunSummary
 from .runner import RunConfig, run_matrix
@@ -723,7 +725,9 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
     # #34: a reasoning prompt's reader keeps the final answer and gets room to reason.
     reasoning = config.qa_prompt in REASONING_QA_PROMPTS
     if config.bedrock:
-        from .bedrock import CallBudget, OpenAICompatReader, openai_compat_chat
+        from .bedrock import CallBudget
+        from .bedrock import OpenAICompatReader as BedrockReader
+        from .bedrock import openai_compat_chat as bedrock_chat
 
         if config.max_model_calls is None:
             raise ValueError("bedrock qa needs max_model_calls (the D23 budget cap)")
@@ -733,7 +737,7 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             max_usd=config.max_usd,
             service_prices=service_price_table(config),
         )
-        bedrock_reader = OpenAICompatReader(
+        bedrock_reader = BedrockReader(
             budget,
             model=QWEN3_32B,
             temperature=0.0,
@@ -749,22 +753,22 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
             )
         judge = build_judge(
             config,
-            openai_compat_chat(budget, model=QWEN3_32B),
+            bedrock_chat(budget, model=QWEN3_32B),
             QWEN3_32B,
             judge_id=f"qwen3-32b-{config.judge_prompt}",
         )
         if config.verify_answer:
             bedrock_reader = with_verifier(
-                bedrock_reader, openai_compat_chat(budget, model=QWEN3_32B, max_tokens=192)
+                bedrock_reader, bedrock_chat(budget, model=QWEN3_32B, max_tokens=192)
             )
 
         def make_bedrock_sibling(prompt: str) -> Any:
-            return OpenAICompatReader(
+            return BedrockReader(
                 budget, model=QWEN3_32B, temperature=0.0, max_tokens=512, prompt=prompt
             )
 
         def make_bedrock_chat() -> Any:
-            return openai_compat_chat(budget, model=QWEN3_32B, max_tokens=900)
+            return bedrock_chat(budget, model=QWEN3_32B, max_tokens=900)
 
         return (
             with_post_steps(bedrock_reader, config, make_bedrock_sibling, make_bedrock_chat),
