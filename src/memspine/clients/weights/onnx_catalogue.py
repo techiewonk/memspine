@@ -186,11 +186,22 @@ def spec_identity(spec: OnnxModelSpec) -> dict[str, Any]:
     return asdict(spec)
 
 
-def model_embedder_id(model: str, model_spec: dict[str, Any] | OnnxModelSpec | None = None) -> str:
+def model_embedder_id(
+    model: str,
+    model_spec: dict[str, Any] | OnnxModelSpec | None = None,
+    *,
+    query_instruction: str | None = None,
+) -> str:
     """A catalogue certificate grants ``embedder:``; all custom spaces include their spec."""
     spec = resolve_model_spec(model, model_spec)
     if spec.pooling == "score":
         raise ValueError("ONNX score model cannot be used for embedding")
+    if query_instruction:
+        # The instruction is holder-owned rather than shared weight metadata, but
+        # it changes retrieval semantics and must enter projection/space identity.
+        # Otherwise an adopted legacy table can be replaced by an empty neutral
+        # table while retaining its old projection checkpoint.
+        spec = replace(spec, query_prefix=query_instruction, certified=False)
     if model_spec is None and spec.certified:
         return f"embedder:{model}"
     return _custom_model_id(model, spec)

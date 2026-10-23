@@ -76,6 +76,7 @@ async def test_identical_specs_share_one_load_without_sharing_holder_limits(
     assert first.embedder_id == f"embedder:{MODEL}"
     assert first.legacy_embedder_id == f"fastembed:{MODEL}"
     assert second.legacy_embedder_id is None
+    assert first.embedder_id != second.embedder_id
     await first.aclose()
     assert (await second.embed(["x"]))[0][0] == 1
     await second.aclose()
@@ -158,3 +159,20 @@ def test_provider_policy_frozen_and_checked_before_load() -> None:
         text_weights(MODEL, threads=True)
     with pytest.raises(ValueError, match="providers"):
         text_weights(MODEL, providers=[])
+
+
+def test_query_instruction_changes_projection_identity_without_changing_shared_weights() -> None:
+    from dataclasses import replace
+
+    default = OnnxEmbedding(MODEL)
+    override = OnnxEmbedding(MODEL, query_instruction="query: ")
+    assert override.embedder_id.startswith(f"onnx:{MODEL}:")
+    assert override.embedder_id == model_embedder_id(MODEL, query_instruction="query: ")
+    assert override.embedder_id != model_embedder_id(MODEL, query_instruction="different: ")
+    assert default.embedder_id == model_embedder_id(MODEL, query_instruction="")
+    assert override._weights.identity() == default._weights.identity()
+    # A spec with the same effective prefix has the same custom identity, and
+    # overriding that prefix changes it again.
+    spec = replace(CATALOGUE[MODEL], query_prefix="query: ")
+    assert model_embedder_id(MODEL, spec) == override.embedder_id
+    assert model_embedder_id(MODEL, spec, query_instruction="different: ") != override.embedder_id

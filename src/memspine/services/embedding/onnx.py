@@ -36,7 +36,9 @@ class OnnxEmbedding:
     ) -> None:
         self._model_name = model
         self._spec = resolve_model_spec(model, model_spec)
-        self._embedder_id = model_embedder_id(model, model_spec)
+        self._embedder_id = model_embedder_id(
+            model, model_spec, query_instruction=query_instruction
+        )
         if self._spec.pooling == "score":
             raise ValueError("ONNX score model cannot be used for embedding")
         if dim is not None and dim != self._spec.dim:
