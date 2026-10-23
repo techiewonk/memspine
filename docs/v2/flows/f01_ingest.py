@@ -48,7 +48,7 @@ CONFIG: dict[str, Any] = {
                 "timeout_s": 30.0,
                 "settings": {"model": "stub/window"},
             }
-        }
+        },
     },
     "deployment": {"id": "offline-flow-check"},
     "offline": {"session_close_v2": True, "patterns_v2": True, "standing_v2": True},
