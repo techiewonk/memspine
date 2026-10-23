@@ -355,7 +355,8 @@ def memspine_embedding_model(config: C01Config) -> str:
     Only a local fastembed model can be shared: a cloud embedder would make the baseline
     pay for calls the harness does not budget, so that combination is refused.
     """
-    embedding = dict((config.memspine_config or {}).get("embedding") or {})
+    model_cfg = dict((config.memspine_config or {}).get("model") or {})  # ADR-082
+    embedding = dict(model_cfg.get("embedding") or {})
     settings = dict(embedding.get("settings") or {})
     try:
         from memspine.config.schema.providers import FastembedEmbeddingSettings
