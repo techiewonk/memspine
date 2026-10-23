@@ -13,6 +13,7 @@ from memspine.api.engine import Engine
 from memspine.config.schema import ReadConfig
 from memspine.core.relevance_probes import OFF_TOPIC_PROBES, calibrate, percentile
 from memspine.observability.trace import search_forensics
+from memspine.providers.builtin.models import register as register_models
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.registry import EMBEDDERS
 from memspine.services.embedding.base import EmbeddingService
@@ -95,6 +96,7 @@ async def _engine(
                 effective_capabilities=frozenset({"embedding"}),
             )
 
+    register_models()  # the built-in descriptors, so the file also passes when run alone
     current = EMBEDDERS.get("hash")
     monkeypatch.setitem(
         EMBEDDERS._items,
