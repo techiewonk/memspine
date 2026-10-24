@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import (
+    Awaitable,
     Callable,
     Sequence,
 )
 from datetime import datetime
-from typing import Any
+from typing import Any, cast
 
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
@@ -37,6 +38,7 @@ from memspine.models.encoders.query.perspective import (
 from memspine.observability.logging import get_logger
 from memspine.prompts.structured import STRUCTURED_PROMPT_ID, STRUCTURED_VERSION
 from memspine.read.pending_barrier import BarrierResult, PendingBarrier
+from memspine.schemas.durable.common import OwnerScope
 from memspine.services.storage.records_port import RecordsStore
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import (
@@ -201,6 +203,28 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         )
     )
 
+    # BI-06: a configured local extractor may opt into grounded fact candidates.
+    # The ordinary semantic LLM extractor intentionally does not implement this
+    # method, so rule-only mode can never fall back to generation.
+    configured_fact_extractor = None
+    semantic_store = getattr(eng, "_semantic", None)
+    configured_semantic = getattr(semantic_store, "_extractor", None)
+    extract_grounded = getattr(configured_semantic, "extract_grounded_facts", None)
+    if callable(extract_grounded) and getattr(configured_semantic, "generative", None) is False:
+        grounded_method = cast(
+            Callable[[MemoryRecord, OwnerScope], Awaitable[Any]], extract_grounded
+        )
+
+        class _ConfiguredNonGenerativeExtractor:
+            identity = str(
+                getattr(configured_semantic, "model_id", type(configured_semantic).__name__)
+            )
+
+            async def extract(self, record: MemoryRecord, scope: OwnerScope) -> Any:
+                return await grounded_method(record, scope)
+
+        configured_fact_extractor = _ConfiguredNonGenerativeExtractor()
+
     return WindowPipeline(
         settings=WindowSettings(
             max_turns=config.write.window_max_turns,
@@ -227,6 +251,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         prepass=_prepass(eng, config),
         mark_disputed=_mark_disputed(eng) if config.write.integration else None,
         rule_only=rule_only,
+        non_generative_extractor=configured_fact_extractor,
     )
 
 

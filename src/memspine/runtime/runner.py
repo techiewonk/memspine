@@ -5,10 +5,12 @@ The outbox (``runtime.outbox``) is the truth; this runner is only the default ex
 a taskiq transport replaces it later (RT-01) without touching the queue. Per claimed job it walks
 the offsets ``(watermark, target]`` in order. Each offset runs in two phases:
 
-``prepare``  everything slow, the model calls included. NO lock is held.
-``commit``   the deposit. With ``StageHandler.commit_locked`` the runner takes the namespace lock
-             (``commit_lock(namespace)``) around this phase only; a handler whose deposits already
-             lock per record (the window pipeline) leaves it False.
+``prepare``    everything slow, the model calls included. NO lock is held.
+``authorize`` atomically validates lease and source snapshots and appends durable effect events.
+``commit``     consumes those events through idempotent provider deposits. With
+               ``StageHandler.commit_locked`` the runner takes the namespace lock around this
+               phase only; the window pipeline's deposits already lock per record.
+``finalize``   acknowledges projection outcomes under the same lease fence.
 
 After every offset the watermark is checkpointed under the lease epoch (``JobBook.checkpoint``), so
 a stop or a crash resumes at the next offset. An offset whose handler raised becomes a hole (never
@@ -43,12 +45,14 @@ from memspine.runtime.freshness import read_barrier
 from memspine.runtime.jobs import Claim, Clock, Job, JobBook, JobStore, RetryBudget
 from memspine.runtime.outbox import SqlJobStore
 from memspine.schemas.durable.common import OwnerScope
+from memspine.schemas.durable.ingestion import EffectIdentity, IngestionSourceSnapshot
 from memspine.schemas.public import JobHandle
 from memspine.services.concurrency import Priority, priority_scope
 
 __all__ = [
     "BarrierOutcome",
     "DrainReport",
+    "EffectResult",
     "InlineRunner",
     "StageHandler",
     "utc_now",
@@ -58,7 +62,19 @@ _log = get_logger(__name__)
 
 Prepare = Callable[[OwnerScope, int, dict[str, Any]], Awaitable[Any]]
 Commit = Callable[[OwnerScope, int, Any], Awaitable[None]]
-EffectResults = Callable[[Any], Mapping[str, int]]
+
+
+@dataclass(frozen=True)
+class EffectResult:
+    """A provider projection outcome planned before its durable authorization."""
+
+    count: int
+    artifact: dict[str, Any] | None = None
+    producer_revision: str = "base"
+    policy_revision: str = "base"
+
+
+EffectResults = Callable[[Any], Mapping[str, int | EffectResult | Mapping[str, Any]]]
 NamespaceLock = Callable[[str], AbstractAsyncContextManager[Any]]
 Sleeper = Callable[[float], Awaitable[None]]
 
@@ -340,10 +356,14 @@ class InlineRunner:
         )
 
     async def mark_sources(
-        self, scope: OwnerScope, stage: str, record_ids: Sequence[str]
+        self, scope: OwnerScope, stage: str, sources: Sequence[dict[str, Any]]
     ) -> None:
-        """Acknowledge sources accepted by the canonical stage."""
-        await self._io(self.store.mark_sources, scope, stage, record_ids, self.clock())
+        """Acknowledge versioned source snapshots accepted by the canonical stage."""
+        await self._io(self.store.mark_sources, scope, stage, sources, self.clock())
+
+    async def erase_source(self, scope: OwnerScope, stage: str, record_id: str) -> bool:
+        """Advance the durable erasure fence before an in-flight worker may commit."""
+        return bool(await self._io(self.store.erase_source, scope, stage, record_id))
 
     async def rewrite_pending(
         self,
@@ -501,9 +521,7 @@ class InlineRunner:
             if top > self.book.progress(candidate, stage).watermark:
                 await self._io(self.book.enqueue, candidate, stage, top)
 
-    async def _item(
-        self, handler: StageHandler, scope: OwnerScope, stage: str, offset: int
-    ) -> Any:
+    async def _item(self, handler: StageHandler, scope: OwnerScope, stage: str, offset: int) -> Any:
         payload = self.store.get_item(scope, stage, offset)
         if payload is None:  # pruned or never written: nothing to do, not an error
             return None
@@ -526,56 +544,117 @@ class InlineRunner:
         stage: str = "",
     ) -> Any:
         if insp.inspect_enabled():  # TI-1 (F17): prepare and commit run inside a job request
-            with tap.request("job", stage=f"outbox_{stage}", offset=offset):
-                with tap.span("runtime.outbox.prepare", stage=stage, offset=offset):
-                    prepared = await handler.prepare(scope, offset, payload)
-                with tap.span("runtime.outbox.commit_item", stage=stage, offset=offset):
-                    await self._commit(handler, scope, offset, prepared)
-            return prepared
-        prepared = await handler.prepare(scope, offset, payload)
-        await self._commit(handler, scope, offset, prepared)
-        return prepared
+            with tap.span("runtime.outbox.prepare", stage=stage, offset=offset):
+                return await handler.prepare(scope, offset, payload)
+        return await handler.prepare(scope, offset, payload)
 
-    async def _record_effects(
+    def _effect_plans(
         self,
         handler: StageHandler,
         job: Job,
-        epoch: int,
         offset: int,
         prepared: Any,
-        failure: dict[str, Any] | None = None,
+        sources: Sequence[dict[str, Any]],
         effect_stage: str | None = None,
-    ) -> None:
+    ) -> list[dict[str, Any]]:
         if handler.effect_results is None:
-            return
+            return []
         results = handler.effect_results(prepared)
         semantic_stage = effect_stage or job.stage
-        for layer, count in results.items():
-            identity = {
-                "scope": [job.scope.tenant, job.scope.owner, job.scope.owner_kind],
-                "offset": offset,
-                "layer": layer,
-                "stage": semantic_stage,
-            }
-            effect_id = hashlib.sha256(
-                json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
-            ).hexdigest()[:16]
-            ok = await self._io(
-                self.store.commit_effect,
-                job_id=job.job_id,
-                epoch=epoch,
-                scope=job.scope,
-                stage=semantic_stage,
-                offset=offset,
-                layer=layer,
-                effect_id=effect_id,
-                identity=identity,
-                result_count=count,
-                failure=failure,
-                at=self.clock(),
+        snapshots = tuple(IngestionSourceSnapshot.model_validate(source) for source in sources)
+        plans: list[dict[str, Any]] = []
+        for layer, raw in results.items():
+            if isinstance(raw, EffectResult):
+                result = raw
+            elif isinstance(raw, Mapping):
+                result = EffectResult(
+                    count=int(raw.get("count", 0)),
+                    artifact=raw.get("artifact"),
+                    producer_revision=str(raw.get("producer_revision", "base")),
+                    policy_revision=str(raw.get("policy_revision", "base")),
+                )
+            else:
+                result = EffectResult(count=raw)
+            canonical_job = (
+                f"{job.scope.tenant}/{job.scope.owner}/{job.scope.owner_kind}:"
+                f"{semantic_stage}:{offset}"
             )
-            if not ok:
-                raise _Fenced
+            if snapshots:
+                identity_payload = EffectIdentity.build(
+                    job_id=canonical_job,
+                    output_key=layer,
+                    sources=snapshots,
+                    producer_revision=result.producer_revision,
+                    policy_revision=result.policy_revision,
+                ).model_dump(mode="json")
+                effect_id = str(identity_payload["effect_id"])
+            else:
+                identity_payload = {
+                    "job_id": canonical_job,
+                    "output_key": layer,
+                    "sources": [],
+                    "producer_revision": result.producer_revision,
+                    "policy_revision": result.policy_revision,
+                }
+                effect_id = hashlib.sha256(
+                    json.dumps(identity_payload, sort_keys=True, separators=(",", ":")).encode()
+                ).hexdigest()[:16]
+                identity_payload["effect_id"] = effect_id
+            plans.append(
+                {
+                    "layer": layer,
+                    "effect_id": effect_id,
+                    "identity": identity_payload,
+                    "count": result.count,
+                    "artifact": result.artifact,
+                }
+            )
+        return plans
+
+    async def _authorize_effects(
+        self,
+        job: Job,
+        epoch: int,
+        offset: int,
+        effects: Sequence[dict[str, Any]],
+        sources: Sequence[dict[str, Any]],
+        effect_stage: str | None = None,
+    ) -> str:
+        if not effects:
+            return "authorized"
+        result = await self._io(
+            self.store.authorize_effects,
+            job_id=job.job_id,
+            epoch=epoch,
+            scope=job.scope,
+            stage=effect_stage or job.stage,
+            offset=offset,
+            effects=effects,
+            sources=sources,
+            at=self.clock(),
+        )
+        if result is None or result == "busy":
+            raise _Fenced
+        return str(result)
+
+    async def _finalize_effects(
+        self,
+        job: Job,
+        epoch: int,
+        effects: Sequence[dict[str, Any]],
+        failure: dict[str, Any] | None = None,
+    ) -> None:
+        if not effects:
+            return
+        if not await self._io(
+            self.store.finalize_effects,
+            job_id=job.job_id,
+            epoch=epoch,
+            effects=effects,
+            failure=failure,
+            at=self.clock(),
+        ):
+            raise _Fenced
 
     async def _commit(
         self, handler: StageHandler, scope: OwnerScope, offset: int, prepared: Any
@@ -585,6 +664,120 @@ class InlineRunner:
                 await handler.commit(scope, offset, prepared)
         else:
             await handler.commit(scope, offset, prepared)
+
+    async def _execute_item(
+        self,
+        handler: StageHandler,
+        job: Job,
+        epoch: int,
+        offset: int,
+        *,
+        source_stage: str | None = None,
+        effect_stage: str | None = None,
+    ) -> Any:
+        """Prepare, authorize durable effects, project, then acknowledge completion."""
+        stage = source_stage or job.stage
+        if insp.inspect_enabled():
+            with tap.request("job", stage=f"outbox_{stage}", offset=offset):
+                return await self._execute_item_inner(
+                    handler,
+                    job,
+                    epoch,
+                    offset,
+                    source_stage=source_stage,
+                    effect_stage=effect_stage,
+                )
+        return await self._execute_item_inner(
+            handler,
+            job,
+            epoch,
+            offset,
+            source_stage=source_stage,
+            effect_stage=effect_stage,
+        )
+
+    async def _execute_item_inner(
+        self,
+        handler: StageHandler,
+        job: Job,
+        epoch: int,
+        offset: int,
+        *,
+        source_stage: str | None = None,
+        effect_stage: str | None = None,
+    ) -> Any:
+        stage = source_stage or job.stage
+        payload = self.store.get_item(job.scope, stage, offset)
+        if payload is None:
+            return None
+        source_ids = tuple(str(value) for value in payload.get("record_ids", ()) if value)
+        sources: list[dict[str, Any]] = []
+        if handler.effect_results is not None and source_ids:
+            sources = await self._io(self.store.source_snapshots, job.scope, stage, source_ids)
+            if len(sources) != len(dict.fromkeys(source_ids)):
+                raise _Fenced
+        try:
+            if self._backpressure is None and self._ledger is None:
+                prepared = await self._phases(handler, job.scope, offset, payload, stage)
+            else:
+                with priority_scope(Priority.DERIVE):
+                    prepared = await self._phases(handler, job.scope, offset, payload, stage)
+                if self._ledger is not None:
+                    queued_at = self.store.item_created_at(job.scope, stage, offset)
+                    if queued_at is not None:
+                        self._ledger.record_lag(
+                            max(0.0, (self.clock() - queued_at).total_seconds())
+                        )
+        except BaseException as exc:
+            if not isinstance(exc, asyncio.CancelledError) and handler.effect_results is not None:
+                failed_effects = self._effect_plans(
+                    handler, job, offset, None, sources, effect_stage
+                )
+                await self._authorize_effects(
+                    job, epoch, offset, failed_effects, sources, effect_stage
+                )
+                await self._finalize_effects(
+                    job,
+                    epoch,
+                    failed_effects,
+                    {
+                        "stage": effect_stage or job.stage,
+                        "error_class": type(exc).__name__,
+                        "attempts": job.attempts,
+                        "retry_eligible": True,
+                        "source_ids": list(source_ids),
+                    },
+                )
+            raise
+        effects = self._effect_plans(handler, job, offset, prepared, sources, effect_stage)
+        authorization = await self._authorize_effects(
+            job, epoch, offset, effects, sources, effect_stage
+        )
+        if authorization == "complete":
+            return prepared
+        try:
+            if insp.inspect_enabled():
+                with tap.span("runtime.outbox.commit_item", stage=stage, offset=offset):
+                    await self._commit(handler, job.scope, offset, prepared)
+            else:
+                await self._commit(handler, job.scope, offset, prepared)
+        except BaseException as exc:
+            if not isinstance(exc, asyncio.CancelledError):
+                await self._finalize_effects(
+                    job,
+                    epoch,
+                    effects,
+                    {
+                        "stage": effect_stage or job.stage,
+                        "error_class": type(exc).__name__,
+                        "attempts": job.attempts,
+                        "retry_eligible": True,
+                        "source_ids": list(source_ids),
+                    },
+                )
+            raise
+        await self._finalize_effects(job, epoch, effects)
+        return prepared
 
     async def _run_claim(self, claim: Claim, report: DrainReport) -> None:
         job, epoch = claim.job, claim.lease.epoch
@@ -597,25 +790,10 @@ class InlineRunner:
                 raise _Fenced
             failed: dict[int, tuple[str, str | None]] = {}
             try:
-                prepared = await self._item(handler, job.scope, job.stage, offset)
-                await self._record_effects(handler, job, epoch, offset, prepared)
+                await self._execute_item(handler, job, epoch, offset)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                await self._record_effects(
-                    handler,
-                    job,
-                    epoch,
-                    offset,
-                    None,
-                    {
-                        "stage": job.stage,
-                        "error_class": type(exc).__name__,
-                        "attempts": job.attempts,
-                        "retry_eligible": True,
-                        "source_ids": [],
-                    },
-                )
                 failed[offset] = ("raised", f"{type(exc).__name__}: {exc}"[:300])
                 report.holes += 1
                 tap.event(
@@ -672,33 +850,17 @@ class InlineRunner:
                         )
                     ).ok:
                         raise _Fenced
-                    prepared = await self._item(handler, sc, stage, hole.offset)
-                    await self._record_effects(
+                    await self._execute_item(
                         handler,
                         claim.job,
                         claim.lease.epoch,
                         hole.offset,
-                        prepared,
+                        source_stage=stage,
                         effect_stage=stage,
                     )
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
-                    await self._record_effects(
-                        handler,
-                        claim.job,
-                        claim.lease.epoch,
-                        hole.offset,
-                        None,
-                        {
-                            "stage": stage,
-                            "error_class": type(exc).__name__,
-                            "attempts": hole.attempts + 1,
-                            "retry_eligible": hole.attempts + 1 < self.book.budget.max_hole_attempts,
-                            "source_ids": [],
-                        },
-                        effect_stage=stage,
-                    )
                     await self._io(
                         self.book.fail,
                         claim.job.job_id,

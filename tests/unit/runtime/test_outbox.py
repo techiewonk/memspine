@@ -100,32 +100,47 @@ async def test_effect_status_is_idempotent_and_fenced_by_current_lease() -> None
     assert claim is not None
     identity = {"effect_id": "0123456789abcdef", "sources": ["source-1"]}
 
-    assert runner.store.commit_effect(
+    effect = {
+        "effect_id": "0123456789abcdef",
+        "layer": "facts",
+        "identity": identity,
+        "count": 2,
+        "artifact": None,
+    }
+    assert (
+        runner.store.authorize_effects(
+            job_id=claim.job.job_id,
+            epoch=claim.lease.epoch,
+            scope=SCOPE,
+            stage="derive",
+            offset=0,
+            effects=[effect],
+            sources=[],
+            at=T0,
+        )
+        == "authorized"
+    )
+    assert runner.store.finalize_effects(
         job_id=claim.job.job_id,
         epoch=claim.lease.epoch,
-        scope=SCOPE,
-        stage="derive",
-        offset=0,
-        layer="facts",
-        effect_id="0123456789abcdef",
-        identity=identity,
-        result_count=2,
+        effects=[effect],
         failure=None,
         at=T0,
     )
     # Replay reuses the effect identity rather than adding another count.
-    assert runner.store.commit_effect(
-        job_id=claim.job.job_id,
-        epoch=claim.lease.epoch,
-        scope=SCOPE,
-        stage="derive",
-        offset=0,
-        layer="facts",
-        effect_id="0123456789abcdef",
-        identity=identity,
-        result_count=99,
-        failure=None,
-        at=T0,
+    replay = {**effect, "count": 99}
+    assert (
+        runner.store.authorize_effects(
+            job_id=claim.job.job_id,
+            epoch=claim.lease.epoch,
+            scope=SCOPE,
+            stage="derive",
+            offset=0,
+            effects=[replay],
+            sources=[],
+            at=T0,
+        )
+        == "complete"
     )
     assert runner.store.effect_status(SCOPE) == [
         {
@@ -138,22 +153,23 @@ async def test_effect_status_is_idempotent_and_fenced_by_current_lease() -> None
             "state": "complete",
             "count": 2,
             "failure": None,
+            "artifact": None,
             "identity": identity,
             "committed_at": T0.isoformat(),
         }
     ]
-    assert not runner.store.commit_effect(
-        job_id=claim.job.job_id,
-        epoch=claim.lease.epoch + 1,
-        scope=SCOPE,
-        stage="derive",
-        offset=0,
-        layer="facts",
-        effect_id="fedcba9876543210",
-        identity={"effect_id": "fedcba9876543210"},
-        result_count=1,
-        failure=None,
-        at=T0,
+    assert (
+        runner.store.authorize_effects(
+            job_id=claim.job.job_id,
+            epoch=claim.lease.epoch + 1,
+            scope=SCOPE,
+            stage="derive",
+            offset=0,
+            effects=[{"effect_id": "fedcba9876543210", "layer": "facts", "identity": {}}],
+            sources=[],
+            at=T0,
+        )
+        is None
     )
     assert len(runner.store.effect_status(SCOPE)) == 1
 
@@ -170,16 +186,30 @@ async def test_effect_status_persists_bounded_failure_metadata() -> None:
         "retry_eligible": False,
         "source_ids": ["source-1"],
     }
-    assert runner.store.commit_effect(
+    effect = {
+        "effect_id": "failure000000001",
+        "layer": "facts",
+        "identity": {"effect_id": "failure000000001"},
+        "count": 0,
+        "artifact": None,
+    }
+    assert (
+        runner.store.authorize_effects(
+            job_id=claim.job.job_id,
+            epoch=claim.lease.epoch,
+            scope=SCOPE,
+            stage="derive",
+            offset=0,
+            effects=[effect],
+            sources=[],
+            at=T0,
+        )
+        == "authorized"
+    )
+    assert runner.store.finalize_effects(
         job_id=claim.job.job_id,
         epoch=claim.lease.epoch,
-        scope=SCOPE,
-        stage="derive",
-        offset=0,
-        layer="facts",
-        effect_id="failure000000001",
-        identity={"effect_id": "failure000000001"},
-        result_count=0,
+        effects=[effect],
         failure=failure,
         at=T0,
     )
@@ -211,6 +241,36 @@ async def test_runner_retries_holes_under_fresh_lease_and_replaces_failure() -> 
     retry_job = runner.store.get_job(completed[0]["job_id"])
     assert retry_job is not None and retry_job.stage == "derive.hole.0"
     assert retry_job.state == "succeeded" and retry_job.epoch >= 1
+
+
+async def test_partial_projection_replays_idempotently_from_authorized_event() -> None:
+    runner, rec = make_runner()
+    projected: set[int] = set()
+    calls = 0
+
+    async def partial(scope: OwnerScope, offset: int, prepared: Any) -> None:
+        nonlocal calls
+        [event] = runner.effect_status(scope)
+        assert event["state"] == "authorized"  # event is the door, never an afterthought
+        projected.add(offset)  # provider idempotency key consumes the same semantic offset
+        calls += 1
+        if calls == 1:
+            raise RuntimeError("provider stopped after its idempotent write")
+
+    runner.register(
+        "derive",
+        StageHandler(rec.prepare, partial, effect_results=lambda prepared: {"facts": 1}),
+    )
+    await runner.enqueue(SCOPE, "derive", {"n": 0})
+    first = await runner.drain()
+    assert first.holes == 1 and projected == {0}
+    [failed] = runner.effect_status(SCOPE)
+    assert failed["state"] == "failed"
+
+    second = await runner.drain()
+    assert second.hole_filled == 1 and calls == 2 and projected == {0}
+    [complete] = runner.effect_status(SCOPE)
+    assert complete["state"] == "complete" and complete["count"] == 1
 
 
 async def test_queued_jobs_survive_a_restart(tmp_path: Path) -> None:
@@ -293,6 +353,174 @@ async def test_a_stale_epoch_commit_is_refused_and_logged(tmp_path: Path) -> Non
     stages = [e["stage"] for t in tap.memory_traces() for e in t["events"]]
     assert "runtime.outbox.fence_refused" in stages
     assert rec.committed == []  # the library calls above never ran a handler
+
+
+async def test_effect_door_refuses_a_stale_worker_before_projection() -> None:
+    clock = ManualClock(T0)
+    rec = Recorder()
+    rec.gate = asyncio.Event()
+    runner, _ = make_runner(clock=clock, rec=rec)
+    runner.register(
+        "derive",
+        StageHandler(rec.prepare, rec.commit, effect_results=lambda prepared: {"facts": 1}),
+    )
+    source = {"record_id": "r1", "source_version": 1, "content_hash": "hash-1"}
+    runner.store.mark_sources(SCOPE, "derive", [source], T0)
+    await runner.enqueue(SCOPE, "derive", {"record_ids": ["r1"]})
+    task = asyncio.create_task(runner.drain())
+    await asyncio.wait_for(rec.entered.wait(), 5)
+    clock.advance(minutes=6)
+    fresh = runner.book.claim("worker-b", timedelta(minutes=1))
+    assert fresh is not None and fresh.lease.epoch == 2
+    rec.gate.set()
+    report = await asyncio.wait_for(task, 5)
+    assert report.fenced == 1 and rec.committed == []
+    assert runner.store.effect_status(SCOPE) == []
+
+
+async def test_effect_door_refuses_an_expired_unreclaimed_lease() -> None:
+    clock = ManualClock(T0)
+    runner, _ = make_runner(clock=clock)
+    await runner.enqueue(SCOPE, "derive", {})
+    claim = runner.book.claim("worker-a", timedelta(seconds=30))
+    assert claim is not None
+    effect = {
+        "effect_id": "expired000000001",
+        "layer": "facts",
+        "identity": {"effect_id": "expired000000001", "sources": []},
+        "count": 1,
+        "artifact": None,
+    }
+    clock.advance(31)
+    assert (
+        runner.store.authorize_effects(
+            job_id=claim.job.job_id,
+            epoch=claim.lease.epoch,
+            scope=SCOPE,
+            stage="derive",
+            offset=0,
+            effects=[effect],
+            sources=[],
+            at=clock(),
+        )
+        is None
+    )
+
+    # Expiry is also checked at acknowledgement when authorization happened
+    # while the lease was live but provider work outlasted it.
+    fresh = runner.book.claim("worker-b", timedelta(seconds=30))
+    assert fresh is not None
+    assert (
+        runner.store.authorize_effects(
+            job_id=fresh.job.job_id,
+            epoch=fresh.lease.epoch,
+            scope=SCOPE,
+            stage="derive",
+            offset=0,
+            effects=[effect],
+            sources=[],
+            at=clock(),
+        )
+        == "authorized"
+    )
+    clock.advance(31)
+    assert not runner.store.finalize_effects(
+        job_id=fresh.job.job_id,
+        epoch=fresh.lease.epoch,
+        effects=[effect],
+        failure=None,
+        at=clock(),
+    )
+    assert runner.store.effect_status(SCOPE)[0]["state"] == "authorized"
+
+
+async def test_effect_door_revalidates_sources_after_provider_work() -> None:
+    runner, _ = make_runner()
+    source = {
+        "namespace": SCOPE.owner,
+        "record_id": "r1",
+        "source_id": "message-1",
+        "source_version": 1,
+        "content_hash": "hash-1",
+        "erasure_generation": 0,
+    }
+    runner.store.mark_sources(SCOPE, "derive", [source], T0)
+    await runner.enqueue(SCOPE, "derive", {"record_ids": ["r1"]})
+    claim = runner.book.claim("worker-a", timedelta(minutes=1))
+    assert claim is not None
+    effect = {
+        "effect_id": "revalidate000001",
+        "layer": "facts",
+        "identity": {"effect_id": "revalidate000001", "sources": [source]},
+        "count": 1,
+        "artifact": None,
+    }
+    assert (
+        runner.store.authorize_effects(
+            job_id=claim.job.job_id,
+            epoch=claim.lease.epoch,
+            scope=SCOPE,
+            stage="derive",
+            offset=0,
+            effects=[effect],
+            sources=[source],
+            at=T0,
+        )
+        == "authorized"
+    )
+    assert runner.store.erase_source(SCOPE, "derive", "r1")
+    assert not runner.store.finalize_effects(
+        job_id=claim.job.job_id,
+        epoch=claim.lease.epoch,
+        effects=[effect],
+        failure=None,
+        at=T0,
+    )
+    assert runner.store.effect_status(SCOPE) == []
+
+
+async def test_effect_door_refuses_forget_during_inference() -> None:
+    rec = Recorder()
+    rec.gate = asyncio.Event()
+    runner, _ = make_runner(rec=rec)
+    runner.register(
+        "derive",
+        StageHandler(rec.prepare, rec.commit, effect_results=lambda prepared: {"facts": 1}),
+    )
+    source = {"record_id": "r1", "source_version": 1, "content_hash": "hash-1"}
+    runner.store.mark_sources(SCOPE, "derive", [source], T0)
+    await runner.enqueue(SCOPE, "derive", {"record_ids": ["r1"]})
+    task = asyncio.create_task(runner.drain())
+    await asyncio.wait_for(rec.entered.wait(), 5)
+    assert runner.store.erase_source(SCOPE, "derive", "r1")
+    rec.gate.set()
+    report = await asyncio.wait_for(task, 5)
+    assert report.holes == 1 and rec.committed == []
+    assert runner.store.effect_status(SCOPE) == []
+
+
+async def test_effect_door_allows_one_concurrent_projection_consumer() -> None:
+    runner, _ = make_runner()
+    await runner.enqueue(SCOPE, "derive", {})
+    claim = runner.book.claim("worker-a", timedelta(minutes=1))
+    assert claim is not None
+    kw = {
+        "job_id": claim.job.job_id,
+        "epoch": claim.lease.epoch,
+        "scope": SCOPE,
+        "stage": "derive",
+        "offset": 0,
+        "effects": [{"effect_id": "concurrent0000001", "layer": "facts", "identity": {}}],
+        "sources": [],
+        "at": T0,
+    }
+    first, second = await asyncio.gather(
+        asyncio.to_thread(runner.store.authorize_effects, **kw),
+        asyncio.to_thread(runner.store.authorize_effects, **kw),
+    )
+    assert sorted((first, second)) == ["authorized", "busy"]
+    [event] = runner.store.effect_status(SCOPE)
+    assert event["state"] == "authorized"
 
 
 async def test_a_worker_fenced_mid_job_stops_without_committing(tmp_path: Path) -> None:

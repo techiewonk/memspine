@@ -638,6 +638,7 @@ class WindowPipeline:
         prepass: Any = None,
         mark_disputed: MarkDisputedFn | None = None,
         rule_only: bool = False,
+        non_generative_extractor: Any = None,
     ) -> None:
         #: W2-06b (the base prompt layout): one call per window or batch, NEW / CONTEXT / KNOWN.
         self._ctx = context_builder
@@ -651,6 +652,7 @@ class WindowPipeline:
         self._get = get_record
         self._deposit_fact = deposit_fact
         self._rule_only = rule_only
+        self._non_generative_extractor = non_generative_extractor
         self._deposit_episode = deposit_episode
         #: FU-GAPS (``write.integration``): marks the older live peer of a contest ``disputed``.
         self._mark_disputed = mark_disputed
@@ -820,6 +822,22 @@ class WindowPipeline:
         self._recover_in_background()
         ns = record.namespace
         await self._restore_draft(ns)
+        if self._outbox is not None:
+            # The effect door snapshots this before inference.  Publishing the
+            # exact version/hash first prevents a worker from authorizing an
+            # output against membership alone.
+            await self._outbox.mark_sources(
+                self._scope(ns),
+                WINDOW_STAGE,
+                [
+                    {
+                        "record_id": record.record_id,
+                        "source_id": record.record_id,
+                        "source_version": record.version,
+                        "content_hash": fingerprint_payload({"content": record.content}),
+                    }
+                ],
+            )
         store = self._store(ns)
         conversation_id = _conversation_id(record)
         # The source/session id may deliberately identify one physical transcript containing
@@ -863,8 +881,6 @@ class WindowPipeline:
         self._arm_idle(ns, store)
         await self._persist_staged()
         await self._persist_draft(ns, store)
-        if self._outbox is not None:
-            await self._outbox.mark_sources(self._scope(ns), WINDOW_STAGE, [record.record_id])
 
     def _scope(self, ns: str) -> OwnerScope:
         return OwnerScope(tenant=_TENANT, owner=ns)
@@ -1670,7 +1686,7 @@ class WindowPipeline:
         finally:
             store.inflight = None
 
-    def _outbox_effect_results(self, prepared: Any) -> dict[str, int]:
+    def _outbox_effect_results(self, prepared: Any) -> dict[str, Any]:
         """Summarise committed window outputs for the durable readiness ledger."""
         layers: dict[str, int] = {}
         if "facts" in self.sections:
@@ -1695,7 +1711,28 @@ class WindowPipeline:
             layers["graph_mentions"] = len(merged["edges"])
         if "summaries" in layers and merged.get("episode") not in (None, "", [], {}):
             layers["summaries"] = 1
-        return layers
+        results = {
+            layer: {
+                "count": count,
+                "producer_revision": "window-extraction:base",
+                "policy_revision": self._policy_revision,
+            }
+            for layer, count in layers.items()
+        }
+        if body.annotation_batches:
+            results["annotations"] = {
+                "count": layers["annotations"],
+                "artifact": {
+                    "annotation_batches": [
+                        batch.model_dump(mode="json") for batch in body.annotation_batches
+                    ]
+                },
+                "producer_revision": "+".join(
+                    sorted({batch.producer_revision for batch in body.annotation_batches})
+                ),
+                "policy_revision": self._policy_revision,
+            }
+        return results
 
     async def resume_deferred(self, namespace: str) -> int:
         """Derive the windows a spent budget parked (W2-12). Does nothing while the namespace's
@@ -1725,6 +1762,9 @@ class WindowPipeline:
         call-1 edges that cite or cover it are dropped; cached replies for windows that held it
         are deleted."""
         if self._outbox is not None:
+            # Advance the fence before touching queues or in-flight flags.  A
+            # worker returning from inference can no longer authorize effects.
+            await self._outbox.erase_source(self._scope(namespace), WINDOW_STAGE, record_id)
             await self._persist_staged()  # an item still staged is as queued as one stored
             await self._outbox.rewrite_pending(
                 self._scope(namespace), WINDOW_STAGE, lambda p: self._forget_in_item(p, record_id)
@@ -1967,7 +2007,12 @@ class WindowPipeline:
         window = job.window
         assert window is not None
         if self._rule_only:
-            from memspine.derive.non_generative_facts import mine_grounded_facts
+            from memspine.derive.non_generative_facts import (
+                FactStageResult,
+                UnresolvedFactCandidate,
+                compile_grounded_facts,
+                mine_grounded_facts,
+            )
             from memspine.schemas.durable.ingestion import AnnotationBatch, IngestionSourceSnapshot
 
             scope = OwnerScope(tenant=_TENANT, owner=ns)
@@ -1975,9 +2020,28 @@ class WindowPipeline:
             unresolved: list[Any] = []
             annotations: list[Any] = []
             for record in records:
-                result = mine_grounded_facts(record, scope)
-                facts.extend(result.facts)
-                unresolved.extend(result.unresolved)
+                if self._non_generative_extractor is None:
+                    result = mine_grounded_facts(record, scope)
+                else:
+                    try:
+                        result = await self._non_generative_extractor.extract(record, scope)
+                        if not isinstance(result, FactStageResult) or result.generative_calls != 0:
+                            raise TypeError("non-generative extractor returned an invalid result")
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception:
+                        result = FactStageResult(
+                            unresolved=(
+                                UnresolvedFactCandidate(
+                                    source_id=record.record_id,
+                                    source_version=record.version,
+                                    reason="extractor_failed",
+                                ),
+                            )
+                        )
+                compiled = compile_grounded_facts(result, records, scope)
+                facts.extend(compiled.envelopes)
+                unresolved.extend(compiled.unresolved)
                 message = record.source.message or {}
                 sender = message.get("sender") if isinstance(message, dict) else None
                 annotations.append(
@@ -2302,34 +2366,44 @@ class WindowPipeline:
                 await self._store_rule_facts(ns, prepared)
 
     async def _store_rule_facts(self, ns: str, prepared: _Prepared) -> None:
-        """Deposit deterministic candidates through the canonical derived-write door."""
+        """Deposit canonical envelopes compiled from deterministic candidates."""
         if self._deposit_fact is None:
             return
         by_id = {record.record_id: record for record in prepared.records}
-        for candidate in prepared.rule_facts:
-            source_id = candidate.evidence.turn.source_id
-            source = by_id.get(source_id)
-            if source is None or prepared.job.cancelled:
+        for envelope in prepared.rule_facts:
+            source_ids = list(
+                dict.fromkeys(
+                    evidence.turn.source_id
+                    for evidence in envelope.evidence
+                    if evidence.turn is not None
+                )
+            )
+            sources = [by_id[source_id] for source_id in source_ids if source_id in by_id]
+            if not sources or prepared.job.cancelled:
                 continue
-            when = source.source_at or source.valid_from
+            when = envelope.time.source_time or sources[0].source_at or sources[0].valid_from
+            entity = envelope.subject.surface if envelope.subject is not None else envelope.speaker
+            semantic = envelope.semantic
+            predicate = semantic.predicate if semantic is not None else envelope.attribute
             stored = await self._deposit_fact(
                 ns,
-                f"{candidate.subject} {candidate.predicate} {candidate.object}",
-                candidate.subject,
-                candidate.predicate,
-                [source_id],
+                envelope.text,
+                entity,
+                str(predicate) if predicate is not None else integration_attribute(envelope),
+                source_ids,
                 when,
                 f"rule:{prepared.window_id}",
-                kind="fact",
+                kind=storage_kind(envelope.kind),
                 said=when.date().isoformat(),
                 extra_tags=[
                     "window_fact",
                     f"window:{prepared.window_id}",
                     "non_generative",
-                    f"predicate:{candidate.predicate}",
+                    f"predicate:{predicate}",
                 ],
-                require_live=[source_id],
-                envelope=candidate.model_dump(mode="json"),
+                require_live=source_ids,
+                trust_cap=envelope.assessment.source_trust,
+                envelope=envelope.model_dump(mode="json"),
             )
             if stored is None:
                 prepared.job.cancelled = True

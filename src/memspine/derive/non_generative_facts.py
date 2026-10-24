@@ -9,19 +9,29 @@ outcome unresolved for the canonical compiler/integration door.
 from __future__ import annotations
 
 import re
-from typing import Literal
+from collections.abc import Mapping, Sequence
+from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
 
 from memspine.core.rule_miner import mine_rules
+from memspine.derive.compile import WindowLine
+from memspine.derive.envelope_compiler import EnvelopeCompiler
+from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
+from memspine.schemas.durable.semantic import RoleBinding as DurableRoleBinding
+from memspine.schemas.durable.semantic import SemanticEnvelope
+from memspine.semantics import RoleBindingCheck, SemanticRegistry, load_builtin_registry
+from memspine.semantics.specs import EntityType, ValueKind
 from memspine.store.records import MemoryRecord
 
 __all__ = [
     "FactStageResult",
     "GroundedFactCandidate",
+    "NonGenerativeFactExtractor",
     "UnresolvedFactCandidate",
+    "compile_grounded_facts",
     "mine_grounded_facts",
 ]
 
@@ -33,6 +43,27 @@ _RULE_TO_PREDICATE = {
     "plans": "has_goal",
 }
 _CORRECTION = re.compile(r"\b(?:correction|I meant|rather than|not .+ but)\b", re.IGNORECASE)
+UnresolvedReason = Literal[
+    "assistant_proposal",
+    "missing_assertion_owner",
+    "correction_requires_resolution",
+    "unsupported_predicate",
+    "unsupported_relation",
+    "ambiguous_support_span",
+    "scope_mismatch",
+    "invalid_evidence",
+    "invalid_assertion_owner",
+    "semantic_validation_failed",
+    "compiler_rejected",
+    "extractor_failed",
+]
+_OBJECT_TYPES: Mapping[str, tuple[ValueKind, EntityType | None]] = {
+    "resides_in": ("entity", "place"),
+    "employed_by": ("entity", "organisation"),
+    "likes": ("text", None),
+    "dislikes": ("text", None),
+    "has_goal": ("text", None),
+}
 
 
 class _Candidate(BaseModel):
@@ -42,27 +73,26 @@ class _Candidate(BaseModel):
 class GroundedFactCandidate(_Candidate):
     scope: OwnerScope
     subject: str = Field(min_length=1)
+    subject_type: EntityType = "person"
     predicate: str = Field(min_length=1)
     object: str = Field(min_length=1)
+    object_kind: ValueKind = "text"
+    object_entity_type: EntityType | None = None
     modality: Literal["asserted", "planned"]
-    polarity: Literal["positive"] = "positive"
+    polarity: Literal["positive", "negative"] = "positive"
     assertion_owner: str = Field(min_length=1)
     evidence: Evidence
+    context_evidence: tuple[Evidence, ...] = ()
+    role_bindings: tuple[DurableRoleBinding, ...] = ()
+    cardinality_scope: Mapping[str, str] = Field(default_factory=dict)
     source_time: str | None = None
-    producer_revision: Literal["personal-rules:1"] = "personal-rules:1"
+    producer_revision: str = Field(default="personal-rules:1", min_length=1)
 
 
 class UnresolvedFactCandidate(_Candidate):
     source_id: str = Field(min_length=1)
     source_version: int = Field(ge=1)
-    reason: Literal[
-        "assistant_proposal",
-        "missing_assertion_owner",
-        "correction_requires_resolution",
-        "unsupported_predicate",
-        "unsupported_relation",
-        "ambiguous_support_span",
-    ]
+    reason: UnresolvedReason
     attribute: str | None = None
     value: str | None = None
 
@@ -71,6 +101,20 @@ class FactStageResult(_Candidate):
     facts: tuple[GroundedFactCandidate, ...] = ()
     unresolved: tuple[UnresolvedFactCandidate, ...] = ()
     generative_calls: Literal[0] = 0
+
+
+class CompiledFactStage(_Candidate):
+    envelopes: tuple[AssertionEnvelope, ...] = ()
+    unresolved: tuple[UnresolvedFactCandidate, ...] = ()
+    generative_calls: Literal[0] = 0
+
+
+class NonGenerativeFactExtractor(Protocol):
+    """Optional configured extractor contract; deliberately has no LLM fallback."""
+
+    identity: str
+
+    async def extract(self, record: MemoryRecord, scope: OwnerScope) -> FactStageResult: ...
 
 
 def _owner(record: MemoryRecord) -> str | None:
@@ -94,6 +138,190 @@ def _support_span(text: str, value: str) -> Span | None:
         left += 1
     quote = text[left:right]
     return Span(start=left, end=right, quote=quote)
+
+
+def _unresolved(
+    candidate: GroundedFactCandidate, reason: UnresolvedReason
+) -> UnresolvedFactCandidate:
+    turn = candidate.evidence.turn
+    return UnresolvedFactCandidate(
+        source_id=turn.source_id if turn is not None else "uncited",
+        source_version=turn.source_version if turn is not None else 1,
+        reason=reason,
+        attribute=candidate.predicate,
+        value=candidate.object,
+    )
+
+
+def _evidence_kind(evidence: Sequence[Evidence]) -> Literal["exact_span", "envelope"] | None:
+    if any(item.span is not None for item in evidence):
+        return "exact_span"
+    if any(item.turn is not None for item in evidence):
+        return "envelope"
+    return None
+
+
+def _evidence_is_valid(
+    evidence: Evidence,
+    records: Mapping[str, MemoryRecord],
+    scope: OwnerScope,
+) -> bool:
+    turn = evidence.turn
+    if turn is None:
+        return False
+    record = records.get(turn.source_id)
+    if record is None or record.version != turn.source_version or record.namespace != scope.owner:
+        return False
+    span = evidence.span
+    if span is None:
+        return True
+    if not (0 <= span.start < span.end <= len(record.content)):
+        return False
+    return bool(span.quote == record.content[span.start : span.end])
+
+
+def _binding_check(binding: DurableRoleBinding) -> RoleBindingCheck:
+    return RoleBindingCheck(
+        role=binding.role_name,
+        value_kind=binding.value_kind,
+        entity_type=binding.entity_type,
+        evidence=_evidence_kind(binding.evidence),
+        unit=binding.unit,
+        amount=binding.amount,
+    )
+def compile_grounded_facts(
+    result: FactStageResult,
+    sources: Sequence[MemoryRecord],
+    scope: OwnerScope,
+    *,
+    compiler: EnvelopeCompiler | None = None,
+    registry: SemanticRegistry | None = None,
+) -> CompiledFactStage:
+    """Validate and compile deterministic candidates through the canonical envelope path.
+
+    Support evidence must cite the authoritative turn in ``sources``. Binding/context
+    evidence may cite another supplied turn, but it must have the same owner scope and
+    pinned version. Every failure stays unresolved; this adapter never retries through a
+    generative service and never writes a record.
+    """
+    compiler = compiler or EnvelopeCompiler(prompt_hash="non-generative:1")
+    registry = registry or load_builtin_registry()
+    records = {record.record_id: record for record in sources}
+    envelopes: list[AssertionEnvelope] = []
+    unresolved = list(result.unresolved)
+    for candidate in result.facts:
+        turn = candidate.evidence.turn
+        source = records.get(turn.source_id) if turn is not None else None
+        if candidate.scope != scope or source is None or source.namespace != scope.owner:
+            unresolved.append(_unresolved(candidate, "scope_mismatch"))
+            continue
+        all_evidence = (
+            candidate.evidence,
+            *candidate.context_evidence,
+            *(item for binding in candidate.role_bindings for item in binding.evidence),
+        )
+        if any(not _evidence_is_valid(item, records, scope) for item in all_evidence):
+            unresolved.append(_unresolved(candidate, "invalid_evidence"))
+            continue
+        if _owner(source) != candidate.assertion_owner:
+            unresolved.append(_unresolved(candidate, "invalid_assertion_owner"))
+            continue
+        try:
+            spec = registry.validate_compatibility(
+                candidate.predicate,
+                subject_type=candidate.subject_type,
+                value_kind=candidate.object_kind,
+                object_entity_type=candidate.object_entity_type,
+                role_names=(binding.role_name for binding in candidate.role_bindings),
+                source_origin="raw_message",
+            )
+            registry.validate_role_bindings(
+                candidate.predicate,
+                (_binding_check(binding) for binding in candidate.role_bindings),
+            )
+            for binding in candidate.role_bindings:
+                role = registry.roles[binding.role_name]
+                if binding.role_version != role.version:
+                    raise ValueError("role binding version differs from active role")
+            if any(not candidate.cardinality_scope.get(key) for key in spec.cardinality_scope):
+                raise ValueError("predicate cardinality requires explicit scope")
+        except (KeyError, ValueError):
+            unresolved.append(_unresolved(candidate, "semantic_validation_failed"))
+            continue
+
+        aliases: dict[tuple[str, int], int] = {}
+        window: dict[int, WindowLine] = {}
+        cited: list[int] = []
+        for evidence in all_evidence:
+            cited_turn = evidence.turn
+            assert cited_turn is not None
+            key = (cited_turn.source_id, cited_turn.source_version)
+            alias = aliases.setdefault(key, len(aliases) + 1)
+            cited.append(alias)
+            record = records[cited_turn.source_id]
+            if alias in window:
+                continue
+            window[alias] = WindowLine(
+                turn_id=f"{record.record_id}:{record.version}",
+                source_id=record.record_id,
+                source_version=record.version,
+                seg_index=cited_turn.seg_index,
+                role=record.source.role,
+                speaker=_owner(record),
+                source_at=record.source_at or record.valid_from,
+                content=record.content,
+                is_context=evidence is not candidate.evidence,
+            )
+        ctx = compiler.context(
+            scope,
+            source.record_id,
+            window,
+            source_version=source.version,
+            source_time=source.source_at or source.valid_from,
+            principal=candidate.assertion_owner,
+        )
+        compiled = compiler.compile(
+            [
+                {
+                    "text": f"{candidate.subject} {candidate.predicate} {candidate.object}",
+                    "kind": (
+                        "state" if spec.cardinality in {"one", "contextual"} else "event"
+                    ),
+                    "s": candidate.subject,
+                    "r": candidate.predicate,
+                    "o": candidate.object,
+                    "mode": candidate.modality,
+                    "neg": candidate.polarity == "negative",
+                    "lines": sorted(set(cited)),
+                    "span": candidate.evidence.span.quote if candidate.evidence.span else "",
+                }
+            ],
+            ctx,
+        )
+        if len(compiled.envelopes) != 1:
+            unresolved.append(_unresolved(candidate, "compiler_rejected"))
+            continue
+        envelope = compiled.envelopes[0]
+        semantic = SemanticEnvelope(
+            predicate=candidate.predicate,
+            predicate_version=spec.version,
+            registry_digest=registry.digest,
+            subject_type=candidate.subject_type,
+            object_kind=candidate.object_kind,
+            object_entity_type=candidate.object_entity_type,
+            cardinality=spec.cardinality,
+            cardinality_scope=dict(candidate.cardinality_scope),
+            role_bindings=[
+                DurableRoleBinding.model_validate(binding.model_dump(), strict=True)
+                for binding in candidate.role_bindings
+            ],
+            assertion_owner=candidate.assertion_owner,
+            producer_revision=candidate.producer_revision,
+        )
+        envelope = envelope.model_copy(update={"semantic": semantic})
+        # Revalidate after attaching the typed semantic payload; do not trust model_copy.
+        envelopes.append(AssertionEnvelope.model_validate(envelope.model_dump(), strict=True))
+    return CompiledFactStage(envelopes=tuple(envelopes), unresolved=tuple(unresolved))
 
 
 def mine_grounded_facts(record: MemoryRecord, scope: OwnerScope) -> FactStageResult:
@@ -184,6 +412,8 @@ def mine_grounded_facts(record: MemoryRecord, scope: OwnerScope) -> FactStageRes
                 subject=owner,
                 predicate=predicate,
                 object=mined.value,
+                object_kind=_OBJECT_TYPES[predicate][0],
+                object_entity_type=_OBJECT_TYPES[predicate][1],
                 modality="planned" if mined.attribute == "plans" else "asserted",
                 assertion_owner=owner,
                 evidence=Evidence(

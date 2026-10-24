@@ -101,6 +101,10 @@ class AnnotationBatch(DurableModel):
                 raise ValueError("mention version differs from its source snapshot")
             if mention.source_content_fingerprint != self.source.content_hash:
                 raise ValueError("mention content hash differs from its source snapshot")
+            if self.source.role is not None and mention.source_role != self.source.role:
+                raise ValueError("mention role differs from its source snapshot")
+            if self.source.sender is not None and mention.sender_id != self.source.sender:
+                raise ValueError("mention sender differs from its source snapshot")
         return self
 
 

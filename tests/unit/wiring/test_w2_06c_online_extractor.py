@@ -25,6 +25,7 @@ from memspine.config.schema.write import WriteConfig
 from memspine.derive.online_extractor import OnlineExtractor
 from memspine.ingest import windows as ingest_windows
 from memspine.read.pending_barrier import PendingBarrier
+from memspine.schemas.durable import AnnotationBatch, AssertionEnvelope
 from memspine.services.llm.base import LLMRouter
 
 # --- config ---------------------------------------------------------------------------------------
@@ -188,9 +189,23 @@ async def test_no_model_online_extractor_deposits_grounded_rule_fact(
         assert facts[0].content == "Mira employed_by Acme"
         assert facts[0].source.parents
         assert "non_generative" in facts[0].tags
+        envelope = AssertionEnvelope.model_validate(facts[0].fingerprint.envelope)
+        assert envelope.semantic is not None
+        assert envelope.semantic.predicate == "employed_by"
+        assert envelope.semantic.object_entity_type == "organisation"
         status = (await eng.ingestion_status(["rule-1"], namespace="a"))["rule-1"]
         assert status.counts == {"L1": 1, "L2": 0}
         assert not status.failures
+        assert eng._windows is not None
+        annotation_effect = next(
+            row
+            for row in eng._windows.derivation_effect_status("a")
+            if row["layer"] == "annotations"
+        )
+        [batch_payload] = annotation_effect["artifact"]["annotation_batches"]
+        batch = AnnotationBatch.model_validate(batch_payload)
+        assert batch.source.namespace == "a"
+        assert annotation_effect["count"] == len(batch.mentions)
     finally:
         await eng.stop()
 

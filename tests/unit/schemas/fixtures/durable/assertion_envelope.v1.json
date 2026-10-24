@@ -97,6 +97,7 @@
     "owner_kind": "user",
     "tenant": "tenant-a"
   },
+  "semantic": null,
   "speaker": "speaker:alice",
   "src_class": "user_stated",
   "status": "active",

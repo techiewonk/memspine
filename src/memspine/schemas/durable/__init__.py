@@ -37,6 +37,7 @@ from memspine.schemas.durable.jobs import (
     commit_allowed,
 )
 from memspine.schemas.durable.lineage import LineageEdge
+from memspine.schemas.durable.semantic import RoleBinding, SemanticEnvelope
 from memspine.schemas.durable.temporal import (
     Duration,
     Interval,
@@ -75,6 +76,8 @@ __all__ = [
     "Provenance",
     "RequiredDerivation",
     "RetentionBoundary",
+    "RoleBinding",
+    "SemanticEnvelope",
     "SourceRef",
     "Span",
     "Support",

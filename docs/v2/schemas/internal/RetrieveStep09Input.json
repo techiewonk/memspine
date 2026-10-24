@@ -182,6 +182,17 @@
         "scope": {
           "$ref": "#/$defs/OwnerScope"
         },
+        "semantic": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SemanticEnvelope"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "speaker": {
           "anyOf": [
             {
@@ -1281,6 +1292,116 @@
       "title": "Record",
       "type": "object"
     },
+    "RoleBinding": {
+      "additionalProperties": true,
+      "description": "A registry-versioned role value with its pinned evidence.",
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "binding_id": {
+          "minLength": 1,
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "entity_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "person",
+                "agent",
+                "group",
+                "organisation",
+                "place",
+                "object",
+                "work",
+                "project",
+                "species",
+                "concept",
+                "document",
+                "software",
+                "event",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entity Type"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "role_name": {
+          "minLength": 1,
+          "title": "Role Name",
+          "type": "string"
+        },
+        "role_version": {
+          "minimum": 1,
+          "title": "Role Version",
+          "type": "integer"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        },
+        "value_kind": {
+          "enum": [
+            "entity",
+            "text",
+            "number",
+            "boolean",
+            "temporal"
+          ],
+          "title": "Value Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "binding_id",
+        "role_name",
+        "role_version",
+        "value_kind",
+        "value",
+        "evidence"
+      ],
+      "title": "RoleBinding",
+      "type": "object"
+    },
     "Scope": {
       "additionalProperties": true,
       "description": "Handle-side scope as read by the retrieve steps (tenant, user, agent, session, principal).\n\nDurable records use :class:`memspine.schemas.durable.OwnerScope` (tenant plus owner, S3-1); this is the\ncaller-facing handle shape the read path resolves into one.",
@@ -1371,6 +1492,133 @@
         }
       },
       "title": "Scope",
+      "type": "object"
+    },
+    "SemanticEnvelope": {
+      "additionalProperties": true,
+      "description": "Registry interpretation of an assertion, never an alternate writer.",
+      "properties": {
+        "assertion_owner": {
+          "minLength": 1,
+          "title": "Assertion Owner",
+          "type": "string"
+        },
+        "cardinality": {
+          "enum": [
+            "one",
+            "many",
+            "contextual",
+            "unknown"
+          ],
+          "title": "Cardinality",
+          "type": "string"
+        },
+        "cardinality_scope": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Cardinality Scope",
+          "type": "object"
+        },
+        "object_entity_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "person",
+                "agent",
+                "group",
+                "organisation",
+                "place",
+                "object",
+                "work",
+                "project",
+                "species",
+                "concept",
+                "document",
+                "software",
+                "event",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Object Entity Type"
+        },
+        "object_kind": {
+          "enum": [
+            "entity",
+            "text",
+            "number",
+            "boolean",
+            "temporal"
+          ],
+          "title": "Object Kind",
+          "type": "string"
+        },
+        "predicate": {
+          "minLength": 1,
+          "title": "Predicate",
+          "type": "string"
+        },
+        "predicate_version": {
+          "minimum": 1,
+          "title": "Predicate Version",
+          "type": "integer"
+        },
+        "producer_revision": {
+          "minLength": 1,
+          "title": "Producer Revision",
+          "type": "string"
+        },
+        "registry_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Registry Digest",
+          "type": "string"
+        },
+        "role_bindings": {
+          "items": {
+            "$ref": "#/$defs/RoleBinding"
+          },
+          "title": "Role Bindings",
+          "type": "array"
+        },
+        "subject_type": {
+          "enum": [
+            "person",
+            "agent",
+            "group",
+            "organisation",
+            "place",
+            "object",
+            "work",
+            "project",
+            "species",
+            "concept",
+            "document",
+            "software",
+            "event",
+            "other"
+          ],
+          "title": "Subject Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "predicate",
+        "predicate_version",
+        "registry_digest",
+        "subject_type",
+        "object_kind",
+        "cardinality",
+        "assertion_owner",
+        "producer_revision"
+      ],
+      "title": "SemanticEnvelope",
       "type": "object"
     },
     "Span": {

@@ -1,4 +1,4 @@
-"""SQL-backed durable outbox (F-04): the ``JobStore`` of LIB-07 over four tables.
+"""SQL-backed durable outbox (F-04): the ``JobStore`` of LIB-07.
 
 The outbox is the truth (owner Q2, W-13): every unit of derived work is a row before any worker
 touches it, so a stop or a crash loses nothing. ``JobBook`` (``runtime.jobs``) keeps all the rules
@@ -12,6 +12,8 @@ Tables (own ``MetaData``, so the v1 baseline is untouched; revision ``0006`` cre
 ``outbox_item``      the work itself: item ``item_offset`` of ``(scope, stage)`` with its payload.
                      A job covers the offset range ``(watermark, target_offset]``.
 ``outbox_log``       the fence log: refused heartbeats, checkpoints, commits (evidence for ER-07).
+``outbox_effect``    authorized provider-projection events and their durable outcomes.
+``outbox_source_membership`` version/hash/erasure source state used by the effect door.
 
 Synchronous Core on its own sync engine (the storage layer is async; ``JobBook`` is not). Each store
 call is one short transaction. Under the inline runner all book calls run on the event-loop thread,
@@ -43,6 +45,7 @@ from sqlalchemy.pool import StaticPool
 from memspine.observability import tap
 from memspine.runtime.jobs import FenceEvent, Job, ScopeKey, scope_key
 from memspine.schemas.durable.common import OwnerScope
+from memspine.schemas.durable.ingestion import AnnotationBatch, IngestionSourceSnapshot
 from memspine.schemas.durable.jobs import Hole, Progress
 from memspine.services.storage.outbox_tables import (
     OUTBOX_TABLES,
@@ -76,6 +79,50 @@ def _ts(value: datetime | None) -> str | None:
 
 def _dt(value: str | None) -> datetime | None:
     return None if value is None else datetime.fromisoformat(value)
+
+
+def _source_fence_key(source: dict[str, Any]) -> tuple[str, str, str, int, str, int]:
+    """Fields persisted by the source fence; descriptive annotation metadata is separate."""
+    snapshot = IngestionSourceSnapshot.model_validate(source)
+    return (
+        snapshot.namespace,
+        snapshot.record_id,
+        snapshot.source_id,
+        snapshot.source_version,
+        snapshot.content_hash,
+        snapshot.erasure_generation,
+    )
+
+
+def _effect_artifact_json(effect: dict[str, Any]) -> str | None:
+    """Validate and canonically encode an effect's optional materialized artifact."""
+    artifact = effect.get("artifact")
+    if artifact is None:
+        return None
+    if effect.get("layer") == "annotations":
+        if not isinstance(artifact, dict):
+            raise ValueError("annotation artifact must be an object")
+        raw_batches = artifact.get("annotation_batches")
+        if not isinstance(raw_batches, list) or not raw_batches:
+            raise ValueError("annotation artifact must contain at least one annotation batch")
+        identity_sources = effect.get("identity", {}).get("sources", [])
+        authorized_sources = {
+            _source_fence_key(source)
+            for source in identity_sources
+            if isinstance(source, dict)
+        }
+        batches = [AnnotationBatch.model_validate(batch) for batch in raw_batches]
+        batch_sources = [_source_fence_key(batch.source.model_dump(mode="json")) for batch in batches]
+        if len(batch_sources) != len(set(batch_sources)):
+            raise ValueError("annotation artifact contains duplicate source batches")
+        if set(batch_sources) != authorized_sources:
+            raise ValueError("annotation artifact sources differ from effect identity")
+        artifact = {
+            "annotation_batches": [batch.model_dump(mode="json") for batch in batches]
+        }
+    if not isinstance(artifact, dict):
+        raise ValueError("effect artifact must be an object")
+    return json.dumps(artifact, sort_keys=True, separators=(",", ":"), default=str)
 
 
 def _job_to_row(job: Job) -> dict[str, Any]:
@@ -403,18 +450,67 @@ class SqlJobStore:
             ).first()
         return None if row is None else dict(json.loads(row.payload))
 
-    def mark_sources(
-        self, scope: OwnerScope, stage: str, record_ids: Sequence[str], at: datetime
+    @staticmethod
+    def _delete_source_effects(
+        c: Connection, scope: OwnerScope, stage: str, record_id: str
     ) -> None:
-        """Persist canonical source acceptance independently of prunable item rows."""
+        """Remove whole immutable effects whose identity includes one changed source."""
+        effects = c.execute(
+            select(outbox_effect.c.effect_id, outbox_effect.c.identity).where(
+                *_scope_where(outbox_effect, scope), outbox_effect.c.stage == stage
+            )
+        ).all()
+        stale_ids = []
+        for effect in effects:
+            try:
+                sources = json.loads(effect.identity).get("sources", [])
+            except (AttributeError, TypeError, ValueError):
+                # A malformed identity cannot prove that it excludes erased
+                # content, so fail closed and remove it from the namespace.
+                stale_ids.append(effect.effect_id)
+                continue
+            if any(
+                isinstance(source, dict) and source.get("record_id") == record_id
+                for source in sources
+            ):
+                stale_ids.append(effect.effect_id)
+        if stale_ids:
+            c.execute(delete(outbox_effect).where(outbox_effect.c.effect_id.in_(stale_ids)))
+
+    def mark_sources(
+        self, scope: OwnerScope, stage: str, sources: Sequence[dict[str, Any]], at: datetime
+    ) -> None:
+        """Persist the source state against which derivation effects are fenced.
+
+        This is the outbox-side source authority.  It is deliberately richer
+        than queued item membership: a worker snapshots it before inference,
+        then the transactional effect door compares that snapshot with the
+        current row while it also checks the lease and appends effect events.
+        """
         with self._tx() as c:
-            for record_id in dict.fromkeys(record_ids):
+            for source in sources:
+                record_id = str(source["record_id"])
                 key = [
                     *_scope_where(outbox_source_membership, scope),
                     outbox_source_membership.c.stage == stage,
                     outbox_source_membership.c.record_id == record_id,
                 ]
-                if c.execute(select(outbox_source_membership.c.record_id).where(*key)).first():
+                existing = c.execute(select(outbox_source_membership).where(*key)).first()
+                values = {
+                    "source_id": str(source.get("source_id") or record_id),
+                    "source_version": int(source["source_version"]),
+                    "content_hash": str(source["content_hash"]),
+                    "active": True,
+                    "accepted_at": _ts(at),
+                }
+                if existing is not None:
+                    if (
+                        int(existing.source_version) != values["source_version"]
+                        or existing.content_hash != values["content_hash"]
+                        or not existing.active
+                    ):
+                        self._delete_source_effects(c, scope, stage, record_id)
+                    c.execute(update(outbox_source_membership).where(*key).values(**values))
                     continue
                 c.execute(
                     insert(outbox_source_membership).values(
@@ -423,9 +519,62 @@ class SqlJobStore:
                         owner_kind=scope.owner_kind,
                         stage=stage,
                         record_id=record_id,
-                        accepted_at=_ts(at),
+                        erasure_generation=0,
+                        **values,
                     )
                 )
+
+    def source_snapshots(
+        self, scope: OwnerScope, stage: str, record_ids: Sequence[str]
+    ) -> list[dict[str, Any]]:
+        """Read ordered pre-inference snapshots; missing/inactive sources are refused."""
+        snapshots: list[dict[str, Any]] = []
+        with self._tx() as c:
+            for record_id in dict.fromkeys(record_ids):
+                row = c.execute(
+                    select(outbox_source_membership).where(
+                        *_scope_where(outbox_source_membership, scope),
+                        outbox_source_membership.c.stage == stage,
+                        outbox_source_membership.c.record_id == record_id,
+                    )
+                ).first()
+                if row is None or not row.active:
+                    return []
+                snapshots.append(
+                    {
+                        "namespace": scope.owner,
+                        "record_id": row.record_id,
+                        "source_id": row.source_id,
+                        "source_version": row.source_version,
+                        "content_hash": row.content_hash,
+                        "erasure_generation": row.erasure_generation,
+                    }
+                )
+        return snapshots
+
+    def erase_source(self, scope: OwnerScope, stage: str, record_id: str) -> bool:
+        """Invalidate snapshots and remove immutable effects bound to ``record_id``."""
+        with self._tx() as c:
+            row = c.execute(
+                select(outbox_source_membership.c.erasure_generation).where(
+                    *_scope_where(outbox_source_membership, scope),
+                    outbox_source_membership.c.stage == stage,
+                    outbox_source_membership.c.record_id == record_id,
+                )
+            ).first()
+            if row is None:
+                return False
+            c.execute(
+                update(outbox_source_membership)
+                .where(
+                    *_scope_where(outbox_source_membership, scope),
+                    outbox_source_membership.c.stage == stage,
+                    outbox_source_membership.c.record_id == record_id,
+                )
+                .values(erasure_generation=int(row.erasure_generation) + 1, active=False)
+            )
+            self._delete_source_effects(c, scope, stage, record_id)
+        return True
 
     def has_source(self, scope: OwnerScope, stage: str, record_id: str) -> bool:
         with self._tx() as c:
@@ -435,11 +584,12 @@ class SqlJobStore:
                         *_scope_where(outbox_source_membership, scope),
                         outbox_source_membership.c.stage == stage,
                         outbox_source_membership.c.record_id == record_id,
+                        outbox_source_membership.c.active.is_(True),
                     )
                 ).first()
             )
 
-    def commit_effect(
+    def authorize_effects(
         self,
         *,
         job_id: str,
@@ -447,65 +597,199 @@ class SqlJobStore:
         scope: OwnerScope,
         stage: str,
         offset: int,
-        layer: str,
-        effect_id: str,
-        identity: dict[str, Any],
-        result_count: int,
-        failure: dict[str, Any] | None,
+        effects: Sequence[dict[str, Any]],
+        sources: Sequence[dict[str, Any]],
         at: datetime,
-    ) -> bool:
-        """Record/reuse one effect only while ``job_id`` owns ``epoch``.
+    ) -> str | None:
+        """Atomically fence inputs and append immutable effect authorization events.
 
-        The lease check and idempotency insert share one SQL transaction.  A
-        duplicate effect id is success and never increments readiness counts.
-        The window stores currently materialise through provider-owned,
-        idempotent transactions before recording this outcome; this boundary
-        fences the durable readiness claim, not those cross-provider writes.
+        ``None`` means the lease or a source snapshot is stale. ``complete``
+        means every effect was already projected and acknowledged, so replay
+        can skip provider writes. ``authorized`` means the idempotent provider
+        consumer must run (including recovery after a partial projection).
         """
         with self._tx() as c:
             job = c.execute(
-                select(outbox.c.epoch, outbox.c.state).where(outbox.c.job_id == job_id)
-            ).first()
-            if job is None or int(job.epoch) != epoch or job.state != "running":
-                return False
-            existing = c.execute(
-                select(outbox_effect.c.effect_id, outbox_effect.c.state).where(
-                    outbox_effect.c.effect_id == effect_id
+                select(outbox.c.epoch, outbox.c.state, outbox.c.lease_until).where(
+                    outbox.c.job_id == job_id
                 )
             ).first()
-            if existing is not None:
-                if existing.state == "failed" and failure is None:
+            lease_until = None if job is None else _dt(job.lease_until)
+            if (
+                job is None
+                or int(job.epoch) != epoch
+                or job.state != "running"
+                or lease_until is None
+                or lease_until <= at
+            ):
+                return None
+            for source in sources:
+                row = c.execute(
+                    select(outbox_source_membership).where(
+                        *_scope_where(outbox_source_membership, scope),
+                        outbox_source_membership.c.stage == stage,
+                        outbox_source_membership.c.record_id == source["record_id"],
+                    )
+                ).first()
+                if (
+                    row is None
+                    or source.get("namespace") != scope.owner
+                    or not row.active
+                    or row.source_id != source["source_id"]
+                    or int(row.source_version) != int(source["source_version"])
+                    or row.content_hash != source["content_hash"]
+                    or int(row.erasure_generation) != int(source["erasure_generation"])
+                ):
+                    return None
+            existing_effects: list[tuple[dict[str, Any], Any]] = []
+            for effect in effects:
+                existing = c.execute(
+                    select(
+                        outbox_effect.c.state,
+                        outbox_effect.c.job_id,
+                        outbox_effect.c.epoch,
+                        outbox_effect.c.identity,
+                    ).where(outbox_effect.c.effect_id == effect["effect_id"])
+                ).first()
+                if existing is not None:
+                    incoming_identity = json.dumps(effect["identity"], sort_keys=True, default=str)
+                    if existing.identity != incoming_identity:
+                        raise ValueError("effect replay identity differs from persisted identity")
+                    if (
+                        existing.state == "authorized"
+                        and existing.job_id == job_id
+                        and int(existing.epoch) == epoch
+                    ):
+                        return "busy"
+                existing_effects.append((effect, existing))
+            if all(
+                existing is not None and existing.state == "complete"
+                for _, existing in existing_effects
+            ):
+                return "complete"
+            for effect, existing in existing_effects:
+                if existing is not None and existing.state == "complete":
+                    continue
+                if existing is not None:
                     c.execute(
                         update(outbox_effect)
-                        .where(outbox_effect.c.effect_id == effect_id)
+                        .where(outbox_effect.c.effect_id == effect["effect_id"])
                         .values(
                             job_id=job_id,
                             epoch=epoch,
-                            state="complete",
-                            result_count=result_count,
+                            state="authorized",
                             failure=None,
                             committed_at=_ts(at),
                         )
                     )
-                return True
-            c.execute(
-                insert(outbox_effect).values(
-                    effect_id=effect_id,
-                    job_id=job_id,
-                    epoch=epoch,
-                    tenant=scope.tenant,
-                    owner=scope.owner,
-                    owner_kind=scope.owner_kind,
-                    stage=stage,
-                    item_offset=offset,
-                    layer=layer,
-                    state="failed" if failure is not None else "complete",
-                    result_count=result_count,
-                    failure=None if failure is None else json.dumps(failure, sort_keys=True),
-                    identity=json.dumps(identity, sort_keys=True, default=str),
-                    committed_at=_ts(at),
+                    continue
+                c.execute(
+                    insert(outbox_effect).values(
+                        effect_id=effect["effect_id"],
+                        job_id=job_id,
+                        epoch=epoch,
+                        tenant=scope.tenant,
+                        owner=scope.owner,
+                        owner_kind=scope.owner_kind,
+                        stage=stage,
+                        item_offset=offset,
+                        layer=effect["layer"],
+                        state="authorized",
+                        result_count=0,
+                        failure=None,
+                        artifact=None,
+                        identity=json.dumps(effect["identity"], sort_keys=True, default=str),
+                        committed_at=_ts(at),
+                    )
                 )
-            )
+        return "authorized"
+
+    def finalize_effects(
+        self,
+        *,
+        job_id: str,
+        epoch: int,
+        effects: Sequence[dict[str, Any]],
+        failure: dict[str, Any] | None,
+        at: datetime,
+    ) -> bool:
+        """Acknowledge projection outcomes, fenced by the same live lease."""
+        artifacts = {str(effect["effect_id"]): _effect_artifact_json(effect) for effect in effects}
+        with self._tx() as c:
+            job = c.execute(
+                select(outbox.c.epoch, outbox.c.state, outbox.c.lease_until).where(
+                    outbox.c.job_id == job_id
+                )
+            ).first()
+            lease_until = None if job is None else _dt(job.lease_until)
+            if (
+                job is None
+                or int(job.epoch) != epoch
+                or job.state != "running"
+                or lease_until is None
+                or lease_until <= at
+            ):
+                return False
+            for effect in effects:
+                row = c.execute(
+                    select(outbox_effect).where(
+                        outbox_effect.c.effect_id == effect["effect_id"]
+                    )
+                ).first()
+                if (
+                    row is None
+                    or row.job_id != job_id
+                    or int(row.epoch) != epoch
+                    or row.identity
+                    != json.dumps(effect["identity"], sort_keys=True, default=str)
+                ):
+                    return False
+                scope = OwnerScope(
+                    tenant=row.tenant, owner=row.owner, owner_kind=row.owner_kind
+                )
+                try:
+                    identity_sources = json.loads(row.identity).get("sources", [])
+                except (AttributeError, TypeError, ValueError):
+                    return False
+                for source in identity_sources:
+                    if not isinstance(source, dict) or "record_id" not in source:
+                        continue
+                    current = c.execute(
+                        select(outbox_source_membership).where(
+                            *_scope_where(outbox_source_membership, scope),
+                            outbox_source_membership.c.stage == row.stage,
+                            outbox_source_membership.c.record_id == source["record_id"],
+                        )
+                    ).first()
+                    if (
+                        current is None
+                        or source.get("namespace") != scope.owner
+                        or not current.active
+                        or current.source_id != source["source_id"]
+                        or int(current.source_version) != int(source["source_version"])
+                        or current.content_hash != source["content_hash"]
+                        or int(current.erasure_generation)
+                        != int(source.get("erasure_generation", 0))
+                    ):
+                        return False
+                artifact = artifacts[str(effect["effect_id"])]
+                if row.state == "complete":
+                    if int(row.result_count) != int(effect["count"]) or row.artifact != artifact:
+                        raise ValueError("effect replay result differs from persisted result")
+                    continue
+                c.execute(
+                    update(outbox_effect)
+                    .where(outbox_effect.c.effect_id == effect["effect_id"])
+                    .values(
+                        job_id=job_id,
+                        epoch=epoch,
+                        state="failed" if failure is not None else "complete",
+                        result_count=int(effect["count"]),
+                        failure=None if failure is None else json.dumps(failure, sort_keys=True),
+                        artifact=artifact,
+                        committed_at=_ts(at),
+                    )
+                )
         return True
 
     def effect_status(self, scope: OwnerScope) -> list[dict[str, Any]]:
@@ -527,6 +811,7 @@ class SqlJobStore:
                 "state": row.state,
                 "count": row.result_count,
                 "failure": None if row.failure is None else json.loads(row.failure),
+                "artifact": None if row.artifact is None else json.loads(row.artifact),
                 "identity": json.loads(row.identity),
                 "committed_at": row.committed_at,
             }

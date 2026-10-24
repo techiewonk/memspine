@@ -1,0 +1,349 @@
+{
+  "$defs": {
+    "Evidence": {
+      "additionalProperties": true,
+      "description": "One piece of evidence for an assertion.\n\n* ``support`` states the fact.\n* ``binding`` resolves a pronoun, relative date or reference (ER-11); it must be cited.\n* ``context`` is shown to the model but never counts as evidence and never raises trust.\n\n``source_family`` is the asserting principal (S4-2): speaker id, author or document, tool name, or a\nweb page's registrable domain. Derived records inherit parents' families through lineage.",
+      "properties": {
+        "role": {
+          "enum": [
+            "support",
+            "binding",
+            "context"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "source_family": {
+          "minLength": 1,
+          "title": "Source Family",
+          "type": "string"
+        },
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Span"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "turn": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TurnRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "role",
+        "source_family"
+      ],
+      "title": "Evidence",
+      "type": "object"
+    },
+    "RoleBinding": {
+      "additionalProperties": true,
+      "description": "A registry-versioned role value with its pinned evidence.",
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "binding_id": {
+          "minLength": 1,
+          "title": "Binding Id",
+          "type": "string"
+        },
+        "entity_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "person",
+                "agent",
+                "group",
+                "organisation",
+                "place",
+                "object",
+                "work",
+                "project",
+                "species",
+                "concept",
+                "document",
+                "software",
+                "event",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Entity Type"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
+          },
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "role_name": {
+          "minLength": 1,
+          "title": "Role Name",
+          "type": "string"
+        },
+        "role_version": {
+          "minimum": 1,
+          "title": "Role Version",
+          "type": "integer"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "value": {
+          "minLength": 1,
+          "title": "Value",
+          "type": "string"
+        },
+        "value_kind": {
+          "enum": [
+            "entity",
+            "text",
+            "number",
+            "boolean",
+            "temporal"
+          ],
+          "title": "Value Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "binding_id",
+        "role_name",
+        "role_version",
+        "value_kind",
+        "value",
+        "evidence"
+      ],
+      "title": "RoleBinding",
+      "type": "object"
+    },
+    "Span": {
+      "additionalProperties": true,
+      "description": "Character range inside one turn, plus the verbatim excerpt when kept.",
+      "properties": {
+        "end": {
+          "minimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "quote": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Quote"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "Span",
+      "type": "object"
+    },
+    "TurnRef": {
+      "additionalProperties": true,
+      "description": "A cited turn of a pinned source version.",
+      "properties": {
+        "seg_index": {
+          "minimum": 0,
+          "title": "Seg Index",
+          "type": "integer"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_version": {
+          "minimum": 1,
+          "title": "Source Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_id",
+        "source_version",
+        "seg_index"
+      ],
+      "title": "TurnRef",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Registry interpretation of an assertion, never an alternate writer.",
+  "properties": {
+    "assertion_owner": {
+      "minLength": 1,
+      "title": "Assertion Owner",
+      "type": "string"
+    },
+    "cardinality": {
+      "enum": [
+        "one",
+        "many",
+        "contextual",
+        "unknown"
+      ],
+      "title": "Cardinality",
+      "type": "string"
+    },
+    "cardinality_scope": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Cardinality Scope",
+      "type": "object"
+    },
+    "object_entity_type": {
+      "anyOf": [
+        {
+          "enum": [
+            "person",
+            "agent",
+            "group",
+            "organisation",
+            "place",
+            "object",
+            "work",
+            "project",
+            "species",
+            "concept",
+            "document",
+            "software",
+            "event",
+            "other"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Object Entity Type"
+    },
+    "object_kind": {
+      "enum": [
+        "entity",
+        "text",
+        "number",
+        "boolean",
+        "temporal"
+      ],
+      "title": "Object Kind",
+      "type": "string"
+    },
+    "predicate": {
+      "minLength": 1,
+      "title": "Predicate",
+      "type": "string"
+    },
+    "predicate_version": {
+      "minimum": 1,
+      "title": "Predicate Version",
+      "type": "integer"
+    },
+    "producer_revision": {
+      "minLength": 1,
+      "title": "Producer Revision",
+      "type": "string"
+    },
+    "registry_digest": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Registry Digest",
+      "type": "string"
+    },
+    "role_bindings": {
+      "items": {
+        "$ref": "#/$defs/RoleBinding"
+      },
+      "title": "Role Bindings",
+      "type": "array"
+    },
+    "subject_type": {
+      "enum": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "place",
+        "object",
+        "work",
+        "project",
+        "species",
+        "concept",
+        "document",
+        "software",
+        "event",
+        "other"
+      ],
+      "title": "Subject Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "predicate",
+    "predicate_version",
+    "registry_digest",
+    "subject_type",
+    "object_kind",
+    "cardinality",
+    "assertion_owner",
+    "producer_revision"
+  ],
+  "title": "SemanticEnvelope",
+  "type": "object"
+}

@@ -47,6 +47,7 @@ def _mention(**changes: object) -> EntityMention:
         "source_binding_hash": "b" * 16,
         "source_role": "user",
         "source_channel": "messages",
+        "sender_id": "alice",
     }
     values.update(changes)
     return EntityMention(**values)
@@ -68,6 +69,8 @@ def test_empty_annotation_batch_is_an_explicit_successful_result() -> None:
         ("source_record_id", "record-2"),
         ("source_version", 3),
         ("source_content_fingerprint", "c" * 16),
+        ("source_role", "assistant"),
+        ("sender_id", "mallory"),
     ],
 )
 def test_annotation_batch_rejects_mentions_from_another_snapshot(field: str, value: object) -> None:

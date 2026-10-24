@@ -12,16 +12,16 @@ Authority: owner accepted all three policies. [Current trace](INGESTION_STORAGE_
 | BI-02 | DONE | Required-derivation manifest is atomic with accepted intent; canonical source provenance and parent/session rules are preserved | None |
 | BI-03 | DONE | Applied raw intents reconcile through the existing outbox with one atomic cursor/item transaction and durable source membership | None |
 | BI-04 | DONE | Open windows persist and restore with policy boundaries; late arrivals, sessions and conversations remain isolated | None |
-| BI-05 | IN_PROGRESS | Strict source-bound `AnnotationBatch`, explicit zero-result accounting, exact occurrence projection | Persist the complete annotation batch as a durable materialized artifact, not only its effect count |
-| BI-06 | IN_PROGRESS | Deterministic zero-generative rule candidates, exact evidence, unresolved outcomes and canonical derived writes | Complete the full typed semantic-envelope/role/cardinality path and optional configured non-generative extractor path |
-| BI-07 | IN_PROGRESS | Fresh leased hole retries and lease-epoch-gated idempotent effect ledger | Provider materialization and source version/hash/erasure validation are not one cross-provider SQL transaction |
-| BI-08 | VERIFY | Occurrence-level unasserted graph projection passes SQLite, LadybugDB and Neo4j contract fixtures | Promote after BI-05 and BI-07 close |
+| BI-05 | DONE | Complete source-bound `AnnotationBatch` payloads persist in the canonical effect ledger, including explicit empty success; artifacts must cover the exact authorized source set, and restart/replay, source replacement, erasure and forged/omitted-binding tests pass | None |
+| BI-06 | DONE | Deterministic zero-generative rule candidates and optional configured non-generative extractors pass typed semantic-envelope, role, cardinality, evidence, source, owner and context validation; unsupported results remain unresolved | None in the selected non-generative profile |
+| BI-07 | DONE | The effect door validates an unexpired lease, source version/hash and erasure state before provider commit and revalidates them before durable acknowledgement; supported window deposits additionally enforce live parents under the namespace write lock, and concurrent, partial, stale, erasure-race and replay cases pass | None in the supported window provider-effect contract; no distributed transaction or generic provider rollback is claimed |
+| BI-08 | DONE | Occurrence-level unasserted graph projection passes SQLite, LadybugDB and Neo4j contract fixtures after the BI-05/07 prerequisites closed | None |
 | BI-09 | DONE | Durable per-layer counts/failures plus bounded status/wait APIs | None |
 | BI-10 | DONE | Cold sources inflate before grounding with exact Unicode/fingerprint preservation | None |
-| BI-11 | VERIFY | Extractive-only summaries make zero generative calls and preserve raw-parent lineage | Promote after BI-05 through BI-07 close |
+| BI-11 | DONE | Extractive-only summaries make zero generative calls and preserve raw-parent lineage; BI-05 through BI-07 prerequisites are closed | None |
 | BI-12 | NEEDS_INPUT | Namespace/restart/fault/provider matrix and full suite pass | Owner must select the application profile/model binding to promote as the default |
 
-Verification at this revision: 9,174 main tests collected; 8,899 passed,
+Verification at this revision: 9,194 main tests collected; 8,919 passed,
 275 skipped and zero failed. Ruff and generated schema/reference checks pass.
 
 ## Accepted policy
@@ -281,10 +281,8 @@ savings. No automatic lossy deletion, provider copying or re-embedding.
 
 ## Status and next action
 
-BI-01 through BI-04 and BI-09/10 are implemented. BI-05/06/07 remain open at
-the durable annotation, semantic-envelope and cross-provider commit boundaries;
-BI-08/11 are implemented and held in verification behind those prerequisites.
-BI-12 has a green integration matrix but cannot promote a default until the owner
+BI-01 through BI-11 are implemented and their package gates pass. BI-12 has a
+green integration matrix but cannot promote a default until the owner
 selects the application profile/model binding.
 This remains separate from deployment acceptance and PA-107 evaluation migration.
 

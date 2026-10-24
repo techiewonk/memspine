@@ -16,6 +16,7 @@ from memspine.schemas.durable.common import Fingerprint, OwnerScope, Provenance,
 from memspine.schemas.durable.entity_mentions import EntityMention as GlinerMentionAnnotation
 from memspine.schemas.durable.evidence import Evidence
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.schemas.durable.temporal import TimeAxes
 from memspine.schemas.reserved import reserved_hits
 
@@ -106,6 +107,7 @@ class AssertionEnvelope(DurableModel):
     checks: GroundingChecks | None = None
     prompt_hash: str | None = None
     derivation: Fingerprint | None = None
+    semantic: SemanticEnvelope | None = None
     graph: dict[str, Any] | None = None  # code-compiled projection, never model output
     verdict: IntegrationVerdict | None = None
 
@@ -169,6 +171,23 @@ class AssertionEnvelope(DurableModel):
                         raise ValueError("GLiNER annotation source is not cited at this version")
             except (ValidationError, TypeError) as exc:
                 raise ValueError("gliner_mentions contains an invalid annotation") from exc
+        if self.semantic is not None:
+            if self.attribute != self.semantic.predicate:
+                raise ValueError("semantic predicate must equal the canonical assertion attribute")
+            if self.provenance.principal != self.semantic.assertion_owner:
+                raise ValueError("semantic assertion owner must equal the compiler-bound principal")
+            semantic_citations = {
+                (item.turn.source_id, item.turn.source_version)
+                for item in self.evidence
+                if item.turn is not None
+            }
+            for binding in self.semantic.role_bindings:
+                if any(
+                    item.turn is None
+                    or (item.turn.source_id, item.turn.source_version) not in semantic_citations
+                    for item in binding.evidence
+                ):
+                    raise ValueError("semantic role evidence is not cited by the assertion")
         ids = self.mention_ids
         if len(set(ids)) != len(ids):
             raise ValueError("mention ids must be distinct")

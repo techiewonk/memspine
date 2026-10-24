@@ -217,6 +217,22 @@
       "tier": "durable"
     },
     {
+      "file": "durable/RoleBinding.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.semantic",
+      "name": "RoleBinding",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/SemanticEnvelope.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.semantic",
+      "name": "SemanticEnvelope",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
       "file": "durable/SourceRef.json",
       "kind": null,
       "module": "memspine.schemas.durable.common",
