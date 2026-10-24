@@ -11,24 +11,15 @@ connection cannot reach another connection's in-memory database — so callers
 
 from __future__ import annotations
 
-import threading
 from pathlib import Path
 
-from alembic import command
 from alembic.config import Config
 from sqlalchemy.engine import Connection
 
 from memspine.exceptions import StorageError
+from memspine.services.storage import migrations as shared
 
 __all__ = ["alembic_config", "ensure_schema", "upgrade_to_head"]
-
-_HERE = Path(__file__).parent / "alembic"
-
-#: #88: Alembic keeps its migration context in module globals (``alembic.op``,
-#: ``alembic.context``), so two migrations in one process must not overlap. Two
-#: engines started concurrently on one file each run :func:`ensure_schema` in a
-#: worker thread; unserialised, the process crashed (a native access violation).
-_MIGRATION_LOCK = threading.Lock()
 
 
 def _reject_memory(db_path: str | Path) -> None:
@@ -40,24 +31,15 @@ def _reject_memory(db_path: str | Path) -> None:
 
 
 def alembic_config(db_path: str | Path) -> Config:
-    """The Alembic config of the SQLite tree, URL-addressed (offline/CLI use and tests)."""
+    """The shared Alembic config with a SQLite URL (offline/CLI use and tests)."""
     _reject_memory(db_path)
-    cfg = Config()
-    cfg.set_main_option("script_location", str(_HERE))
-    cfg.set_main_option("sqlalchemy.url", f"sqlite:///{db_path}")
-    return cfg
+    return shared.alembic_config(f"sqlite:///{db_path}")
 
 
 def upgrade_to_head(db_path: str | Path) -> None:
-    command.upgrade(alembic_config(db_path), "head")
+    shared.upgrade_to_head(alembic_config(db_path))
 
 
 def ensure_schema(connection: Connection) -> None:
-    """Initialize an empty database or open the current schema, under the process lock."""
-    with _MIGRATION_LOCK:
-        cfg = Config()
-        cfg.set_main_option("script_location", str(_HERE))
-        cfg.attributes["connection"] = connection
-        command.upgrade(cfg, "head")
-        if connection.in_transaction():
-            connection.commit()
+    """Initialize/open SQLite using the shared SQL baseline and process lock."""
+    shared.ensure_schema(connection)

@@ -1,7 +1,6 @@
-"""Alembic environment for the memspine Postgres storage profile (F-16d, M-04).
+"""Shared Alembic environment for SQLite and PostgreSQL.
 
-Run programmatically via ``memspine.services.storage.postgres.migrations``.
-The fresh baseline creates the current shared SQL schema.
+Runtime callers lend a configured connection; URL configuration supports CLI/tests.
 """
 
 from __future__ import annotations
@@ -9,13 +8,16 @@ from __future__ import annotations
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+from memspine.services.storage.baseline import schema_metadata
+
 config = context.config
+target_metadata = schema_metadata()
 
 
 def run_migrations_offline() -> None:
     context.configure(
         url=config.get_main_option("sqlalchemy.url"),
-        target_metadata=None,
+        target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -24,9 +26,11 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    # #52: a caller that must open the database itself (SQLCipher: the connection
+    # needs its key first) hands Alembic a live connection instead of a URL.
     given = config.attributes.get("connection")
     if given is not None:
-        context.configure(connection=given, target_metadata=None)
+        context.configure(connection=given, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
         return
@@ -36,7 +40,7 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=None)
+        context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
 

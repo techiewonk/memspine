@@ -232,7 +232,7 @@ def test_scan_skips_clients_and_alembic_env(tmp_path: Path):
     src = tmp_path / "src"
     for rel in (
         "memspine/clients/sqlite.py",
-        "memspine/services/storage/sqlite/alembic/env.py",
+        "memspine/services/storage/alembic/env.py",
         "memspine/services/x.py",
     ):
         p = src / rel

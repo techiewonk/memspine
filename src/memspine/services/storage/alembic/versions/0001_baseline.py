@@ -1,4 +1,4 @@
-"""Complete fresh postgres schema for the first development cycle."""
+"""Complete fresh SQL schema for the first development cycle."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from alembic import op
 
 from memspine.services.storage.baseline import create_schema, drop_schema
 
-revision = "pg0001"
+revision = "0001"
 down_revision = None
 branch_labels = None
 depends_on = None

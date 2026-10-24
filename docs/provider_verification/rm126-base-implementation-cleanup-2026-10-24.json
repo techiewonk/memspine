@@ -6,7 +6,7 @@
   "scope": [
     "Owner-approved A01-A19 compatibility removals and latest implementations as the sole base.",
     "Unversioned implementation names and current strict configuration contracts; no generation aliases.",
-    "Fresh SQLite/Postgres baselines; no historical-store adoption, upcasting or migration bridges.",
+    "One shared fresh SQLite/PostgreSQL baseline; no historical-store adoption, upcasting or migration bridges.",
     "Current replay retained; embedder identity is embedder:<model>.",
     "Current read, trust, audit, erasure, write, segmentation, extraction, decay and community paths consolidated."
   ],
@@ -154,11 +154,12 @@
     "provider_defaults": "up to date",
     "stage_params": "up to date",
     "schema_exports": "276 files match regenerated output",
+    "shared_sql_migration_tree": "295 passed, 60 skipped, 3 expected failures; wheel contains one 0001 baseline",
     "git_diff_check": "passed (line-ending normalization warnings only)"
   },
   "limitations": [
     "Optional native/external-service paths not exercised by skipped tests.",
     "Dependency freshness audit previously found FastAPI locked at 0.161.1 while 0.162.0 was available; no unrelated dependency upgrade was made."
   ],
-  "delivery": "Local working-tree changes only; no commit or push."
+  "delivery": "Committed locally; no push."
 }

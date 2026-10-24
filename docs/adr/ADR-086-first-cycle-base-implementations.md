@@ -29,6 +29,11 @@ codemods, rename hints and old record decoding/emission. Initialize a fresh SQL
 store from a complete current baseline. Require one current record/event format.
 There are no old-key aliases, old-store relabeling or migration bridges.
 
+SQLite and PostgreSQL use one shared Alembic tree and revision identity because
+the current logical schema is shared. Backend entry points retain only their
+connection concerns: SQLite file/in-memory handling and PostgreSQL advisory
+locking. A process-wide lock protects Alembic's module-global migration context.
+
 Preserve current replay, idempotency, namespace/owner isolation, locks, leases,
 projection target validation, provider/model changes, vector-space lifecycle,
 erasure verification and rejection of unsupported schema versions. Current entity
@@ -56,6 +61,9 @@ Fresh/current stores and current configurations are the supported contract.
 Existing development stores and historical configuration files need recreation,
 not compatibility handling. Golden fixtures, presets, prompt identity and
 configuration snapshots change with the coordinated current contract.
+
+There is one SQL migration history to maintain and test. Backend-specific schema
+divergence now requires an explicit design decision rather than a mirrored tree.
 
 Implementation status and validation evidence belong only to RM-126 in
 `docs/PROVIDER_TODO.md`.

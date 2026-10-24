@@ -1,4 +1,4 @@
-"""Current SQL schema: fresh baselines, dialect parity and storage integrity."""
+"""Current SQL schema: shared fresh baseline, dialect parity and integrity."""
 
 from __future__ import annotations
 
@@ -22,24 +22,16 @@ from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.records import MemoryRecord, SourceInfo
 
-SQLITE_TREE = Path(sqlite_migrations.__file__).parent / "alembic"
-POSTGRES_TREE = Path(pg_migrations.__file__).parent / "alembic"
 
-# ---------------------------------------------------------------------------- the trees
-
-
-def test_both_trees_have_a_single_head() -> None:
-    assert len(ScriptDirectory(str(SQLITE_TREE)).get_heads()) == 1
-    # RM-113 item 18: the asset registry table is the head in both (after the WP5 side tables).
-    assert pg_migrations.heads() == ["pg0001"]
-
-
-def test_postgres_tree_mirrors_the_sqlite_revision_count() -> None:
-    def count(tree: Path) -> int:
-        return len(list(ScriptDirectory(str(tree)).walk_revisions()))
-
-    # Provider-contract and projector-binding revisions are mirrored in both trees.
-    assert count(SQLITE_TREE) == count(POSTGRES_TREE) == 1
+def test_backends_use_one_tree_and_one_baseline() -> None:
+    sqlite_config = sqlite_migrations.alembic_config(Path("unused.db"))
+    postgres_config = pg_migrations.alembic_config("postgresql://unused")
+    assert sqlite_config.get_main_option("script_location") == postgres_config.get_main_option(
+        "script_location"
+    )
+    script = ScriptDirectory.from_config(sqlite_config)
+    assert script.get_heads() == pg_migrations.heads() == ["0001"]
+    assert len(list(script.walk_revisions())) == 1
 
 
 def test_storage_profile_module_is_gone() -> None:
@@ -98,7 +90,7 @@ def _pg_tree_on_sqlite(path: Path, revision: str = "head") -> sa.Engine:
     return sa.create_engine(url)
 
 
-def test_trees_produce_the_same_logical_schema(tmp_path: Path) -> None:
+def test_backend_entry_points_produce_the_same_logical_schema(tmp_path: Path) -> None:
     a = _logical(_sqlite_tree(tmp_path / "a.db"))
     b = _logical(_pg_tree_on_sqlite(tmp_path / "b.db"))
     assert set(a) == set(b)
