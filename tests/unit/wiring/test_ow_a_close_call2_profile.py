@@ -146,16 +146,16 @@ async def _markers(eng: Engine, name: str) -> list[Any]:
     return [e for e in events if (e.payload or {}).get("marker") == name]
 
 
-async def test_flag_off_is_the_stub_and_writes_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_disabled_close_skips_without_model_calls(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeCloseLLM()
     eng = await _engine(monkeypatch, llm)
     try:
         await _send(eng, "s1", _turns(3))
         out = await eng.close_session("a", "s1")
-        assert out["hook"]["status"] == "stub"
+        assert out["hook"]["status"] == "skipped"
         assert llm.prompts == [] and await _derived(eng) == []
         assert len(await _markers(eng, "session_closed")) == 1
-        assert await _markers(eng, "profile_card_v2") == []
+        assert await _markers(eng, "profile_card") == []
     finally:
         await eng.stop()
 
@@ -164,7 +164,7 @@ async def test_flag_on_writes_summary_and_episode_with_lineage(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeCloseLLM()
-    eng = await _engine(monkeypatch, llm, session_close_v2=True, lineage_table=True)
+    eng = await _engine(monkeypatch, llm, session_close=True, lineage_table=True)
     try:
         await _send(eng, "s1", _turns(3))
         out = await eng.close_session("a", "s1")
@@ -208,7 +208,7 @@ async def test_invalid_items_are_dropped_by_reason_and_siblings_kept(
             {"text": "Good one.", "lines": [1, 2]},
         ],
     }
-    eng = await _engine(monkeypatch, llm, session_close_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True)
     try:
         await _send(eng, "s1", _turns(2))
         hook = (await eng.close_session("a", "s1"))["hook"]
@@ -223,7 +223,7 @@ async def test_parse_error_and_model_error_leave_no_marker_and_can_retry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeCloseLLM()
-    eng = await _engine(monkeypatch, llm, session_close_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True)
     try:
         await _send(eng, "s1", _turns(2))
         llm.raise_once = True
@@ -239,21 +239,21 @@ async def test_parse_error_and_model_error_leave_no_marker_and_can_retry(
         await eng.stop()
 
 
-async def test_summarize_role_is_the_fallback_and_missing_role_is_the_stub(
+async def test_summarize_role_is_the_fallback_and_missing_role_skips(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeCloseLLM()
-    eng = await _engine(monkeypatch, llm, role="summarize", session_close_v2=True)
+    eng = await _engine(monkeypatch, llm, role="summarize", session_close=True)
     try:
         await _send(eng, "s1", _turns(2))
         assert (await eng.close_session("a", "s1"))["hook"]["status"] == "ok"
     finally:
         await eng.stop()
-    eng = await _engine(monkeypatch, llm, role="judge", session_close_v2=True)
+    eng = await _engine(monkeypatch, llm, role="judge", session_close=True)
     try:
         await _send(eng, "s2", _turns(2))
         hook = (await eng.close_session("a", "s2"))["hook"]
-        assert hook["status"] == "stub" and hook["v2"]["status"] == "skipped"
+        assert hook["status"] == "skipped"
     finally:
         await eng.stop()
 
@@ -267,7 +267,7 @@ async def test_a_late_turn_is_a_new_version_and_stitches_onto_the_earlier_episod
         "Mira also discussed her orchid again and the kayak tour, then said she "
         "prefers tea without sugar in the evening.",
     ]
-    eng = await _engine(monkeypatch, llm, session_close_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True)
     try:
         await _send(eng, "s1", _turns(2))
         await eng.close_session("a", "s1")
@@ -290,7 +290,7 @@ async def test_a_late_turn_is_a_new_version_and_stitches_onto_the_earlier_episod
 
 async def test_profile_ops_flow_into_the_guarded_card(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeCloseLLM()
-    eng = await _engine(monkeypatch, llm, session_close_v2=True, profile_card_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True, profile_card=True)
     try:
         await _send(eng, "s1", _turns(4))
         hook = (await eng.close_session("a", "s1"))["hook"]
@@ -301,7 +301,7 @@ async def test_profile_ops_flow_into_the_guarded_card(monkeypatch: pytest.Monkey
         entry = card.get("preferences", "tea")
         assert entry is not None and entry.value == "prefers tea without sugar"
         assert entry.status == "active" and len(entry.support) == 1
-        assert len(await _markers(eng, "profile_card_v2")) == 1
+        assert len(await _markers(eng, "profile_card")) == 1
     finally:
         await eng.stop()
 
@@ -335,7 +335,7 @@ async def test_guard_rejects_inferred_uncited_and_foreign_evidence(
             "cites": [1],
         },
     ]
-    eng = await _engine(monkeypatch, llm, session_close_v2=True, profile_card_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True, profile_card=True)
     try:
         await _send(eng, "s1", _turns(3))
         prof = (await eng.close_session("a", "s1"))["hook"]["profile"]
@@ -361,9 +361,7 @@ async def test_kappa_p_bound_evicts_and_reports(monkeypatch: pytest.MonkeyPatch)
         }
         for i in range(5)
     ]
-    eng = await _engine(
-        monkeypatch, llm, session_close_v2=True, profile_card_v2=True, profile_kappa_p=2
-    )
+    eng = await _engine(monkeypatch, llm, session_close=True, profile_card=True, profile_kappa_p=2)
     try:
         await _send(eng, "s1", _turns(3))
         prof = (await eng.close_session("a", "s1"))["hook"]["profile"]
@@ -378,12 +376,12 @@ async def test_profile_ops_are_only_counted_with_the_card_flag_off(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeCloseLLM()
-    eng = await _engine(monkeypatch, llm, session_close_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True)
     try:
         await _send(eng, "s1", _turns(3))
         prof = (await eng.close_session("a", "s1"))["hook"]["profile"]
         assert prof == {"status": "off", "proposed": 1}
-        assert await _markers(eng, "profile_card_v2") == []
+        assert await _markers(eng, "profile_card") == []
     finally:
         await eng.stop()
 
@@ -392,7 +390,7 @@ async def test_sleep_invalidates_entries_whose_support_was_forgotten(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeCloseLLM()
-    eng = await _engine(monkeypatch, llm, session_close_v2=True, profile_card_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True, profile_card=True)
     try:
         await _send(eng, "s1", _turns(4))
         await eng.close_session("a", "s1")
@@ -414,7 +412,7 @@ async def test_sleep_reports_the_reflection_plan_for_a_tentative_or_stale_entry(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeCloseLLM()
-    eng = await _engine(monkeypatch, llm, session_close_v2=True, profile_card_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True, profile_card=True)
     try:
         await _send(eng, "s1", _turns(4))
         await eng.close_session("a", "s1")
@@ -430,7 +428,7 @@ async def test_sleep_without_the_card_flag_has_no_card_stats(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeCloseLLM()
-    eng = await _engine(monkeypatch, llm, session_close_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True)
     try:
         await _send(eng, "s1", _turns(2))
         await eng.close_session("a", "s1")
@@ -467,7 +465,7 @@ async def test_a_repeat_of_the_same_texts_is_not_merged_away(
 ) -> None:
     """FU-CLOSE: session_close records take the plain WRITE route (no semantic M5 dedup)."""
     llm = FakeCloseLLM()
-    eng = await _engine(monkeypatch, llm, session_close_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True)
     try:
         await _send(eng, "s1", _turns(2))
         await eng.close_session("a", "s1")
@@ -494,7 +492,7 @@ async def test_tap_events_for_call2_and_profile_ops(monkeypatch: pytest.MonkeyPa
     tap.shutdown()
     tap.configure(TapConfig(enabled=True, sink="memory"))
     llm = FakeCloseLLM()
-    eng = await _engine(monkeypatch, llm, session_close_v2=True, profile_card_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True, profile_card=True)
     try:
         await _send(eng, "s1", _turns(3))
         await eng.close_session("a", "s1")

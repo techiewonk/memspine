@@ -21,7 +21,7 @@ from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.store.scope import validate_namespace
 from memspine.trust.erasure import retained_fields
-from memspine.trust.pipeline import erasure_v2
+from memspine.trust.pipeline import erasure_state as erasure
 from memspine.trust.pipeline.state import _as_options_dict
 
 _log = get_logger(__name__)
@@ -57,10 +57,8 @@ async def forget(
     ``actor`` and ``reason`` (#49) are recorded in a ``memory.audit`` event
     under ``audit.actions``.
     """
-    if hard and erasure_v2.enabled(eng):  # T5-04: plan over the lineage, hide, purge
-        return await erasure_v2.forget(
-            eng, record_id, namespace, cascade, actor=actor, reason=reason
-        )
+    if hard:  # Hard erasure always plans over lineage, hides and purges.
+        return await erasure.forget(eng, record_id, namespace, cascade, actor=actor, reason=reason)
     storage = eng._require_started()
     ns = validate_namespace(namespace)
     # Same per-namespace lock as write(): a hard delete's read-hold-check-
@@ -374,7 +372,7 @@ async def _forget_locked(
             payload={"record_id": record_id, "hard": hard},
         )
     )
-    if eng._config().graph.edge_compiler_v2:  # F-02c: its compiled graph edges go with it
+    if eng._config().graph.edge_compiler:  # F-02c: its compiled graph edges go with it
         await eng._retract_compiled_edges(ns, [record_id])
     if hard and redact:
         redacted = await storage.redact_event_payloads(record_id)
@@ -500,15 +498,10 @@ async def verify_forget(
     if eng._lexical is not None:
         lexical_absent = not await eng._lexical.exists(record_id)
     descendants = await eng._descendants(storage, validate_namespace(namespace), [record_id])
-    # F4: under ``privacy.erasure_v2`` a dependant is not a leak when it is kept (another live
+    # F4: under ``privacy.erasure`` a dependant is not a leak when it is kept (another live
     # parent) or hidden and queued for re-derivation; only a ``leaked`` one blocks ``clean``.
-    v2 = bool(eng._config().privacy.erasure_v2)
-    split: dict[str, list[str]] | None = None
-    if v2:
-        from memspine.trust.pipeline import erasure_v2
-
-        split = await erasure_v2.classify_descendants(eng, storage, record_id, descendants)
-    blocking = split["leaked"] if split is not None else descendants
+    split = await erasure.classify_descendants(eng, storage, record_id, descendants)
+    blocking = split["leaked"]
     log_verifiable = storage.can_rebuild  # ephemeral persists nothing to prove
     retained: set[str] = set()
     after = 0
@@ -563,11 +556,10 @@ async def verify_forget(
         "log_redacted": log_clean,
         "log_retained_fields": sorted(retained),
         "descendants_remaining": descendants,
-        # F4 (erasure_v2 only; None under v1): hidden-pending-rederive is not a leak
-        "erasure_v2": v2,
-        "descendants_hidden_pending_rederive": split["hidden_pending_rederive"] if split else None,
-        "descendants_kept": split["kept"] if split else None,
-        "descendants_leaked": split["leaked"] if split else None,
+        # Hidden dependants awaiting re-derivation are not leaks.
+        "descendants_hidden_pending_rederive": split["hidden_pending_rederive"],
+        "descendants_kept": split["kept"],
+        "descendants_leaked": split["leaked"],
         # W14: records the probe still recalls (None: no probe given).
         "residual_recall": residual,
         "clean": clean,
@@ -594,7 +586,7 @@ async def _derived_parents_gone(
             parent is None
             or parent.status is not RecordStatus.ACTIVATED
             or parent.quarantined
-            or not erasure_v2.visible_id(eng, parent_id)  # T5-04: erased or hidden by a plan
+            or not erasure.visible_id(eng, parent_id)  # T5-04: erased or hidden by a plan
         ):
             gone.append(parent_id)
     if not gone:

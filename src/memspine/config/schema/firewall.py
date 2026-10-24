@@ -64,7 +64,7 @@ class FirewallConfig(ConfigModel):
     #: POL-2 cap and a hold on a quarantined, unreadable or missing parent),
     #: gate 4 (read admission) and the S4-4 family rule on quarantine release.
     #: ``enabled: false`` still disables it. Off: unchanged.
-    gates_v2: bool = False
+    gates: bool = False
     redact_secrets: bool = False
     #: #44 PII pack (phone, Luhn-checked card, US SSN, mod-97 IBAN, IPv4/IPv6) over
     #: content, entity, attribute and tags. ``redact`` replaces each match with

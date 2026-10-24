@@ -107,7 +107,6 @@ class StampedTurn(_Frozen):
     spk: str | None
     addr: str | None
     participants: tuple[str, ...]
-    participant_tags: tuple[str, ...]
     # provenance (W-08 stage 1)
     role: str
     src_class: SrcClassName
@@ -386,7 +385,6 @@ def stamp(
         spk=spk,
         addr=addr,
         participants=participants,
-        participant_tags=tuple(f"participant:{p}" for p in participants),
         role=envelope_in.role,
         src_class=rule.src_class,
         base_trust=rule.base_trust,

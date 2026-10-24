@@ -6,7 +6,7 @@ from memspine.derive.pipeline.stages.anticipate import anticipate
 from memspine.derive.pipeline.stages.communities import reorganize
 from memspine.derive.pipeline.stages.consolidate import consolidate
 from memspine.derive.pipeline.stages.context import Pipeline
-from memspine.derive.pipeline.stages.edge_compiler_v2 import compile_graph_edges
+from memspine.derive.pipeline.stages.edge_compiler import compile_graph_edges
 from memspine.derive.pipeline.stages.entity_summaries import summarize_entities
 from memspine.derive.pipeline.stages.erasure_rederive import erasure_rederive
 from memspine.derive.pipeline.stages.extract_graph import extract_graph

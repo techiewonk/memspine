@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -13,11 +12,13 @@ import build_targeted_slices as bts
 import eval_sample
 import make_sample_slice as mss
 import pytest
-import v2_ledger
+import screen_ledger
 
 EVALS = Path(__file__).resolve().parents[1]
 ANALYSIS = EVALS / "analysis"
-BASH = shutil.which("bash")
+from evals.tests.shell_tools import bash_executable
+
+BASH = bash_executable()
 needs_bash = pytest.mark.skipif(BASH is None, reason="bash not available")
 ID = re.compile(r"^conv-\d+/\d+-\d+$")
 ALLOWED_KEYS = {
@@ -203,10 +204,10 @@ def test_committed_slices_are_current_when_the_run_is_available():
 
 # ---------------------------------------------------------------- the screen map
 def test_map_matches_the_derivation_and_points_at_real_slices():
-    queue = bts.read_queue(EVALS / "v2_queue.tsv")
+    queue = bts.read_queue(EVALS / "screen_queue.tsv")
     smap = json.loads((EVALS / bts.SOLUTION_MAP).read_text(encoding="utf-8"))
     rows = bts.build_map(queue, smap)
-    assert (EVALS / "v2_slice_map.tsv").read_text(encoding="utf-8") == bts.render_map(rows)
+    assert (EVALS / "screen_slice_map.tsv").read_text(encoding="utf-8") == bts.render_map(rows)
     ids = {q["id"] for q in queue}
     for sid, st, sl, slg, *_ in rows:
         assert sid in ids and st == "loc" and (EVALS / sl).exists() and (EVALS / slg).exists()
@@ -232,10 +233,10 @@ def test_map_matches_the_derivation_and_points_at_real_slices():
 
 # ---------------------------------------------------------------- queue override (dry run: no GPU, no state)
 def dry(only, tmp_path, **env_extra):
-    env = {**os.environ, "PINNED_DRY_RUN": "1", "V2_LEDGER_DIR": str(tmp_path), **env_extra}
+    env = {**os.environ, "PINNED_DRY_RUN": "1", "SCREEN_LEDGER_DIR": str(tmp_path), **env_extra}
     env.pop("MODE", None)
     p = subprocess.run(
-        [BASH, str(EVALS / "run_v2_queue.sh"), "--dry-run", "--only", only],
+        [BASH, str(EVALS / "run_screen_queue.sh"), "--dry-run", "--only", only],
         capture_output=True,
         text=True,
         env=env,
@@ -277,11 +278,11 @@ def test_queue_row_picks_its_targeted_slice(tmp_path):
 @needs_bash
 def test_queue_keeps_old_behaviour_without_a_mapping(tmp_path):
     for sid, frag in (("S05", "sample_slice_loc_80"), ("S34", "sample_slice_loc_60_s20261013_c3")):
-        out = dry(sid, tmp_path, **({"V2_SLICE_MAP": ""} if sid == "S34" else {}))
+        out = dry(sid, tmp_path, **({"SCREEN_SLICE_MAP": ""} if sid == "S34" else {}))
         assert (
             frag in out and "targeted" not in out and "fail_slice" not in out and "-tgt-" not in out
         )
-    out = dry("S10", tmp_path, V2_SLICE_MAP=str(tmp_path / "does_not_exist.tsv"))
+    out = dry("S10", tmp_path, SCREEN_SLICE_MAP=str(tmp_path / "does_not_exist.tsv"))
     assert "sample_slice_loc_80" in out and "fail_slice" not in out
 
 
@@ -292,7 +293,7 @@ def test_queue_reads_a_custom_map_file(tmp_path):
         "# test\nS10\tloc\tanalysis/fail_slice_fail_list_s20261013.json\tanalysis/fail_slice_fail_list_s20261013_c3.json\tnote\n",
         encoding="utf-8",
     )
-    out = dry("S10", tmp_path, V2_SLICE_MAP=str(m))
+    out = dry("S10", tmp_path, SCREEN_SLICE_MAP=str(m))
     assert "fail_slice_fail_list_s20261013.json" in out and "fail_slice_fail_fusion" not in out
 
 
@@ -331,7 +332,7 @@ def test_target_report_counts_recovered_and_lost():
 
 
 def test_ledger_shows_tgt_rec_and_ctl_lost(tmp_path, capsys):
-    path = tmp_path / "v2_results.tsv"
+    path = tmp_path / "screen_results.tsv"
     base = {
         "mode": "sample",
         "screen": "S34",
@@ -343,30 +344,30 @@ def test_ledger_shows_tgt_rec_and_ctl_lost(tmp_path, capsys):
         "net": 2,
         "delta": "2.0",
     }
-    v2_ledger.append({**base, "tgt_rec": "5/30", "ctl_lost": "1/40"}, path)
-    assert v2_ledger.read(path)[-1]["tgt_rec"] == "5/30"
-    os.environ["V2_LEDGER_DIR"] = str(tmp_path)
+    screen_ledger.append({**base, "tgt_rec": "5/30", "ctl_lost": "1/40"}, path)
+    assert screen_ledger.read(path)[-1]["tgt_rec"] == "5/30"
+    os.environ["SCREEN_LEDGER_DIR"] = str(tmp_path)
     try:
-        assert v2_ledger.main(["summary", "--mode", "sample"]) == 0
+        assert screen_ledger.main(["summary", "--mode", "sample"]) == 0
     finally:
-        del os.environ["V2_LEDGER_DIR"]
+        del os.environ["SCREEN_LEDGER_DIR"]
     out = capsys.readouterr().out
     assert re.search(r"tgt_rec\s+5/30 ctl_lost\s+1/40", out) and "NOT overall accuracy" in out
 
 
 def test_ledger_with_an_old_header_folds_the_new_columns_into_notes(tmp_path):
-    path = tmp_path / "v2_results.tsv"
-    old = v2_ledger.COLUMNS[:-2]
+    path = tmp_path / "screen_results.tsv"
+    old = screen_ledger.COLUMNS[:-2]
     path.write_text(
         "\t".join(old) + "\n" + "\t".join("x" if c != "screen" else "S01" for c in old) + "\n",
         encoding="utf-8",
     )
-    v2_ledger.append(
+    screen_ledger.append(
         {"mode": "sample", "screen": "S34", "arm": "a", "tgt_rec": "2/9", "ctl_lost": "0/6"}, path
     )
-    rows = v2_ledger.read(path)
+    rows = screen_ledger.read(path)
     assert list(rows[-1]) == list(old) and "tgt_rec=2/9" in rows[-1]["notes"]
     assert (
-        v2_ledger._tgt(rows[-1], "tgt_rec") == "2/9"
-        and v2_ledger._tgt(rows[-1], "ctl_lost") == "0/6"
+        screen_ledger._tgt(rows[-1], "tgt_rec") == "2/9"
+        and screen_ledger._tgt(rows[-1], "ctl_lost") == "0/6"
     )

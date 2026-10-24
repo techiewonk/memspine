@@ -163,7 +163,7 @@ def describe(eng: Any) -> dict[str, Any]:
         # D1: whether the autonomous sleep loop is active this run.
         "scheduler": eng._scheduler.running if eng._scheduler is not None else False,
         "strict_services": config.strict_services,
-        # MD-01: the model plan (tiers, devices, VRAM, fallbacks) when model.placement.tiers_v2 is on.
+        # MD-01: the model plan (tiers, devices, VRAM, fallbacks) when model.placement.tiers is on.
         **(
             {"models": eng._llm.model_plan}
             if eng._llm is not None and getattr(eng._llm, "model_plan", None)

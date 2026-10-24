@@ -56,6 +56,10 @@ class AssociativeStore(Protocol):
 
     async def get_record(self, record_id: str) -> MemoryRecord | None: ...
 
+    async def list_records(
+        self, namespace: str, memory_type: str | None = None
+    ) -> list[MemoryRecord]: ...
+
 
 class AssociativeMemory(BaseMemory):
     name: ClassVar[str] = "associative"
@@ -329,36 +333,22 @@ class AssociativeMemory(BaseMemory):
         return found
 
     async def entity_communities(self, namespace: str, entities: Sequence[str]) -> list[str]:
-        """GP-9 (#23): the community summary parents the ``entities`` belong to.
+        """Current entity-community summaries containing an in-namespace seed.
 
-        Communities are built over association edges (``mentions`` excluded,
-        ADR-043), so an entity is a member through the records it mentions: the
-        parents of every live member -> parent ``community`` link of a record with
-        a live ``mentions`` edge to one of ``entities`` (in ``namespace``), in
-        first-seen order. Unfiltered: the caller gates the parent records."""
-        mentioned: list[str] = []
-        for entity in dict.fromkeys(entities):
-            if not _entity_in(entity, namespace):
-                continue
-            for edge in await self._graph.edges_of(entity):
-                if (
-                    edge.rel_type == MENTIONS_REL
-                    and edge.dst == entity
-                    and edge.weight > 0
-                    and edge.src not in mentioned
-                ):
-                    mentioned.append(edge.src)
-        parents: list[str] = []
-        for record_id in mentioned:
-            for edge in await self._graph.edges_of(record_id):
-                if (
-                    edge.rel_type == "community"
-                    and edge.src == record_id
-                    and edge.weight > 0
-                    and edge.dst not in parents
-                ):
-                    parents.append(edge.dst)
-        return parents
+        Membership is the producer's cm:<entity-node> metadata. The caller applies
+        its consent, erasure and retrieval-admission checks to the returned records.
+        """
+        seeds = {e for e in entities if _entity_in(e, namespace)}
+        if not seeds:
+            return []
+        return [
+            r.record_id
+            for r in await self._storage.list_records(namespace, "semantic")
+            if r.source.channel == "community_summary"
+            and r.status is RecordStatus.ACTIVATED
+            and not r.quarantined
+            and any(f"cm:{e}" in r.tags for e in seeds)
+        ]
 
     async def seed_expand(
         self,

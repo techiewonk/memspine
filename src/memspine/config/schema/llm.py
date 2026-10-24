@@ -30,16 +30,8 @@ class PromptsConfig(ConfigModel):
     overrides: dict[str, dict[str, Any]] = Field(default_factory=dict)
     partials: dict[str, str] = Field(default_factory=dict)
     selection: dict[str, dict[str, str]] = Field(default_factory=dict)
-    #: W2-07 (decisions W-18, P-07, P-08, P-10; LIB-46): prompt layout v2. When on, the write
-    #: prompts that carry a worked example or a per-call variable in the system text
-    #: (``window_extract``, ``extract@session3``, ``extract@session4``, ``extract_edges``,
-    #: ``extract_edges@session``) are served from ``defaults/v2/``: no worked example, a system
-    #: text that is byte-identical for every call (its hash is ``PromptIdentity``), the
-    #: coarse-date partial in that stable part, and the same-language partial in the user
-    #: part for non-English input only. Default off: every prompt renders as before.
-    layout_v2: bool = False
-    #: The layout-v2 partials left switched on (screened one at a time, RV15):
-    #: ``same_language`` and/or ``coarse_date``. Ignored while ``layout_v2`` is off.
+    #: The base layout partials left switched on (screened one at a time, RV15):
+    #: ``same_language`` and/or ``coarse_date``. Ignored while ``layout`` is off.
     layout_partials: list[Literal["same_language", "coarse_date"]] = Field(
         default_factory=lambda: ["same_language", "coarse_date"]  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     )

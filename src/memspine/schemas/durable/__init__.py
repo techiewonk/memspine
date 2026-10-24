@@ -1,4 +1,4 @@
-"""Durable tier: persisted kinds with an integer ``schema_version``, upcasters, frozen fixtures."""
+"""Durable tier: persisted kinds with an integer ``schema_version``, current-format validation, frozen fixtures."""
 
 from memspine.schemas.durable.assertion import (
     AssertionEnvelope,

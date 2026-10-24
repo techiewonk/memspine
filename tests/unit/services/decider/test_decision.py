@@ -397,7 +397,7 @@ async def test_engine_injects_one_owned_pool_into_enabled_consumers(
         write={
             "prepass": "gliner",
             "window_extract": "facts",
-            "online_extractor_v2": True,
+            "online_extractor": True,
         },
         model={
             "extraction": {
@@ -460,7 +460,7 @@ async def test_engine_profiles_select_distinct_models_and_share_equal_settings(
         write={
             "prepass": "gliner",
             "window_extract": "facts",
-            "online_extractor_v2": True,
+            "online_extractor": True,
         },
         model={
             "extraction": {

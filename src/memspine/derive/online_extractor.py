@@ -42,7 +42,7 @@ class OnlineExtractor:
 
     @property
     def stage_names(self) -> tuple[str, ...]:
-        """The envelope stage hook list in run order (empty without ``write.envelope_v2``)."""
+        """The envelope stage hook list in run order (empty without the extraction envelope)."""
         env = getattr(self._pipeline, "_env", None)
         stages = getattr(env, "stages", ()) or ()
         return tuple(s.name for s in sorted(stages, key=lambda s: s.order))

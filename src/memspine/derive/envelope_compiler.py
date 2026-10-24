@@ -1,4 +1,4 @@
-"""``derive.EnvelopeCompiler``: ``ItemV1`` (wire) to ``AssertionEnvelope`` (stored) for the write path (W2-06a).
+"""``derive.EnvelopeCompiler``: ``ExtractionItem`` (wire) to ``AssertionEnvelope`` (stored) for the write path (W2-06a).
 
 A thin owner of the policy around the pure compiler ``derive/compile.py`` (LIB-05): the kind registry (new
 kinds are accepted, capped at :data:`KIND_CAP`, anything past the cap becomes ``other``), the role policy

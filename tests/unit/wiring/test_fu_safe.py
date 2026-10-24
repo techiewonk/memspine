@@ -2,7 +2,7 @@
 the derived-write door. Model-free (hash embedder, stub callables).
 
 1  ``live_records`` / ``live_record`` drop erased, hidden, quarantined and do-not-derive records
-   when ``consent.v2`` or ``privacy.erasure_v2`` is on; the identity with both off
+   when ``consent.enabled`` or ``privacy.erasure`` is on; the identity with both off
 2  a hidden turn is never fed to the miner or the consolidation summariser during ``sleep``
 3  a procedural lesson goes through the door under ``write.lineage_table`` and is hidden when the
    step it came from is erased; flag off or no parent: as before
@@ -78,8 +78,8 @@ def _hide(eng: Engine, *, hidden: tuple[str, ...] = (), erased: tuple[str, ...] 
     eng.__dict__["_erasure_state"] = ErasureState(frozenset(erased), frozenset(hidden), 1)
 
 
-async def test_gate_filters_erased_hidden_quarantined_and_is_identity_when_off() -> None:
-    eng = _engine(privacy={"erasure_v2": True})
+async def test_gate_filters_erased_hidden_and_quarantined_without_a_generation_flag() -> None:
+    eng = _engine(privacy={})
     await eng.start()
     try:
         a, b, c = await _turns(eng)
@@ -102,16 +102,16 @@ async def test_gate_filters_erased_hidden_quarantined_and_is_identity_when_off()
     await off.start()
     try:
         a, b, c = await _turns(off)
-        _hide(off, hidden=(a.record_id,))  # no flag: no gate, nothing changes
+        _hide(off, hidden=(a.record_id,))  # erasure safety is always active
         ctx = off._pipeline_ctx()
-        assert ctx.live_gate is None
-        assert len(await live_records(ctx, NS, "episodic")) == 3
+        assert ctx.live_gate is not None
+        assert len(await live_records(ctx, NS, "episodic")) == 2
     finally:
         await off.stop()
 
 
 async def test_do_not_derive_subject_is_dropped_under_consent_v2() -> None:
-    eng = _engine(consent={"v2": True})
+    eng = _engine(consent={"enabled": True})
     await eng.start()
     try:
         await _turns(eng)
@@ -138,7 +138,7 @@ async def test_hidden_turn_never_reaches_miner_or_summariser(monkeypatch: Any) -
         summarised.append(text)
         return "Summary: " + text.replace("\n", "; ")
 
-    eng = _engine(privacy={"erasure_v2": True})
+    eng = _engine(privacy={})
     monkeypatch.setattr(eng, "_build_fact_miner", lambda: mine)
     await eng.start()
     try:
@@ -162,7 +162,7 @@ async def test_hidden_turn_never_reaches_miner_or_summariser(monkeypatch: Any) -
 
 
 async def test_lesson_goes_through_the_door_and_follows_erasure() -> None:
-    eng = _engine(write={"lineage_table": True}, privacy={"erasure_v2": True})
+    eng = _engine(write={"lineage_table": True}, privacy={})
     await eng.start()
     try:
         step = await eng.write("clicked search, page timed out", memory_type="episodic")

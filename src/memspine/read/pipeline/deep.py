@@ -461,7 +461,7 @@ async def _missing_info_queries(eng: Any, query: str, context: AssembledContext)
 
 
 # --------------------------------------------------------------------------------------------
-# R3-16 (``read.obligations``) and R3-12 (``read.deep_v2``): LIB-15 obligations, LIB-43 deep tier.
+# R3-16 (``read.obligations``) and R3-12 (``read.deep``): LIB-15 obligations, LIB-43 deep tier.
 # --------------------------------------------------------------------------------------------
 
 
@@ -539,7 +539,7 @@ async def _deep_extend(
     session_id: str | None,
 ) -> ReadResult:
     """R3-16 + R3-12: check the read's evidence against the question's obligations
-    (``read.obligations``, no model call) and, under ``read.deep_v2``, run the deep tier once
+    (``read.obligations``, no model call) and, under ``read.deep``, run the deep tier once
     (LIB-43): rules first (zero calls when every obligation is met), then at most one
     sufficiency check, one rewrite and one extra retrieval, never a loop.
 
@@ -547,7 +547,7 @@ async def _deep_extend(
     ``sufficiency`` / ``sufficiency@missing`` prompts answer both calls, so the judge returns
     complete-or-not and the rewrite returns search queries; the typed holes then come from the
     rule check. New records join the evidence under the agentic merge budget. Any failure keeps
-    ``result``. Forensics: ``search_forensics()["obligations"]`` / ``["deep_v2"]``."""
+    ``result``. Forensics: ``search_forensics()["obligations"]`` / ``["deep"]``."""
     read = eng._config().read
     context = result.context
     if result.mode == "full" or context.abstained or not context.records:
@@ -576,16 +576,16 @@ async def _deep_extend(
         tap.event("read.obligations.report", verdict=view["verdict"], holes=view["holes"])
         if (fx := _FORENSICS.get()) is not None:
             fx["obligations"] = view
-    if not read.deep_v2:
+    if not read.deep:
         return result
     info: dict[str, Any] = {"rules_met": report.answerable, "calls": 0, "stop": None}
     if (fx := _FORENSICS.get()) is not None:
-        fx["deep_v2"] = info
+        fx["deep"] = info
     if report.answerable:
         info["stop"] = "rules_met"
         tap.event("read.deep.step", rules_met=True, calls=0, holes=[], queries=[])
         return result
-    if getattr(read, "tiers_v2", False) and not tier_allows_generative():
+    if getattr(read, "tiers", False) and not tier_allows_generative():
         # FX-READPATH (R-01): the chosen tier allows zero generative calls (fast, standard): the
         # rules check above stays, the sufficiency judge and the rewrite do not run.
         info["stop"] = "tier_no_generative_calls"
@@ -673,7 +673,7 @@ async def _deep_extend(
             budget=budget,
         )
     except Exception as exc:  # an enhancer, never a gate
-        _log.warning("read.deep_v2_failed", error=str(exc))
+        _log.warning("read.deep_failed", error=str(exc))
         info["stop"] = "error"
         return result
     info.update(

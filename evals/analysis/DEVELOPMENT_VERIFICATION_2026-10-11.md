@@ -81,7 +81,7 @@ Skips in the standard run: 15 kuzu/ladybug (one native graph library per process
 | B16 | fixed | VERIFIED | test_word_vector_leg (7 pass) | unit test for widened fetch is in this file |
 | C1 | implemented; dev neutral | VERIFIED | EM/cli.py:852 --memspine-mark-hits, :804 --verify-answer; test_mark_hits (8 pass); test_verify_answer (8 pass) | screened: neutral |
 | C2 | implemented; dev neutral | VERIFIED | grounded_detail prompt; test_qa_prompts (85 pass) | screened: neutral |
-| C3 | yes/no rule tested and REJECTED | NOT A BUILD CLAIM | grounded_v2 rejected (81.5 vs 86.7) | screen verdict |
+| C3 | yes/no rule tested and REJECTED | NOT A BUILD CLAIM | grounded rejected (81.5 vs 86.7) | screen verdict |
 | C4 | prompt built, screen pending | VERIFIED | EM/cli.py:609 grounded_generic_infer, routed_generic; test_reader_open_gaps (31 pass); test_routed_qa (72 pass) | built, never screened |
 | C5 | duration annotator implemented; elapsed helper not done | STATUS-STALE | S/config/schema.py:552 resolve_durations; test_temporal_durations (24 pass) | 'elapsed helper not done' is stale: --duration-solve (I76) and --milestones (E05) now implement it |
 | C6 | partly addressed; screen pending | VERIFIED | grounded_generic_list (EM/cli.py); test_reader_open_gaps (31 pass) | built, never screened |
@@ -335,7 +335,7 @@ I6, I7, I8, I9 (chunked rerank), I18, I20, I23, I33, I40-I46, I47, I48, I49, I50
 | B8 session_leg | NEUTRAL |
 | B15 word vectors in place of BM25 | REJECTED (-12 net) |
 | C1/C2/C5 variants | NEUTRAL |
-| C3 grounded_v2 yes/no rule | REJECTED (+5/-17) |
+| C3 grounded yes/no rule | REJECTED (+5/-17) |
 | C8 grounded_v3 | REJECTED (+3/-5) |
 | A9 thinking mode | REJECTED (63.2 vs 88.8) |
 | R2-1 bridge hop / R2-1b gated | NOT ADOPTED |

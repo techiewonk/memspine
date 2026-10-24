@@ -1,20 +1,68 @@
 {
- "storage": {"records": {"provider": "sqlite", "settings": {"path": "tempdir", "busy_timeout_s": 5.0}}},
- "read": {"record_access": false, "list_mode": true, "replay_window_before": 1, "replay_window_after": 1},
- "memories": {
-  "episodic": {"enabled": true},
-  "semantic": {"enabled": true, "policies": {"extract_graph": {"resolve": "rules"}}},
-  "associative": {"enabled": true, "policies": {"entity_nodes": true}}
- },
- "write": {
-  "window_extract": "facts", "window_async": false, "segmentation_v2": true, "envelope_v2": true,
-  "prompt_v2": true, "stamping_v2": true, "role_policy_v2": true, "temporal_v2": true,
-  "grounding_v2": true, "integration_v2": true, "lineage_table": true
- },
- "model": {
-  "embedding": {"provider": "hash", "settings": {}},
-  "llm": {"window_extract": {"provider": "openai_compatible", "timeout_s": 180.0, "settings": {"model": "stub/window", "api_base": "http://localhost:8000/v1"}}},
-  "rerank": {"chain": []}
- },
- "deployment": {"id": "inspect-demo"}
+  "storage": {
+    "records": {
+      "provider": "sqlite",
+      "settings": {
+        "path": "tempdir",
+        "busy_timeout_s": 5.0
+      }
+    }
+  },
+  "read": {
+    "record_access": false,
+    "list_mode": true,
+    "replay_window_before": 1,
+    "replay_window_after": 1
+  },
+  "memories": {
+    "episodic": {
+      "enabled": true
+    },
+    "semantic": {
+      "enabled": true,
+      "policies": {
+        "extract_graph": {
+          "resolve": "rules"
+        }
+      }
+    },
+    "associative": {
+      "enabled": true,
+      "policies": {
+        "entity_nodes": true
+      }
+    }
+  },
+  "write": {
+    "window_extract": "facts",
+    "window_async": false,
+    "stamping": true,
+    "role_policy": true,
+    "temporal": true,
+    "grounding": true,
+    "integration": true,
+    "lineage_table": true
+  },
+  "model": {
+    "embedding": {
+      "provider": "hash",
+      "settings": {}
+    },
+    "llm": {
+      "window_extract": {
+        "provider": "openai_compatible",
+        "timeout_s": 180.0,
+        "settings": {
+          "model": "stub/window",
+          "api_base": "http://localhost:8000/v1"
+        }
+      }
+    },
+    "rerank": {
+      "chain": []
+    }
+  },
+  "deployment": {
+    "id": "inspect-demo"
+  }
 }

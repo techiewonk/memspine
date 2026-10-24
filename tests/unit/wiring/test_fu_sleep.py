@@ -56,7 +56,7 @@ def _engine(path: Path, *, offline: dict[str, Any] | None = None, **extra: Any) 
             "episodic": {"enabled": True, "policies": {"consolidation": {"mine_facts": True}}},
             "semantic": {"enabled": True},
         },
-        offline={"sleep_v2": True, "sleep_manual_only": True, **(offline or {})},
+        offline={"sleep": True, "sleep_manual_only": True, **(offline or {})},
         **extra,
     )
 
@@ -100,7 +100,7 @@ async def _run(
     eng = _engine(
         tmp_path,
         offline={"sleep_scoped": scoped},
-        economy={"ledger_v2": True},
+        economy={"ledger": True},
     )
     miner = Miner()
     monkeypatch.setattr(eng, "_build_fact_miner", lambda: miner)
@@ -133,7 +133,7 @@ async def test_scoped_job_touches_only_its_namespace(
 async def test_scoped_second_namespace_then_runs_alone(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    eng = _engine(tmp_path, offline={"sleep_scoped": True}, economy={"ledger_v2": True})
+    eng = _engine(tmp_path, offline={"sleep_scoped": True}, economy={"ledger": True})
     miner = Miner()
     monkeypatch.setattr(eng, "_build_fact_miner", lambda: miner)
     await eng.start()
@@ -176,7 +176,7 @@ async def test_budget_applies_per_namespace(
     eng = _engine(
         tmp_path,
         offline={"sleep_scoped": True},
-        economy={"ledger_v2": True, "budget": {"max_calls": 1}},
+        economy={"ledger": True, "budget": {"max_calls": 1}},
         workers={"outbox": True},
     )
     miner = Miner()
@@ -250,7 +250,7 @@ async def test_engine_cost_report_survives_restart(
         eng = _engine(
             tmp_path,
             offline={"sleep_scoped": True},
-            economy={"ledger_v2": True, "ledger_persist": persist},
+            economy={"ledger": True, "ledger_persist": persist},
         )
         miner = Miner()
         monkeypatch.setattr(eng, "_build_fact_miner", lambda: miner)
@@ -278,7 +278,7 @@ async def test_engine_cost_report_survives_restart(
 
 
 async def test_ledger_persist_off_writes_no_file_and_starts_empty(tmp_path: Path) -> None:
-    eng = _engine(tmp_path, economy={"ledger_v2": True})
+    eng = _engine(tmp_path, economy={"ledger": True})
     await eng.start()
     try:
         with cost_scope(namespace="a", stage="x"):
@@ -287,7 +287,7 @@ async def test_ledger_persist_off_writes_no_file_and_starts_empty(tmp_path: Path
     finally:
         await eng.stop()
     assert not (tmp_path / "m.db.cost").exists()
-    eng = _engine(tmp_path, economy={"ledger_v2": True})
+    eng = _engine(tmp_path, economy={"ledger": True})
     await eng.start()
     try:
         assert eng.cost_report()["model_calls"] == 0
@@ -358,7 +358,7 @@ def test_shared_sql_lease_capability_uses_owned_sync_lease(monkeypatch: pytest.M
         _provider_resources=object(),
         _provider_owner_id="deployment-a",
     )
-    sched.build_sleep_v2(scheduler_engine, cfg)
+    sched.build_sleep(scheduler_engine, cfg)
     assert seen == ["sleep_leases"]
 
 

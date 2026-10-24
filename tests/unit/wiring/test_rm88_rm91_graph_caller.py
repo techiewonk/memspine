@@ -13,7 +13,7 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.derive.pipeline.stages.edge_compiler_v2 import compile_graph_edges
+from memspine.derive.pipeline.stages.edge_compiler import compile_graph_edges
 from memspine.observability import tap
 from memspine.read.pipeline import legs as pipeline_legs
 from memspine.services.graph.qualifiers import (
@@ -59,12 +59,11 @@ async def _engine() -> Engine:
             "shared": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
-        graph={"edge_compiler_v2": True},
+        graph={"edge_compiler": True},
         read={
             "hybrid": True,
             "record_access": False,
-            "legs_v2": True,
-            "graph_leg_v2": True,
+            "graph_leg": True,
             "graph_leg_seed_hits": 0,
         },
     )
@@ -128,9 +127,7 @@ async def _put_edge(eng: Engine, ns: str, src: str, dst: str, scope: str, record
         known_at=datetime.now(UTC),
         erasure_state=ErasureState.ACTIVE,
     )
-    props = with_qualifiers(
-        {"compiled": "edge_compiler_v2", "record_id": record_id, "weight": 1.0}, q
-    )
+    props = with_qualifiers({"compiled": "edge_compiler", "record_id": record_id, "weight": 1.0}, q)
     await eng._graph.upsert_edge(src, dst, "same_as", props, namespace=ns)
 
 
@@ -309,7 +306,7 @@ async def test_compiled_edges_carry_domain_and_source(monkeypatch: pytest.Monkey
         edges = [
             e
             for e in await eng._graph.edge_list("a")
-            if e.properties.get("compiled") == "edge_compiler_v2" and e.weight > 0
+            if e.properties.get("compiled") == "edge_compiler" and e.weight > 0
         ]
         await eng.search(
             QUERY, namespace="a", top_k=4, graph_filter=_flt(topical_domains=frozenset({"work"}))

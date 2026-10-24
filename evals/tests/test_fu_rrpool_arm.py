@@ -21,7 +21,7 @@ ROWS = [
     for r in csv.reader(
         [
             ln
-            for ln in (EVALS / "v2_queue.tsv").read_text(encoding="utf-8").splitlines()
+            for ln in (EVALS / "screen_queue.tsv").read_text(encoding="utf-8").splitlines()
             if ln and not ln.startswith("#")
         ],
         delimiter="\t",
@@ -34,10 +34,10 @@ def _arm(name: str) -> dict:
 
 
 def test_arm_is_r3_07_plus_the_pool_and_validates() -> None:
-    base, arm = _arm("v2-R3-07-rerank_v2"), _arm("v2-R3-07b-rerank_v2_pool")
-    assert arm["read"].pop("rerank_v2_search_pool") == 40
+    base, arm = _arm("R3-07-rerank"), _arm("R3-07b-rerank_pool")
+    assert arm["model"]["rerank"].pop("search_pool") == 40
     assert arm == base
-    validate_engine_config(_arm("v2-R3-07b-rerank_v2_pool"))
+    validate_engine_config(_arm("R3-07b-rerank_pool"))
 
 
 def test_row_s67_resolves() -> None:
@@ -46,7 +46,7 @@ def test_row_s67_resolves() -> None:
         "B9",
         "NONINF",
         "fo",
-        "v2-S15-i2",
+        "screen-S15-i2",
     )
     assert (ARMS / f"{row['arm']}.json").exists()
     assert next(r for r in ROWS if r["id"] == "S15")["kind"] == row["kind"]

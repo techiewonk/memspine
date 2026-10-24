@@ -1,9 +1,12 @@
 id: window_extract
-version: 1
+version: 2
 role: window_extract
 format: json
 output_model: WindowPayload
 token_budget: 4096
+# W2-07 (prompts.layout, v2): the stable system part holds only the rules, the coarse-date partial and the
+# no-injection block; the per-call section schemas and the same-language partial (non-English input only) move
+# to the user part so the system text is byte-identical for every call (P-08, W-18).
 # W1 (adaptive-window write, call 1; window_extract@v1): ONE structured call per window of a few
 # consecutive turns. Three independent sections, each with its own schema, switched on by the
 # `sections` variable (facts, edges, episode); the writer validates every section on its own, so a
@@ -27,46 +30,48 @@ system: >-
   line is not allowed;
   (7) a plan, wish, hedge or question is not a fact: say so in the item ("plans to", "hopes to").
   Reply with ONE JSON object and nothing else (no prose, no markdown fence). Its keys are exactly
-  the requested sections: {{ sections | join(", ") }}. A section with nothing to report is an
+  the requested sections named in the user message. A section with nothing to report is an
   empty list (an empty string for narrative).
-  {% if "facts" in sections %}
-  SECTION facts: a list of atomic facts, one per item, each understandable on its own, long after the chat.
-  Cover every fact, not a summary: every item of a list is its own fact, and every occurrence of
-  an event someone could later count ("went hiking", "visited her sister") is its own dated fact.
-  Each item has: entity (the person or thing it is about), attribute (a short property such as
-  "city", "job", "hobby", "pet", "event", "plan", "preference", "relationship"), value (the
-  full self-contained statement, following the rules above), kind ("state" for a single-valued
-  current property a newer value replaces, "event" for something that happened or one of many
-  that hold at once; when unsure "event"), date (the date the fact refers to, YYYY-MM-DD or
-  YYYY-MM or YYYY, or null), turns (list of line numbers), span (the shortest excerpt, copied
-  character for character from one cited line, that supports the fact), speaker (who said it),
-  subject (who or what it is about), persons (every named person involved, the entity first),
-  location (where it happened, only when stated, else null), topic (the plural class a later
-  list question would ask for, lower case, the same words every time, e.g. "activities",
-  "books read", "places visited"; else null), confidence (0 to 1).
-  {% endif %}
-  {% if "edges" in sections %}
-  SECTION edges: a list of typed relationships between named entities, for a knowledge graph.
-  Each item has: src_entity, rel (a short verb-phrase slug such as works_at, lives_in, owns),
-  dst_entity, fact (one self-contained sentence stating it, naming people), kind ("state" for a
-  single-valued current relation, "event" for one of many; when unsure "event"), valid_from (an
-  ISO date if the lines state it or it follows from a line's date, else null), valid_to (an ISO
-  date only if the lines say it stopped holding, else null), confidence (0 to 1), turns (the
-  line numbers that state it). The speaker of a first-person statement is the subject (use the
-  speaker's name for "I"). Prefer the most specific name the lines give. When in doubt that
-  something is an entity, do not extract it. Extract only relationships explicitly stated.
-  {% endif %}
-  {% if "episode" in sections %}
-  SECTION episode: ONE object describing what happened in this window: title (at most 12 words),
-  summary (at most 50 words, naming the participants and the topic), narrative (a chronological
-  third-person account of 40 to 300 words: who said or did what, in order, each statement
-  attributed to its speaker; keep every concrete detail, including ones mentioned in passing; no
-  interpretation, no advice that was not given; close paraphrase, not long quotes), turns (every
-  line number the narrative draws on), participants (names), topics (lower case plural classes).
-  {% endif %}
+  {% include "coarse_date.j2" %}
   {% include "no_injection.j2" %}
   Output ONLY one valid JSON object, no prose, no explanation, no markdown code fences.
 ---
+{% if language != "en" %}{% include "same_language.j2" %}
+{% endif %}Sections: {{ sections | join(", ") }}.
+{% if "facts" in sections %}
+SECTION facts: a list of atomic facts, one per item, each understandable on its own, long after the chat.
+Cover every fact, not a summary: every item of a list is its own fact, and every occurrence of
+an event someone could later count is its own dated fact.
+Each item has: entity (the person or thing it is about), attribute (a short property such as
+"city", "job", "hobby", "pet", "event", "plan", "preference", "relationship"), value (the
+full self-contained statement, following the rules above), kind ("state" for a single-valued
+current property a newer value replaces, "event" for something that happened or one of many
+that hold at once; when unsure "event"), date (the date the fact refers to, YYYY-MM-DD or
+YYYY-MM or YYYY, or null), turns (list of line numbers), span (the shortest excerpt, copied
+character for character from one cited line, that supports the fact), speaker (who said it),
+subject (who or what it is about), persons (every named person involved, the entity first),
+location (where it happened, only when stated, else null), topic (the plural class a later
+list question would ask for, lower case, the same words every time; else null), confidence (0 to 1).
+{% endif %}
+{% if "edges" in sections %}
+SECTION edges: a list of typed relationships between named entities, for a knowledge graph.
+Each item has: src_entity, rel (a short verb-phrase slug such as works_at, lives_in, owns),
+dst_entity, fact (one self-contained sentence stating it, naming people), kind ("state" for a
+single-valued current relation, "event" for one of many; when unsure "event"), valid_from (an
+ISO date if the lines state it or it follows from a line's date, else null), valid_to (an ISO
+date only if the lines say it stopped holding, else null), confidence (0 to 1), turns (the
+line numbers that state it). The speaker of a first-person statement is the subject (use the
+speaker's name for "I"). Prefer the most specific name the lines give. When in doubt that
+something is an entity, do not extract it. Extract only relationships explicitly stated.
+{% endif %}
+{% if "episode" in sections %}
+SECTION episode: ONE object describing what happened in this window: title (at most 12 words),
+summary (at most 50 words, naming the participants and the topic), narrative (a chronological
+third-person account of 40 to 300 words: who said or did what, in order, each statement
+attributed to its speaker; keep every concrete detail, including ones mentioned in passing; no
+interpretation, no advice that was not given; close paraphrase, not long quotes), turns (every
+line number the narrative draws on), participants (names), topics (lower case plural classes).
+{% endif %}
 Window of {{ turn_count }} turns. Participants: {{ participants }}.
 
 Transcript:

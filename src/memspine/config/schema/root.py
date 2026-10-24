@@ -16,13 +16,11 @@ from memspine.config.schema.integrity import IntegrityConfig
 from memspine.config.schema.isolation import IsolationConfig
 from memspine.config.schema.llm import PromptsConfig, WorkersConfig
 from memspine.config.schema.model import (
-    MOVED_ROOTS,
     OFFLINE_ONLY,
     REQUIRED_TASK,
     GlinerSettings,
     ModelConfig,
     ModelSlot,
-    reject_model_moved_keys,
 )
 from memspine.config.schema.observability import ObservabilityConfig
 from memspine.config.schema.offline import OfflineConfig
@@ -40,7 +38,6 @@ from memspine.config.schema.storage import (
     EventLogConfig,
     GraphConfig,
     StorageConfig,
-    reject_moved_keys,
 )
 from memspine.config.schema.write import DataShapeConfig, IngestConfig, WriteConfig
 from memspine.core.registry import validate_types
@@ -113,15 +110,13 @@ class MemspineConfig(ConfigModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _reject_moved_roots(cls, value: Any) -> Any:
+    def _required_slots(cls, value: Any) -> Any:
         """ADR-081: ``vector`` and ``cache`` moved under ``storage``; ADR-082: ``embedding``,
         ``llm``, ``models`` and ``decision`` moved under ``model``. No aliases (ADR-068)."""
-        reject_moved_keys(value, "", ("vector", "cache"))
-        reject_model_moved_keys(value, "", MOVED_ROOTS)
         if isinstance(value, Mapping) and isinstance(value.get("model"), Mapping):
             ModelConfig.reject_null(value["model"])
         if isinstance(value, Mapping) and isinstance(value.get("storage"), Mapping):
-            StorageConfig.reject_moved_and_null(value["storage"])
+            StorageConfig.reject_null(value["storage"])
         return value
 
     @model_validator(mode="after")

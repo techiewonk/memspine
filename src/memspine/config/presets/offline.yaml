@@ -1,0 +1,17 @@
+# FU-REQS profile: the whole sleep-side stack, with both sides of the standing answers.
+# Question: sleep calls per turn at most 0.2; refresh on watermark. Reference: S02. Replaces S33-S35,
+# S40-S42, S46, S47. Needs bound session_close / summarize roles. Gap: no read block of the profile
+# card yet (offline.profile_card has no read consumer; audit #8).
+offline:
+  sleep: true
+  budget: true
+  reconcile: true
+  histories: true
+  patterns: true
+  standing: true
+  communities: true
+  decay: true
+  session_close: true
+  profile_card: true
+read:
+  standing: true

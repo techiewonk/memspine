@@ -1,4 +1,4 @@
-"""W2-14: temporal extraction by every means (``write.temporal_v2``): anchor ladder, basis and precision,
+"""W2-14: temporal extraction by every means (``write.temporal``): anchor ladder, basis and precision,
 relations without dates. Model-free: envelopes built directly, plus one window run with the stub window LLM.
 All text is invented (Ilse, Bram, Noor, Tomasz)."""
 
@@ -467,7 +467,7 @@ def test_flag_defaults_off() -> None:
                     "startup_timeout_s": None,
                 }
             }
-        ).write.temporal_v2
+        ).write.temporal
         is False
     )
 
@@ -482,7 +482,7 @@ class DatedLLM(ItemLLM):
 
 async def test_window_end_to_end_with_the_flag(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = DatedLLM(["last Tuesday", "in 2019", None, "the week before the zoo visit"])
-    eng = await _engine(monkeypatch, llm, temporal_v2=True, stamping_v2=True)
+    eng = await _engine(monkeypatch, llm, temporal=True, stamping=True)
     try:
         msgs = [
             {

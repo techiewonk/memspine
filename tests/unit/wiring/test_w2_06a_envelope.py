@@ -1,5 +1,5 @@
-"""W2-06a: ItemV1 -> AssertionEnvelope compile, per-item validation, one repair re-ask, dead letters
-(``write.envelope_v2``). Model-free: a stub window LLM that answers the ``structured`` prompt and the
+"""W2-06a: ExtractionItem -> AssertionEnvelope compile, per-item validation, one repair re-ask, dead letters
+(``write.envelope``). Model-free: a stub window LLM that answers the ``structured`` prompt and the
 ``structured.repair`` re-ask, hash embedder."""
 
 from __future__ import annotations
@@ -28,7 +28,6 @@ from memspine.derive.items import ItemValidator, RepairAsk, process_items
 from memspine.exceptions import LLMError
 from memspine.observability import tap
 from memspine.prompts.structured import (
-    STRUCTURED_SYSTEM,
     RepairItem,
     extraction_messages,
     repair_messages,
@@ -44,7 +43,7 @@ SCOPE = OwnerScope(tenant="default", owner="a")
 
 # --- the stub model ----------------------------------------------------------------------------
 class ItemLLM:
-    """Answers the ``structured`` extraction (one ItemV1 per transcript line) and the repair re-ask."""
+    """Answers the ``structured`` extraction (one ExtractionItem per transcript line) and the repair re-ask."""
 
     provider_id = "fake:items"
 
@@ -53,11 +52,9 @@ class ItemLLM:
         self.repairs: list[list[dict[str, str]]] = []
         self.mutations: dict[int, Callable[[dict[str, Any]], dict[str, Any] | None]] = {}
         self.repair_mode = "fix"  # fix | noop | garbage | extra | raise
-        self.legacy = FakeWindowLLM()
+        self.sections = FakeWindowLLM()
 
     async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
-        if messages[0]["content"] != STRUCTURED_SYSTEM:
-            return await self.legacy.chat(messages, **options)
         if messages[-1]["content"].find("of your items failed validation") >= 0:
             return self._repair(messages)
         self.extractions += 1
@@ -83,6 +80,11 @@ class ItemLLM:
                 item = self.mutations[pos](item)
             if item is not None:
                 items.append(item)
+        if "NEW:\n" in messages[-1]["content"]:
+            sections = json.loads(await self.sections.chat(messages, **options))
+            if "facts" in sections:
+                sections["facts"] = items
+            return json.dumps(sections)
         return json.dumps(items)
 
     def _repair(self, messages: list[dict[str, str]]) -> str:
@@ -145,10 +147,12 @@ async def _engine(
         },
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={
+            "segment_max_turns": write.get("window_max_turns", 6),
+            "batch_max_windows": 1,
+            "segment_gap_s": 0,
             "window_extract": "facts",
             "window_async": False,
             "window_idle_s": 0.0,
-            "envelope_v2": True,
             **write,
         },
         economy=economy or {},
@@ -201,34 +205,6 @@ def _setup(*roles: str) -> tuple[EnvelopeCompiler, ItemValidator, Any]:
 
 
 # --- config and flag off ----------------------------------------------------------------------
-def test_the_flag_is_off_by_default() -> None:
-    assert (
-        MemspineConfig(
-            runtime={
-                "provider_services": {
-                    "health_timeout_s": 1.0,
-                    "close_timeout_s": 1.0,
-                    "startup_timeout_s": None,
-                }
-            }
-        ).write.envelope_v2
-        is False
-    )
-
-
-async def test_flag_off_is_unchanged(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, tmp_path / "off.db", envelope_v2=False)
-    try:
-        await _send(eng, "a", "s1", _turns("trip", 4))
-        stats = await eng.flush_windows()
-        assert "envelope_v2" not in stats and "items_valid" not in stats
-        assert eng._windows.failure_ledger is None
-        facts = await _facts(eng)
-        assert len(facts) == 4 and not any("envelope_v2" in f.tags for f in facts)
-        assert not (tmp_path / "off.db.deadletters.sqlite").exists()
-    finally:
-        await eng.stop()
 
 
 # --- compile: axes, provenance, evidence, trust (unit) ----------------------------------------
@@ -411,9 +387,9 @@ async def test_valid_items_become_facts_with_envelope_provenance(
         stats = await eng.flush_windows()
         facts = await _facts(eng)
         assert len(facts) == 4 and llm.extractions == 1 and not llm.repairs
-        assert all({"envelope_v2", "src:user_stated"} <= set(f.tags) for f in facts)
+        assert all({"envelope", "src:user_stated"} <= set(f.tags) for f in facts)
         assert all(len(f.source.parents) == 1 for f in facts)
-        assert stats["envelope_v2"] and stats["items_valid"] == 4 and stats["items_dropped"] == 0
+        assert stats["envelope"] and stats["items_valid"] == 4 and stats["items_dropped"] == 0
         assert stats["repair_calls"] == 0 and stats["facts_deposited"] == 4
         assert stats["dead_letters"] == 0
     finally:
@@ -510,7 +486,7 @@ async def test_a_failed_facts_call_is_a_window_level_dead_letter(
 ) -> None:
     class Garbage(ItemLLM):
         async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
-            return "not json at all {{{"
+            return "true"
 
     eng = await _engine(monkeypatch, Garbage())
     try:
@@ -528,7 +504,7 @@ async def test_repair_calls_are_counted_by_the_cost_ledger(
 ) -> None:
     llm = ItemLLM()
     llm.mutations = {0: lambda i: {**i, "lines": []}}
-    eng = await _engine(monkeypatch, llm, economy={"ledger_v2": True})
+    eng = await _engine(monkeypatch, llm, economy={"ledger": True})
     try:
         await _send(eng, "a", "s1", _turns("trip", 3))
         await eng.flush_windows()
@@ -578,7 +554,7 @@ async def test_window_compile_uses_unprefixed_unicode_source_offsets(
 
 async def test_batched_windows_keep_citations_per_window(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = ItemLLM()
-    eng = await _engine(monkeypatch, llm, segmentation_v2=True, segment_max_turns=6)
+    eng = await _engine(monkeypatch, llm, segment_max_turns=6, batch_max_windows=4)
     try:
         await _send(eng, "a", "s1", _turns("trip", 18))
         stats = await eng.flush_windows()

@@ -85,42 +85,10 @@ class SqlProjectionBindingStore:
             )
         return None if provider is None else binding_source_name(str(provider))
 
-    async def adopt_renamed_provider(
-        self, target: ProjectionTargetBinding, old_provider: str
-    ) -> bool:
-        """ADR-081: rewrite a binding recorded under a renamed provider identity (for example
-        ``graph:sqlite_adjacency:v1``) to ``target`` (compare-and-swap on the old identity and
-        the active generation). Only for renames whose physical target is unchanged. Returns
-        True when a row was adopted."""
-        async with self._engine.begin() as conn:
-            result = await conn.execute(
-                update(provider_projector_bindings)
-                .where(
-                    provider_projector_bindings.c.deployment_id == target.deployment_id,
-                    provider_projector_bindings.c.projector_name == target.projector_name,
-                    provider_projector_bindings.c.provider == old_provider,
-                    provider_projector_bindings.c.generation_id == target.generation_id,
-                )
-                .values(
-                    provider=target.provider,
-                    target_fingerprint=target.target_fingerprint,
-                    updated_at=datetime.now(UTC).isoformat(),
-                )
-            )
-        adopted = bool(result.rowcount)
-        if adopted:
-            _log.info(
-                "provider.binding_renamed",
-                projector=target.projector_name,
-                old=old_provider,
-                new=target.provider,
-            )
-        return adopted
-
     async def ensure(self, target: ProjectionTargetBinding) -> str:
         """Bind a target generation, allowing only a verified compare-and-swap.
 
-        A non-zero legacy offset without a binding is ambiguous: the target may
+        A non-zero unbound offset without a binding is ambiguous: the target may
         have been changed while keeping the same projector name. It must be
         rebuilt or moved through a verified switch before startup can continue.
         """
@@ -187,7 +155,7 @@ class SqlProjectionBindingStore:
             offset = await conn.scalar(offset_of)
             if offset is not None and int(offset) > 0:
                 raise ConfigError(
-                    f"projector {target.projector_name!r} has a non-zero legacy offset "
+                    f"projector {target.projector_name!r} has a non-zero unbound offset "
                     "without a provider target binding; a verified projection rebuild or "
                     "switch is required before startup"
                 )

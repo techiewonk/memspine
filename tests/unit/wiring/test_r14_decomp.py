@@ -1,4 +1,4 @@
-"""R14-M-12 / OBS-10: ``read.decompose_v2`` (map-reduce read for multi-entity questions).
+"""R14-M-12 / OBS-10: ``read.decompose`` (map-reduce read for multi-entity questions).
 
 Model-free: hash embedder, no reranker, invented names.
 """
@@ -17,8 +17,8 @@ KNOWN = {"bram", "ilse", "noor", "tomasz"}
 
 
 def test_default_off() -> None:
-    assert ReadConfig().decompose_v2 is False
-    assert ReadConfig().decompose_v2_max_entities == 3
+    assert ReadConfig().decompose is False
+    assert ReadConfig().decompose_max_entities == 3
 
 
 @pytest.mark.parametrize(
@@ -129,7 +129,7 @@ async def test_flag_off_is_the_plain_read() -> None:
 
 @pytest.mark.parametrize("parallel", [False, True])
 async def test_flag_on_groups_evidence_per_entity(parallel: bool) -> None:
-    eng = _engine(decompose_v2=True, parallel_legs=parallel)
+    eng = _engine(decompose=True, parallel_legs=parallel)
     await eng.start()
     try:
         await _fill(eng)
@@ -152,7 +152,7 @@ async def test_flag_on_groups_evidence_per_entity(parallel: bool) -> None:
 
 
 async def test_single_entity_question_is_untouched() -> None:
-    eng = _engine(decompose_v2=True)
+    eng = _engine(decompose=True)
     await eng.start()
     try:
         await _fill(eng)
@@ -165,7 +165,7 @@ async def test_single_entity_question_is_untouched() -> None:
 
 
 async def test_whole_store_fitting_reads_as_before() -> None:
-    eng = _engine(decompose_v2=True)
+    eng = _engine(decompose=True)
     await eng.start()
     try:
         for who, text in _TURNS:

@@ -6,6 +6,7 @@ import importlib
 import importlib.util
 from collections.abc import Callable, ItemsView, Iterator, Mapping
 from dataclasses import dataclass, field
+from threading import RLock
 from types import MappingProxyType
 from typing import Any, Literal, cast
 
@@ -33,7 +34,6 @@ __all__ = [
     "LEXICAL_INDEXES",
     "LLM_PROVIDERS",
     "LOCALITIES",
-    "RENAMED_PROVIDERS",
     "RERANKERS",
     "STORAGE_BACKENDS",
     "VECTOR_STORES",
@@ -48,7 +48,6 @@ __all__ = [
     "provider_projection_settings",
     "provider_target_identity",
     "records_locality",
-    "renamed_provider_message",
 ]
 
 # Plugin extensions which are not providers continue to use this same registry owner.
@@ -86,27 +85,6 @@ KIND_TO_CATEGORY: dict[str, Category] = {
     "deciders": "decider",
 }
 _CATEGORY_TO_KIND = {category: kind for kind, category in KIND_TO_CATEGORY.items()}
-
-#: Renamed built-in providers (registry kind -> old name -> new name). There is no alias
-#: (ADR-068): the old name is rejected with an error that names the new one.
-RENAMED_PROVIDERS: Mapping[str, Mapping[str, str]] = MappingProxyType(
-    {
-        "graph_stores": MappingProxyType({"sqlite_adjacency": "sql_adjacency"}),
-    }
-)
-
-
-def renamed_provider_message(kind: str, name: str) -> str | None:
-    """The rejection text for a renamed provider name, or None when ``name`` was not renamed."""
-    new = RENAMED_PROVIDERS.get(kind, {}).get(name)
-    if new is None:
-        return None
-    category = KIND_TO_CATEGORY.get(kind, kind)
-    return (
-        f"{category} provider {name!r} was renamed to {new!r} (ADR-081; no alias): "
-        f"set the provider to {new!r}"
-    )
-
 
 #: ADR-081: where a data provider's state lives. ``process`` = inside this process (memory,
 #: ``:memory:``); ``host`` = files on this machine (sqlite, lancedb, tantivy, ladybug, disk
@@ -201,9 +179,6 @@ class Registry[T]:
         except KeyError:
             if default:
                 return cast(T, default[0])
-            renamed = renamed_provider_message(self.kind, name)
-            if renamed is not None:
-                raise UnknownProviderError(renamed) from None
             raise UnknownProviderError(
                 f"unknown {self.kind} provider {name!r} (valid: {', '.join(self._items)})"
             ) from None
@@ -285,6 +260,7 @@ _BUILTIN_MODULES: dict[str, tuple[str, ...]] = {
     ),
 }
 _BUILTINS_LOADED: set[str] = set()
+_BUILTINS_LOCK = RLock()
 
 
 @dataclass(frozen=True, slots=True)
@@ -420,13 +396,14 @@ def get_registry(kind: str) -> Registry[Any]:
     """Return the unique registry for a plugin kind."""
     if kind not in KINDS:
         raise ProviderRegistryError(f"unknown plug-in kind {kind!r} (known: {sorted(KINDS)})")
-    for module in _BUILTIN_MODULES.get(kind, ()):
-        if module not in _BUILTINS_LOADED and importlib.util.find_spec(module) is not None:
-            builtin_module = importlib.import_module(module)
-            register = getattr(builtin_module, "register", None)
-            if callable(register):
-                register()
-            _BUILTINS_LOADED.add(module)
+    with _BUILTINS_LOCK:
+        for module in _BUILTIN_MODULES.get(kind, ()):
+            if module not in _BUILTINS_LOADED and importlib.util.find_spec(module) is not None:
+                builtin_module = importlib.import_module(module)
+                register = getattr(builtin_module, "register", None)
+                if callable(register):
+                    register()
+                _BUILTINS_LOADED.add(module)
     return Registry(kind)
 
 

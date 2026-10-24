@@ -25,10 +25,10 @@ from memspine.schemas.steps.shared import (  # type: ignore[attr-defined]  # CI-
     AssetRef,
     CallBatch,
     DeriveUse,
+    ExtractionItem,
     FailureRecord,
     FirewallVerdict,
     IntentStatus,
-    ItemV1,
     LedgerEntry,
     Record,
     Role,
@@ -156,9 +156,9 @@ class Usage(InternalModel):
 
 
 class ValidItem(InternalModel):
-    """A valid ItemV1 with its batch block (step 15 output)."""
+    """A valid ExtractionItem with its batch block (step 15 output)."""
 
-    item: ItemV1
+    item: ExtractionItem
     block: int | None = None  # TODO: spec says "their batch block", type not given
 
 
@@ -359,7 +359,7 @@ class InsertStep13Output(InternalModel):
 
 class InsertStep14Input(InternalModel):
     prompt: RenderedPrompt
-    json_schema: dict[str, Any]  # JSON schema of [ItemV1], compact keys
+    json_schema: dict[str, Any]  # JSON schema of [ExtractionItem], compact keys
     decoding: DecodingParams = Field(default_factory=DecodingParams)
 
 
@@ -375,7 +375,7 @@ class InsertStep15Input(InternalModel):
     raw_reply: str
     alias_map: dict[str, AliasTarget]
     item_schema: dict[str, Any] | None = (
-        None  # the ItemV1 JSON schema; TODO: may become a class ref
+        None  # the ExtractionItem JSON schema; TODO: may become a class ref
     )
 
 
@@ -386,7 +386,7 @@ class InsertStep15Output(InternalModel):
 
 
 class InsertStep16Input(InternalModel):
-    item: ItemV1
+    item: ExtractionItem
     alias_map: dict[str, AliasTarget]
     cited_records: list[Record]  # spk, source_at, source_tz, src_class
     prompt_hash: str

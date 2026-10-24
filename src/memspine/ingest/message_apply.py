@@ -66,10 +66,10 @@ async def apply_turns(
         if await _participants_mode(eng, namespace) == "session"
         else []
     )
-    role_policy_v2 = eng._config().write.role_policy_v2  # W2-03
+    role_policy = eng._config().write.role_policy  # W2-03
     conv_stamper = None
     stamp_config = eng._config().write
-    if eng._config().write.stamping_v2:  # W2-02
+    if eng._config().write.stamping:  # W2-02
         first_message = next(
             (
                 t
@@ -123,7 +123,7 @@ async def apply_turns(
         reply_to = _reply_target(turn, i, written_at)
         role_dec = (
             role_wiring.decide(eng, validate_namespace(namespace), effective_session, role, content)
-            if role_policy_v2
+            if role_policy
             else None
         )  # W2-03: raw keeps every role; derivation reads the tags
         if role in fw.skip_message_roles and role_dec is None:

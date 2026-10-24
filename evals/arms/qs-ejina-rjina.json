@@ -1,1 +1,48 @@
-{"read": {"record_access": false, "scoring": {"recency_weight": 0.0, "importance_weight": 0.0, "utility_weight": 0.0}, "resolve_relative_dates": true, "order_by_time_for_ordering": true, "assembly": {"relative_floor": 0.3}, "rerank": "jina", "rerank_model": "jinaai/jina-reranker-v3.5", "rerank_device": "cuda"}, "embedding": {"provider": "st", "model": "jinaai/jina-embeddings-v5-text-small-retrieval", "dim": 1024, "device": "cuda", "dtype": "bfloat16", "query_prompt_name": "query", "document_prompt_name": "document", "trust_remote_code": true}, "storage": {"path": "tempdir"}}
+{
+  "read": {
+    "record_access": false,
+    "scoring": {
+      "recency_weight": 0.0,
+      "importance_weight": 0.0,
+      "utility_weight": 0.0
+    },
+    "resolve_relative_dates": true,
+    "order_by_time_for_ordering": true,
+    "assembly": {
+      "relative_floor": 0.3
+    }
+  },
+  "storage": {
+    "records": {
+      "provider": "sqlite",
+      "settings": {
+        "path": "tempdir"
+      }
+    }
+  },
+  "model": {
+    "embedding": {
+      "provider": "st",
+      "settings": {
+        "model": "jinaai/jina-embeddings-v5-text-small-retrieval",
+        "dim": 1024,
+        "device": "cuda",
+        "dtype": "bfloat16",
+        "query_prompt_name": "query",
+        "document_prompt_name": "document",
+        "trust_remote_code": true
+      }
+    },
+    "rerank": {
+      "chain": [
+        {
+          "provider": "jina",
+          "settings": {
+            "model": "jinaai/jina-reranker-v3.5",
+            "device": "cuda"
+          }
+        }
+      ]
+    }
+  }
+}

@@ -57,14 +57,14 @@ def _turns(with_stamps: bool) -> list[Turn]:
 
 
 def _view(record: Any) -> tuple[Any, ...]:
-    """Everything that must match; ids, recorded_at and access counters are excluded."""
+    """Everything that must match; record ids, per-call intake write ids, recorded_at and access counters are excluded. Public message/session/conversation identities remain compared."""
     return (
         record.memory_type,
         record.content,
         record.entity,
         record.attribute,
         record.group_id,
-        tuple(record.tags),
+        tuple(tag for tag in record.tags if not tag.startswith("idem:")),
         record.valid_from,
         record.valid_to,
         str(record.status),

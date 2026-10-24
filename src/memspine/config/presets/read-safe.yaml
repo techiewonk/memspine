@@ -1,0 +1,10 @@
+# FU-REQS profile: the abstention / safety read block. Question: abstention up with no recall loss.
+# Reference: r7-protect-opb or a new OP-Bench reference. Replaces S19-S22, S24, S27.
+# deep needs a bound model.llm.sufficiency (or plan) role to use any model call; unbound it is
+# rules-only (the arm validator in evals/ rejects that, a config load does not). timeview
+# only acts when an as-of / recorded_before bound is active.
+read:
+  gate: true
+  deep: true
+  obligations: true
+  trust_rendering: true

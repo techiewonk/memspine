@@ -10,7 +10,6 @@ from collections.abc import (
     Mapping,
     Sequence,
 )
-from pathlib import Path
 from typing import Any
 
 import structlog
@@ -140,18 +139,3 @@ async def _erase_assets(eng: Any, namespace: str, record_ids: Sequence[str] | No
     if gone:
         tap.event("write.assets.erased", n=len(gone))
     return len(gone)
-
-
-async def _import_asset_dir(eng: Any, directory: str | Path, namespace: str | None) -> Any:
-    """RM-113 item 18: the one-time import of a pre-item-18 asset directory."""
-    from memspine.services.assets.legacy import import_asset_dir
-
-    storage = eng._require_started()
-
-    async def namespace_of(record_ids: Sequence[str]) -> Mapping[str, str]:
-        found = await storage.get_records(list(dict.fromkeys(record_ids))) if record_ids else {}
-        return {rid: record.namespace for rid, record in found.items()}
-
-    return await import_asset_dir(
-        directory, _asset_registry(eng), eng._documents, namespace_of, namespace=namespace
-    )

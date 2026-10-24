@@ -144,7 +144,7 @@ def main() -> None:
     ap.add_argument(
         "--ledger-screen",
         default="",
-        help="RUNBOOK2: also append the result to runs/_logs/v2_results.tsv",
+        help="RUNBOOK2: also append the result to runs/_logs/screen_results.tsv",
     )
     ap.add_argument("--ledger-mode", default="focus")
     ap.add_argument("--ledger-arm", default="")
@@ -220,9 +220,9 @@ def main() -> None:
     for line in format_result("LoCoMo slice", pr):
         print("   " + line)
     if a.ledger_screen:
-        import v2_ledger
+        import screen_ledger
 
-        v2_ledger.append_paired(
+        screen_ledger.append_paired(
             pr,
             mode=a.ledger_mode,
             screen=a.ledger_screen,

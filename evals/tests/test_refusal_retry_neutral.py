@@ -5,13 +5,10 @@ from __future__ import annotations
 import inspect
 from typing import Any
 
-import pytest
 from memspine_evals import refusal
 from memspine_evals.contracts import ReaderAnswer
 from memspine_evals.refusal import (
     RETRY_INSTRUCTION,
-    RETRY_INSTRUCTION_ASSERTIVE,
-    RETRY_INSTRUCTION_NEUTRAL,
     RefusalRetryReader,
     shares_content_word,
 )
@@ -48,43 +45,23 @@ class _Reader:
 
 
 def test_neutral_wording_claims_no_evidence_and_is_the_default() -> None:
-    text = RETRY_INSTRUCTION_NEUTRAL.lower()
+    text = RETRY_INSTRUCTION.lower()
     for claim in CLAIMS:
         assert claim not in text, claim
     assert "not mentioned in the conversation" in text
     assert "if they truly do not" in text
-    assert RETRY_INSTRUCTION == RETRY_INSTRUCTION_NEUTRAL
-
-
-def test_assertive_wording_is_still_available_unchanged() -> None:
-    assert "do contain information relevant to this question" in RETRY_INSTRUCTION_ASSERTIVE
-    assert "best-supported evidence" in RETRY_INSTRUCTION_ASSERTIVE
 
 
 async def test_default_mode_is_neutral_and_recorded_in_meta() -> None:
     inner = _Reader("Not mentioned in the conversation", "Not mentioned in the conversation")
     reader = RefusalRetryReader(inner)
     out = await reader.answer("Where did she go?", CONTEXT)
-    assert inner.questions[1] == "Where did she go?" + RETRY_INSTRUCTION_NEUTRAL
+    assert inner.questions[1] == "Where did she go?" + RETRY_INSTRUCTION
     assert out.text == "Not mentioned in the conversation"  # a correct refusal survives
-    assert out.extra_meta["retry_mode"] == "neutral"
+    assert out.extra_meta["retry_policy"] == "neutral"
     assert out.extra_meta["retry_accepted"] is False
-    assert reader.describe()["retry_mode"] == "neutral"
-    assert reader.reader_id == "stub+retry-neutral"
-
-
-async def test_assertive_mode_uses_old_wording_and_historical_id() -> None:
-    inner = _Reader("not mentioned", "Denver")
-    reader = RefusalRetryReader(inner, mode="assertive")
-    out = await reader.answer("Where?", CONTEXT)
-    assert inner.questions[1] == "Where?" + RETRY_INSTRUCTION_ASSERTIVE
-    assert out.extra_meta["retry_mode"] == "assertive" and out.text == "Denver"
+    assert reader.describe()["retry_policy"] == "neutral"
     assert reader.reader_id == "stub+retry"
-
-
-def test_unknown_mode_is_rejected() -> None:
-    with pytest.raises(ValueError):
-        RefusalRetryReader(_Reader(), mode="pushy")
 
 
 def test_context_overlap_helper() -> None:

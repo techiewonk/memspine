@@ -48,6 +48,7 @@ def _engine(**read: Any) -> Engine:
                 "policies": {"entity_nodes": True, "community": {"algorithm": "lpa"}},
             },
         },
+        graph={"edge_compiler": bool(read.get("graph_leg"))},
         read={"record_access": False, **read},
     )
 
@@ -68,15 +69,25 @@ async def _build(eng: Engine) -> dict[str, MemoryRecord]:
             tags=["kind:event", "rel:did", f"dst:{dst}"],
         )
         melanie.append(rec.record_id)
-    weather = [(await eng.write(t, namespace="a")).record_id for t in WEATHER]
+    weather = [
+        (
+            await eng.write(
+                t,
+                namespace="a",
+                entity="Stormwatch",
+                tags=["kind:event", "rel:observed", f"dst:weather{i}"],
+            )
+        ).record_id
+        for i, t in enumerate(WEATHER)
+    ]
     await _clique(eng, melanie)
     await _clique(eng, weather)
     stats = await reorganize(eng._pipeline_ctx())
-    assert stats["parents"] == 2, stats
+    assert stats["summaries"] == 2, stats
     parents = [
         r
         for r in await eng._require_started().list_records("a", "semantic")
-        if r.source.channel == "reorganize" and r.status is RecordStatus.ACTIVATED
+        if r.source.channel == "community_summary" and r.status is RecordStatus.ACTIVATED
     ]
     by_side = {}
     for parent in parents:
@@ -102,8 +113,15 @@ async def test_gate_admits_only_communities_of_seed_entities(gated: Engine) -> N
     assert await gated._community_gate("a", "the weather", [], [], [], False) == []
 
 
-async def test_a_summary_without_a_seed_member_is_never_read(gated: Engine) -> None:
+async def test_no_seed_admits_no_community_summaries(
+    gated: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
     parents = await _build(gated)
+
+    async def no_seeds(*args: Any, **kwargs: Any) -> list[str]:
+        return []
+
+    monkeypatch.setattr(gated, "_graph_seeds", no_seeds)
     hits = await gated.search("rain storm thunder", namespace="a", top_k=20)
     assert parents["weather"].record_id not in {r.record_id for r, _ in hits}
 

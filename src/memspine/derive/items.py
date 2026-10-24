@@ -7,7 +7,7 @@ its siblings. At most one repair call per extraction call; it goes through the L
 so the cost ledger counts it as a call like any other.
 
 The validator is :func:`memspine.derive.compile.compile_items` (LIB-05) seen item by item: it checks that the
-item parses as ``ItemV1``, that at least one cited line exists in the window and that a non-CONTEXT line is
+item parses as ``ExtractionItem``, that at least one cited line exists in the window and that a non-CONTEXT line is
 cited, that no reserved system name is present, and that the kind is accepted by the registry (the cap).
 """
 

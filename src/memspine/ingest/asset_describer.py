@@ -62,7 +62,7 @@ DESCRIPTION_CHANNEL = "asset_description"
 DESCRIPTION_TRUST = 0.6
 #: Largest local file inlined into a vision call.
 INLINE_MAX_BYTES = 5_000_000
-METADATA_KEY = "metadata:v1"
+METADATA_KEY = "metadata"
 DESCRIBE_ROLE = "describe_asset"
 
 

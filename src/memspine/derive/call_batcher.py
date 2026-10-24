@@ -1,4 +1,4 @@
-"""Call batcher for ``write.segmentation_v2`` (W2-05, decision W-11 "B").
+"""Call batcher for stream segmentation (W2-05, decision W-11 "B").
 
 Closed windows accumulate until a token budget, a window count or a maximum age is reached; then
 one extraction call carries them as separately numbered blocks. The batcher only *groups*: it

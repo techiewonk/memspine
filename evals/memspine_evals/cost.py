@@ -1,6 +1,6 @@
 """Attach the engine's write-side cost ledger to a screen run's results (W2-12; W-26, P-14, P-22).
 
-``economy.ledger_v2`` makes ``Engine.cost_report(namespace)`` return model calls, tokens in and
+``economy.ledger`` makes ``Engine.cost_report(namespace)`` return model calls, tokens in and
 out, latency and embed calls per layer, stage and namespace. ``cost_block`` turns that report plus
 the P-14 target verdicts into one plain dict for a result row, a ``meta`` entry or the summary;
 ``attach_cost`` puts it under ``write_cost``. Both return nothing new when the engine runs with

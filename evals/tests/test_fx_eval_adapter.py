@@ -1,5 +1,5 @@
 """FX-EVAL: the adapter fires session close (call 2) per ingested session before the build sleep,
-and awaits the ``SleepHandle`` that ``offline.sleep_v2`` returns. Stub LLM, hash embedder, no GPU."""
+and awaits the ``SleepHandle`` that ``offline.sleep`` returns. Stub LLM, hash embedder, no GPU."""
 
 from __future__ import annotations
 
@@ -59,7 +59,7 @@ def _config(**offline: Any) -> dict[str, Any]:
         "deployment": {"id": "unit-test"},
         "dotenv_path": None,
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        "offline": {"session_close_v2": True, **offline},
+        "offline": {"session_close": True, **offline},
     }
 
 
@@ -119,7 +119,7 @@ def test_session_close_off_writes_nothing(monkeypatch: pytest.MonkeyPatch) -> No
 
 def test_sleep_v2_handle_is_awaited(monkeypatch: pytest.MonkeyPatch) -> None:
     async def go() -> None:
-        system, built, _ = await _run(monkeypatch, _config(sleep_v2=True))
+        system, built, _ = await _run(monkeypatch, _config(sleep=True))
         try:
             sleep = built.meta["sleep"]
             assert sleep and all(isinstance(v, dict) for v in sleep.values())

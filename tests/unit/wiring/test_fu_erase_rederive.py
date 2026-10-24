@@ -26,7 +26,7 @@ from memspine.derive.write import write_derived
 from memspine.prompts.models import ExtractedFact
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, SourceInfo
-from memspine.trust.pipeline import erasure_v2
+from memspine.trust.pipeline import erasure_state as erasure
 from memspine.workers.schedule import sleep_stage_order
 from memspine.workers.taskiq_runner import PIPELINE_PRIORITIES
 
@@ -52,7 +52,7 @@ def _engine(path: Path | None = None, rederive: bool = True, **priv: Any) -> Eng
         read={"hybrid": False, "record_access": False, "cache": {"enabled": True}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
         write={"lineage_table": True},
-        privacy={"erasure_v2": True, "erasure_rederive": rederive, **priv},
+        privacy={"erasure_rederive": rederive, **priv},
     )
 
 
@@ -377,6 +377,6 @@ async def test_classify_still_flags_a_member_summary_whose_members_are_all_gone(
         await eng.erasure_release([summary.record_id], NS)
         verdict = await eng.verify_forget(a.record_id, NS)
         assert verdict["descendants_leaked"] == [summary.record_id]
-        assert erasure_v2.state(eng).erased  # sanity
+        assert erasure.state(eng).erased  # sanity
     finally:
         await eng.stop()

@@ -101,7 +101,7 @@
       },
       "read_retrieve": {
         "abstained": false,
-        "context_sha256": "cbece197198941bb6e07357447d7640c3d749d0027051f20783cf1c79397f7a5",
+        "context_sha256": "bc87e1828f8cc145b9e25a4e9bca9d0dfb25288cdcf3240543d58deed596d2ad",
         "mode": "retrieve",
         "records": [
           {
@@ -126,15 +126,15 @@
             "valid_from": "2024-04-15T20:15:00+00:00"
           },
           {
-            "content_sha256": "6a9af200beb725c0",
-            "id": "r012",
+            "content_sha256": "47a8393a93313928",
+            "id": "r013",
             "memory_type": "episodic",
             "status": "activated",
             "valid_from": "2024-05-20T07:45:00+00:00"
           },
           {
-            "content_sha256": "47a8393a93313928",
-            "id": "r013",
+            "content_sha256": "6a9af200beb725c0",
+            "id": "r012",
             "memory_type": "episodic",
             "status": "activated",
             "valid_from": "2024-05-20T07:45:00+00:00"
@@ -155,7 +155,7 @@
           "content_sha256": "200b01569a2c9412",
           "id": "r010",
           "memory_type": "episodic",
-          "score": 0.661376,
+          "score": 0.663978,
           "status": "activated",
           "valid_from": "2024-04-15T20:15:00+00:00"
         },
@@ -163,23 +163,23 @@
           "content_sha256": "2bbb60b8760d613e",
           "id": "r022",
           "memory_type": "semantic",
-          "score": 0.658687,
+          "score": 0.494709,
           "status": "activated",
           "valid_from": "2024-04-15T20:15:00+00:00"
-        },
-        {
-          "content_sha256": "6a9af200beb725c0",
-          "id": "r012",
-          "memory_type": "episodic",
-          "score": 0.648598,
-          "status": "activated",
-          "valid_from": "2024-05-20T07:45:00+00:00"
         },
         {
           "content_sha256": "47a8393a93313928",
           "id": "r013",
           "memory_type": "episodic",
           "score": 0.492188,
+          "status": "activated",
+          "valid_from": "2024-05-20T07:45:00+00:00"
+        },
+        {
+          "content_sha256": "6a9af200beb725c0",
+          "id": "r012",
+          "memory_type": "episodic",
+          "score": 0.489744,
           "status": "activated",
           "valid_from": "2024-05-20T07:45:00+00:00"
         }
@@ -214,7 +214,7 @@
           },
           {
             "content_sha256": "04acbce93b6c186f",
-            "id": "r024",
+            "id": "r023",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-03-04T18:00:00+00:00"
@@ -249,7 +249,7 @@
           },
           {
             "content_sha256": "71857015aa767a29",
-            "id": "r023",
+            "id": "r024",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-06-10T09:30:00+00:00"
@@ -259,19 +259,12 @@
       },
       "read_retrieve": {
         "abstained": false,
-        "context_sha256": "5ffb20f9b8785dcd01d9ab64d3cae2bc0b25814d7fc5697d418e46649a964879",
+        "context_sha256": "2530e426c5e65272764736c2471958938b76243c929552de454aab59e2b2c1ad",
         "mode": "retrieve",
         "records": [
           {
             "content_sha256": "d8f18ffacd7c6785",
             "id": "r008",
-            "memory_type": "semantic",
-            "status": "activated",
-            "valid_from": "2024-06-10T09:30:00+00:00"
-          },
-          {
-            "content_sha256": "71857015aa767a29",
-            "id": "r023",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-06-10T09:30:00+00:00"
@@ -284,6 +277,13 @@
             "valid_from": "2024-06-10T09:30:00+00:00"
           },
           {
+            "content_sha256": "196630eb338276a3",
+            "id": "r005",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
             "content_sha256": "549ae55a30e6c581",
             "id": "r001",
             "memory_type": "episodic",
@@ -291,30 +291,30 @@
             "valid_from": "2024-03-04T18:00:00+00:00"
           }
         ],
-        "tokens_used": 74
+        "tokens_used": 58
       },
       "search": [
-        {
-          "content_sha256": "2caf8cb6d364d11d",
-          "id": "r004",
-          "memory_type": "episodic",
-          "score": 0.658854,
-          "status": "activated",
-          "valid_from": "2024-06-10T09:30:00+00:00"
-        },
         {
           "content_sha256": "d8f18ffacd7c6785",
           "id": "r008",
           "memory_type": "semantic",
+          "score": 0.663978,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "2caf8cb6d364d11d",
+          "id": "r004",
+          "memory_type": "episodic",
           "score": 0.656166,
           "status": "activated",
           "valid_from": "2024-06-10T09:30:00+00:00"
         },
         {
-          "content_sha256": "71857015aa767a29",
-          "id": "r023",
-          "memory_type": "semantic",
-          "score": 0.651352,
+          "content_sha256": "196630eb338276a3",
+          "id": "r005",
+          "memory_type": "episodic",
+          "score": 0.64645,
           "status": "activated",
           "valid_from": "2024-06-10T09:30:00+00:00"
         },
@@ -331,7 +331,7 @@
     "q03-old-city": {
       "read_compose": {
         "abstained": false,
-        "context_sha256": "b6c6ce9d9e9827f76612c88f8df4d8d5ba7e15fe43b05172a9c374125b4f8713",
+        "context_sha256": "3d98de276183082e9c82c8acd13b22e51cb05d193cdee95bffce8a2282cee983",
         "mode": "compose",
         "records": [
           {
@@ -361,20 +361,13 @@
             "memory_type": "semantic",
             "status": "archived",
             "valid_from": "2024-03-04T18:00:00+00:00"
-          },
-          {
-            "content_sha256": "04acbce93b6c186f",
-            "id": "r024",
-            "memory_type": "semantic",
-            "status": "activated",
-            "valid_from": "2024-03-04T18:00:00+00:00"
           }
         ],
-        "tokens_used": 83
+        "tokens_used": 55
       },
       "read_retrieve": {
         "abstained": false,
-        "context_sha256": "196489b0f9fb7f232766d313c75a7805bedc22cddf82b9d48ed213ed28c45aad",
+        "context_sha256": "e33ed5f0b09391c40bb9ea520a6eb269258fd0cb92ad4dbf0c06191d44dd3ef8",
         "mode": "retrieve",
         "records": [
           {
@@ -382,20 +375,6 @@
             "id": "r007",
             "memory_type": "semantic",
             "status": "archived",
-            "valid_from": "2024-03-04T18:00:00+00:00"
-          },
-          {
-            "content_sha256": "04acbce93b6c186f",
-            "id": "r024",
-            "memory_type": "semantic",
-            "status": "activated",
-            "valid_from": "2024-03-04T18:00:00+00:00"
-          },
-          {
-            "content_sha256": "ae20a6674d98ce11",
-            "id": "r002",
-            "memory_type": "episodic",
-            "status": "activated",
             "valid_from": "2024-03-04T18:00:00+00:00"
           },
           {
@@ -411,16 +390,23 @@
             "memory_type": "episodic",
             "status": "activated",
             "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "ae20a6674d98ce11",
+            "id": "r002",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
           }
         ],
-        "tokens_used": 83
+        "tokens_used": 55
       },
       "search": [
         {
           "content_sha256": "d8f18ffacd7c6785",
           "id": "r008",
           "memory_type": "semantic",
-          "score": 0.66129,
+          "score": 0.663978,
           "status": "activated",
           "valid_from": "2024-06-10T09:30:00+00:00"
         },
@@ -433,18 +419,18 @@
           "valid_from": "2024-06-10T09:30:00+00:00"
         },
         {
-          "content_sha256": "71857015aa767a29",
-          "id": "r023",
-          "memory_type": "semantic",
-          "score": 0.651042,
+          "content_sha256": "196630eb338276a3",
+          "id": "r005",
+          "memory_type": "episodic",
+          "score": 0.644655,
           "status": "activated",
           "valid_from": "2024-06-10T09:30:00+00:00"
         },
         {
-          "content_sha256": "d49537838fe62bd0",
-          "id": "r006",
-          "memory_type": "episodic",
-          "score": 0.639115,
+          "content_sha256": "71857015aa767a29",
+          "id": "r024",
+          "memory_type": "semantic",
+          "score": 0.492188,
           "status": "activated",
           "valid_from": "2024-06-10T09:30:00+00:00"
         }
@@ -479,7 +465,7 @@
           },
           {
             "content_sha256": "04acbce93b6c186f",
-            "id": "r024",
+            "id": "r023",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-03-04T18:00:00+00:00"
@@ -514,7 +500,7 @@
           },
           {
             "content_sha256": "71857015aa767a29",
-            "id": "r023",
+            "id": "r024",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-06-10T09:30:00+00:00"
@@ -524,19 +510,19 @@
       },
       "read_retrieve": {
         "abstained": false,
-        "context_sha256": "ebfd250e616f0e22eb34ea5e0304e324bd64dfae7f189286118665a2417be250",
+        "context_sha256": "b7c93b6ddc42e9aeca05d5ab0112ebb7b15971cf87d3bddc4da94951eadb645a",
         "mode": "retrieve",
         "records": [
           {
-            "content_sha256": "04acbce93b6c186f",
-            "id": "r024",
+            "content_sha256": "d8f18ffacd7c6785",
+            "id": "r008",
             "memory_type": "semantic",
             "status": "activated",
-            "valid_from": "2024-03-04T18:00:00+00:00"
+            "valid_from": "2024-06-10T09:30:00+00:00"
           },
           {
             "content_sha256": "71857015aa767a29",
-            "id": "r023",
+            "id": "r024",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-06-10T09:30:00+00:00"
@@ -549,6 +535,13 @@
             "valid_from": "2024-03-04T18:00:00+00:00"
           },
           {
+            "content_sha256": "196630eb338276a3",
+            "id": "r005",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-06-10T09:30:00+00:00"
+          },
+          {
             "content_sha256": "2caf8cb6d364d11d",
             "id": "r004",
             "memory_type": "episodic",
@@ -556,7 +549,7 @@
             "valid_from": "2024-06-10T09:30:00+00:00"
           }
         ],
-        "tokens_used": 95
+        "tokens_used": 88
       },
       "search": [
         {
@@ -568,26 +561,34 @@
           "valid_from": "2024-03-04T18:00:00+00:00"
         },
         {
-          "content_sha256": "2caf8cb6d364d11d",
-          "id": "r004",
-          "memory_type": "episodic",
-          "score": 0.651741,
+          "content_sha256": "d8f18ffacd7c6785",
+          "id": "r008",
+          "memory_type": "semantic",
+          "score": 0.644655,
           "status": "activated",
           "valid_from": "2024-06-10T09:30:00+00:00"
         },
         {
-          "content_sha256": "04acbce93b6c186f",
-          "id": "r024",
-          "memory_type": "semantic",
-          "score": 0.646154,
+          "content_sha256": "196630eb338276a3",
+          "id": "r005",
+          "memory_type": "episodic",
+          "score": 0.639947,
           "status": "activated",
-          "valid_from": "2024-03-04T18:00:00+00:00"
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "2caf8cb6d364d11d",
+          "id": "r004",
+          "memory_type": "episodic",
+          "score": 0.5,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
         },
         {
           "content_sha256": "71857015aa767a29",
-          "id": "r023",
+          "id": "r024",
           "memory_type": "semantic",
-          "score": 0.642052,
+          "score": 0.494709,
           "status": "activated",
           "valid_from": "2024-06-10T09:30:00+00:00"
         }
@@ -646,7 +647,7 @@
       },
       "read_retrieve": {
         "abstained": false,
-        "context_sha256": "85512652ae1300c80fc9c5e4911bf3419af66d904ecfade75ac167cd18b29fa8",
+        "context_sha256": "403dfd3a370dc16cb853f4c4950a068806f7368518d06db758aedbfb754d231a",
         "mode": "retrieve",
         "records": [
           {
@@ -664,28 +665,28 @@
             "valid_from": "2024-04-15T20:15:00+00:00"
           },
           {
-            "content_sha256": "504d9e3373fdc1db",
-            "id": "r009",
-            "memory_type": "episodic",
-            "status": "activated",
-            "valid_from": "2024-04-15T20:15:00+00:00"
-          },
-          {
-            "content_sha256": "6a9af200beb725c0",
-            "id": "r012",
-            "memory_type": "episodic",
-            "status": "activated",
-            "valid_from": "2024-05-20T07:45:00+00:00"
-          },
-          {
             "content_sha256": "d837dd0b1c23feb4",
             "id": "r011",
             "memory_type": "episodic",
             "status": "activated",
             "valid_from": "2024-04-15T20:15:00+00:00"
+          },
+          {
+            "content_sha256": "47a8393a93313928",
+            "id": "r013",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-05-20T07:45:00+00:00"
+          },
+          {
+            "content_sha256": "504d9e3373fdc1db",
+            "id": "r009",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-04-15T20:15:00+00:00"
           }
         ],
-        "tokens_used": 103
+        "tokens_used": 97
       },
       "search": [
         {
@@ -700,31 +701,31 @@
           "content_sha256": "2bbb60b8760d613e",
           "id": "r022",
           "memory_type": "semantic",
-          "score": 0.66129,
+          "score": 0.497312,
           "status": "activated",
           "valid_from": "2024-04-15T20:15:00+00:00"
-        },
-        {
-          "content_sha256": "504d9e3373fdc1db",
-          "id": "r009",
-          "memory_type": "episodic",
-          "score": 0.651119,
-          "status": "activated",
-          "valid_from": "2024-04-15T20:15:00+00:00"
-        },
-        {
-          "content_sha256": "6a9af200beb725c0",
-          "id": "r012",
-          "memory_type": "episodic",
-          "score": 0.646228,
-          "status": "activated",
-          "valid_from": "2024-05-20T07:45:00+00:00"
         },
         {
           "content_sha256": "d837dd0b1c23feb4",
           "id": "r011",
           "memory_type": "episodic",
           "score": 0.494709,
+          "status": "activated",
+          "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "47a8393a93313928",
+          "id": "r013",
+          "memory_type": "episodic",
+          "score": 0.492188,
+          "status": "activated",
+          "valid_from": "2024-05-20T07:45:00+00:00"
+        },
+        {
+          "content_sha256": "504d9e3373fdc1db",
+          "id": "r009",
+          "memory_type": "episodic",
+          "score": 0.489744,
           "status": "activated",
           "valid_from": "2024-04-15T20:15:00+00:00"
         }
@@ -759,7 +760,7 @@
           },
           {
             "content_sha256": "04acbce93b6c186f",
-            "id": "r024",
+            "id": "r023",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-03-04T18:00:00+00:00"
@@ -794,7 +795,7 @@
           },
           {
             "content_sha256": "71857015aa767a29",
-            "id": "r023",
+            "id": "r024",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-06-10T09:30:00+00:00"
@@ -843,7 +844,7 @@
           "content_sha256": "d8f18ffacd7c6785",
           "id": "r008",
           "memory_type": "semantic",
-          "score": 0.658687,
+          "score": 0.66129,
           "status": "activated",
           "valid_from": "2024-06-10T09:30:00+00:00"
         },
@@ -926,7 +927,7 @@
       },
       "read_retrieve": {
         "abstained": false,
-        "context_sha256": "f99e3de85fd6990501de57ad549a552b7c33448f0c9caf5ed4a350ef1c5ed36a",
+        "context_sha256": "8bd6d5eb69d1f10c3d9270e8ca79e559fd3bbc53d8afa3968d381378c4792f22",
         "mode": "retrieve",
         "records": [
           {
@@ -937,15 +938,15 @@
             "valid_from": "2024-04-15T20:15:00+00:00"
           },
           {
-            "content_sha256": "47a8393a93313928",
-            "id": "r013",
+            "content_sha256": "6a9af200beb725c0",
+            "id": "r012",
             "memory_type": "episodic",
             "status": "activated",
             "valid_from": "2024-05-20T07:45:00+00:00"
           },
           {
-            "content_sha256": "6a9af200beb725c0",
-            "id": "r012",
+            "content_sha256": "47a8393a93313928",
+            "id": "r013",
             "memory_type": "episodic",
             "status": "activated",
             "valid_from": "2024-05-20T07:45:00+00:00"
@@ -969,14 +970,6 @@
       },
       "search": [
         {
-          "content_sha256": "47a8393a93313928",
-          "id": "r013",
-          "memory_type": "episodic",
-          "score": 0.663978,
-          "status": "activated",
-          "valid_from": "2024-05-20T07:45:00+00:00"
-        },
-        {
           "content_sha256": "6a9af200beb725c0",
           "id": "r012",
           "memory_type": "episodic",
@@ -985,10 +978,18 @@
           "valid_from": "2024-05-20T07:45:00+00:00"
         },
         {
+          "content_sha256": "47a8393a93313928",
+          "id": "r013",
+          "memory_type": "episodic",
+          "score": 0.5,
+          "status": "activated",
+          "valid_from": "2024-05-20T07:45:00+00:00"
+        },
+        {
           "content_sha256": "2bbb60b8760d613e",
           "id": "r022",
           "memory_type": "semantic",
-          "score": 0.653563,
+          "score": 0.494709,
           "status": "activated",
           "valid_from": "2024-04-15T20:15:00+00:00"
         },
@@ -996,7 +997,7 @@
           "content_sha256": "504d9e3373fdc1db",
           "id": "r009",
           "memory_type": "episodic",
-          "score": 0.653563,
+          "score": 0.492188,
           "status": "activated",
           "valid_from": "2024-04-15T20:15:00+00:00"
         },
@@ -1063,7 +1064,7 @@
       },
       "read_retrieve": {
         "abstained": false,
-        "context_sha256": "21aa08bbf1a5ae3f1c51e10eeb956a7294f00ecea781cbc88f8148c0ebc9cf3e",
+        "context_sha256": "6dc451a31a2d7e1d8b05bade5c30cd0c77c2bf8c18ae754965607e199853e711",
         "mode": "retrieve",
         "records": [
           {
@@ -1081,6 +1082,13 @@
             "valid_from": "2024-05-02T19:00:00+00:00"
           },
           {
+            "content_sha256": "473aac3cd4e08d7f",
+            "id": "r017",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-07-09T19:00:00+00:00"
+          },
+          {
             "content_sha256": "b190c5e830bba362",
             "id": "r018",
             "memory_type": "episodic",
@@ -1093,33 +1101,26 @@
             "memory_type": "episodic",
             "status": "activated",
             "valid_from": "2024-05-02T19:00:00+00:00"
-          },
-          {
-            "content_sha256": "473aac3cd4e08d7f",
-            "id": "r017",
-            "memory_type": "episodic",
-            "status": "activated",
-            "valid_from": "2024-07-09T19:00:00+00:00"
           }
         ],
         "tokens_used": 106
       },
       "search": [
         {
-          "content_sha256": "07c33270511576c7",
-          "id": "r025",
-          "memory_type": "semantic",
-          "score": 0.658687,
+          "content_sha256": "b9f606f3366ec0e7",
+          "id": "r014",
+          "memory_type": "episodic",
+          "score": 0.658854,
           "status": "activated",
           "valid_from": "2024-05-02T19:00:00+00:00"
         },
         {
-          "content_sha256": "b9f606f3366ec0e7",
-          "id": "r014",
+          "content_sha256": "473aac3cd4e08d7f",
+          "id": "r017",
           "memory_type": "episodic",
-          "score": 0.65641,
+          "score": 0.656085,
           "status": "activated",
-          "valid_from": "2024-05-02T19:00:00+00:00"
+          "valid_from": "2024-07-09T19:00:00+00:00"
         },
         {
           "content_sha256": "b190c5e830bba362",
@@ -1138,12 +1139,12 @@
           "valid_from": "2024-05-02T19:00:00+00:00"
         },
         {
-          "content_sha256": "473aac3cd4e08d7f",
-          "id": "r017",
-          "memory_type": "episodic",
-          "score": 0.653563,
+          "content_sha256": "07c33270511576c7",
+          "id": "r025",
+          "memory_type": "semantic",
+          "score": 0.497312,
           "status": "activated",
-          "valid_from": "2024-07-09T19:00:00+00:00"
+          "valid_from": "2024-05-02T19:00:00+00:00"
         }
       ]
     },
@@ -1251,18 +1252,10 @@
           "valid_from": "2024-05-02T19:00:00+00:00"
         },
         {
-          "content_sha256": "07c33270511576c7",
-          "id": "r025",
-          "memory_type": "semantic",
-          "score": 0.653722,
-          "status": "activated",
-          "valid_from": "2024-05-02T19:00:00+00:00"
-        },
-        {
           "content_sha256": "473aac3cd4e08d7f",
           "id": "r017",
           "memory_type": "episodic",
-          "score": 0.653563,
+          "score": 0.656166,
           "status": "activated",
           "valid_from": "2024-07-09T19:00:00+00:00"
         },
@@ -1279,6 +1272,14 @@
           "id": "r016",
           "memory_type": "episodic",
           "score": 0.494709,
+          "status": "activated",
+          "valid_from": "2024-05-02T19:00:00+00:00"
+        },
+        {
+          "content_sha256": "07c33270511576c7",
+          "id": "r025",
+          "memory_type": "semantic",
+          "score": 0.489744,
           "status": "activated",
           "valid_from": "2024-05-02T19:00:00+00:00"
         }
@@ -1337,7 +1338,7 @@
       },
       "read_retrieve": {
         "abstained": false,
-        "context_sha256": "dc5cd3e2001dbc262d4dbf5707496261810970b8cf66e68847f495bc26262c91",
+        "context_sha256": "8b247a1100f29b0ead1a6dac7bfe0cb62a22cf0e74bb97684602cf89678c5912",
         "mode": "retrieve",
         "records": [
           {
@@ -1362,15 +1363,15 @@
             "valid_from": "2024-07-09T19:00:00+00:00"
           },
           {
-            "content_sha256": "b9f606f3366ec0e7",
-            "id": "r014",
+            "content_sha256": "92bfb3549cd9280f",
+            "id": "r015",
             "memory_type": "episodic",
             "status": "activated",
             "valid_from": "2024-05-02T19:00:00+00:00"
           },
           {
-            "content_sha256": "92bfb3549cd9280f",
-            "id": "r015",
+            "content_sha256": "b9f606f3366ec0e7",
+            "id": "r014",
             "memory_type": "episodic",
             "status": "activated",
             "valid_from": "2024-05-02T19:00:00+00:00"
@@ -1396,10 +1397,10 @@
           "valid_from": "2024-07-09T19:00:00+00:00"
         },
         {
-          "content_sha256": "07c33270511576c7",
-          "id": "r025",
-          "memory_type": "semantic",
-          "score": 0.656085,
+          "content_sha256": "92bfb3549cd9280f",
+          "id": "r015",
+          "memory_type": "episodic",
+          "score": 0.651119,
           "status": "activated",
           "valid_from": "2024-05-02T19:00:00+00:00"
         },
@@ -1407,15 +1408,15 @@
           "content_sha256": "b9f606f3366ec0e7",
           "id": "r014",
           "memory_type": "episodic",
-          "score": 0.653722,
+          "score": 0.497312,
           "status": "activated",
           "valid_from": "2024-05-02T19:00:00+00:00"
         },
         {
-          "content_sha256": "92bfb3549cd9280f",
-          "id": "r015",
-          "memory_type": "episodic",
-          "score": 0.648598,
+          "content_sha256": "07c33270511576c7",
+          "id": "r025",
+          "memory_type": "semantic",
+          "score": 0.494709,
           "status": "activated",
           "valid_from": "2024-05-02T19:00:00+00:00"
         }
@@ -1507,7 +1508,7 @@
           "content_sha256": "30fd8559e76b6281",
           "id": "r026",
           "memory_type": "semantic",
-          "score": 0.66129,
+          "score": 0.497312,
           "status": "activated",
           "valid_from": "2024-02-12T11:00:00+00:00"
         },
@@ -1604,14 +1605,6 @@
       },
       "search": [
         {
-          "content_sha256": "30fd8559e76b6281",
-          "id": "r026",
-          "memory_type": "semantic",
-          "score": 0.66129,
-          "status": "activated",
-          "valid_from": "2024-02-12T11:00:00+00:00"
-        },
-        {
           "content_sha256": "8b857dba192ff903",
           "id": "r021",
           "memory_type": "episodic",
@@ -1624,6 +1617,14 @@
           "id": "r020",
           "memory_type": "episodic",
           "score": 0.5,
+          "status": "activated",
+          "valid_from": "2024-02-12T11:00:00+00:00"
+        },
+        {
+          "content_sha256": "30fd8559e76b6281",
+          "id": "r026",
+          "memory_type": "semantic",
+          "score": 0.497312,
           "status": "activated",
           "valid_from": "2024-02-12T11:00:00+00:00"
         },
@@ -1690,7 +1691,7 @@
       },
       "read_retrieve": {
         "abstained": false,
-        "context_sha256": "d7584632bd0ba13a7c7517141937dced9e34f01b0f66921c2b6dd67e5e26a63b",
+        "context_sha256": "538c2820cf6638ccc3e4967ac24cd43d7c959926e74e7f0e9f8d9c1223d0ff17",
         "mode": "retrieve",
         "records": [
           {
@@ -1708,11 +1709,11 @@
             "valid_from": "2024-04-15T20:15:00+00:00"
           },
           {
-            "content_sha256": "d837dd0b1c23feb4",
-            "id": "r011",
+            "content_sha256": "47a8393a93313928",
+            "id": "r013",
             "memory_type": "episodic",
             "status": "activated",
-            "valid_from": "2024-04-15T20:15:00+00:00"
+            "valid_from": "2024-05-20T07:45:00+00:00"
           },
           {
             "content_sha256": "6a9af200beb725c0",
@@ -1722,53 +1723,53 @@
             "valid_from": "2024-05-20T07:45:00+00:00"
           },
           {
-            "content_sha256": "504d9e3373fdc1db",
-            "id": "r009",
+            "content_sha256": "d837dd0b1c23feb4",
+            "id": "r011",
             "memory_type": "episodic",
             "status": "activated",
             "valid_from": "2024-04-15T20:15:00+00:00"
           }
         ],
-        "tokens_used": 103
+        "tokens_used": 101
       },
       "search": [
-        {
-          "content_sha256": "2bbb60b8760d613e",
-          "id": "r022",
-          "memory_type": "semantic",
-          "score": 0.663978,
-          "status": "activated",
-          "valid_from": "2024-04-15T20:15:00+00:00"
-        },
         {
           "content_sha256": "200b01569a2c9412",
           "id": "r010",
           "memory_type": "episodic",
-          "score": 0.661376,
+          "score": 0.5,
           "status": "activated",
           "valid_from": "2024-04-15T20:15:00+00:00"
         },
         {
-          "content_sha256": "d837dd0b1c23feb4",
-          "id": "r011",
-          "memory_type": "episodic",
-          "score": 0.653722,
+          "content_sha256": "2bbb60b8760d613e",
+          "id": "r022",
+          "memory_type": "semantic",
+          "score": 0.497312,
           "status": "activated",
           "valid_from": "2024-04-15T20:15:00+00:00"
+        },
+        {
+          "content_sha256": "47a8393a93313928",
+          "id": "r013",
+          "memory_type": "episodic",
+          "score": 0.494709,
+          "status": "activated",
+          "valid_from": "2024-05-20T07:45:00+00:00"
         },
         {
           "content_sha256": "6a9af200beb725c0",
           "id": "r012",
           "memory_type": "episodic",
-          "score": 0.648598,
+          "score": 0.492188,
           "status": "activated",
           "valid_from": "2024-05-20T07:45:00+00:00"
         },
         {
-          "content_sha256": "504d9e3373fdc1db",
-          "id": "r009",
+          "content_sha256": "d837dd0b1c23feb4",
+          "id": "r011",
           "memory_type": "episodic",
-          "score": 0.646228,
+          "score": 0.489744,
           "status": "activated",
           "valid_from": "2024-04-15T20:15:00+00:00"
         }
@@ -1803,7 +1804,7 @@
           },
           {
             "content_sha256": "04acbce93b6c186f",
-            "id": "r024",
+            "id": "r023",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-03-04T18:00:00+00:00"
@@ -1838,7 +1839,7 @@
           },
           {
             "content_sha256": "71857015aa767a29",
-            "id": "r023",
+            "id": "r024",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-06-10T09:30:00+00:00"
@@ -1848,19 +1849,19 @@
       },
       "read_retrieve": {
         "abstained": false,
-        "context_sha256": "4fbe6004ac624bffccec68ab9077f1e40695aa88dc9d499e4dcc222161b8e720",
+        "context_sha256": "f884b547190df3d1d0c20e874e20df4e5a90be7d4242e5bca3d3400bbbc0202d",
         "mode": "retrieve",
         "records": [
           {
-            "content_sha256": "71857015aa767a29",
-            "id": "r023",
+            "content_sha256": "d8f18ffacd7c6785",
+            "id": "r008",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-06-10T09:30:00+00:00"
           },
           {
-            "content_sha256": "d8f18ffacd7c6785",
-            "id": "r008",
+            "content_sha256": "71857015aa767a29",
+            "id": "r024",
             "memory_type": "semantic",
             "status": "activated",
             "valid_from": "2024-06-10T09:30:00+00:00"
@@ -1878,32 +1879,31 @@
             "memory_type": "episodic",
             "status": "activated",
             "valid_from": "2024-03-04T18:00:00+00:00"
+          },
+          {
+            "content_sha256": "549ae55a30e6c581",
+            "id": "r001",
+            "memory_type": "episodic",
+            "status": "activated",
+            "valid_from": "2024-03-04T18:00:00+00:00"
           }
         ],
-        "tokens_used": 66
+        "tokens_used": 84
       },
       "search": [
-        {
-          "content_sha256": "196630eb338276a3",
-          "id": "r005",
-          "memory_type": "episodic",
-          "score": 0.661376,
-          "status": "activated",
-          "valid_from": "2024-06-10T09:30:00+00:00"
-        },
-        {
-          "content_sha256": "71857015aa767a29",
-          "id": "r023",
-          "memory_type": "semantic",
-          "score": 0.653563,
-          "status": "activated",
-          "valid_from": "2024-06-10T09:30:00+00:00"
-        },
         {
           "content_sha256": "d8f18ffacd7c6785",
           "id": "r008",
           "memory_type": "semantic",
-          "score": 0.646822,
+          "score": 0.64951,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "196630eb338276a3",
+          "id": "r005",
+          "memory_type": "episodic",
+          "score": 0.5,
           "status": "activated",
           "valid_from": "2024-06-10T09:30:00+00:00"
         },
@@ -1912,6 +1912,22 @@
           "id": "r002",
           "memory_type": "episodic",
           "score": 0.497312,
+          "status": "activated",
+          "valid_from": "2024-03-04T18:00:00+00:00"
+        },
+        {
+          "content_sha256": "71857015aa767a29",
+          "id": "r024",
+          "memory_type": "semantic",
+          "score": 0.494709,
+          "status": "activated",
+          "valid_from": "2024-06-10T09:30:00+00:00"
+        },
+        {
+          "content_sha256": "549ae55a30e6c581",
+          "id": "r001",
+          "memory_type": "episodic",
+          "score": 0.492188,
           "status": "activated",
           "valid_from": "2024-03-04T18:00:00+00:00"
         }

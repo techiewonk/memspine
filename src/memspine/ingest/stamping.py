@@ -1,11 +1,11 @@
-"""W2-02: wiring of LIB-29 into the write path (``write.stamping_v2``).
+"""W2-02: wiring of LIB-29 into the write path (``write.stamping``).
 
 ``ClockStamper`` and ``RoleStamper`` are the two typed facades of :func:`memspine.ingest.stamp.stamp`
 (one function stays the single source of truth for the rules; each facade fills the fields it owns):
 
 * :class:`ClockStamper`: ``source_at`` / ``source_tz`` / ``recorded_at`` (W-04). The event interval and
   its precision are *not* stamped here; derivation fills them (M-10).
-* :class:`RoleStamper`: ``spk``, ``addr``, ``participants[]`` and the v1 participant tags (W-05), plus the
+* :class:`RoleStamper`: ``spk``, ``addr``, ``participants[]`` (W-05), plus the
   role's provenance class and base trust (W-08 stage 1).
 
 :class:`ConversationStamper` walks one ``ingest_messages`` call: it keeps the call's speakers and the last
@@ -68,7 +68,6 @@ class RoleStamp:
     spk: str | None
     addr: str | None
     participants: tuple[str, ...]
-    participant_tags: tuple[str, ...]
     family: str
     src_class: str
     base_trust: float
@@ -155,7 +154,6 @@ class RoleStamper:
             spk=st.spk,
             addr=st.addr,
             participants=st.participants,
-            participant_tags=st.participant_tags,
             family=st.family,
             src_class=st.src_class,
             base_trust=st.base_trust,

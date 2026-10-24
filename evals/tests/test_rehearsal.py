@@ -94,8 +94,8 @@ def test_shipped_plan_parses_and_every_engine_config_validates() -> None:
 
 
 def test_validate_catches_misspelt_policy_keys() -> None:
-    with pytest.raises(Exception, match="dedupe_jaccard"):
-        validate_engine_config({"assembly": {"dedupe_jaccard": 0.8}})  # handoff's H23 slip
+    with pytest.raises(Exception, match="dedupe_jacard"):
+        validate_engine_config({"read": {"assembly": {"dedupe_jacard": 0.8}}})
     with pytest.raises(Exception, match="mine_fact"):
         validate_engine_config(
             {"memories": {"episodic": {"policies": {"consolidation": {"mine_fact": True}}}}}

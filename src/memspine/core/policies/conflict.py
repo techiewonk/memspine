@@ -87,11 +87,11 @@ class ConflictOptions(PolicyOptions):
     #: Off: unchanged.
     inferred_defers: bool = False
 
-    #: W2-10 (``write.integration_v2``, set by the engine): an older statement that arrives after
+    #: W2-10 (``write.integration``, set by the engine): an older statement that arrives after
     #: a newer one on the same key (R4 historical backfill) is archived as history (``evolve_to``
     #: the current fact) instead of staying active with a closed interval, so a reverse-order
     #: ingest ends in the same live state as a forward one (INV-ORDER-SWAP). Off: unchanged.
-    integration_v2: bool = False
+    integration: bool = False
 
 
 class ConflictPolicy(BindablePolicy):
@@ -106,11 +106,11 @@ class ConflictPolicy(BindablePolicy):
         return options.interval_order
 
     @property
-    def integration_v2(self) -> bool:
+    def integration(self) -> bool:
         """W2-10: whether a late-arriving older value is archived as history (see the option)."""
         options = self.options
         assert isinstance(options, ConflictOptions)
-        return options.integration_v2
+        return options.integration
 
     @property
     def perspective_key(self) -> bool:
@@ -177,7 +177,7 @@ class ConflictPolicy(BindablePolicy):
             # another subject / scope: both hold
             return ConflictVerdict.ADD, "I55_other_subject_or_scope"
 
-        # W2-10 (``write.integration_v2``): the write-path ladder decided that this value contests
+        # W2-10 (``write.integration``): the write-path ladder decided that this value contests
         # the current one (a coexisting value is stored without the key, so never gets here).
         if "integ:contest" in incoming.tags:
             return ConflictVerdict.CONTEST, "W2-10_integration_contest"

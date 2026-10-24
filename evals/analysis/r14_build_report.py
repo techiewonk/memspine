@@ -366,7 +366,7 @@ def ITEMS(d, W, A, wrong, T, ids):
         existing=[
             "GAP_REGISTER C3 (yes/no rule rejected), C4 (grounded_generic_infer / routed_generic, screen pending), C10, I1, I61",
             "SOL-READERPROMPT",
-            "SOL-DEEPREAD / read.deep_v2 (S55 queued)",
+            "SOL-DEEPREAD / read.deep (S55 queued)",
             "read.query_contract + read.contract_rules (S06 +1/-0, S11 0)",
             "neutral refusal retry",
         ],
@@ -390,7 +390,7 @@ def ITEMS(d, W, A, wrong, T, ids):
             sol(
                 "Evidence obligations for 'latest/join' questions before abstaining",
                 "refuse only when obligations report unmet; otherwise answer with caveat",
-                "ours: read.obligations, deep_v2",
+                "ours: read.obligations, deep",
                 "0-2 calls",
                 "obligation derivation is regex-based",
             ),
@@ -435,7 +435,7 @@ def ITEMS(d, W, A, wrong, T, ids):
             sol(
                 "Bundle composition",
                 "evidence bundles: claim + speaker + time + antecedent kept together",
-                "ours: read.evidence_bundles, neighbours_v2, exact_budget",
+                "ours: read.evidence_bundles, neighbours, exact_budget",
                 "0",
                 "S54 not run yet",
             ),
@@ -474,7 +474,7 @@ def ITEMS(d, W, A, wrong, T, ids):
             sol(
                 "Obligations: list/count coverage",
                 "answer_with_caveat unless coverage is complete; follow-up retrieval for missing members",
-                "ours: read.obligations + deep_v2",
+                "ours: read.obligations + deep",
                 "0-2 calls",
                 "regex-derived obligations",
             ),
@@ -801,7 +801,7 @@ def ITEMS(d, W, A, wrong, T, ids):
             sol(
                 "Reranker v2 over a wider pool",
                 "rerank 30 candidates, keep 10",
-                "ours: read.rerank_v2 (S16 iterate 0/0)",
+                "ours: read.rerank (S16 iterate 0/0)",
                 "GPU rerank time",
                 "S16 neutral so far",
             )

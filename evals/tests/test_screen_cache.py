@@ -326,6 +326,17 @@ def test_cached_engine_roles_make_a_rerun_free(tmp_path: Path) -> None:
         prices_per_mtok=((QWEN3_32B, 1.0, 2.0),),
     )
     config = type(config)(**{**config.__dict__, "memspine_config": MINING})
+    # Caching is opt-in for deterministic calls. Current provider defaults use
+    # nonzero temperature, so this fixture explicitly selects temperature zero.
+    from dataclasses import replace
+
+    from memspine_evals.experiments import memspine_engine_config
+
+    engine_config = memspine_engine_config(config)
+    assert engine_config is not None
+    for slot in engine_config["model"]["llm"].values():
+        slot["settings"]["temperature"] = 0.0
+    config = replace(config, memspine_config=engine_config)
     with install_stub_openai_compat() as first:
         asyncio.run(run_c0_1(dataset, config, tmp_path, run_id="fill"))
     filled = _summary(tmp_path, "fill--memspine")

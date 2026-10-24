@@ -3,7 +3,7 @@
 ``(N new turns AND M minutes idle) OR context pressure >= C``, both behind a minimum gap ``K``
 since the last completed run. Manual verbs bypass the policy (the caller never asks it). The
 daily maintenance job (decay, retention, compress) is due once per ``maintenance_hours``.
-The fixed-interval loop of v1 maps to ``N=0, M=0, K=interval`` (O-02 migration).
+A fixed-interval policy uses ``N=0, M=0, K=interval``.
 """
 
 from __future__ import annotations

@@ -51,16 +51,14 @@ import re
 from dataclasses import dataclass
 
 __all__ = [
-    "CONVENTIONS_V2_VERSION",
     "CONVENTIONS_VERSION",
     "ConventionResult",
     "check_conventions",
-    "check_conventions_v2",
     "edit_close",
     "gold_items",
 ]
 
-CONVENTIONS_VERSION = "conventions/v1"
+CONVENTIONS_VERSION = "conventions"
 
 _WORD = re.compile(r"[A-Za-z0-9']+")
 _STOP = frozenset(
@@ -317,7 +315,7 @@ def _numeral_rule(gold: str, answer: str) -> ConventionResult | None:
     return None
 
 
-def check_conventions(question: str, answer: str, gold: str | None) -> ConventionResult | None:
+def _basic_conventions(question: str, answer: str, gold: str | None) -> ConventionResult | None:
     """The convention that makes ``answer`` right against ``gold``, or None. Pure and offline."""
     if not gold or not answer or not answer.strip():
         return None
@@ -349,12 +347,12 @@ def check_conventions(question: str, answer: str, gold: str | None) -> Conventio
 
 
 # =============================================================================================
-# I77: conventions v2 (``--judge-conventions-v2``, column ``score_conventions_v2``)
+# I77: conventions extended (``--judge-conventions-extended``, column ``score_conventions``)
 # =============================================================================================
 #
-# Four more deterministic rules on top of v1. Same contract: they only turn a wrong verdict into a
-# right one, they are reported as their OWN column (``score_conventions_v2`` / ``convention_v2``,
-# v1 and the official ``score`` untouched), and they see only the question, the answer and the
+# Four more deterministic rules on top of basic. Same contract: they only turn a wrong verdict into a
+# right one, they are reported as their OWN column (``score_conventions`` / ``convention``,
+# basic and the official ``score`` untouched), and they see only the question, the answer and the
 # gold. No table holds a dataset answer: the alias groups below are everyday abbreviation and
 # synonym sets (country names, family terms, appliances), the unit table is the SI / calendar
 # definitions, the date rule is calendar arithmetic.
@@ -368,20 +366,19 @@ def check_conventions(question: str, answer: str, gold: str | None) -> Conventio
 #                  answer is the same amount in another unit of the same dimension, by exact
 #                  definition (minutes/hours/days/weeks, months/years, mm/cm/m/km, g/kg, oz/lb,
 #                  dollars/$/USD). Comparatives, hedges ("about", "at least") and negation block it.
-#                  Same-unit numerals ("five" = 5) stay with the v1 ``numeral`` rule.
-# ``ordinal``      "third" = "3rd" = "3d" on either side, through the v1 phrase matcher.
+#                  Same-unit numerals ("five" = 5) stay with the basic ``numeral`` rule.
+# ``ordinal``      "third" = "3rd" = "3d" on either side, through the basic phrase matcher.
 # ``alias``        gold and answer name the same thing by a listed alias ("mom"/"mother",
-#                  "TV"/"television", "US"/"United States"), through the v1 phrase / list matcher
+#                  "TV"/"television", "US"/"United States"), through the basic phrase / list matcher
 #                  on alias-folded text. Applies only when a fold actually changed something.
 #
 # False-positive risk: ``date_format`` and ``unit`` need an exact value match on a gold that is a
 # bare date / quantity, so the residual risk is an answer whose FIRST date or quantity is the
 # gold's but whose point is another ("on June 20 he booked, the trip was July 2"); range and
-# hedge cues cover the common forms. ``alias`` and ``ordinal`` inherit v1's matcher (content words
+# hedge cues cover the common forms. ``alias`` and ``ordinal`` inherit basic's matcher (content words
 # close together, negation blocks). Measured on the calibration set and read by hand on finished
 # runs: ``evals/judge_agreement.py --conventions`` and ``evals/rescore_conventions.py``.
 
-CONVENTIONS_V2_VERSION = "conventions/v2"
 
 _MONTH_NUM = {
     m: i
@@ -525,7 +522,7 @@ def _date_rule(gold: str, answer: str) -> ConventionResult | None:
     if residue:
         return None
     a_dates = _calendar_dates(answer)
-    if not a_dates:
+    if not a_dates or len({date for _, date in a_dates}) != 1:
         return None
     start, (ay, am, ad) = a_dates[0]
     if _RANGE_CUE.search(answer[:start]):
@@ -687,14 +684,14 @@ def _fold_ordinals(text: str) -> str:
 
 
 def _folded_rule(question: str, answer: str, gold: str) -> ConventionResult | None:
-    """Re-run the v1 phrase / list matcher on alias- and ordinal-folded text, when a fold changed
+    """Re-run the basic phrase / list matcher on alias- and ordinal-folded text, when a fold changed
     something. The folded token keeps a leading capital when the original did."""
     for name, fold in (("ordinal", _fold_ordinals), ("alias", _fold_aliases)):
         g2, a2 = fold(gold), fold(answer)
         if g2 == gold and a2 == answer:
             continue
         q2 = fold(question)
-        hit = check_conventions(q2, a2, g2)
+        hit = _basic_conventions(q2, a2, g2)
         if hit is not None:
             return ConventionResult(name, hit.rule)
         words = _content(g2)
@@ -710,15 +707,15 @@ def _folded_rule(question: str, answer: str, gold: str) -> ConventionResult | No
     return None
 
 
-def check_conventions_v2(question: str, answer: str, gold: str | None) -> ConventionResult | None:
-    """v1 first (its rule name is kept), then ``date_format``, ``unit``, ``ordinal``, ``alias``.
+def _extended_conventions(question: str, answer: str, gold: str | None) -> ConventionResult | None:
+    """basic first (its rule name is kept), then ``date_format``, ``unit``, ``ordinal``, ``alias``.
     Pure and offline; never reads the category, the dataset or the run."""
-    v1 = check_conventions(question, answer, gold)
-    if v1 is not None:
-        # v1's numeral rule reads a date gold ("3 May 2023") as a quantity and ignores a negation
-        # ("It was not on 3 May 2023."); v2 does not carry that credit over
+    basic = _basic_conventions(question, answer, gold)
+    if basic is not None:
+        # basic's numeral rule reads a date gold ("3 May 2023") as a quantity and ignores a negation
+        # ("It was not on 3 May 2023."); extended does not carry that credit over
         if not (_NEGATION.search(answer) and gold and _MONTH.search(gold)):
-            return v1
+            return basic
     if not gold or not answer or not answer.strip():
         return None
     gold, answer = gold.strip(), answer.strip()
@@ -734,15 +731,15 @@ def check_conventions_v2(question: str, answer: str, gold: str | None) -> Conven
 
 
 # =============================================================================================
-# R14-M-17: conventions v3 (``--judge-conventions-v3``, column ``score_conventions_v3``)
+# R14-M-17: conventions current (``--judge-conventions-current``, column ``score_conventions``)
 # =============================================================================================
 #
-# The residue after the date guard and v1/v2 is, on the finished reference run, list / containment /
-# annotation / geography. Same contract as v1/v2: rules only turn a wrong verdict into a right one,
-# they are reported as their OWN column (``score_conventions_v3`` / ``convention_v3``), they see only
+# The residue after the date guard and basic/extended is, on the finished reference run, list / containment /
+# annotation / geography. Same contract as basic/extended: rules only turn a wrong verdict into a right one,
+# they are reported as their OWN column (``score_conventions`` / ``convention``), they see only
 # the question, the answer and the gold, and an abstention gold or a refusal answer is never touched.
 #
-# ``list_scoped``     a list gold whose every item is in the answer (v1 matcher), where a negation
+# ``list_scoped``     a list gold whose every item is in the answer (basic matcher), where a negation
 #                     word only blocks when it sits within ``NEG_BEFORE`` tokens before or
 #                     ``NEG_AFTER`` after the item's own words ("no confirmation he went there" on
 #                     another line no longer voids a list that is right). Restriction words
@@ -768,7 +765,6 @@ def check_conventions_v2(question: str, answer: str, gold: str | None) -> Conven
 # rewarding" for "happy"), a gold item split across a conjunction ("spending time with her pet")
 # and golds that need the evidence. The LLM judge decides those.
 
-CONVENTIONS_V3_VERSION = "conventions/v3"
 
 NEG_BEFORE = 5
 NEG_AFTER = 3
@@ -876,7 +872,7 @@ def _clean_window(windows: list[tuple[int, int]], neg_at: list[int]) -> bool:
     )
 
 
-def _gate_v3(question: str, answer: str, gold: str | None) -> tuple[str, str] | None:
+def _convention_gate(question: str, answer: str, gold: str | None) -> tuple[str, str] | None:
     if not gold or not answer or not answer.strip():
         return None
     gold, answer = gold.strip(), answer.strip()
@@ -938,13 +934,13 @@ def _relative_year(answer: str, gold: str) -> ConventionResult | None:
     return None
 
 
-def check_conventions_v3(question: str, answer: str, gold: str | None) -> ConventionResult | None:
-    """v2 first (its rule name is kept), then ``list_scoped``, ``geography``, ``contained``,
+def check_conventions(question: str, answer: str, gold: str | None) -> ConventionResult | None:
+    """extended first (its rule name is kept), then ``list_scoped``, ``geography``, ``contained``,
     ``relative_year``. Pure and offline; never reads the category, the dataset or the run."""
-    v2 = check_conventions_v2(question, answer, gold)
-    if v2 is not None:
-        return v2
-    gated = _gate_v3(question, answer, gold)
+    extended = _extended_conventions(question, answer, gold)
+    if extended is not None:
+        return extended
+    gated = _convention_gate(question, answer, gold)
     if gated is None:
         return None
     gold, answer = gated
@@ -984,7 +980,7 @@ def _covered(words: list[str], stems: set[str]) -> bool:
 
 def list_item_recall(question: str, answer: str, gold: str | None) -> tuple[int, int] | None:
     """(items found, items in the gold) for a COMMA / SEMICOLON list gold, else None. No model call.
-    An item is found when the v1 phrase matcher finds it, or when at least half of its content
+    An item is found when the basic phrase matcher finds it, or when at least half of its content
     words are in the answer (so a paraphrased item is not a miss, only an absent one). Geography
     and alias folds are tried when the plain answer lacks an item. A gold with no comma or
     semicolon ("surreal and cool", "California or Florida") is no list: the descriptive and

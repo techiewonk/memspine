@@ -138,13 +138,12 @@ async def _date_allowed(eng: Any, ns: str) -> tuple[set[str], int] | None:
     key whose target is judged after the gates resolve it. None: no filter."""
     date_filter = active_date_filter()
     scope = active_record_scope()  # I7 / I8: session and role limits
-    if date_filter is None and scope is None:
+    if date_filter is None and scope is None and active_as_of() is None:
         return None
     listed = await eng._records(ns)
-    if eng._config().read.timeview_v2:
-        v2 = _timeview_allowed(listed, date_filter, scope)
-        if v2 is not None:
-            return v2, len(listed)
+    snapshot = _timeview_allowed(listed, date_filter, scope)
+    if snapshot is not None:
+        return snapshot, len(listed)
     allowed = {
         r.record_id
         for r in listed
@@ -260,7 +259,7 @@ def _as_envelope(r: MemoryRecord) -> AssertionEnvelope:
 
 
 def _timeview_allowed(listed: list[MemoryRecord], date_filter: Any, scope: Any) -> set[str] | None:
-    """R3-14 (``read.timeview_v2``): the allow-list under the three-valued time view, or
+    """R3-14 (``read.timeview``): the allow-list under the three-valued time view, or
     None when the read has no as-of / known-at bound (the legacy path then runs).
 
     The as-of scope's own ``valid_from_before`` and a ``recorded_before`` bound are taken

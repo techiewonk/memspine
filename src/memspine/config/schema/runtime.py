@@ -155,7 +155,7 @@ class SharedResourcesConfig(_SharedResourcesModel):
 class RuntimeConfig(ConfigModel):
     """In-process scheduling of model work and derived work. Everything is OFF by default.
 
-    - ``scheduler_v2`` (RT-02): turns on micro-batched encoder executors (document and query
+    - ``scheduler`` (RT-02): turns on micro-batched encoder executors (document and query
       embedding), the backpressure policy on the durable outbox (needs ``workers.outbox``), the
       SLO ledger and the ``runtime.sched.*`` / ``runtime.backpressure.*`` tap events. Off
       (default): nothing changes.
@@ -178,7 +178,7 @@ class RuntimeConfig(ConfigModel):
     #: RM-78 (ADR-079): sharing, warm-up and retention of provider resources.
     shared_resources: SharedResourcesConfig = Field(default_factory=SharedResourcesConfig)
 
-    scheduler_v2: bool = False
+    scheduler: bool = False
     model_concurrency: int = Field(default=0, ge=0)
     background_reserve: int = Field(default=1, ge=0)
     encoder_batch_max: int = Field(default=32, ge=1)
@@ -191,11 +191,3 @@ class RuntimeConfig(ConfigModel):
     backlog_retry_after_s: float = Field(default=1.0, ge=0)
     read_p95_budget_s: float | None = Field(default=None, gt=0)
     lag_p95_budget_s: float | None = Field(default=None, gt=0)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_moved(cls, value: Any) -> Any:
-        from memspine.config.schema.storage import reject_moved_keys
-
-        reject_moved_keys(value, "runtime", ("deployment_id",))
-        return value

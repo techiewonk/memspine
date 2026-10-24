@@ -467,7 +467,7 @@ async def test_equal_slots_reuse_one_provider_and_slots_satisfy_tier_role(
                     "settings": {"api_base": "http://test.invalid/v1", "model": "ollama/reasoning"},
                 },
             },
-            "placement": {"tiers_v2": True},
+            "placement": {"tiers": True},
         },
     )
     wiring = container.Wiring(

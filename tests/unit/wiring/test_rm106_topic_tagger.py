@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from memspine import Engine
-from memspine.derive.pipeline.stages.edge_compiler_v2 import (
+from memspine.derive.pipeline.stages.edge_compiler import (
     compile_graph_edges,
     requalify_namespace,
 )
@@ -73,7 +73,7 @@ async def _engine(*, bound: bool, **topic: Any) -> Engine:
             "episodic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
-        graph={"edge_compiler_v2": True},
+        graph={"edge_compiler": True},
     )
     await eng.start()
     return eng
@@ -106,7 +106,7 @@ async def _domains(eng: Engine) -> dict[str, set[tuple[str | None, str | None]]]
     assert eng._graph is not None
     out: dict[str, set[tuple[str | None, str | None]]] = {}
     for edge in await eng._graph.edge_list(NS):
-        if edge.properties.get("compiled") != "edge_compiler_v2" or edge.weight <= 0:
+        if edge.properties.get("compiled") != "edge_compiler" or edge.weight <= 0:
             continue
         q = edge_qualifiers(edge.properties)
         assert q is not None

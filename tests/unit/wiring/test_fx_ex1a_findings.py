@@ -2,7 +2,7 @@
 
 F1  a derived record in a multi-party namespace never widens its parents' visibility, with
     ``write.participants`` left at its default (off) once ``isolation.viewer_required`` is on
-F4  ``Engine.verify_forget()`` is ``privacy.erasure_v2``-aware
+F4  ``Engine.verify_forget()`` is ``privacy.erasure``-aware
 F2  ``privacy.erasure_redact_hidden`` hard-forgets hidden dependants (no erased text on disk)
 """
 
@@ -16,7 +16,7 @@ from typing import Any
 from memspine import Engine
 from memspine.config.schema import PrivacyConfig
 from memspine.derive.write import write_derived
-from memspine.store.records import MemoryRecord, SourceInfo
+from memspine.store.records import MemoryRecord, RecordAxes, SourceInfo
 from memspine.trust.visibility import restrict_to_parents, visibility_of, visible_to
 
 NS = "acme/home"
@@ -48,7 +48,7 @@ def _engine(path: Path | None = None, **over: Any) -> Engine:
 
 
 def _isolated(path: Path | None = None, **over: Any) -> Engine:
-    iso = {"scope_keys_v2": True, "viewer_required": True, **over.pop("isolation", {})}
+    iso = {"viewer_required": True, **over.pop("isolation", {})}
     return _engine(path, isolation=iso, **over)
 
 
@@ -85,24 +85,32 @@ async def _derive(
 
 
 def test_restrict_to_parents_never_widens() -> None:
-    parents = [["participant:ilse", "participant:tomasz", "visibility:private"]]
-    assert restrict_to_parents([], parents) == [
-        "participant:ilse",
-        "participant:tomasz",
-        "visibility:private",
-    ]
-    # an own participant the parents do not carry is dropped (it would widen the record)
-    assert "participant:eve" not in restrict_to_parents(["participant:eve"], parents)
-    assert restrict_to_parents(["participant:eve"], [["x"]]) == ["participant:eve"]
-    # an own, broader visibility is raised to the strictest parent; an own stricter one is kept
-    widened = restrict_to_parents(["topic", "visibility:owner_shared"], parents)
-    assert visibility_of(widened) == "private" and "topic" in widened
+    def record(names: list[str] | None = None, tags: list[str] | None = None) -> MemoryRecord:
+        return MemoryRecord(
+            namespace=NS,
+            memory_type="semantic",
+            content="a fact",
+            axes=RecordAxes(participants=names or []),
+            tags=tags or [],
+        )
+
+    parents = [record(["ilse", "tomasz"], ["visibility:private"])]
+    inherited = restrict_to_parents(record(), parents)
+    assert inherited.axes.participants == ["ilse", "tomasz"]
+    assert visibility_of(inherited.tags) == "private"
+    assert "eve" not in restrict_to_parents(record(["eve"]), parents).axes.participants
+    own = record(["eve"], ["x"])
+    assert restrict_to_parents(own, [record(tags=["y"])]).axes.participants == ["eve"]
+    widened = restrict_to_parents(record(tags=["topic", "visibility:owner_shared"]), parents)
+    assert visibility_of(widened.tags) == "private" and "topic" in widened.tags
     assert (
-        visibility_of(restrict_to_parents(["visibility:private"], [["visibility:participants"]]))
+        visibility_of(
+            restrict_to_parents(
+                record(tags=["visibility:private"]), [record(tags=["visibility:participants"])]
+            ).tags
+        )
         == "private"
     )
-    # no tagged parent: unchanged
-    assert restrict_to_parents(["x"], [["y"], []]) == ["x"]
 
 
 async def test_f1_derived_fact_of_a_private_turn_is_not_served_to_a_non_participant() -> None:
@@ -114,10 +122,8 @@ async def test_f1_derived_fact_of_a_private_turn_is_not_served_to_a_non_particip
         turn = await _private_turn(eng)
         fact = await _derive(eng, f"The {LANTERN} lantern is in the cellar", [turn.record_id])
         assert fact.tags and "visibility:private" in fact.tags  # inherited, not untagged
-        assert [t for t in fact.tags if t.startswith("participant:")] == [
-            "participant:ilse",
-            "participant:tomasz",
-        ]
+        assert fact.axes.participants == ["ilse", "tomasz"]
+        assert not any(t.startswith("participant:") for t in fact.tags)
         got = {
             r.record_id for r, _ in await eng.search(LANTERN, namespace=NS, viewer="eve", top_k=20)
         }
@@ -143,8 +149,8 @@ async def test_f1_derived_never_wider_than_the_strictest_parent() -> None:
             tags=["visibility:owner_shared", "participant:eve"],
         )
         assert visibility_of(fact.tags) == "private"  # not widened to owner_shared
-        assert not visible_to(fact.tags, "eve")  # her own tag does not unlock a private parent
-        assert visible_to(fact.tags, "ilse")
+        assert not visible_to(fact, "eve")  # her own tag does not unlock a private parent
+        assert visible_to(fact, "ilse")
     finally:
         await eng.stop()
 
@@ -164,9 +170,8 @@ async def test_f1_raw_turns_in_a_declared_multi_party_namespace_carry_their_spea
         turns = await eng._require_started().list_records(NS, "episodic")
         assert turns
         for turn in turns:  # participants=session behaviour, without the setting
-            assert {"participant:ilse", "participant:tomasz"} <= {
-                t.lower() for t in turn.tags if t.startswith("participant:")
-            } or any(t.startswith("participant:") for t in turn.tags)
+            assert {"ilse", "tomasz"} <= {p.lower() for p in turn.axes.participants}
+            assert not any(t.startswith("participant:") for t in turn.tags)
     finally:
         await eng.stop()
 
@@ -199,7 +204,9 @@ async def _turns(eng: Engine) -> tuple[MemoryRecord, MemoryRecord]:
     return recs[f"I keep a hive named {LANTERN} behind the mill"], recs["my sister plays the cello"]
 
 
-async def _derive_u(eng: Engine, text: str, parents: list[str]) -> MemoryRecord:
+async def _derive_u(
+    eng: Engine, text: str, parents: list[str], *, independent: bool = False
+) -> MemoryRecord:
     rec = MemoryRecord(
         namespace="u",
         memory_type="semantic",
@@ -208,23 +215,32 @@ async def _derive_u(eng: Engine, text: str, parents: list[str]) -> MemoryRecord:
         valid_from=T0,
     )
     async with eng._write_locks.setdefault("u", asyncio.Lock()):
-        return await write_derived(eng, eng._require_started(), "u", rec, "semantic", "system")
+        return await write_derived(
+            eng,
+            eng._require_started(),
+            "u",
+            rec,
+            "semantic",
+            "system",
+            roles={p: "support" for p in parents} if independent else None,
+        )
 
 
 def test_redact_flag_defaults_off() -> None:
     assert PrivacyConfig().erasure_redact_hidden is False
 
 
-async def test_f4_verify_forget_is_erasure_v2_aware() -> None:
-    eng = _engine(privacy={"erasure_v2": True})
+async def test_verify_forget_classifies_current_erasure_state() -> None:
+    eng = _engine(privacy={})
     await eng.start()
     try:
         a, b = await _turns(eng)
         only_a = await _derive_u(eng, f"User keeps a hive named {LANTERN}", [a.record_id])
-        both = await _derive_u(eng, "User and sister talk", [a.record_id, b.record_id])
+        both = await _derive_u(
+            eng, "User and sister talk", [a.record_id, b.record_id], independent=True
+        )
         await eng.forget(a.record_id, namespace="u", hard=True)
         verdict = await eng.verify_forget(a.record_id, "u")
-        assert verdict["erasure_v2"] is True
         assert verdict["descendants_hidden_pending_rederive"] == [only_a.record_id]
         assert verdict["descendants_kept"] == [both.record_id]
         assert verdict["descendants_leaked"] == []
@@ -234,7 +250,7 @@ async def test_f4_verify_forget_is_erasure_v2_aware() -> None:
 
 
 async def test_f4_a_visible_dependant_with_no_other_parent_is_a_leak() -> None:
-    eng = _engine(privacy={"erasure_v2": True})
+    eng = _engine(privacy={})
     await eng.start()
     try:
         a, _ = await _turns(eng)
@@ -249,19 +265,6 @@ async def test_f4_a_visible_dependant_with_no_other_parent_is_a_leak() -> None:
         await eng.stop()
 
 
-async def test_f4_v1_unchanged_when_erasure_v2_is_off() -> None:
-    eng = _engine()
-    await eng.start()
-    try:
-        a, _ = await _turns(eng)
-        await eng.forget(a.record_id, namespace="u", hard=True)
-        verdict = await eng.verify_forget(a.record_id, "u")
-        assert verdict["erasure_v2"] is False
-        assert verdict["descendants_leaked"] is None and verdict["descendants_kept"] is None
-    finally:
-        await eng.stop()
-
-
 def _on_disk(db: Path, needle: str) -> list[str]:
     raw = needle.encode()
     return [
@@ -270,12 +273,14 @@ def _on_disk(db: Path, needle: str) -> list[str]:
 
 
 async def test_f2_redact_hidden_removes_every_trace_of_the_erased_text(tmp_path: Path) -> None:
-    eng = _engine(tmp_path, privacy={"erasure_v2": True, "erasure_redact_hidden": True})
+    eng = _engine(tmp_path, privacy={"erasure_redact_hidden": True})
     await eng.start()
     try:
         a, b = await _turns(eng)
         only_a = await _derive_u(eng, f"User keeps a hive named {LANTERN}", [a.record_id])
-        both = await _derive_u(eng, "User and sister talk", [a.record_id, b.record_id])
+        both = await _derive_u(
+            eng, "User and sister talk", [a.record_id, b.record_id], independent=True
+        )
         await eng.forget(a.record_id, namespace="u", hard=True)
         storage = eng._require_started()
         assert await storage.get_record(only_a.record_id) is None  # hard-forgotten, not kept
@@ -294,7 +299,7 @@ async def test_f2_redact_hidden_removes_every_trace_of_the_erased_text(tmp_path:
 
 
 async def test_f2_off_keeps_the_hidden_row_and_its_text(tmp_path: Path) -> None:
-    eng = _engine(tmp_path, privacy={"erasure_v2": True})
+    eng = _engine(tmp_path, privacy={})
     await eng.start()
     try:
         a, _ = await _turns(eng)

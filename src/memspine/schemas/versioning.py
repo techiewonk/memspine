@@ -1,137 +1,80 @@
-"""Upcaster registry for durable kinds (S1-2, M-26).
+"""Current durable schema declarations and strict payload validation.
 
-``@upcaster(kind, from_version)`` registers a pure ``dict -> dict`` function taking a payload at
-``from_version`` to ``from_version + 1``. ``upcast(kind, payload)`` applies the chain up to the latest
-version. Unknown fields must survive (S1-3 condition 2): an upcaster may only drop keys it lists in
-``consumes``; any other input key missing from its output is an error.
+There are no historical transformations or fallback formats. Payloads must state
+exactly the schema version declared by the current model; future versions and
+unsupported older versions fail explicitly. Unknown payload fields survive.
 """
 
 from __future__ import annotations
 
 import copy
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import Any
 
 __all__ = [
-    "DuplicateUpcasterError",
     "NewerThanKnownError",
+    "SchemaValidationError",
     "UnknownKindError",
-    "UpcastError",
-    "UpcastGapError",
+    "UnsupportedSchemaVersionError",
     "declare_kind",
     "latest_version",
-    "registered_versions",
     "reset_registry",
-    "upcast",
-    "upcaster",
+    "validate_payload",
 ]
 
-Payload = dict[str, Any]
-UpcastFn = Callable[[Payload], Payload]
+
+class SchemaValidationError(ValueError):
+    """A payload does not satisfy the current schema contract."""
 
 
-class UpcastError(ValueError):
-    """Base class for upcasting failures."""
+class NewerThanKnownError(SchemaValidationError):
+    """The payload was written with a schema newer than the current code."""
 
 
-class DuplicateUpcasterError(UpcastError):
-    """Two upcasters registered for the same (kind, from_version)."""
+class UnsupportedSchemaVersionError(SchemaValidationError):
+    """The payload uses an unsupported earlier schema."""
 
 
-class UpcastGapError(UpcastError):
-    """The chain has no upcaster for some version below the latest."""
+class UnknownKindError(SchemaValidationError):
+    """No current model declares this durable kind."""
 
 
-class NewerThanKnownError(UpcastError):
-    """The payload is newer than the code knows (written by a newer release)."""
-
-
-class UnknownKindError(UpcastError):
-    """No upcaster or model declares this kind."""
-
-
-_UPCASTERS: dict[tuple[str, int], tuple[UpcastFn, frozenset[str]]] = {}
 _DECLARED: dict[str, int] = {}
 
 
 def declare_kind(kind: str, latest: int) -> None:
-    """Declare the latest version a kind is written at (called for ``DurableModel`` subclasses)."""
-    if latest < 1:
-        raise ValueError(f"latest version must be >= 1, got {latest}")
+    """Declare the format written by the current model."""
+    if isinstance(latest, bool) or not isinstance(latest, int) or latest < 1:
+        raise ValueError("schema version must be a positive integer")
     _DECLARED[kind] = max(latest, _DECLARED.get(kind, 0))
 
 
-def upcaster(
-    kind: str, from_version: int, *, consumes: tuple[str, ...] = ()
-) -> Callable[[UpcastFn], UpcastFn]:
-    """Register ``fn`` as the ``from_version -> from_version + 1`` upcaster for ``kind``."""
-    if from_version < 1:
-        raise ValueError("from_version must be >= 1")
-
-    def register(fn: UpcastFn) -> UpcastFn:
-        key = (kind, from_version)
-        if key in _UPCASTERS:
-            raise DuplicateUpcasterError(
-                f"upcaster for {kind!r} v{from_version} already registered"
-            )
-        _UPCASTERS[key] = (fn, frozenset(consumes))
-        return fn
-
-    return register
-
-
 def latest_version(kind: str) -> int:
-    """Latest known version of ``kind`` (declared by a model or implied by registered upcasters)."""
-    candidates = [v + 1 for (k, v) in _UPCASTERS if k == kind]
-    if kind in _DECLARED:
-        candidates.append(_DECLARED[kind])
-    if not candidates:
+    """The version of the current durable kind."""
+    if kind not in _DECLARED:
         raise UnknownKindError(f"unknown durable kind {kind!r}")
-    return max(candidates)
-
-
-def registered_versions(kind: str) -> list[int]:
-    """Sorted ``from_version`` values registered for ``kind``."""
-    return sorted(v for (k, v) in _UPCASTERS if k == kind)
+    return _DECLARED[kind]
 
 
 def reset_registry() -> None:
-    """Clear all registrations (tests only)."""
-    _UPCASTERS.clear()
+    """Clear declarations in isolated tests."""
     _DECLARED.clear()
 
 
-def upcast(kind: str, payload: Mapping[str, Any]) -> Payload:
-    """Return a copy of ``payload`` upcast to the latest version of ``kind``.
-
-    The input is never mutated. Raises :class:`UpcastGapError`, :class:`NewerThanKnownError` or
-    :class:`UnknownKindError`.
-    """
+def validate_payload(kind: str, payload: Mapping[str, Any]) -> dict[str, Any]:
+    """Validate the current format and return a deep copy without transformation."""
     latest = latest_version(kind)
     version = payload.get("schema_version")
     if isinstance(version, bool) or not isinstance(version, int) or version < 1:
-        raise UpcastError(
+        raise SchemaValidationError(
             f"payload of kind {kind!r} lacks a valid integer schema_version: {version!r}"
         )
     if version > latest:
         raise NewerThanKnownError(
-            f"payload of kind {kind!r} is at v{version}, code knows up to v{latest}"
+            f"payload of kind {kind!r} uses schema {version}; current schema is {latest}"
         )
-    current: Payload = copy.deepcopy(dict(payload))
-    while version < latest:
-        entry = _UPCASTERS.get((kind, version))
-        if entry is None:
-            raise UpcastGapError(f"no upcaster for {kind!r} v{version} -> v{version + 1}")
-        fn, consumes = entry
-        result = fn(copy.deepcopy(current))
-        lost = [
-            k for k in current if k not in result and k not in consumes and k != "schema_version"
-        ]
-        if lost:
-            raise UpcastError(
-                f"upcaster {kind!r} v{version} dropped fields {sorted(lost)} (list them in consumes=)"
-            )
-        result["schema_version"] = version + 1
-        current = result
-        version += 1
-    return current
+    if version < latest:
+        raise UnsupportedSchemaVersionError(
+            f"payload of kind {kind!r} uses unsupported schema {version}; current schema is {latest}"
+        )
+    return copy.deepcopy(dict(payload))

@@ -9,7 +9,7 @@ An open ``valid_to`` counts as later than any date: it passes every ``valid_to_a
 bound and fails every ``valid_to_before`` bound. ``mode="and"`` (default) keeps a
 record that meets every bound given; ``mode="or"`` one that meets any of them.
 
-**#36, the persons / time-expression leg.** The LLM planner (``plan@v3``) names the
+**#36, the persons / time-expression leg.** The LLM planner (``plan``) names the
 people a question is about and copies its time expression ("in May 2023", "last
 week"). :func:`time_expr_span` turns the expression into a ``[start, end)`` span by the
 same deterministic rules the read path already uses: an absolute date, month or year
@@ -315,7 +315,7 @@ class RecordScope:
             return False
         if self.tags_any is not None and self.tags_any.isdisjoint(record.tags):
             return False
-        if self.viewer is not None and not visible_to(record.tags, self.viewer):
+        if self.viewer is not None and not visible_to(record, self.viewer):
             return False
         return self.check is None or self.check(record)
 

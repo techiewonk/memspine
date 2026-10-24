@@ -7,18 +7,12 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-import orjson
 import pytest
-from alembic import command
 
 from memspine import Engine
-from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
-from memspine.exceptions import ConfigError
 from memspine.schemas.durable.assertion import AssertionEnvelope
-from memspine.schemas.versioning import latest_version, upcast
-from memspine.services.storage.sqlite.engine import SQLiteStorage
-from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
-from memspine.store.envelope import from_envelope, to_envelope, upcast_record_payload
+from memspine.schemas.versioning import latest_version, validate_payload
+from memspine.store.envelope import from_envelope, to_envelope, validate_record_payload
 from memspine.store.layers import derive_axes, derive_layer, derive_provenance_class
 from memspine.store.records import MemoryRecord, RecordAxes, RecordStatus, SourceInfo
 
@@ -120,17 +114,6 @@ def test_fingerprint_defaults_and_explicit_values_survive() -> None:
     assert MemoryRecord.model_validate_json(explicit.model_dump_json()) == explicit
 
 
-def test_dump_of_a_default_record_is_unchanged() -> None:
-    """Derived envelope fields are left out of a dump, except ``layer``: MF-05 always writes it so a
-    replay never depends on what ``derive_layer`` returns later."""
-    dumped = _rec(tags=["spk:alice"]).model_dump(mode="json")
-    for key in ("type_tag", "provenance_class", "axes", "fingerprint", "schema_version"):
-        assert key not in dumped
-    assert dumped["layer"] == "L0"
-    revived = MemoryRecord.model_validate(dumped)
-    assert revived.axes.speaker == "alice" and revived.layer == "L0"
-
-
 # --------------------------------------------------------------------------- envelope round trip
 
 
@@ -163,14 +146,18 @@ def test_from_envelope_without_the_lossless_copy() -> None:
     assert record.namespace == "org/u1" and record.provenance_class == envelope.src_class
 
 
-# --------------------------------------------------------------------------------- upcaster
+# --------------------------------------------------------------------------------- current-format validation
 
 
 def test_record_kind_is_registered_at_v1() -> None:
     assert latest_version("memory_record") == 1
-    assert upcast("memory_record", {"schema_version": 1, "a": 1}) == {"schema_version": 1, "a": 1}
-    stamped = upcast_record_payload({"namespace": "u"})  # a pre-F-02a payload has no version
-    assert stamped["schema_version"] == 1 and stamped["namespace"] == "u"
+    assert validate_payload("memory_record", {"schema_version": 1, "a": 1}) == {
+        "schema_version": 1,
+        "a": 1,
+    }
+    with pytest.raises(ValueError, match="schema_version"):
+        validate_record_payload({"namespace": "u"})
+    assert validate_record_payload({"schema_version": 1, "namespace": "u"})["namespace"] == "u"
 
 
 # ------------------------------------------------------------------- migration and write path
@@ -256,53 +243,20 @@ async def test_reads_return_envelope_fields(tmp_path: Path) -> None:
     ]
 
 
-async def test_migration_down_up_and_backfill(tmp_path: Path) -> None:
-    path = tmp_path / "m.db"
-    await _seed(path)
-    assert _columns(path) >= _NEW_COLUMNS
-    command.downgrade(alembic_config(path), "0006_lineage")
-    assert not _NEW_COLUMNS & _columns(path)
-    # Turn the two rows into a graph fact and a reflection, with perspective tags, behind the app's back.
-    with sqlite3.connect(path) as db:
-        ids = [r[0] for r in db.execute("SELECT record_id FROM memory_records ORDER BY content")]
-        db.execute(
-            "UPDATE memory_records SET memory_type='semantic', source=?, tags=? WHERE record_id=?",
-            (
-                orjson.dumps({"role": "assistant", "channel": "extract_graph", "parents": ["p"]}),
-                orjson.dumps(["spk:alice", "sub:bob", "ask:erin"]),
-                ids[0],
-            ),
-        )
-        db.execute(
-            "UPDATE memory_records SET memory_type='reflective', source=? WHERE record_id=?",
-            (orjson.dumps({"role": "assistant", "channel": "reflection"}), ids[1]),
-        )
-    upgrade_to_head(path)
-    assert _columns(path) >= _NEW_COLUMNS
-    got = {
-        r[0]: r[1:]
-        for r in _rows(
-            path,
-            "SELECT record_id, layer, type_tag, provenance_class, spk, ask, sub, schema_version "
-            "FROM memory_records",
-        )
-    }
-    assert got[ids[0]] == ("L3", "semantic", "derived", "alice", "erin", b'["bob"]', 1)
-    assert got[ids[1]] == ("L4", "reflective", "derived", None, None, b"[]", 1)
-    upgrade_to_head(path)  # a second upgrade is a no-op
-    eng = _engine(path)
-    # Downgrading below provider metadata deliberately removed the binding;
-    # an application must not reuse its remaining nonzero replay offset.
-    with pytest.raises(ConfigError, match="without a provider target binding"):
-        await eng.start()
-    client = SQLiteClient(SQLiteSpec(str(path), busy_timeout_s=5.0))
-    await client.open()
-    storage = SQLiteStorage(client)
-    await storage.start()
-    try:
-        record = await storage.get_record(ids[0])
-    finally:
-        await storage.stop()
-        await client.close()
-    assert record is not None
-    assert (record.layer, record.axes.speaker, record.axes.subject) == ("L3", "alice", ["bob"])
+def test_current_record_payload_is_explicit() -> None:
+    record = _rec()
+    payload = record.model_dump(mode="json")
+    assert payload["schema_version"] == 1
+    assert payload["layer"] == record.layer
+    assert payload["type_tag"] == record.type_tag
+    assert payload["provenance_class"] == record.provenance_class
+    assert payload["axes"] == record.axes.model_dump(mode="json")
+    assert payload["fingerprint"] == record.fingerprint.model_dump(mode="json")
+    assert "record_json" in to_envelope(record).extras
+    assert "legacy_record_json" not in to_envelope(record).extras
+
+
+@pytest.mark.parametrize("version", [0, 2, 3])
+def test_record_rejects_unsupported_schema_versions(version: int) -> None:
+    with pytest.raises(ValueError):
+        _rec(schema_version=version)

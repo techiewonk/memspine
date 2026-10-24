@@ -101,28 +101,26 @@ async def _started(**read: Any) -> AsyncIterator[Engine]:
 
 def test_flags_default_off() -> None:
     read = ReadConfig()
-    assert read.list_mode_trigger_v2 is False and read.coverage_select is False
+    assert read.list_mode is False and read.coverage_select is False
 
 
-async def test_trigger_v2_runs_on_hash_embedder_and_flag_off_keeps_regex() -> None:
+async def test_trigger_runs_on_hash_embedder_and_flag_off_keeps_regex() -> None:
     q = "What markets has Ilse visited?"
-    async with _started(list_mode=True, list_mode_trigger_v2=True) as eng:
+    async with _started(list_mode=True) as eng:
         for i in range(12):
             text = f"Ilse went to the market number {i}"
             await eng.write(text, namespace="a", memory_type="episodic")
-        assert isinstance(await read_request._list_fires_v2(eng, "a", q), bool)
-    async with _started(list_mode=True) as off:
-        assert await off._list_fires(q) == off._list_mode_fires(q)
+        assert isinstance(await read_request._list_fires(eng, "a", q), bool)
 
 
-async def test_trigger_v2_falls_back_to_regex_on_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    async with _started(list_mode=True, list_mode_trigger_v2=True) as eng:
+async def test_trigger_falls_back_to_regex_on_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    async with _started(list_mode=True) as eng:
 
         async def boom(*_a: Any, **_k: Any) -> Any:
             raise RuntimeError("down")
 
         monkeypatch.setattr(eng, "_vector_leg", boom)
-        assert await read_request._list_fires_v2(eng, "a", "What activities does Bram do?") is True
+        assert await read_request._list_fires(eng, "a", "What activities does Bram do?") is True
 
 
 async def test_coverage_reorder_keeps_members_and_scores() -> None:
@@ -138,7 +136,7 @@ async def test_coverage_reorder_keeps_members_and_scores() -> None:
 
 
 async def test_read_with_both_flags_on_runs() -> None:
-    async with _started(list_mode=True, list_mode_trigger_v2=True, coverage_select=True) as eng:
+    async with _started(list_mode=True, coverage_select=True) as eng:
         for i in range(8):
             await eng.write(f"Tomasz baked bread batch {i}", namespace="a", memory_type="episodic")
         res = await eng.read("What has Tomasz baked?", namespace="a", mode="retrieve")

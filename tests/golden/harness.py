@@ -37,14 +37,14 @@ BUDGET_TOKENS = 400
 FROZEN_NOW = datetime(2026, 1, 1, tzinfo=UTC)
 _CLOCK_MODULES = (
     "memspine.core.policies.scoring",
-    "memspine.core.policies.decay",
+    "memspine.derive.decay",
     "memspine.api.engine",
     "memspine.read.pipeline.legs",
     "memspine.memory.pipeline.procedural",
     "memspine.memory.pipeline.prospective",
     "memspine.memory.pipeline.working",
     "memspine.derive.pipeline.integrate",
-    "memspine.derive.pipeline.stages.communities",
+    "memspine.derive.pipeline.stages.decay",
     "memspine.derive.pipeline.stages.consolidate",
     "memspine.derive.pipeline.stages.entity_summaries",
     "memspine.derive.pipeline.stages.maintenance",

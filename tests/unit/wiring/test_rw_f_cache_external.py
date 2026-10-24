@@ -7,7 +7,6 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.exceptions import ConfigError
 from memspine.prompts.models import ExtractedFact
 from memspine.read.pipeline import request as rq
 from memspine.services.cache.base import MemoryKV
@@ -171,7 +170,7 @@ async def test_extraction_key_carries_model_id() -> None:
     assert one.calls == 1  # same model and prompt: served from cache
 
 
-async def test_external_v2_block_is_labelled_and_not_stored() -> None:
+async def test_external_block_is_labelled_and_not_stored() -> None:
     from memspine.services.external import ExternalSnippet
 
     class Prov:
@@ -180,7 +179,7 @@ async def test_external_v2_block_is_labelled_and_not_stored() -> None:
         async def search(self, query: str, max_results: int) -> list[ExternalSnippet]:
             return [ExternalSnippet("Lyon", "Lyon is a city in France.", "https://a.org/Lyon")]
 
-    eng = _engine(external_evidence="web", external_v2=True)
+    eng = _engine(external_evidence="web")
     eng.set_external_provider(Prov())
     await _seed(eng)
     before = len(await eng._storage.list_records("a"))
@@ -191,8 +190,16 @@ async def test_external_v2_block_is_labelled_and_not_stored() -> None:
     assert len(await eng._storage.list_records("a")) == before  # never deposited
 
 
-async def test_external_v2_needs_the_opt_in() -> None:
-    # FU-REQS: external_v2 never enables lookups; without the E03 opt-in it is a config error
-    eng = _engine(external_evidence="off", external_v2=True)
-    with pytest.raises(ConfigError, match="external_evidence"):
-        await eng.start()
+async def test_external_provider_is_not_called_without_opt_in() -> None:
+    eng = _engine(external_evidence="off")
+
+    class Prov:
+        name = "fake"
+
+        async def search(self, query: str, max_results: int) -> list[Any]:
+            raise AssertionError("external provider must remain off")
+
+    eng.set_external_provider(Prov())
+    await _seed(eng)
+    await eng.read("Tell me about Lyon", namespace="a")
+    await eng.stop()

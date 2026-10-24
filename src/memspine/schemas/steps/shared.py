@@ -109,7 +109,7 @@ class FirewallVerdict(InternalModel):
     signals_run: list[str] = Field(default_factory=list)
 
 
-class ItemV1(InternalModel):
+class ExtractionItem(InternalModel):
     """Model-output wire schema, compact keys (W-15 B, P-06).
 
     Session 2 fixed the split (the model authors content only, with citations); the compact keys below are

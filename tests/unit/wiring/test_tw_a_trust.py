@@ -1,5 +1,5 @@
-"""TW-A wiring: T5-01 trust horizon (integrity.horizon_v2), T5-03 consent (consent.v2) and
-W2-04 the Memory Firewall gates (firewall.gates_v2). Model-free: hash embedder, no LLM."""
+"""TW-A wiring: T5-01 trust horizon (integrity.horizon), T5-03 consent (consent.enabled) and
+W2-04 the Memory Firewall gates (firewall.gates). Model-free: hash embedder, no LLM."""
 
 from __future__ import annotations
 
@@ -78,15 +78,15 @@ def _events(stage: str) -> list[dict[str, Any]]:
 
 
 def test_flags_default_off() -> None:
-    assert IntegrityConfig().horizon_v2 is False and IntegrityConfig().grant_horizon is None
-    assert ConsentConfig().v2 is False
-    assert FirewallConfig().gates_v2 is False
+    assert IntegrityConfig().horizon is False and IntegrityConfig().grant_horizon is None
+    assert ConsentConfig().enabled is False
+    assert FirewallConfig().gates is False
 
 
 def test_horizon_v2_needs_product_attenuation() -> None:
     with pytest.raises(ConfigError):
-        IntegrityConfig(horizon_v2=True, attenuation="min")
-    IntegrityConfig(horizon_v2=True, attenuation="product")
+        IntegrityConfig(horizon=True, attenuation="min")
+    IntegrityConfig(horizon=True, attenuation="product")
 
 
 # --------------------------------------------------------------------------- T5-01
@@ -94,7 +94,7 @@ def test_horizon_v2_needs_product_attenuation() -> None:
 
 def test_policy_v2_is_numerically_the_legacy_arithmetic() -> None:
     legacy = IntegrityPolicy(enabled=True, kappa=0.6, edge_kappa={"a->b": 0.25})
-    v2 = IntegrityPolicy(enabled=True, kappa=0.6, edge_kappa={"a->b": 0.25}, horizon_v2=True)
+    v2 = IntegrityPolicy(enabled=True, kappa=0.6, edge_kappa={"a->b": 0.25}, horizon=True)
     for trust in (0.0, 0.3, 0.7, 1.0):
         for edge in (("a", "b"), ("b", "a"), ("a", "a")):
             assert v2.view_trust(trust, *edge) == pytest.approx(legacy.view_trust(trust, *edge))
@@ -107,9 +107,9 @@ async def test_live_walk_chain_beyond_grant_horizon_is_zero(started: Any) -> Non
     results: dict[str, float] = {}
     for label, extra in (
         ("off", {}),
-        ("v2_open", {"horizon_v2": True}),
-        ("v2_h0", {"horizon_v2": True, "grant_horizon": 0}),
-        ("v2_h1", {"horizon_v2": True, "grant_horizon": 1}),
+        ("v2_open", {"horizon": True}),
+        ("v2_h0", {"horizon": True, "grant_horizon": 0}),
+        ("v2_h1", {"horizon": True, "grant_horizon": 1}),
     ):
         eng = await started(integrity={**base, **extra})
         fact = await eng.write("rotation schedule is monthly", namespace="a")
@@ -137,7 +137,7 @@ async def test_live_walk_chain_beyond_grant_horizon_is_zero(started: Any) -> Non
 
 async def test_horizon_tap_event(started: Any) -> None:
     tap.configure(TapConfig(enabled=True, sink="memory"))
-    eng = await started(integrity={"enabled": True, "horizon_v2": True, "grant_horizon": 0})
+    eng = await started(integrity={"enabled": True, "horizon": True, "grant_horizon": 0})
     fact = await eng.write("x fact about rotation", namespace="a")
     await eng.grant("b", namespace="a")
     mid = await eng.write("b fact about rotation", namespace="b", derived_from=[fact.record_id])
@@ -149,10 +149,10 @@ async def test_horizon_tap_event(started: Any) -> None:
 
 async def test_shared_search_through_the_gate_matches_legacy(started: Any) -> None:
     seen: dict[str, float | None] = {}
-    for label, extra in (("off", {}), ("on", {"horizon_v2": True})):
+    for label, extra in (("off", {}), ("on", {"horizon": True})):
         eng = await started(
             integrity={"enabled": True, "kappa": 0.5, "admission_threshold": 0.2, **extra},
-            firewall={"gates_v2": label == "on"},
+            firewall={"gates": label == "on"},
         )
         ext = await eng.write(
             "vpn error 809 is fixed by rotating the gateway certificate",
@@ -183,7 +183,7 @@ async def test_consent_off_is_the_legacy_gate(started: Any) -> None:
 
 async def test_consent_v2_default_denies_sensitive_until_granted(started: Any) -> None:
     tap.configure(TapConfig(enabled=True, sink="memory"))
-    eng = await started(consent={"v2": True})
+    eng = await started(consent={"enabled": True})
     plain = await eng.write("Ilse likes green tea", namespace="u")
     assert not plain.quarantined
     held = await eng.write("Ilse has a regulated record", namespace="u", pii_tier=PiiTier.REGULATED)
@@ -202,7 +202,7 @@ async def test_consent_v2_default_denies_sensitive_until_granted(started: Any) -
 
 
 async def test_consent_v2_revoke_hides_without_deleting_and_bumps_generation(started: Any) -> None:
-    eng = await started(consent={"v2": True})
+    eng = await started(consent={"enabled": True})
     rec = await eng.write("Ilse prefers oat milk", namespace="u", purposes=["diet"])
     with read_scope("diet"):
         assert [h for h, _ in await eng.search("oat milk", namespace="u")]
@@ -228,7 +228,7 @@ def trust_generation(eng: Engine) -> int:
 async def test_consent_generation_is_in_the_read_cache_key(started: Any) -> None:
     from memspine.read.pipeline import request
 
-    eng = await started(consent={"v2": True})
+    eng = await started(consent={"enabled": True})
     k1 = request._read_cache_key(eng, "q", "u", None, ())
     await eng.consent_grant("u", "diet")
     k2 = request._read_cache_key(eng, "q", "u", None, ())
@@ -238,7 +238,7 @@ async def test_consent_generation_is_in_the_read_cache_key(started: Any) -> None
 
 
 async def test_do_not_derive_holds_derived_records_for_the_subject(started: Any) -> None:
-    eng = await started(consent={"v2": True})
+    eng = await started(consent={"enabled": True})
     storage = eng._require_started()
     turn = await eng.write("Ilse told me she moved to Utrecht", namespace="u")
     await eng.consent_do_not_derive("u", "ilse")
@@ -275,7 +275,7 @@ async def test_consent_registry_survives_restart_from_the_log(tmp_path: Any) -> 
             },
             model={"embedding": {"provider": "hash", "settings": {}}},
             memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-            consent={"v2": True},
+            consent={"enabled": True},
         )
 
     eng = make()
@@ -296,7 +296,7 @@ async def test_consent_registry_survives_restart_from_the_log(tmp_path: Any) -> 
 
 async def test_gate1_keeps_the_n1_semantics_and_adds_languages(started: Any) -> None:
     tap.configure(TapConfig(enabled=True, sink="memory"))
-    eng = await started(firewall={"gates_v2": True})
+    eng = await started(firewall={"gates": True})
     user = await eng.write(POISON, namespace="a", source=SourceInfo(role="user", channel="chat"))
     assert not user.quarantined and user.instruction_flag  # inert metadata for a user
     web = await eng.write(POISON, namespace="a", source=SourceInfo(role="tool", channel="web"))
@@ -314,7 +314,7 @@ async def test_gate1_keeps_the_n1_semantics_and_adds_languages(started: Any) -> 
 
 
 async def test_gate1_off_matches_the_legacy_verdicts(started: Any) -> None:
-    on = await started(firewall={"gates_v2": True})
+    on = await started(firewall={"gates": True})
     off = await started()
     samples = [
         (POISON, SourceInfo(role="user", channel="chat")),
@@ -332,7 +332,7 @@ async def test_gate1_off_matches_the_legacy_verdicts(started: Any) -> None:
 async def test_gate3_holds_a_derived_record_with_a_quarantined_parent(started: Any) -> None:
     tap.configure(TapConfig(enabled=True, sink="memory"))
     for gates, expect_held in ((False, False), (True, True)):
-        eng = await started(firewall={"gates_v2": gates})
+        eng = await started(firewall={"gates": gates})
         storage = eng._require_started()
         poison = await eng.write(
             POISON, namespace="a", source=SourceInfo(role="tool", channel="web")
@@ -353,7 +353,7 @@ async def test_gate3_holds_a_derived_record_with_a_quarantined_parent(started: A
 
 
 async def test_gate3_admits_a_clean_derived_record_and_writes_lineage(started: Any) -> None:
-    eng = await started(firewall={"gates_v2": True}, write={"lineage_table": True})
+    eng = await started(firewall={"gates": True}, write={"lineage_table": True})
     storage = eng._require_started()
     turn = await eng.write("Ilse told me she moved to Utrecht", namespace="a")
     child = MemoryRecord(
@@ -371,37 +371,35 @@ async def test_gate3_admits_a_clean_derived_record_and_writes_lineage(started: A
 
 
 async def test_gate2_filters_quarantined_turns_from_extraction_input() -> None:
-    from memspine.trust.pipeline import gates_v2
+    from memspine.trust.pipeline import gates
 
     live = MemoryRecord(namespace="a", memory_type="episodic", content="ok")
     held = MemoryRecord(namespace="a", memory_type="episodic", content="x", quarantined=True)
     gone = MemoryRecord(
         namespace="a", memory_type="episodic", content="y", status=RecordStatus.DELETED
     )
-    assert gates_v2.filter_input([live, held, gone]) == [live]
+    assert gates.filter_input([live, held, gone]) == [live]
 
 
 async def test_gate4_read_admission_quarantined_and_foreign() -> None:
     from memspine.trust.horizon import Grant
-    from memspine.trust.pipeline import gates_v2
+    from memspine.trust.pipeline import gates
 
     rec = MemoryRecord(namespace="a", memory_type="semantic", content="x", trust=0.8)
-    assert gates_v2.read_item(rec, "a").action == "accept"
+    assert gates.read_item(rec, "a").action == "accept"
     held = rec.model_copy(update={"quarantined": True})
-    assert gates_v2.read_item(held, "a").action == "quarantine"
-    assert gates_v2.read_item(rec, "b").action == "reject"  # foreign, no grant: outside horizon
-    seen = gates_v2.read_item(rec, "b", grants=[Grant("a", "b", "*", "*", 0, 0.5)])
+    assert gates.read_item(held, "a").action == "quarantine"
+    assert gates.read_item(rec, "b").action == "reject"  # foreign, no grant: outside horizon
+    seen = gates.read_item(rec, "b", grants=[Grant("a", "b", "*", "*", 0, 0.5)])
     assert seen.action == "accept" and seen.trust == pytest.approx(0.4)
-    low = gates_v2.read_item(
-        rec, "b", grants=[Grant("a", "b", "*", "*", 0, 0.5)], min_view_trust=0.5
-    )
+    low = gates.read_item(rec, "b", grants=[Grant("a", "b", "*", "*", 0, 0.5)], min_view_trust=0.5)
     assert low.action == "reject"
 
 
 async def test_release_needs_an_independent_family(started: Any) -> None:
     counts: dict[bool, list[int]] = {}
     for gates in (False, True):
-        eng = await started(firewall={"gates_v2": gates})
+        eng = await started(firewall={"gates": gates})
         held = await eng.write(
             POISON,
             namespace="a",

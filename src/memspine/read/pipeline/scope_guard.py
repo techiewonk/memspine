@@ -69,9 +69,9 @@ def declare_multi_party(eng: Any, namespace: str) -> None:
     _state(eng)["declared"].add(namespace)
 
 
-def _is_multi_party_record(tags: list[str]) -> bool:
-    names = {n.strip().casefold() for n in participants_of(tags)}
-    return len(names) > 1 or any(t.startswith(VISIBILITY_PREFIX) for t in tags)
+def _is_multi_party_record(record: Any) -> bool:
+    names = {n.strip().casefold() for n in participants_of(record)}
+    return len(names) > 1 or any(t.startswith(VISIBILITY_PREFIX) for t in record.tags)
 
 
 async def is_multi_party(eng: Any, namespace: str) -> bool:
@@ -88,7 +88,7 @@ async def is_multi_party(eng: Any, namespace: str) -> bool:
     if storage is None:
         return False
     for record in await storage.list_records(namespace):
-        if _is_multi_party_record(list(record.tags)):
+        if _is_multi_party_record(record):
             state["detected"].add(namespace)
             tap.event("scope.multi_party", namespace=namespace, source="records")
             return True
@@ -113,7 +113,7 @@ def _filter(verb: str, namespace: str, result: Any, viewer: str) -> Any:
         kept = [
             item
             for item in result
-            if not hasattr(_record_of(item), "tags") or visible_to(_record_of(item).tags, viewer)
+            if not hasattr(_record_of(item), "tags") or visible_to(_record_of(item), viewer)
         ]
         if len(kept) != len(result):
             tap.event(
@@ -124,7 +124,7 @@ def _filter(verb: str, namespace: str, result: Any, viewer: str) -> Any:
                 reason="not_visible",
             )
         return kept
-    if hasattr(result, "tags") and not visible_to(result.tags, viewer):
+    if hasattr(result, "tags") and not visible_to(result, viewer):
         tap.event("scope.filtered", verb=verb, namespace=namespace, dropped=1, reason="not_visible")
         return None
     return result

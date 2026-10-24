@@ -65,7 +65,7 @@ async def test_extension_is_a_new_version_with_extends_tag_and_nothing_is_lost(
     addition = " She then booked a glassblowing class for Saturday."
     llm = FakeCloseLLM()
     llm.episode_texts = [stub, stub + addition]
-    eng = await _engine(monkeypatch, llm, session_close_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True)
     try:
         await _send(eng, "s1", _turns(2))
         await eng.close_session("a", "s1")
@@ -90,7 +90,7 @@ async def test_the_idem_tag_makes_a_repeat_deposit_write_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeCloseLLM()
-    eng = await _engine(monkeypatch, llm, session_close_v2=True)
+    eng = await _engine(monkeypatch, llm, session_close=True)
     try:
         await _send(eng, "s1", _turns(2))
         await eng.close_session("a", "s1")
@@ -143,13 +143,13 @@ def _llm() -> FakeCloseLLM:
 async def test_forgetting_the_supporting_turn_drops_the_entry_at_once(
     monkeypatch: pytest.MonkeyPatch, hard: bool
 ) -> None:
-    eng = await _engine(monkeypatch, _llm(), session_close_v2=True, profile_card_v2=True)
+    eng = await _engine(monkeypatch, _llm(), session_close=True, profile_card=True)
     try:
         support = await _closed(eng)
-        before = len(await _markers(eng, "profile_card_v2"))
+        before = len(await _markers(eng, "profile_card"))
         await eng.forget(support[0], namespace="a", hard=hard)  # no sleep in between
         assert await _card_entries(eng) == ()
-        assert len(await _markers(eng, "profile_card_v2")) == before + 1
+        assert len(await _markers(eng, "profile_card")) == before + 1
     finally:
         await eng.stop()
 
@@ -157,7 +157,7 @@ async def test_forgetting_the_supporting_turn_drops_the_entry_at_once(
 async def test_forgetting_an_unrelated_turn_leaves_the_card_alone(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    eng = await _engine(monkeypatch, _llm(), session_close_v2=True, profile_card_v2=True)
+    eng = await _engine(monkeypatch, _llm(), session_close=True, profile_card=True)
     try:
         support = await _closed(eng)
         other = next(
@@ -165,22 +165,22 @@ async def test_forgetting_an_unrelated_turn_leaves_the_card_alone(
             for r in await eng._require_started().list_records("a", "episodic")
             if r.record_id not in support
         )
-        before = len(await _markers(eng, "profile_card_v2"))
+        before = len(await _markers(eng, "profile_card"))
         await eng.forget(other, namespace="a", hard=True)
         assert len(await _card_entries(eng)) == 1
-        assert len(await _markers(eng, "profile_card_v2")) == before
+        assert len(await _markers(eng, "profile_card")) == before
     finally:
         await eng.stop()
 
 
 async def test_flag_off_forget_appends_no_card_marker(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = await _engine(monkeypatch, _llm(), session_close_v2=True)
+    eng = await _engine(monkeypatch, _llm(), session_close=True)
     try:
         await _send(eng, "s1", _turns(4))
         await eng.close_session("a", "s1")
         rid = (await eng._require_started().list_records("a", "episodic"))[0].record_id
         await eng.forget(rid, namespace="a", hard=True)
-        assert await _markers(eng, "profile_card_v2") == []
+        assert await _markers(eng, "profile_card") == []
     finally:
         await eng.stop()
 
@@ -190,7 +190,7 @@ async def test_the_entry_text_is_on_disk_before_the_forget(
 ) -> None:
     """Sanity for the byte-scan test below: the text is findable in the file before erasure."""
     db = str(tmp_path / "card.db")
-    eng = await _engine(monkeypatch, _llm(), path=db, session_close_v2=True, profile_card_v2=True)
+    eng = await _engine(monkeypatch, _llm(), path=db, session_close=True, profile_card=True)
     try:
         await _closed(eng)
         await eng._require_started()._client.checkpoint()
@@ -203,7 +203,7 @@ async def test_hard_forget_leaves_no_entry_text_in_the_sqlite_file_or_wal(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     db = str(tmp_path / "card.db")
-    eng = await _engine(monkeypatch, _llm(), path=db, session_close_v2=True, profile_card_v2=True)
+    eng = await _engine(monkeypatch, _llm(), path=db, session_close=True, profile_card=True)
     needle = ENTRY.encode()
     try:
         support = await _closed(eng)

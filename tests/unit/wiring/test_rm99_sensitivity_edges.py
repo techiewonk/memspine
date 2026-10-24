@@ -12,7 +12,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema.root import MemspineConfig
-from memspine.derive.pipeline.stages.edge_compiler_v2 import EdgeCompiler, compile_graph_edges
+from memspine.derive.pipeline.stages.edge_compiler import EdgeCompiler, compile_graph_edges
 from memspine.derive.sensitivity import LABELLER_ID, LabelHit, SensitivityLabeller
 from memspine.exceptions import ConfigError
 from memspine.services.graph.qualifiers import QualifierFilter, edge_qualifiers
@@ -38,7 +38,7 @@ async def _engine() -> Engine:
             "episodic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
-        graph={"edge_compiler_v2": True},
+        graph={"edge_compiler": True},
     )
     await eng.start()
     return eng
@@ -76,7 +76,7 @@ async def _labels_by_record(eng: Engine) -> dict[str, list[Any]]:
     assert eng._graph is not None
     out: dict[str, list[Any]] = {}
     for edge in await eng._graph.edge_list(NS):
-        if edge.properties.get("compiled") != "edge_compiler_v2" or edge.weight <= 0:
+        if edge.properties.get("compiled") != "edge_compiler" or edge.weight <= 0:
             continue
         q = edge_qualifiers(edge.properties)
         assert q is not None
@@ -120,7 +120,7 @@ async def test_exclusion_filter_on_compiled_edges() -> None:
         edges = [
             e
             for e in await eng._graph.edge_list(NS)
-            if e.properties.get("compiled") == "edge_compiler_v2" and e.weight > 0
+            if e.properties.get("compiled") == "edge_compiler" and e.weight > 0
         ]
     finally:
         await eng.stop()

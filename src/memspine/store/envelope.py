@@ -5,10 +5,7 @@ string (a string, not a dict: ``extras`` may not hold reserved key names at any 
 restores the record from it, letting the envelope's own fields win where both exist. Without that string
 (an envelope written by the new write path later) ``from_envelope`` builds a record from the envelope alone.
 
-Also registers the ``memory_record`` kind at schema version 1 with the upcaster registry. Records before
-F-02a carry no ``schema_version``; :func:`upcast_record_payload` stamps them v1 (the envelope fields are
-derived when absent, so v0 to v1 changes no value) and runs the registered chain, so a later v2 only adds an
-``@upcaster("memory_record", 1)``.
+Records use one current canonical payload; missing or unsupported format versions are rejected.
 """
 
 from __future__ import annotations
@@ -24,7 +21,7 @@ from memspine.schemas.durable.common import Fingerprint, OwnerScope, Provenance
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey, occurrence_id, write_id
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
-from memspine.schemas.versioning import declare_kind, upcast
+from memspine.schemas.versioning import declare_kind, validate_payload
 from memspine.store.records import MemoryRecord, RecordStatus
 
 __all__ = [
@@ -32,7 +29,7 @@ __all__ = [
     "RECORD_SCHEMA_VERSION",
     "from_envelope",
     "to_envelope",
-    "upcast_record_payload",
+    "validate_record_payload",
 ]
 
 RECORD_KIND = "memory_record"
@@ -40,7 +37,7 @@ RECORD_SCHEMA_VERSION = 1
 declare_kind(RECORD_KIND, RECORD_SCHEMA_VERSION)
 
 #: Key of the lossless record copy inside ``AssertionEnvelope.extras``.
-_EXTRAS_KEY = "legacy_record_json"
+_EXTRAS_KEY = "record_json"
 
 _STATUS_OUT: dict[RecordStatus, AssertionStatus] = {
     RecordStatus.ACTIVATED: "active",
@@ -58,11 +55,9 @@ _STATUS_IN: dict[str, RecordStatus] = {
 }
 
 
-def upcast_record_payload(payload: dict[str, Any]) -> dict[str, Any]:
-    """Upcast a stored record payload to the latest ``memory_record`` version (pre-F-02a: v1 by stamping)."""
-    stamped = dict(payload)
-    stamped.setdefault("schema_version", RECORD_SCHEMA_VERSION)
-    return upcast(RECORD_KIND, stamped)
+def validate_record_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Validate an explicitly versioned current record payload without migration."""
+    return validate_payload(RECORD_KIND, payload)
 
 
 def _aware(moment: datetime) -> datetime:
@@ -71,7 +66,7 @@ def _aware(moment: datetime) -> datetime:
 
 def _time_axes(record: MemoryRecord, recorded: datetime) -> TimeAxes:
     """The three axes (S6-3) with precision and basis. ``source_time`` is ``source_at`` when the record
-    has it, else the legacy ``valid_from`` (what the envelope carried before F-02b). The event interval
+    has it, else ``valid_from`` as the source-time anchor. The event interval
     is filled only when the record says how its event time was obtained (``event_basis``): a date is
     never presented as known when nothing says so."""
     source_at = _aware(record.source_at) if record.source_at is not None else None
@@ -228,7 +223,7 @@ def from_envelope(envelope: AssertionEnvelope) -> MemoryRecord:
             base.setdefault("event_approximate", True)
         if event.end is not None and event.end.at is not None:
             base.setdefault("valid_to", event.end.at)
-    record = MemoryRecord.model_validate(upcast_record_payload(base))
+    record = MemoryRecord.model_validate(base)
     if envelope.speaker is not None and envelope.speaker != record.axes.speaker:
         axes = record.axes.model_copy(update={"speaker": envelope.speaker})
         record = record.model_copy(update={"axes": axes})

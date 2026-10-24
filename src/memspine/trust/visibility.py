@@ -1,61 +1,31 @@
-"""I53: participants, a per-record visibility, and the optional ``viewer`` read predicate.
+"""Participant visibility over canonical typed record axes.
 
-The namespace stays the hard isolation boundary (``store/scope.py``); nothing here
-crosses it. Inside one namespace a conversation can have several speakers (a group chat, a
-household assistant, a support thread). ``participant:<name>`` tags record who was present;
-``visibility:<private|participants|owner_shared>`` says who may see the record:
-
-* ``private``: only the record's speaker, the first participant (a message to the assistant
-  that the speaker does not want shown to the others);
-* ``participants``: every participant;
-* ``owner_shared``: any viewer in the namespace.
-
-A record with neither tag is unmarked and behaves as today. With a ``viewer`` set on a read,
-a record is returned when the viewer may see it (:func:`visible_to`). A record with
-participants but no visibility is a ``participants`` record. Derived records (a mined fact,
-a summary) inherit the union of their parents' participants and the strictest visibility
-(:func:`inherit_tags`), so a fact mined from a private turn is as private as the turn.
-
-Tags are the carrier because the perspective layer (gaps I39-I47) tags speakers the same
-way; if ``core/perspective.py`` defines participant/visibility constants, re-export them here.
+Namespaces remain the hard isolation boundary. Within one namespace a record may be
+private to its first participant, visible to all participants, or owner-shared.
+Derived records inherit parent participants and the strictest visibility policy.
 """
 
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 
-__all__ = [
-    "PARTICIPANT_PREFIX",
-    "VISIBILITIES",
-    "VISIBILITY_PREFIX",
-    "inherit_tags",
-    "participant_tags",
-    "participants_of",
-    "restrict_to_parents",
-    "visibility_of",
-    "visibility_tag",
-    "visible_to",
-]
+from memspine.store.records import MemoryRecord
 
-PARTICIPANT_PREFIX = "participant:"
 VISIBILITY_PREFIX = "visibility:"
-
-#: Least to most restrictive.
 VISIBILITIES: tuple[str, ...] = ("owner_shared", "participants", "private")
 
 
 def _norm(name: str) -> str:
-    return " ".join(name.strip().lower().split())
+    return " ".join(name.strip().casefold().split())
 
 
-def participant_tags(names: Iterable[str]) -> list[str]:
-    """``participant:<name>`` for each distinct non-empty name, in order (first = speaker)."""
-    seen: dict[str, str] = {}
+def _names(names: Iterable[str]) -> list[str]:
+    unique: dict[str, str] = {}
     for name in names:
         key = _norm(name)
-        if key and key not in seen:
-            seen[key] = f"{PARTICIPANT_PREFIX}{name.strip()}"
-    return list(seen.values())
+        if key:
+            unique.setdefault(key, name.strip())
+    return list(unique.values())
 
 
 def visibility_tag(visibility: str) -> str:
@@ -64,13 +34,11 @@ def visibility_tag(visibility: str) -> str:
     return f"{VISIBILITY_PREFIX}{visibility}"
 
 
-def participants_of(tags: Iterable[str]) -> list[str]:
-    """The participant names a record's tags carry, in order (the first is the speaker)."""
-    return [t[len(PARTICIPANT_PREFIX) :] for t in tags if t.startswith(PARTICIPANT_PREFIX)]
+def participants_of(record: MemoryRecord) -> list[str]:
+    return list(record.axes.participants)
 
 
 def visibility_of(tags: Iterable[str]) -> str | None:
-    """The most restrictive ``visibility:`` tag, None when the record is unmarked."""
     found = [
         t[len(VISIBILITY_PREFIX) :]
         for t in tags
@@ -79,10 +47,9 @@ def visibility_of(tags: Iterable[str]) -> str | None:
     return max(found, key=VISIBILITIES.index) if found else None
 
 
-def visible_to(tags: Sequence[str], viewer: str) -> bool:
-    """May ``viewer`` see a record carrying ``tags``? Unmarked records are visible."""
-    visibility = visibility_of(tags)
-    names = [_norm(n) for n in participants_of(tags)]
+def visible_to(record: MemoryRecord, viewer: str) -> bool:
+    visibility = visibility_of(record.tags)
+    names = [_norm(n) for n in participants_of(record)]
     who = _norm(viewer)
     if visibility == "owner_shared":
         return True
@@ -90,47 +57,21 @@ def visible_to(tags: Sequence[str], viewer: str) -> bool:
         return bool(names) and names[0] == who
     if visibility == "participants":
         return who in names
-    # unmarked visibility: participants (when recorded) decide, else today's behaviour
     return not names or who in names
 
 
-def inherit_tags(parent_tags: Sequence[Sequence[str]]) -> list[str]:
-    """The participant and visibility tags a record derived from ``parent_tags`` carries:
-    the union of the parents' participants, the strictest of their visibilities."""
-    names: list[str] = []
-    strictest: str | None = None
-    for tags in parent_tags:
-        names.extend(participants_of(tags))
-        vis = visibility_of(tags)
-        if vis is not None and (
-            strictest is None or VISIBILITIES.index(vis) > VISIBILITIES.index(strictest)
-        ):
-            strictest = vis
-    out = participant_tags(names)
-    if strictest is not None:
-        out.append(f"{VISIBILITY_PREFIX}{strictest}")
-    return out
+def restrict_to_parents(record: MemoryRecord, parents: Sequence[MemoryRecord]) -> MemoryRecord:
+    """Use parent participants and the strictest parent/own visibility policy.
 
-
-def restrict_to_parents(tags: Sequence[str], parent_tags: Sequence[Sequence[str]]) -> list[str]:
-    """``tags`` with the participant and visibility tags of the parents folded in so the record is
-    never more visible than its most restrictive parent (F1; "unknown never broadens").
-
-    Participants: the parents' (their union, as :func:`inherit_tags`); the record's own names are
-    kept only when no parent names anyone, because a name the parents do not carry would widen a
-    ``participants`` record and, listed first, would take over a ``private`` one. Visibility: the
-    strictest of the record's own and the parents'. Returns ``tags`` unchanged when no parent
-    carries a participant or visibility tag. Other tags keep their order.
+    A derived record cannot introduce viewers its parents did not name. With no
+    parent participants the record's own explicit participant axes remain intact.
     """
-    inherited = inherit_tags(parent_tags)
-    if not inherited:
-        return list(tags)
-    own = [t for t in tags if not t.startswith((PARTICIPANT_PREFIX, VISIBILITY_PREFIX))]
-    inherited_people = participants_of(inherited)
-    merged_people = participant_tags(inherited_people or participants_of(tags))
-    own_vis, inherited_vis = visibility_of(tags), visibility_of(inherited)
-    ranked = [v for v in (own_vis, inherited_vis) if v is not None]
-    out = [*own, *merged_people]
-    if ranked:
-        out.append(f"{VISIBILITY_PREFIX}{max(ranked, key=VISIBILITIES.index)}")
-    return out
+    names = _names(name for parent in parents for name in parent.axes.participants)
+    visibilities = [v for item in (record, *parents) if (v := visibility_of(item.tags))]
+    tags = [t for t in record.tags if not t.startswith(VISIBILITY_PREFIX)]
+    if visibilities:
+        tags.append(visibility_tag(max(visibilities, key=VISIBILITIES.index)))
+    axes = record.axes.model_copy(update={"participants": names}) if names else record.axes
+    if tags == record.tags and axes == record.axes:
+        return record
+    return record.model_copy(update={"tags": tags, "axes": axes})

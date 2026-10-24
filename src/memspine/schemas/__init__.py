@@ -1,7 +1,7 @@
 """Versioned Pydantic schemas for MemSpine (MOD-01).
 
 Pure leaf package: imports nothing from other ``memspine`` modules.
-Tiers: durable (upcasters, frozen fixtures), public (semver), internal (typed, no promise).
+Tiers: durable (current format validation, frozen fixtures), public (semver), internal (typed, no promise).
 """
 
 from memspine.schemas.base import (
@@ -15,29 +15,26 @@ from memspine.schemas.base import (
 from memspine.schemas.export import collect_models, export, render
 from memspine.schemas.reserved import RESERVED_NAMES, is_reserved, reserved_hits
 from memspine.schemas.versioning import (
-    DuplicateUpcasterError,
     NewerThanKnownError,
+    SchemaValidationError,
     UnknownKindError,
-    UpcastError,
-    UpcastGapError,
+    UnsupportedSchemaVersionError,
     declare_kind,
     latest_version,
-    upcast,
-    upcaster,
+    validate_payload,
 )
 
 __all__ = [
     "RESERVED_NAMES",
-    "DuplicateUpcasterError",
     "DurableModel",
     "DurablePart",
     "InternalModel",
     "NewerThanKnownError",
     "PublicModel",
+    "SchemaValidationError",
     "TierModel",
     "UnknownKindError",
-    "UpcastError",
-    "UpcastGapError",
+    "UnsupportedSchemaVersionError",
     "collect_models",
     "declare_kind",
     "export",
@@ -46,6 +43,5 @@ __all__ = [
     "latest_version",
     "render",
     "reserved_hits",
-    "upcast",
-    "upcaster",
+    "validate_payload",
 ]

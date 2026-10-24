@@ -1,4 +1,4 @@
-"""Durable tier: frozen fixtures, round trips, upcaster pass-through and the semantic invariants (ER-32)."""
+"""Durable tier: frozen fixtures, round trips, current-format validation pass-through and the semantic invariants (ER-32)."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from memspine.schemas import collect_models, kind_id, latest_version, upcast
+from memspine.schemas import collect_models, kind_id, latest_version, validate_payload
 from memspine.schemas.durable import (
     AssertionEnvelope,
     AssertionKey,
@@ -81,7 +81,9 @@ def test_fixture_round_trips_unchanged(cls):
     path = FIXTURES / f"{kind_id(cls)}.v1.json"
     raw = json.loads(path.read_text(encoding="utf-8"))
     assert raw["schema_version"] == 1
-    assert upcast(kind_id(cls), raw) == raw  # v1 is current: the chain is a no-op
+    assert (
+        validate_payload(kind_id(cls), raw) == raw
+    )  # current payload is validated without transformation
     obj = cls.model_validate(raw)
     assert obj.model_dump(mode="json") == raw
     again = cls.model_validate_json(obj.model_dump_json())
@@ -93,7 +95,7 @@ def test_unknown_field_fixture_keeps_the_field_verbatim():
     assert raw["novel_field"] == {"added_by": "a-future-release", "n": [1, 2]}
     obj = AssertionEnvelope.model_validate(raw)
     assert obj.model_dump(mode="json")["novel_field"] == raw["novel_field"]
-    assert upcast("assertion_envelope", raw)["novel_field"] == raw["novel_field"]
+    assert validate_payload("assertion_envelope", raw)["novel_field"] == raw["novel_field"]
 
 
 # --- temporal (S6) -----------------------------------------------------------------------------------------

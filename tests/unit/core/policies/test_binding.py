@@ -9,7 +9,6 @@ from memspine.compose.pack import AssemblyPolicy
 from memspine.core.policies.base import BindablePolicy
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.consolidation import ConsolidationPolicy
-from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.dedup import DedupPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.core.policies.scoring import ScoringPolicy
@@ -19,7 +18,6 @@ from memspine.exceptions import ConfigError
 ALL_POLICIES: list[type[BindablePolicy]] = [
     ScoringPolicy,
     ConsolidationPolicy,
-    DecayPolicy,
     ConflictPolicy,
     DedupPolicy,
     CompressionPolicy,

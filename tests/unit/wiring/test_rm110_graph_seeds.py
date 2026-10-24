@@ -214,7 +214,7 @@ async def test_forgotten_entity_never_seeds() -> None:
 async def test_erased_entity_never_seeds() -> None:
     """T5-04 erasure purges graph nodes directly (not through the projector): the purge
     drops the cached index, so the erased entity is gone from the next lookup."""
-    eng = await _entity_engine(privacy={"erasure_v2": True})
+    eng = await _entity_engine(privacy={})
     try:
         keep = await eng.write("Yusuf cooks", namespace=NS, memory_type="semantic", entity="Yusuf")
         gone = await eng.write("Zelda plays", namespace=NS, memory_type="semantic", entity="Zelda")

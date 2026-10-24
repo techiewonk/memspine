@@ -78,7 +78,7 @@ async def assemble(
     ``shared_search``, so a multi-agent turn sees exactly what its grants allow
     (trust-capped, and under ``integrity.*`` attenuated and admitted at theta).
 
-    ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+    ``purpose`` (#50): the read's purpose, checked under ``consent.enabled``.
     #53: PASSIVE-session records enter only with ``include_passive=True`` or when
     ``session_id`` names their session (see :meth:`search`).
 
@@ -206,9 +206,9 @@ async def _assemble_core(
     # ``want``.
     # 0 = off; a pool <= want changes nothing, so candidate_pool is never widened twice.
     rr_pool = eng._config().model.rerank.search_pool
-    if eng._config().read.tiers_v2 and eng._config().model.rerank.chain:
+    if eng._config().read.tiers and eng._config().model.rerank.chain:
         # FX-READPATH (R3-01 / R-13): the chosen tier sets the rerank pool (fast 32, standard 48,
-        # deep 64), so ``tiers_v2`` now reaches the retrieval it was specified to govern.
+        # deep 64), so ``tiers`` now reaches the retrieval it was specified to govern.
         rr_pool = max(rr_pool, tier_pool())
     _RERANKED.set(False)
     _RAW_SCORES.set({} if eng._config().read.abstain_on_raw else None)
@@ -667,48 +667,6 @@ def _window_sides(eng: Any, window: int) -> tuple[int, int]:
     return (window if before is None else before, window if after is None else after)
 
 
-async def _expand_neighbours(
-    eng: Any,
-    ns: str,
-    chosen: list[MemoryRecord],
-    session_ids: dict[str, list[str]],
-    window: int,
-    budget_tokens: int,
-    used: int,
-) -> int:
-    """G2c: add each chosen turn's +-``window`` session neighbours, in place.
-
-    Hits are expanded in selection order, neighbours nearest first (older on a
-    tie). A neighbour passes the same gates and decoration as in replay mode;
-    one that does not fit the budget is skipped. Returns the new token count.
-    """
-    if eng._config().read.neighbours_v2:
-        return await _expand_neighbours_v2(
-            eng, ns, chosen, session_ids, window, budget_tokens, used
-        )
-    seen = {r.record_id for r in chosen}
-    factor = eng._budget_factor(budget_tokens)
-    for hit in list(chosen):
-        ids = session_ids.get(hit.record_id)
-        if not ids:
-            continue
-        at = ids.index(hit.record_id)
-        for rid, turn, cost in await eng._window_turns(
-            ns,
-            ids,
-            at,
-            window,
-            budget_tokens=budget_tokens,
-            used=used,
-            seen=seen,
-            factor=factor,
-        ):
-            chosen.append(turn)
-            seen.add(rid)
-            used += cost
-    return used
-
-
 class _CharCounter:
     """The pipeline's own token estimate (chars // 4 + 1), as a LIB-24 counter."""
 
@@ -719,7 +677,7 @@ class _CharCounter:
         return len(text) // 4 + 1
 
 
-async def _expand_neighbours_v2(
+async def _expand_neighbours(
     eng: Any,
     ns: str,
     chosen: list[MemoryRecord],
@@ -728,7 +686,7 @@ async def _expand_neighbours_v2(
     budget_tokens: int,
     used: int,
 ) -> int:
-    """R3-10 (``read.neighbours_v2``, LIB-24): neighbour windows through the library.
+    """R3-10 (``read.neighbours``, LIB-24): neighbour windows through the library.
 
     The chosen turns are the reranked hits (best first). Every turn inside a hit's reach is
     prefetched through ``eng._replay_neighbour`` (the viewer, consent, status and date
@@ -847,24 +805,21 @@ async def _window_turns(
         if factor < 1.0:
             before = max(1 if before else 0, round(before * factor))
             after = max(1 if after else 0, round(after * factor))
-        if read_cfg.neighbours_v2:
-            # FX-READPATH (R3-10 in replay): filler neighbours (greetings, "ok", "haha") do not
-            # take a window slot; the reach stretches over them, by at most as many turns
-            # again as the side's quota. Off: the fixed -before/+after span below.
-            span = []
-            for step, quota in ((-1, before), (1, after)):
-                taken_n, reach, i = 0, 0, at + step
-                while 0 <= i < len(ids) and taken_n < quota and reach < 2 * quota:
-                    reach += 1
-                    turn_i = await eng._replay_neighbour(ids[i], ns)
-                    pre[ids[i]] = turn_i
-                    if turn_i is None or not _is_filler(turn_i.content):
-                        span.append(i)
-                        taken_n += 1
-                    i += step
-            span.append(at)
-        else:
-            span = range(max(0, at - before), min(len(ids), at + after + 1))  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
+        # FX-READPATH (R3-10 in replay): filler neighbours (greetings, "ok", "haha") do not
+        # take a window slot; the reach stretches over them, by at most as many turns
+        # again as the side's quota. Off: the fixed -before/+after span below.
+        span = []
+        for step, quota in ((-1, before), (1, after)):
+            taken_n, reach, i = 0, 0, at + step
+            while 0 <= i < len(ids) and taken_n < quota and reach < 2 * quota:
+                reach += 1
+                turn_i = await eng._replay_neighbour(ids[i], ns)
+                pre[ids[i]] = turn_i
+                if turn_i is None or not _is_filler(turn_i.content):
+                    span.append(i)
+                    taken_n += 1
+                i += step
+        span.append(at)
         order = sorted(span, key=lambda i: (i != at, abs(i - at), i))
     spent = {-1: 0, 1: 0}
     closed: set[int] = set()

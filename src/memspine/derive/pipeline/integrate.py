@@ -216,10 +216,10 @@ async def _deposit_mined_fact(
 ) -> MemoryRecord | None:
     """C6': one mined fact through the write door (firewall, ladder, MTI).
 
-    FU-GAPS: ``envelope`` (``write.envelope_v2``) is the compiled envelope as JSON; it is kept in
+    FU-GAPS: ``envelope`` (the extraction envelope) is the compiled envelope as JSON; it is kept in
     the record's fingerprint blob (``fingerprint.envelope``), no migration.
 
-    W2-06a: ``trust_cap`` (envelope v2) is the envelope's system-set source trust; it joins the
+    W2-06a: ``trust_cap`` (envelope) is the envelope's system-set source trust; it joins the
     parents' cap, so a stored fact is never more trusted than its cited line's role allows.
 
     E01: ``extra_tags`` ride along (the write-time projection tags its facts
@@ -295,8 +295,27 @@ async def _deposit_mined_fact(
         site = "window_extract" if require_live else "mine_facts"
         if await eng._derived_parents_gone(ns, [*parents, *require_live], site):  # I72
             return None
+        evidence_roles: dict[str, str] = {}
+        if envelope is not None:
+            for evidence in envelope.get("evidence", []):
+                if not isinstance(evidence, dict):
+                    continue
+                turn = evidence.get("turn")
+                if not isinstance(turn, dict):
+                    continue
+                source_id, role = turn.get("source_id"), evidence.get("role")
+                if source_id in parents and role in ("support", "binding", "context"):
+                    evidence_roles[str(source_id)] = str(role)
         written = await write_derived(
-            eng, storage, ns, record, "semantic", "system", trust_cap=cap, site=site
+            eng,
+            storage,
+            ns,
+            record,
+            "semantic",
+            "system",
+            trust_cap=cap,
+            site=site,
+            roles=evidence_roles or None,
         )
     if planned and eng._consolidation_option("auto_watch", False):
         await eng._auto_watch(ns, written, sources)
@@ -474,7 +493,6 @@ async def _deposit_session_record(
         tags.append(f"extends:{extends}")
     if when_text:
         tags.append(f"when:{when_text[:60]}")
-    tags.extend(f"participant:{p}" for p in participants if p)
     if folded:
         tags.append("folded")
     if sources and all("assistant_claim" in r.tags for r in sources):
@@ -494,6 +512,13 @@ async def _deposit_session_record(
         ),
         valid_from=valid_from,
         tags=tags,
+    )
+    record = record.model_copy(
+        update={
+            "axes": record.axes.model_copy(
+                update={"participants": list(dict.fromkeys(p for p in participants if p))}
+            )
+        }
     )
     cap = [min(r.trust for r in sources)] if sources else None
     integrity_cap = await eng._parent_trust_cap(ns, parents)

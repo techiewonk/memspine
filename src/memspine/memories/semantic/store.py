@@ -489,7 +489,7 @@ class SemanticMemory(BaseMemory):
                     }
                 )
             late = rule == "R4_historical_backfill"
-            if late and getattr(self._conflict, "integration_v2", False):
+            if late and getattr(self._conflict, "integration", False):
                 # W2-10: the older late arrival is history, not an active record
                 backfilled = backfilled.model_copy(
                     update={

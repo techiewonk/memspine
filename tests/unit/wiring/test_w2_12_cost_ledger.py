@@ -1,4 +1,4 @@
-"""W2-12: the write-side cost ledger (``economy.ledger_v2``), the budget (``economy.budget``) and
+"""W2-12: the write-side cost ledger (``economy.ledger``), the budget (``economy.budget``) and
 the P-14 targets as regression gates. Model-free: stub LLMs that count their calls, hash embedder."""
 
 from __future__ import annotations
@@ -114,7 +114,7 @@ async def _three_sessions(eng: Engine) -> None:
 # ------------------------------------------------------------------------------ flag off
 def test_defaults_are_off() -> None:
     cfg = EconomyConfig()
-    assert cfg.ledger_v2 is False and cfg.budget is None
+    assert cfg.ledger is False and cfg.budget is None
     assert (
         MemspineConfig(
             runtime={
@@ -144,7 +144,7 @@ async def test_flag_off_installs_nothing_and_the_facts_are_unchanged(
             await eng.stop()
 
     off = await run({}, "off.db")
-    on = await run({"ledger_v2": True}, "on.db")
+    on = await run({"ledger": True}, "on.db")
     assert off[0] and off == on  # the ledger only observes: same facts, same call count
 
 
@@ -161,7 +161,7 @@ async def test_budget_needs_the_outbox(monkeypatch: pytest.MonkeyPatch, tmp_path
             monkeypatch,
             FakeWindowLLM(),
             tmp_path / "x.db",
-            economy={"ledger_v2": True, "budget": {"max_calls": 1}},
+            economy={"ledger": True, "budget": {"max_calls": 1}},
         )
 
 
@@ -170,7 +170,7 @@ async def test_ledger_counts_a_stubbed_window_extraction(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, tmp_path / "w.db", economy={"ledger_v2": True})
+    eng = await _engine(monkeypatch, llm, tmp_path / "w.db", economy={"ledger": True})
     try:
         await _three_sessions(eng)
         report = eng.cost_report()
@@ -201,7 +201,7 @@ async def test_ledger_counts_a_stubbed_sleep_stage(
         monkeypatch,
         llm,
         tmp_path / "s.db",
-        economy={"ledger_v2": True},
+        economy={"ledger": True},
         mode="facts_graph",
         extra_roles={"invalidate_edge": judge},
         extract_graph={"resolve": "rules", "contradictions": True},
@@ -268,7 +268,7 @@ async def test_budget_pause_marks_underived_and_resumes_with_nothing_lost(
         llm,
         tmp_path / "b.db",
         outbox=True,
-        economy={"ledger_v2": True, "budget": {"max_calls": 1}},
+        economy={"ledger": True, "budget": {"max_calls": 1}},
     )
     try:
         await _three_sessions(eng)
@@ -309,7 +309,7 @@ async def test_a_period_roll_lets_the_work_resume(
         llm,
         tmp_path / "p.db",
         outbox=True,
-        economy={"ledger_v2": True, "budget": {"max_calls": 1, "period_s": 60.0}},
+        economy={"ledger": True, "budget": {"max_calls": 1, "period_s": 60.0}},
     )
     try:
         budget = eng._cost_ledger.budget
@@ -353,7 +353,7 @@ async def test_sleep_stages_pause_when_the_sleep_pool_is_spent(
         llm,
         tmp_path / "sl.db",
         outbox=True,
-        economy={"ledger_v2": True, "budget": {"max_calls": 5}},
+        economy={"ledger": True, "budget": {"max_calls": 5}},
         mode="facts_graph",
         extra_roles={"invalidate_edge": judge},
         extract_graph={"resolve": "rules", "contradictions": True},
@@ -383,7 +383,7 @@ async def test_targets_hold_for_a_stubbed_run(
         monkeypatch,
         llm,
         tmp_path / "t.db",
-        economy={"ledger_v2": True},
+        economy={"ledger": True},
         mode="facts_graph",
         extra_roles={"invalidate_edge": judge},
         extract_graph={"resolve": "rules", "contradictions": True},

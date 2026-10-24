@@ -18,12 +18,7 @@ def _args(*extra: str) -> Any:
 
 def test_cli_defaults_keep_neutral_and_no_overlap() -> None:
     a = _args("--retry-refusal")
-    assert a.retry_mode == "neutral" and a.retry_overlap is False
-
-
-def test_cli_accepts_assertive_and_overlap() -> None:
-    a = _args("--retry-refusal", "--retry-mode", "assertive", "--retry-overlap")
-    assert a.retry_mode == "assertive" and a.retry_overlap is True
+    assert a.retry_overlap is False and not hasattr(a, "retry_mode")
 
 
 def test_cli_rejects_unknown_mode() -> None:
@@ -36,8 +31,8 @@ def test_default_kwargs_are_unchanged() -> None:
 
 
 def test_kwargs_carry_mode_and_overlap() -> None:
-    kw = _retry_decider_kwargs(C01Config(retry_mode="assertive", retry_overlap=True))
-    assert kw == {"mode": "assertive", "require_context_overlap": True}
+    kw = _retry_decider_kwargs(C01Config(retry_overlap=True))
+    assert kw == {"require_context_overlap": True}
 
 
 class _Inner:
@@ -58,10 +53,10 @@ class _Inner:
 
 
 def test_mode_changes_reader_id_and_overlap_blocks_ungrounded_retry() -> None:
-    cfg = C01Config(retry_mode="assertive", retry_overlap=True)
+    cfg = C01Config(retry_overlap=True)
     reader = RefusalRetryReader(_Inner("Not mentioned.", "zzzz qqqq"), **_retry_decider_kwargs(cfg))
-    assert reader.reader_id == "stub+retry" and reader.mode == "assertive"
+    assert reader.reader_id == "stub+retry"
     out = asyncio.run(reader.answer("Where?", "Caroline hiked in Denver"))
     assert out.text == "Not mentioned."  # the retry shares no content word with the context
     neutral = RefusalRetryReader(_Inner("x"), **_retry_decider_kwargs(C01Config()))
-    assert neutral.reader_id == "stub+retry-neutral"
+    assert neutral.reader_id == "stub+retry"

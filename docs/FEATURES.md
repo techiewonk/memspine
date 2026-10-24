@@ -277,7 +277,7 @@ truth. Startup selects the configured adapter; existing data needs a controlled 
 | Extraction (GLiNER) | `model.extraction.<consumer>` | `semantic`, `prepass`, `topic`, `sensitivity`; provider `gliner2` `[ner]`. A consumer not listed is off. |
 | Decider | `model.decider.route` / `model.decider.read` | `heuristic` · `opendecider` `[decider]` · `gliner2` `[ner]`; `read` absent = the heuristic rules. |
 | Vision | `model.vision` | `ollama` (local vision model); `null` = no description. |
-| Image assets (E04) | `ingest.assets`, `read.asset_evidence` | Attachment rows in the `asset_registry` table of the records database (encrypted with it under SQLCipher, shared on Postgres); downloaded bytes in `storage.documents` by content hash, referenced by the record, so hard forget and `erase_namespace` remove both (RM-113 item 18). `fetch` needs `storage.documents`; `Engine.import_asset_dir` imports a pre-item-18 `registry.sqlite` + `blobs/` once. |
+| Image assets (E04) | `ingest.assets`, `read.asset_evidence` | Attachment rows in the `asset_registry` table of the records database (encrypted with it under SQLCipher, shared on Postgres); downloaded bytes in `storage.documents` by content hash, referenced by the record, so hard forget and `erase_namespace` remove both (RM-113 item 18). `fetch` needs `storage.documents`; fresh/current asset registries are supported. |
 | Secrets | `MEMSPINE_SECRETS_BACKEND` *(env var)* | `env` (default) · `aws` `[aws]` (ADR-023) |
 | Workers | `workers.runner` | `inline` (default) · `temporal` `[temporal]` · `taskiq` `[taskiq]` |
 

@@ -89,7 +89,7 @@ model:
     timeout_s: 120.0
     settings: {model: qwen2.5vl:3b, api_base: http://localhost:11434}
   placement:
-    tiers_v2: false
+    tiers: false
     max_loaded_models: 2     # distinct GLiNER checkpoints kept resident
 read:
   planner: decision          # pipeline flag stays in read; it needs model.decider.route

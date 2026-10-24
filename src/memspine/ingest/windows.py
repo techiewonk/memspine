@@ -120,7 +120,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
     if mode == "off":
         return None
     if eng._llm is None or eng._prompts is None or "window_extract" not in eng._llm.roles:
-        if config.write.online_extractor_v2:
+        if config.write.online_extractor:
             # W2-06c: the no-model template. No extraction (the L1/L2 stages do not run), no call.
             _log.warning(
                 "window.no_model",
@@ -155,24 +155,16 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         if _outbox_factory is None:
             raise ConfigError("workers.outbox=true but no outbox factory is registered")
         outbox = _outbox_factory(eng, config)
-    envelope = None
-    if config.write.envelope_v2 and "facts" in sections:
-        envelope = _envelope_write(eng, config)
-    context_builder = None
-    if config.write.prompt_v2:
-        if envelope is None:
-            raise ConfigError(
-                "write.prompt_v2 needs write.envelope_v2 and a window_extract mode with facts"
-            )
-        pre = _prepass(eng, config)  # W2-13 hints -> KNOWN
-        resolve = getattr(eng, "_entity_resolve_stage", None)  # W2-09 registry -> KNOWN
-        context_builder = PromptContextBuilder(
-            _known_from_store(eng),
-            cap=config.write.prompt_known_cap,
-            context_turns=config.write.prompt_context_turns,
-            prepass=prepass_known(pre) if pre is not None else None,
-            resolver=resolver_known(resolve) if config.write.resolver_v2 and resolve else None,
-        )
+    envelope = _envelope_write(eng, config) if "facts" in sections else None
+    pre = _prepass(eng, config)
+    resolve = getattr(eng, "_entity_resolve_stage", None)
+    context_builder = PromptContextBuilder(
+        _known_from_store(eng),
+        cap=config.write.prompt_known_cap,
+        context_turns=config.write.prompt_context_turns,
+        prepass=prepass_known(pre) if pre is not None else None,
+        resolver=resolver_known(resolve) if config.write.resolver and resolve else None,
+    )
     return WindowPipeline(
         settings=WindowSettings(
             max_turns=config.write.window_max_turns,
@@ -185,8 +177,6 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
             eng._llm.for_role("window_extract"),
             eng._prompts.for_role("window_extract"),
             str(role.settings.get("model", "")) if role is not None else "",
-            items=envelope is not None,
-            unified=context_builder is not None,
             partial=eng._prompts.partial,
             use_schema=config.write.prompt_schema == "auto",
         ),
@@ -197,16 +187,15 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         lock=eng._namespace_lock,
         cache=eng._cache,
         use_cache=config.write.window_cache,
-        split=config.write.window_split,
         asynchronous=asynchronous,
         on_session_closed=eng._window_session_closed,
         outbox=outbox,
         segmentation=_segmentation(config),
-        role_policy=config.write.role_policy_v2,
+        role_policy=config.write.role_policy,
         envelope=envelope,
         context_builder=context_builder,
         prepass=_prepass(eng, config),
-        mark_disputed=_mark_disputed(eng) if config.write.integration_v2 else None,
+        mark_disputed=_mark_disputed(eng) if config.write.integration else None,
     )
 
 
@@ -282,7 +271,7 @@ def _known_from_store(eng: Any) -> KnownSource:
 
 
 def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
-    """W2-06a (``write.envelope_v2``): compiler, validator, one-shot repair, dead-letter list.
+    """W2-06a (the base extraction envelope): compiler, validator, one-shot repair, dead-letter list.
     The repair call uses the router-bound LLM of the extraction, so the cost ledger counts it."""
     llm = eng._llm.for_role("window_extract")
     # RM-111 WP5: the dead letters live in the storage database (encrypted with it on SQLite,
@@ -311,7 +300,7 @@ def _envelope_write(eng: Any, config: MemspineConfig) -> EnvelopeWrite:
         repair=RepairAsk(llm, max_tokens=4096),
         ledger=ledger,
         stages=_envelope_stages(eng, config),
-        report_stages=config.write.online_extractor_v2,
+        report_stages=config.write.online_extractor,
         learned=learned,
     )
 
@@ -320,20 +309,20 @@ def _envelope_stages(eng: Any, config: MemspineConfig) -> tuple[Any, ...]:
     """W2-06c: the post-compile stage list. Each W2 package appends ONE builder line here, gated
     on its own flag (see ``derive/envelope_stages.py`` for the order)."""
     stages: list[Any] = []
-    if config.write.temporal_v2:  # W2-14, order 100
+    if config.write.temporal:  # W2-14, order 100
         from memspine.derive.temporal_stage import build_stage
 
-        stages.append(build_stage(trust_valid_from=not config.write.stamping_v2))
-    if config.write.integration_v2:  # W2-10 (order 400)
+        stages.append(build_stage(trust_valid_from=not config.write.stamping))
+    if config.write.integration:  # W2-10 (order 400)
         stages.append(_integration_stage(eng, config))
-    if config.write.grounding_v2:
+    if config.write.grounding:
         stages.append(build_grounding_stage(eng, config))
-    if config.write.coverage_v2:  # W2-15, order 250
+    if config.write.coverage:  # W2-15, order 250
         stages.append(_coverage_stage(eng, config, tuple(stages)))
     pre = _prepass(eng, config)
     if pre is not None:  # W2-13: cross-check only, order 500
         stages.append(prepass_stage(pre))
-    if config.write.resolver_v2:  # W2-09: online entity resolution (order 300)
+    if config.write.resolver:  # W2-09: online entity resolution (order 300)
         stages.append(_resolve_stage(eng, config))
     return tuple(stages)
 
@@ -413,14 +402,13 @@ async def forget_learned_aliases(eng: Any, namespace: str) -> None:
 
 
 def _resolve_stage(eng: Any, config: MemspineConfig) -> Any:
-    """W2-09 (``write.resolver_v2``): the resolve stage; event log and embedder bound lazily."""
+    """W2-09 (``write.resolver``): the resolve stage; event log and embedder bound lazily."""
     w = config.write
     stage = build_resolve_stage(
         ResolveSettings(
             high=w.resolve_high,
             grey=w.resolve_grey,
             max_cache=w.resolve_cache,
-            scoped=bool(config.isolation.scope_keys_v2),
         ),
         embed=eng._embedder.embed if eng._embedder is not None else None,
         storage=lambda: eng._storage,
@@ -429,11 +417,9 @@ def _resolve_stage(eng: Any, config: MemspineConfig) -> Any:
     return stage.as_stage()
 
 
-def _segmentation(config: MemspineConfig) -> SegmentationSettings | None:
-    """W2-05: ``write.segmentation_v2`` -> the segmenter and batcher settings, None when off."""
+def _segmentation(config: MemspineConfig) -> SegmentationSettings:
+    """W2-05: The base segmenter and optional batching settings."""
     w = config.write
-    if not w.segmentation_v2:
-        return None
     return SegmentationSettings(
         gap_s=w.segment_gap_s,
         calendar_day_cut=w.segment_calendar_day_cut,

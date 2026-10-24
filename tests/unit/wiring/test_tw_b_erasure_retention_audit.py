@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any
 
 from memspine import Engine
-from memspine.config.schema import AuditConfig, MemspineConfig, PrivacyConfig, RetentionConfig
 from memspine.derive.write import write_derived
 from memspine.observability import tap
 from memspine.read.pipeline import request as rq
@@ -87,53 +86,26 @@ async def _markers(eng: Engine, name: str) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------------- flags
 
 
-def test_flags_default_off() -> None:
-    assert PrivacyConfig().erasure_v2 is False
-    assert RetentionConfig().v2 is False and RetentionConfig().profile is None
-    assert AuditConfig().chain_v2 is False
-    cfg = MemspineConfig(
-        runtime={
-            "provider_services": {
-                "health_timeout_s": 1.0,
-                "close_timeout_s": 1.0,
-                "startup_timeout_s": None,
-            }
-        }
-    )
-    assert cfg.privacy.erasure_v2 is False and cfg.audit.chain_v2 is False
-
-
 # ---------------------------------------------------------------------------------- T5-04
-
-
-async def test_erasure_off_cascades_as_before() -> None:
-    eng = _engine(write={"lineage_table": True})
-    await eng.start()
-    try:
-        a, _ = await _turns(eng)
-        fact = await _derive(eng, f"User lives in {SECRET}", [a.record_id])
-        await eng.forget(a.record_id, namespace=NS, hard=True)
-        storage = eng._require_started()
-        assert await storage.get_record(fact.record_id) is None  # legacy cascade deleted it
-        assert eng.erasure_status()["erased"] == 0  # no erasure state: the flag is off
-        assert eng.erasure_queue() == []
-        assert not await _markers(eng, "erasure_manifest")
-    finally:
-        await eng.stop()
 
 
 async def test_end_to_end_forget_hides_dependants_and_purges() -> None:
     events: list[tuple[str, dict[str, Any]]] = []
     eng = _engine(
         write={"lineage_table": True},
-        privacy={"erasure_v2": True},
+        privacy={},
         observability={"tap": {"enabled": True, "sink": "memory"}},
     )
     await eng.start()
     try:
         a, b = await _turns(eng)
         only_a = await _derive(eng, f"User lives in {SECRET}", [a.record_id])
-        both = await _derive(eng, "User and sister talk about music", [a.record_id, b.record_id])
+        both = await _derive(
+            eng,
+            "User and sister talk about music",
+            [a.record_id, b.record_id],
+            roles={a.record_id: "support", b.record_id: "support"},
+        )
         summary = await _derive(
             eng,
             f"Summary: moved to {SECRET}, sister plays cello",
@@ -212,7 +184,7 @@ async def test_end_to_end_forget_hides_dependants_and_purges() -> None:
 
 
 async def test_pol1_cache_hit_is_revalidated_against_the_erasure_state() -> None:
-    eng = _engine(privacy={"erasure_v2": True})
+    eng = _engine(privacy={})
     await eng.start()
     try:
         await _turns(eng)
@@ -240,7 +212,7 @@ async def test_pol1_cache_hit_is_revalidated_against_the_erasure_state() -> None
 
 
 async def test_state_survives_restart_and_hidden_id_stays_invisible(tmp_path: Path) -> None:
-    kw: dict[str, Any] = {"write": {"lineage_table": True}, "privacy": {"erasure_v2": True}}
+    kw: dict[str, Any] = {"write": {"lineage_table": True}, "privacy": {}}
     eng = _engine(tmp_path, **kw)
     await eng.start()
     try:
@@ -263,7 +235,7 @@ async def test_state_survives_restart_and_hidden_id_stays_invisible(tmp_path: Pa
 
 
 async def test_cascade_false_hides_nothing() -> None:
-    eng = _engine(write={"lineage_table": True}, privacy={"erasure_v2": True})
+    eng = _engine(write={"lineage_table": True}, privacy={})
     await eng.start()
     try:
         a, _ = await _turns(eng)
@@ -276,7 +248,7 @@ async def test_cascade_false_hides_nothing() -> None:
 
 
 async def test_parents_fallback_without_the_lineage_table() -> None:
-    eng = _engine(privacy={"erasure_v2": True})  # write.lineage_table off: source.parents
+    eng = _engine(privacy={})  # write.lineage_table off: source.parents
     await eng.start()
     try:
         a, _ = await _turns(eng)
@@ -300,23 +272,10 @@ async def test_parents_fallback_without_the_lineage_table() -> None:
 # ---------------------------------------------------------------------------------- T5-05
 
 
-async def test_retention_off_is_unchanged() -> None:
-    eng = _engine(retention={"classes": [{"ttl_days": 1.0, "memory_type": "semantic"}]})
-    await eng.start()
-    try:
-        await eng.write("old fact", namespace=NS, memory_type="semantic", entity="X", attribute="a")
-        later = datetime.now(UTC) + timedelta(days=3)
-        stats = await eng.expire_retention(later)
-        assert stats["expired"] == 1 and "profile" not in stats
-    finally:
-        await eng.stop()
-
-
 async def test_retention_v2_expires_by_class_and_never_l0_under_full() -> None:
     events: list[tuple[str, dict[str, Any]]] = []
     eng = _engine(
         retention={
-            "v2": True,
             "classes": [
                 {"ttl_days": 1.0, "memory_type": "semantic"},
                 {"ttl_days": 1.0, "memory_type": "episodic"},
@@ -353,7 +312,7 @@ async def test_retention_v2_expires_by_class_and_never_l0_under_full() -> None:
 
 async def test_retention_v2_holds_and_template_profile() -> None:
     eng = _engine(
-        retention={"v2": True, "profile": "assistant"},
+        retention={"profile": "assistant"},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     )
     await eng.start()
@@ -368,7 +327,7 @@ async def test_retention_v2_holds_and_template_profile() -> None:
 async def test_retention_v2_rolling_log_advertises_limited_rebuild() -> None:
     eng = _engine(
         event_log={"mode": "rolling", "retention_days": 30},
-        retention={"v2": True, "classes": [{"ttl_days": 1.0, "memory_type": "semantic"}]},
+        retention={"classes": [{"ttl_days": 1.0, "memory_type": "semantic"}]},
     )
     await eng.start()
     try:
@@ -387,26 +346,14 @@ async def test_retention_v2_rolling_log_advertises_limited_rebuild() -> None:
 
 
 async def _chain(eng: Engine) -> list[AuditRecord]:
-    return [AuditRecord.model_validate(p["record"]) for p in await _markers(eng, "audit_chain_v2")]
-
-
-async def test_audit_chain_off_keeps_legacy_events() -> None:
-    eng = _engine(audit={"actions": True})
-    await eng.start()
-    try:
-        a, _ = await _turns(eng)
-        await eng.forget(a.record_id, namespace=NS, hard=True)
-        assert not await _markers(eng, "audit_chain_v2")
-        assert await eng.audit_chain_ok()
-    finally:
-        await eng.stop()
+    return [AuditRecord.model_validate(p["record"]) for p in await _markers(eng, "audit_chain")]
 
 
 async def test_audit_chain_v2_records_verify_and_detect_tampering(tmp_path: Path) -> None:
     events: list[tuple[str, dict[str, Any]]] = []
     eng = _engine(
         tmp_path,
-        audit={"chain_v2": True, "reads": True},
+        audit={"actions": True, "reads": True},
         observability={"tap": {"enabled": True, "sink": "memory"}},
     )
     await eng.start()
@@ -417,7 +364,7 @@ async def test_audit_chain_v2_records_verify_and_detect_tampering(tmp_path: Path
         try:
             await eng.search(SECRET, namespace=NS)
             await eng.forget(a.record_id, namespace=NS, hard=True, reason="User request: GDPR!")
-            report = await eng.verify_audit_chain_v2()
+            report = await eng.verify_audit_chain()
         finally:
             tap.event = real_event  # type: ignore[assignment]
         records = await _chain(eng)
@@ -444,7 +391,7 @@ async def test_audit_chain_v2_records_verify_and_detect_tampering(tmp_path: Path
 
 async def test_audit_profile_decides_what_is_audited() -> None:
     # reads are not audited unless audit.reads (or a profile that audits reads) says so
-    eng = _engine(audit={"chain_v2": True})
+    eng = _engine(audit={"actions": True})
     await eng.start()
     try:
         a, _ = await _turns(eng)
@@ -455,7 +402,7 @@ async def test_audit_profile_decides_what_is_audited() -> None:
     finally:
         await eng.stop()
 
-    eng = _engine(audit={"chain_v2": True}, retention={"v2": True, "profile": "multi_agent"})
+    eng = _engine(audit={"actions": True}, retention={"profile": "multi_agent"})
     await eng.start()
     try:
         await _turns(eng)

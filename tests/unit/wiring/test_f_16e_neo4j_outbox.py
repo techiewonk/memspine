@@ -33,7 +33,7 @@ from memspine.services.graph.neo4j import CYPHER, Neo4jExecutor, Neo4jGraphStore
 
 NS = "acme/alice"
 NS2 = "acme/bram"
-COMPILED = "edge_compiler_v2"
+COMPILED = "edge_compiler"
 T0 = datetime(2026, 10, 13, tzinfo=UTC)
 
 LIVE_URL = os.environ.get("MEMSPINE_TEST_NEO4J_URL")
@@ -307,8 +307,8 @@ async def executor(request: pytest.FixtureRequest):
         await connector.close()
 
 
-def _store(ex: Neo4jExecutor, *, scoped: bool = False) -> Neo4jGraphStore:
-    return Neo4jGraphStore(ex, scoped=scoped)
+def _store(ex: Neo4jExecutor) -> Neo4jGraphStore:
+    return Neo4jGraphStore(ex)
 
 
 # --------------------------------------------------------------------------- adapter contract
@@ -358,17 +358,12 @@ async def test_delete_node_cascades_edges_and_drops_orphan_bare_nodes(
 
 
 async def test_scope_keys_keep_tenants_apart(executor: Neo4jExecutor) -> None:
-    scoped = _store(executor, scoped=True)
+    scoped = _store(executor)
     await scoped.upsert_edge("shared", "t", "related", {"weight": 1.0}, namespace=NS)
     await scoped.upsert_edge("shared", "t", "related", {"weight": 1.0}, namespace=NS2)
     assert await scoped.node_count() == 4  # two tenants, two copies of each node
     assert await scoped.edge_count() == 2
     assert [e.rel_type for e in await scoped.edge_list(NS)] == ["related"]
-    await scoped.clear()
-    unscoped = _store(executor, scoped=False)
-    await unscoped.upsert_edge("shared", "t", "related", {"weight": 1.0}, namespace=NS)
-    await unscoped.upsert_edge("shared", "t", "related", {"weight": 1.0}, namespace=NS2)
-    assert await unscoped.node_count() == 2 and await unscoped.edge_count() == 1
 
 
 async def test_prune_dead_removes_only_compiled_nodes_without_live_edges(
@@ -416,7 +411,6 @@ def _engine(*, scoped: bool = False) -> Engine:
         },
         read={"record_access": False},
         deployment={"id": "test-deployment"},
-        isolation={"scope_keys_v2": scoped},
     )
 
 
@@ -459,7 +453,7 @@ def _install_fake_neo4j(monkeypatch: pytest.MonkeyPatch, fake: FakeNeo4j) -> Non
 
     async def build(_settings: Any, ctx: Any) -> BuildResult[GraphStore]:
         ref = ctx.shared.resources.own(ctx.resource_id, fake.close)
-        store = Neo4jGraphStore(fake, scoped=True)
+        store = Neo4jGraphStore(fake)
 
         async def probe() -> bool:
             await store.node_count()
@@ -500,13 +494,15 @@ async def test_engine_projects_into_the_neo4j_graph_and_forget_removes_it(
     assert fake.closed
 
 
-async def test_scope_keys_flag_reaches_the_neo4j_store(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_namespace_keys_are_always_used_by_the_neo4j_store(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake = FakeNeo4j()
     _install_fake_neo4j(monkeypatch, fake)
     eng = _engine(scoped=True)
     await eng.start()
     try:
-        assert isinstance(eng._graph, Neo4jGraphStore) and eng._graph.scoped is True
+        assert isinstance(eng._graph, Neo4jGraphStore)
         await eng.write("Noor lives in Utrecht", namespace=NS, memory_type="semantic")
         assert all("\x1f" in key for key in fake.nodes)
     finally:

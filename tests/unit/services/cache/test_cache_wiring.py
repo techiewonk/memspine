@@ -26,6 +26,8 @@ def _engine(**cfg: object) -> Engine:
         "model": {"embedding": {"provider": "hash", "settings": {}}},
         "memories": {"semantic": {"enabled": True}},
     }
+    if "storage" in cfg:
+        cfg["storage"] = {**options["storage"], **cfg["storage"]}  # type: ignore[dict-item]
     options.update(cfg)
     return Engine(template="core", dotenv_path=None, **options)  # type: ignore[arg-type]
 

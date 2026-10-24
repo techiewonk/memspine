@@ -5,7 +5,7 @@ character ranges; Latin-script text by counting very common function words of a 
 set of languages. The answer is a lower-case ISO 639-1 code, and ``"en"`` whenever the
 evidence is thin: English is the default, so an undecided short line never switches on the
 same-language partial. The partial itself is :data:`SAME_LANGUAGE_PARTIAL`; it is injected by
-``Prompt.render`` for the v2 layout (``prompts.layout_v2``) when the code is not ``"en"``.
+``Prompt.render`` for the base layout (``prompts.layout``) when the code is not ``"en"``.
 """
 
 from __future__ import annotations

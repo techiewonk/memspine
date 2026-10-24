@@ -10,7 +10,7 @@ from memspine.core.event_date import happened_of, label_start, normalise_label
 from memspine.core.policies.consolidation import ConsolidationPolicy
 from memspine.derive.pipeline.stages.context import PipelineContext, _policy_options, live_records
 from memspine.derive.pipeline.stages.mining import _fact_date
-from memspine.derive.pipeline.stages.session_stage import _legacy_tag_check, _run_session_stage
+from memspine.derive.pipeline.stages.session_stage import _run_session_stage
 from memspine.models.encoders.query.shape import content_words
 from memspine.prompts.models import ExtractedFact
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -160,5 +160,4 @@ async def predict_calibrate(ctx: PipelineContext) -> dict[str, object]:
             written += 1
         return written, errors
 
-    legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"calibrated:{key}" in r.tags)
-    return await _run_session_stage(ctx, "predict_calibrate", "surprises", legacy, work)
+    return await _run_session_stage(ctx, "predict_calibrate", "surprises", work)

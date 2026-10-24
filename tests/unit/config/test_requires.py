@@ -132,31 +132,26 @@ def test_every_declared_key_exists() -> None:
 
 def test_the_registry_exposes_the_requirements() -> None:
     reg = flags.registry()
-    assert reg["write.temporal_v2"].requires == ("write.envelope_v2",)
-    assert reg["write.envelope_v2"].requires == (
+    assert reg["write.temporal"].requires == (
         "write.window_extract: 'facts' or 'facts_graph' or 'all'",
     )
-    assert reg["read.legs_v2"].requires == ()
+    assert "write.envelope" not in reg
+    assert "read.legs" not in reg
 
 
 def test_finding_1_dependencies_are_all_declared() -> None:
     for flag in (
-        "temporal_v2",
-        "integration_v2",
-        "grounding_v2",
-        "coverage_v2",
-        "resolver_v2",
-        "prompt_v2",
+        "temporal",
+        "integration",
+        "grounding",
+        "coverage",
+        "resolver",
     ):
-        assert [n.path for n in REQUIRES[f"write.{flag}"]] == ["write.envelope_v2"]
-    assert [n.path for n in REQUIRES["read.graph_leg_v2"]] == [
-        "read.legs_v2",
-        "graph.edge_compiler_v2",
-    ]
-    assert [n.path for n in REQUIRES["read.episode_leg_v2"]] == ["read.legs_v2"]
-    assert [n.path for n in REQUIRES["read.standing_v2"]] == ["offline.standing_v2"]
-    assert [n.path for n in REQUIRES["offline.profile_card_v2"]] == ["offline.session_close_v2"]
-    assert [n.path for n in REQUIRES["write.segmentation_v2"]] == ["write.window_extract"]
+        assert [n.path for n in REQUIRES[f"write.{flag}"]] == ["write.window_extract"]
+    assert "read.graph_leg" not in REQUIRES
+    assert [n.path for n in REQUIRES["read.standing"]] == ["offline.standing"]
+    assert [n.path for n in REQUIRES["offline.profile_card"]] == ["offline.session_close"]
+    assert "write.segmentation" not in REQUIRES
 
 
 def _cases() -> list[tuple[str, Need]]:
@@ -195,7 +190,7 @@ def test_each_requirement_raises_naming_the_missing_key_and_holds_when_met(
 #: "needs <flag>" rows of USAGE.md that are not flag prerequisites (extras, env, data, or
 #: behaviour that degrades safely), or that stay a comment for a stated reason.
 EXEMPT: dict[str, str] = {
-    "write.learned_persist": "persists kinds (envelope_v2) OR pre-pass aliases (prepass); either alone is valid",
+    "write.learned_persist": "persists kinds (envelope) OR pre-pass aliases (prepass); either alone is valid",
     "write.window_extract": "needs an LLM role; checked at engine start (D-10)",
     "read.asset_evidence": "already a root validator (_asset_keys_agree)",
     "read.core_terms_leg": "needs the lexical store; read.hybrid is on by default",
@@ -204,10 +199,10 @@ EXEMPT: dict[str, str] = {
     "firewall.hearsay_trust_cap": "needs a perspective policy; inert tags only, degrades safely",
     "read.perspective_as_of_subject": "needs an as-of read at call time, not a config switch",
     "read.completeness_check": "needs a bound sufficiency or plan role; falls back (completeness_unbound)",
-    "offline.budget_v2": "needs sleep_v2 only for the spend cap; the covers_seq stamping (O4-01b) works alone",
-    "read.freshness_v2": "stamps come from budget_v2 OR freshness_v2 itself (engine.py tracker); works alone",
-    "write.online_extractor_v2": "needs envelope_v2 only for the per-stage counters; the no-model skip works without",
-    "runtime.scheduler_v2": "needs workers.outbox only for its backpressure part; the micro-batched executors do not",
+    "offline.budget": "needs sleep only for the spend cap; the covers_seq stamping (O4-01b) works alone",
+    "read.freshness": "stamps come from budget OR freshness itself (engine.py tracker); works alone",
+    "write.online_extractor": "needs envelope only for the per-stage counters; the no-model skip works without",
+    "runtime.scheduler": "needs workers.outbox only for its backpressure part; the micro-batched executors do not",
 }
 
 

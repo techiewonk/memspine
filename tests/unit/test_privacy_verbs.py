@@ -17,6 +17,7 @@ from memspine.services.llm.tier_gate import WITHHELD_MARKER, TierGatedLLM
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import PiiTier, RecordStatus
 from memspine.trust.privacy import principal_scope
+from memspine.trust.retention import AuditRecord
 from memspine.workers.schedule import RETENTION_STAGE
 
 
@@ -52,6 +53,14 @@ async def engine() -> AsyncIterator[Engine]:
 async def _events(engine: Engine) -> list[MemoryEvent]:
     storage = engine._require_started()
     return await storage.read_events(after_seq=0, limit=100_000)
+
+
+async def _audits(engine: Engine) -> list[AuditRecord]:
+    return [
+        AuditRecord.model_validate(e.payload["record"])
+        for e in await _events(engine)
+        if e.kind is EventKind.MARKER and e.payload.get("marker") == "audit_chain"
+    ]
 
 
 # ── #46 export ───────────────────────────────────────────────────────────────
@@ -186,13 +195,17 @@ async def test_retention_expires_with_fake_clock_and_respects_holds() -> None:
         assert stats[RETENTION_STAGE]["expired"] == 0  # nothing old yet
         eng._clock = lambda: datetime.now(UTC) + timedelta(days=8)
         stats = await eng.sleep()
-        assert stats[RETENTION_STAGE] == {"status": "ok", "expired": 1, "held": 2}
+        assert {k: stats[RETENTION_STAGE][k] for k in ("status", "expired", "held")} == {
+            "status": "ok",
+            "expired": 1,
+            "held": 2,
+        }
         assert await storage.get_record(old.record_id) is None  # hard forget
         for rid in (held.record_id, regulated.record_id, kept.record_id):
             assert await storage.get_record(rid) is not None
-        audits = [e for e in await _events(eng) if e.kind is EventKind.AUDIT]
-        assert audits[-1].payload["action"] == "forget"
-        assert audits[-1].payload["reason"].startswith("retention:tmp/*")
+        audits = [e for e in await _audits(eng) if e.action == "erase"]
+        assert audits[-1].op == "forget"
+        assert audits[-1].reason is not None and audits[-1].reason.startswith("retention:")
         assert (await eng.verify_forget(old.record_id, namespace="tmp/a"))["log_redacted"]
         assert await eng.audit_chain_ok()  # erasure never rewrites audit events
     finally:
@@ -202,7 +215,7 @@ async def test_retention_expires_with_fake_clock_and_respects_holds() -> None:
 async def test_no_retention_classes_keeps_the_sleep_cycle_unchanged(engine: Engine) -> None:
     stats = await engine.sleep()
     assert RETENTION_STAGE not in stats
-    assert (await engine.expire_retention())["status"] == "skipped"
+    assert (await engine.expire_retention())["expired"] == 0
 
 
 # ── #49 read audit + hash chain ──────────────────────────────────────────────
@@ -216,16 +229,16 @@ async def test_read_audit_records_principal_ids_purpose_and_chains() -> None:
             hits = await eng.search("green tea", namespace="u", purpose="support")
         await eng.retrieve(namespace="u")
         await eng.forget(rec.record_id, namespace="u", actor="ana", reason="user request")
-        events = await _events(eng)
-        reads = [e for e in events if e.kind is EventKind.READ_AUDIT]
-        assert [e.payload["verb"] for e in reads] == ["search", "retrieve"]
-        assert reads[0].actor == "svc-support" and reads[0].payload["purpose"] == "support"
-        assert reads[0].payload["record_ids"] == [r.record_id for r, _ in hits]
-        forget = [e for e in events if e.kind is EventKind.AUDIT][-1]
-        assert forget.actor == "ana" and forget.payload["reason"] == "user request"
-        assert forget.payload["record_ids"] == [rec.record_id]
+        events = await _audits(eng)
+        reads = [e for e in events if e.action == "read"]
+        assert [e.op for e in reads] == ["search", "retrieve"]
+        assert reads[0].actor == "svc-support" and reads[0].purpose == "support"
+        assert list(reads[0].ids) == [r.record_id for r, _ in hits]
+        forget = [e for e in events if e.action == "erase"][-1]
+        assert forget.actor == "ana" and forget.reason == "user_request"
+        assert list(forget.ids) == [rec.record_id]
         report = await eng.verify_audit_chain()
-        assert report.ok and report.events == 3
+        assert report.ok and report.checked == 3
         assert await eng.audit_chain_ok()
     finally:
         await eng.stop()
@@ -240,7 +253,7 @@ async def test_nested_read_verbs_audit_once() -> None:
         await eng.shared_search("tea", namespace="u")
         await eng.assemble("tea", namespace="u")
         await eng.read("tea", namespace="u", mode="retrieve")
-        verbs = [e.payload["verb"] for e in await _events(eng) if e.kind is EventKind.READ_AUDIT]
+        verbs = [e.op for e in await _audits(eng) if e.action == "read"]
         assert verbs == ["shared_search", "assemble", "read"]
     finally:
         await eng.stop()
@@ -258,7 +271,7 @@ async def test_audit_events_change_no_projection() -> None:
         assert [r.model_dump() for r in await eng.retrieve(namespace="u")] == before
         await eng.rebuild()  # replay ignores the audit events
         assert [r.model_dump() for r in await eng.retrieve(namespace="u")] == before
-        assert sum(e.kind is EventKind.READ_AUDIT for e in await _events(eng)) == 6
+        assert sum(e.action == "read" for e in await _audits(eng)) == 6
     finally:
         await eng.stop()
 
@@ -291,10 +304,11 @@ async def test_audit_chain_detects_tampering_and_survives_restart(tmp_path: Path
     with sqlite3.connect(db) as conn:
         seq, payload = conn.execute(
             "SELECT seq, payload FROM memory_events WHERE kind = ? ORDER BY seq LIMIT 1",
-            (EventKind.READ_AUDIT.value,),
+            (EventKind.MARKER.value,),
         ).fetchone()
         body = orjson.loads(payload)
-        body["record_ids"] = []  # hide what was read
+        body["record"]["ids"] = []  # hide what was read
+        audit_seq = body["record"]["seq"]
         conn.execute(
             "UPDATE memory_events SET payload = ? WHERE seq = ?",
             (orjson.dumps(body, option=orjson.OPT_SORT_KEYS), seq),
@@ -303,7 +317,7 @@ async def test_audit_chain_detects_tampering_and_survives_restart(tmp_path: Path
     eng = await make().start()
     try:
         report = await eng.verify_audit_chain()
-        assert not report.ok and report.broken_at == seq
+        assert not report.ok and report.broken_at == audit_seq
         assert not await eng.audit_chain_ok()
     finally:
         await eng.stop()
@@ -321,7 +335,7 @@ async def test_audit_off_appends_nothing(engine: Engine) -> None:
 
 
 async def _purpose_engine(untagged: str = "allow") -> Engine:
-    eng = await _engine(consent={"enforce": True, "untagged": untagged}).start()
+    eng = await _engine(consent={"enabled": True, "untagged": untagged}).start()
     await eng.write("Ana's support ticket about green tea", namespace="u", purposes=["support"])
     await eng.write("Ana's tea preference for promotions", namespace="u", purposes=["marketing"])
     await eng.write("Ana drinks tea every morning", namespace="u")

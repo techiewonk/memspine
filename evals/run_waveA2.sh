@@ -4,7 +4,7 @@
 cd "D:/mem/memory research/memspine/evals"
 until grep -q "written:" runs/_logs/v32f-wA-local-n64-query-instruction.log 2>/dev/null \
    || grep -q "Traceback" runs/_logs/v32f-wA-local-n64-query-instruction.log 2>/dev/null; do sleep 120; done
-source <(sed -n '/^FROZEN=/,/^}/p' run_v32_chain.sh)
+source <(sed -n '/^FROZEN=/,/^}/p' run_chain.sh)
 FROZEN="D:/mem/memory research/_wt_screens_b/src"
 L="locomo data/locomo10.json"
 for arm in local-temporal-leg local-n58-english-bm25 local-n45-infer-year local-n61-overlap-rank local-n44-soft; do

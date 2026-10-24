@@ -11,7 +11,6 @@ from memspine.providers.registry import (
     ProviderDescriptor,
     ProviderRegistryError,
     get_registry,
-    renamed_provider_message,
     requirements_available,
 )
 
@@ -51,9 +50,6 @@ def select_provider(
     registry = get_registry(kind)
     if configured_name != "auto":
         selected = registry.find(configured_name)
-        renamed = renamed_provider_message(kind, configured_name)
-        if not isinstance(selected, ProviderDescriptor) and renamed is not None:
-            raise ProviderSelectionError(renamed)
         if not isinstance(selected, ProviderDescriptor):
             raise ProviderSelectionError(
                 f"unknown {category} provider {configured_name!r} (valid: {', '.join(registry.names())})"

@@ -11,9 +11,10 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Iterator
 
 import pytest
+import pytest_asyncio
 
 from memspine.clients.sqlite import SQLiteClient
 
@@ -88,18 +89,9 @@ def _scrub_memspine_env(monkeypatch: pytest.MonkeyPatch) -> None:
             monkeypatch.delenv(key, raising=False)
 
 
-@pytest.fixture(autouse=True)
-async def _close_orphan_sqlite_clients(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[None]:
-    """Guarantee every ``SQLiteClient`` that opens during a test is closed.
-
-    Many test helpers build a ``:memory:`` client + storage and never close it;
-    the client's checked-out keep-alive anchor connection is then garbage-
-    collected while still checked out, which SQLAlchemy reports as an
-    *unraisable* ``SAWarning`` — and pytest turns any unraisable into a failure,
-    blaming whichever unrelated test happened to trigger the GC. Tracking and
-    closing here makes teardown deterministic. ``close()`` is idempotent, so
-    tests that already close their engine/client are unaffected.
-    """
+@pytest.fixture
+def _tracked_sqlite_clients(monkeypatch: pytest.MonkeyPatch) -> list[SQLiteClient]:
+    """Track opened clients without allocating an event loop for pure tests."""
     connected: list[SQLiteClient] = []
     original_open = SQLiteClient.open
 
@@ -108,6 +100,39 @@ async def _close_orphan_sqlite_clients(monkeypatch: pytest.MonkeyPatch) -> Async
         connected.append(self)
 
     monkeypatch.setattr(SQLiteClient, "open", _tracking_open)
+    return connected
+
+
+@pytest.fixture
+async def _close_sqlite_clients_async(
+    _tracked_sqlite_clients: list[SQLiteClient],
+) -> AsyncIterator[None]:
     yield
-    for client in connected:
+    for client in _tracked_sqlite_clients:
         await client.close()
+
+
+@pytest.fixture(autouse=True)
+def _close_orphan_sqlite_clients(
+    request: pytest.FixtureRequest,
+    _tracked_sqlite_clients: list[SQLiteClient],
+) -> Iterator[None]:
+    """Close orphan clients while keeping synchronous tests free of asyncio runners.
+
+    Creating a Windows Proactor loop also creates a socket pair. An async autouse
+    fixture forced one even for thousands of pure policy/parser cases, exhausting
+    socket buffers during the full suite. Async tests retain their scoped runner;
+    synchronous tests need a cleanup loop only when they actually opened a client.
+    """
+    if pytest_asyncio.is_async_test(request.node):
+        request.getfixturevalue("_close_sqlite_clients_async")
+        yield
+        return
+    yield
+    if _tracked_sqlite_clients:
+
+        async def close_clients() -> None:
+            for client in _tracked_sqlite_clients:
+                await client.close()
+
+        asyncio.run(close_clients())

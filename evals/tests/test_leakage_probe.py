@@ -30,12 +30,20 @@ async def test_report_aggregates_and_flags_a_leak() -> None:
     assert bad.leaked and bad.to_dict()["severity"] == "P0" and bad.results[0].leak_rate == 0.25
 
 
-async def test_probe_exercises_the_list_bridge_session_and_rerank_paths() -> None:
+async def test_probe_exercises_the_list_bridge_session_and_rerank_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Guards against a vacuous pass: the legs the probe claims to cover really ran."""
     from memspine_evals import leakage as lk
 
     from memspine.observability.trace import search_forensics
+    from memspine.read.list_trigger import ListSignal
 
+    # Exercise downstream list legs independently of the hash embedder's score profile.
+    # The real signal remains covered by the normal probes and list-trigger unit tests.
+    monkeypatch.setattr(
+        "memspine.read.list_trigger.list_signal", lambda *args, **kwargs: ListSignal(True, 1.0, {})
+    )
     lk._register_reranker()
     eng = lk._make_engine(CONFIGS["rerank_bridge_list"])
     await eng.start()

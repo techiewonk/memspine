@@ -138,17 +138,9 @@ class _Extract:
         )
 
 
-@pytest.mark.parametrize(
-    ("options", "variant"),
-    [
-        ({"mine_multiview": True}, "session4"),
-        ({"mine_multiview": True, "mine_prompt": "session3"}, "session3"),
-        ({"mine_prompt": "session4"}, "session4"),
-        ({}, "session"),
-    ],
-)
-async def test_miner_prompt_variant(
-    monkeypatch: pytest.MonkeyPatch, options: dict[str, Any], variant: str
+@pytest.mark.parametrize("options", [{"mine_multiview": True}, {}])
+async def test_base_miner_prompt_supports_optional_multiview(
+    monkeypatch: pytest.MonkeyPatch, options: dict[str, Any]
 ) -> None:
     stub = _Extract()
     stubs: dict[str, LLMService] = {"extract": stub}
@@ -165,7 +157,7 @@ async def test_miner_prompt_variant(
         await _write_session(eng)
         await eng.sleep()
         [system] = stub.systems
-        assert ("(9) views:" in system) is (variant == "session4")
+        assert "(9) views:" in system
         fact = await _mined(eng)
         if options.get("mine_multiview"):
             # Parsed through the guards: the placeholder person and location are gone.
@@ -178,12 +170,10 @@ async def test_miner_prompt_variant(
         await eng.stop()
 
 
-def test_session4_prompt_is_a_new_variant() -> None:
-    registry = PromptRegistry()
-    v4 = registry.select("extract", condition="session4")
-    assert (v4.id, v4.version, v4.token_budget) == ("extract@session4", 5, 4096)
-    assert registry.select("extract", condition="session3").id == "extract@session3"
-    system = v4.render({"content": "x"})[0]["content"]
+def test_base_session_prompt_contains_current_view_fields() -> None:
+    prompt = PromptRegistry().select("extract", condition="session")
+    assert prompt.id == "extract@session" and prompt.token_budget == 4096
+    system = prompt.render({"content": "x"})[0]["content"]
     assert "`persons`" in system and "`location`" in system and "`topic`" in system
 
 

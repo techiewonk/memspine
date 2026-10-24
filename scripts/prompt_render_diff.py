@@ -1,4 +1,4 @@
-"""W2-07 render-diff report: ``prompts.layout_v2`` off vs on, per prompt and per language.
+"""W2-07 render-diff report: ``prompts.layout`` off vs on, per prompt and per language.
 
 Model-free. For each prompt the layout-v2 pack replaces, renders the v1 prompt and the v2
 prompt over the canonical English context and prints a unified diff of the system and user
@@ -11,7 +11,7 @@ from __future__ import annotations
 import difflib
 import sys
 
-from memspine.prompts.loader import load_v2_pack
+from memspine.prompts.loader import load_pack
 from memspine.prompts.registry import PromptRegistry
 
 EN = "[1] [2024-03-02] Ilse: Bram and I went hiking last Friday.\n[2] [2024-03-02] Bram: I hope to visit Noor next month."
@@ -41,8 +41,8 @@ def words(msgs: list[dict[str, str]]) -> int:
 
 
 def main(full: bool) -> None:
-    off, on = PromptRegistry(), PromptRegistry(layout_v2=True)
-    for new in load_v2_pack():
+    off, on = PromptRegistry(), PromptRegistry(layout=True)
+    for new in load_pack():
         pid = new.id
         a, b = off.get(pid).render(ctx(pid, EN)), on.get(pid).render(ctx(pid, EN))
         print(

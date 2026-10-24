@@ -123,7 +123,7 @@ _DATE_ONLY = re.compile(r"^\s*\d{4}-\d{2}-\d{2}\s*$")
 def stamp_source_time(turn: Turn, parsed: datetime | None) -> Any:
     """The value the stamping stage reads as the message's source time.
 
-    A date-only stamp ("2024-03-02") is passed as the original string so ``write.stamping_v2`` keeps
+    A date-only stamp ("2024-03-02") is passed as the original string so ``write.stamping`` keeps
     ``precision=day``; the parsed datetime (midnight) would read as an exact instant
     (``precision=second``). Anything with a time of day passes the parsed datetime."""
     raw = turn.timestamp
@@ -602,6 +602,12 @@ class MemspineSystem:
             message = {"role": role, "content": text}
             if who:
                 message["speaker"] = who
+        # Dataset identities are stable across batching and fresh evaluation runs.
+        # A conversation belongs to one session in the canonical intake contract.
+        message["message_id"] = turn.turn_id
+        message["conversation_id"] = (
+            f"{getattr(self, '_item_id', self.namespace)}:{turn.session_id}"
+        )
         # E04: with ``ingest.assets: on`` the turn's attachment identity (original URI, source
         # caption, source turn id) goes to the engine; otherwise the message is as before.
         attachments = turn.meta.get("attachments") if turn.meta else None
@@ -635,7 +641,7 @@ class MemspineSystem:
             one: dict[str, Any] = self._message(turns[0], texts[0])
             stamp = parse_turn_stamp(turns[0], self._zone)
             if stamp is not None:
-                # the stamping stage (write.stamping_v2) reads the source time from the message, as in the
+                # the stamping stage (write.stamping) reads the source time from the message, as in the
                 # batch path below; valid_from alone left single-turn writes undated (precision unknown)
                 one["timestamp"] = stamp_source_time(turns[0], stamp)
             records = await self._engine.ingest_messages(
@@ -799,7 +805,7 @@ class MemspineSystem:
         return DepositResult(model_calls=after - before + flushed.model_calls, meta=meta)
 
     async def _close_sessions(self) -> dict[str, Any]:
-        """FX-EVAL: with ``offline.session_close_v2`` on, fire the session-close stage (call 2:
+        """FX-EVAL: with ``offline.session_close`` on, fire the session-close stage (call 2:
         summary, L2 episodes, profile ops) once per ingested session, before the build sleep.
 
         The eval adapter never ran it: the stage is not in the sleep cycle and only the window
@@ -808,7 +814,7 @@ class MemspineSystem:
         idempotent (a done marker per session), so a repeat is a cheap no-op. A failure is
         recorded, never raised: the model is an enhancer."""
         offline = self.config.get("offline") or {}
-        if self._engine is None or not offline.get("session_close_v2") or self._windows_on():
+        if self._engine is None or not offline.get("session_close") or self._windows_on():
             return {}
         close = getattr(self._engine, "close_session", None)
         if not callable(close):
@@ -824,7 +830,7 @@ class MemspineSystem:
 
     @staticmethod
     async def _await_sleep(result: Any) -> dict[str, Any]:
-        """FX-EVAL: ``offline.sleep_v2`` makes ``sleep()`` return a ``SleepHandle`` at once; wait
+        """FX-EVAL: ``offline.sleep`` makes ``sleep()`` return a ``SleepHandle`` at once; wait
         for the cycle and use its stage stats. A plain stats dict passes through."""
         wait = getattr(result, "wait", None)
         if callable(wait) and not isinstance(result, dict):
@@ -864,7 +870,7 @@ class MemspineSystem:
             meta["engine_prompts"] = engine_prompts
         from ..cost import cost_block
 
-        write_cost = cost_block(self._engine, self.namespace)  # W2-12: {} unless economy.ledger_v2
+        write_cost = cost_block(self._engine, self.namespace)  # W2-12: {} unless economy.ledger
         if write_cost:
             meta["write_cost"] = write_cost
         self._write_window_log(stats, final=final)

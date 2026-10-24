@@ -23,49 +23,164 @@ J_BASE = "scr-pool-protect-jina"  # the reference arm behind f-jref2-i2
 GC_BASE = "scr-gc3-graph-jina"  # S02
 WF_BASE = "scr-gc3-windowfacts"  # S43: gc3 + write.window_extract=facts
 ROLE = {
-    "model": "ollama/qwen3.5:9b",
-    "api_base": "http://127.0.0.1:11434",
-    "timeout_seconds": 180.0,
-    "no_think": True,
+    "provider": "ollama",
+    "timeout_s": 180.0,
+    "settings": {"model": "qwen3.5:9b", "base_url": "http://127.0.0.1:11434", "no_think": True},
 }
 #: R3-12: one sufficiency check, at most one rewrite and one extra retrieval; without a bound role the deep tier
 #: is rules-only and logs ``agentic_unbound`` (audit finding 4)
-SUFF = {"llm": {"roles": {"sufficiency": ROLE}}}
+SUFF = {
+    "model": {
+        "llm": {
+            "sufficiency": {
+                "provider": "ollama",
+                "timeout_s": 180.0,
+                "settings": {
+                    "model": "qwen3.5:9b",
+                    "base_url": "http://127.0.0.1:11434",
+                    "no_think": True,
+                },
+            }
+        }
+    }
+}
 #: a quarter of the 4096-token cap stays for the evidence: the reply reserve takes the other three quarters, so
 #: the budget binds (audit finding 6; the arms use candidate_pool 2 / rerank_keep 10 / list_mode)
 TIGHT = {"read": {"reply_reserve_tokens": 3072}}
 
 #: name -> (base arm, overlay). Arm file = scr-b7-<name>.json
-B7: dict[str, tuple[str, dict]] = {
-    # S17 re-armed: a reference and an arm that share the tight budget; only exact_budget differs
-    "tightbudget": (J_BASE, TIGHT),
-    # read.reader_tokenizer stays unset: the reader is qwen3.5:9b and no Qwen3.5 tokenizer is in the local HF cache
-    # (checked 2026-10-13; Qwen3 snapshots only, a different vocabulary). exact_budget therefore counts with the
-    # labelled chars/4 estimate (accounting=estimated) and the gain is skip-and-continue + header counting.
-    # To make it exact: cache the tokenizer once, then add "reader_tokenizer": "hf:<repo>" to S52 and S53 here.
-    "exactbudget": (J_BASE, {"read": {"reply_reserve_tokens": 3072, "exact_budget": True}}),
-    # S18 re-armed on mined facts with source turns (window facts), where a bundle is more than the fact itself
-    "bundles": (WF_BASE, {"read": {"evidence_bundles": True}}),
-    # S21 / S22 re-armed with the sufficiency role bound (deep_v2 needs it; obligations feed the rule check)
-    "deep": (J_BASE, {"read": {"gate_v2": True, "deep_v2": True}, **SUFF}),
-    "obligations": (
-        J_BASE,
-        {"read": {"gate_v2": True, "deep_v2": True, "obligations": True}, **SUFF},
+B7 = {
+    "tightbudget": ("scr-pool-protect-jina", {"read": {"reply_reserve_tokens": 3072}}),
+    "exactbudget": (
+        "scr-pool-protect-jina",
+        {"read": {"reply_reserve_tokens": 3072, "exact_budget": True}},
     ),
-    # S24 prepared, row skipped: needs an as-of question set (see SCREENS.md); contract_rules emits the time view
-    "timeview": (J_BASE, {"read": {"contract_rules": True, "timeview_v2": True}}),
+    "bundles": ("scr-gc3-windowfacts", {"read": {"evidence_bundles": True}}),
+    "deep": (
+        "scr-pool-protect-jina",
+        {
+            "read": {"gate": True, "deep": True},
+            "model": {
+                "llm": {
+                    "sufficiency": {
+                        "provider": "ollama",
+                        "timeout_s": 180.0,
+                        "settings": {
+                            "model": "qwen3.5:9b",
+                            "base_url": "http://127.0.0.1:11434",
+                            "no_think": True,
+                        },
+                    }
+                }
+            },
+        },
+    ),
+    "obligations": (
+        "scr-pool-protect-jina",
+        {
+            "read": {"gate": True, "deep": True, "obligations": True},
+            "model": {
+                "llm": {
+                    "sufficiency": {
+                        "provider": "ollama",
+                        "timeout_s": 180.0,
+                        "settings": {
+                            "model": "qwen3.5:9b",
+                            "base_url": "http://127.0.0.1:11434",
+                            "no_think": True,
+                        },
+                    }
+                }
+            },
+        },
+    ),
+    "timeview": ("scr-pool-protect-jina", {"read": {"contract_rules": True}}),
 }
 
 #: B8 profile -> (base arm, extra overlay on top of the preset: roles and eval determinism the preset cannot carry)
-B8: dict[str, dict] = {
-    "read-v2-core": {},
-    # FX-EVAL: summarize feeds communities_v2 summaries (extractive without it)
-    "read-v2-graph": {"llm": {"roles": {"session_close": ROLE, "summarize": ROLE}}},
-    "write-v2": {"write": {"window_async": False}, "llm": {"roles": {"window_extract": ROLE}}},
-    "read-v2-safe": SUFF,
-    "offline-v2": {"llm": {"roles": {"session_close": ROLE, "summarize": ROLE}}},
-    "trust-v2": {},
-    "run-v2": {},
+B8 = {
+    "read-core": {},
+    "read-graph": {
+        "model": {
+            "llm": {
+                "session_close": {
+                    "provider": "ollama",
+                    "timeout_s": 180.0,
+                    "settings": {
+                        "model": "qwen3.5:9b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "no_think": True,
+                    },
+                },
+                "summarize": {
+                    "provider": "ollama",
+                    "timeout_s": 180.0,
+                    "settings": {
+                        "model": "qwen3.5:9b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "no_think": True,
+                    },
+                },
+            }
+        }
+    },
+    "write": {
+        "write": {"window_async": False},
+        "model": {
+            "llm": {
+                "window_extract": {
+                    "provider": "ollama",
+                    "timeout_s": 180.0,
+                    "settings": {
+                        "model": "qwen3.5:9b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "no_think": True,
+                    },
+                }
+            }
+        },
+    },
+    "read-safe": {
+        "model": {
+            "llm": {
+                "sufficiency": {
+                    "provider": "ollama",
+                    "timeout_s": 180.0,
+                    "settings": {
+                        "model": "qwen3.5:9b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "no_think": True,
+                    },
+                }
+            }
+        }
+    },
+    "offline": {
+        "model": {
+            "llm": {
+                "session_close": {
+                    "provider": "ollama",
+                    "timeout_s": 180.0,
+                    "settings": {
+                        "model": "qwen3.5:9b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "no_think": True,
+                    },
+                },
+                "summarize": {
+                    "provider": "ollama",
+                    "timeout_s": 180.0,
+                    "settings": {
+                        "model": "qwen3.5:9b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "no_think": True,
+                    },
+                },
+            }
+        }
+    },
+    "trust": {},
+    "run": {},
 }
 
 

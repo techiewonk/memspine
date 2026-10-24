@@ -457,9 +457,9 @@ class VersionedSpaceStore:
 
 
 def derivation_digest(model_id: str | None, prompt_hash: str | None) -> str:
-    """The derivation fingerprint of (model, prompt); ``legacy`` when neither is known."""
+    """The derivation fingerprint of (model, prompt); ``unstamped`` when neither is known."""
     if model_id is None and prompt_hash is None:
-        return "legacy"
+        return "unstamped"
     return fingerprint_payload({"model": model_id or "", "prompt": prompt_hash or ""})
 
 
@@ -485,7 +485,7 @@ def stale_derivations(
     """Derived records (layer above L0) whose derivation differs from the current extractor.
 
     A record's derivation is its ``fingerprint.derivation`` or, when unset, the digest of its
-    ``fingerprint.model_id`` / ``prompt_hash``. A record with neither is ``legacy`` and stale.
+    ``fingerprint.model_id`` / ``prompt_hash``. A record with neither is ``unstamped`` and stale.
     """
     current = derivation_digest(current_model_id, current_prompt_hash)
     ids: list[str] = []
@@ -503,8 +503,8 @@ def stale_derivations(
         if mine == current:
             continue
         ids.append(rec.record_id)
-        models[fp.model_id or "legacy"] += 1
-        prompts[fp.prompt_hash or "legacy"] += 1
+        models[fp.model_id or "unstamped"] += 1
+        prompts[fp.prompt_hash or "unstamped"] += 1
     report = StaleReport(namespace, total, tuple(ids), dict(models), dict(prompts))
     tap.event(
         "job.rederive.plan",

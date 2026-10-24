@@ -162,9 +162,6 @@ class C01Config:
     #: C10: with ``retry_refusal``, skip the retry when the question names an entity the
     #: retrieved context never mentions (``refusal.names_absent_entity``). Off: unchanged.
     retry_guard: bool = False
-    #: I1: wording of the retry instruction, ``neutral`` (default; never claims evidence
-    #: exists) or ``assertive`` (the original firmer wording, to reproduce earlier runs).
-    retry_mode: str = "neutral"
     #: I1: safety valve; accept the retry answer only when it shares a content word with the
     #: retrieved context. Off: unchanged.
     retry_overlap: bool = False
@@ -174,9 +171,6 @@ class C01Config:
     #: instead of confirming or refusing (``premise.py``). Trades against abstention: screen
     #: it with the cat-5 guard slice before adopting.
     premise_tolerant: bool = False
-    #: I22: ``whole`` (default) = a refusal only when the whole answer is a refusal statement;
-    #: ``legacy`` = the original substring regexes (reproduces runs before 2026-10-10).
-    refusal_match: str = "whole"
     #: I29: a dedicated reader prompt when the retrieved context is empty (the relevance gate
     #: or abstention fired): answer from the question alone. Off: the QA prompt is rendered.
     no_memory_prompt: bool = False
@@ -198,12 +192,6 @@ class C01Config:
     #: I58: record, next to the unchanged LLM verdict, the verdict under the deterministic
     #: conventions (numeral, typo, list superset): two columns, ``score`` never changes.
     judge_conventions: bool = False
-    #: I77: the v2 rules (date format, unit, ordinal, alias) as a third column,
-    #: ``score_conventions_v2``; ``score`` and ``score_conventions`` never change.
-    judge_conventions_v2: bool = False
-    #: R14-M-17: the v3 rules (scoped-negation list, containment, geography, relative year) as a
-    #: further column, ``score_conventions_v3``; the other columns never change.
-    judge_conventions_v3: bool = False
     #: I56: enumerate-then-count for count questions: "" (off), ``two_call`` (+1 call on count
     #: questions) or ``single`` (list then count in one call). See ``count_verify.py``.
     count_verify: str = ""
@@ -477,36 +465,24 @@ def check_dollar_cap(config: C01Config) -> None:
 def inference_gated(config: C01Config) -> bool:
     """R14-M-9: the engine overlay sets ``read.inference_mode = gated``."""
     read = (memspine_engine_config(config) or {}).get("read") or {}
-    return read.get("inference_mode", "off") in ("gated", "gated_v2")
-
-
-def inference_gated_v2(config: C01Config) -> bool:
-    """R14-INFER2: the engine overlay sets ``read.inference_mode = gated_v2`` (widened shape)."""
-    read = (memspine_engine_config(config) or {}).get("read") or {}
-    return read.get("inference_mode", "off") == "gated_v2"
+    return read.get("inference_mode", "off") == "gated"
 
 
 def _retry_decider_kwargs(config: C01Config) -> dict[str, Any]:
     """I28: ``RefusalRetryReader`` kwargs for ``--decider`` (none for the default heuristic)."""
     guard: dict[str, Any] = {"guard_absent_entity": True} if config.retry_guard else {}
     if inference_gated(config):
-        from .readers import is_inference_question, is_inference_question_v2
+        from .readers import is_inference_question
 
-        guard["inference_gate"] = (
-            is_inference_question_v2 if inference_gated_v2(config) else is_inference_question
-        )
-    if config.retry_mode != "neutral":
-        guard["mode"] = config.retry_mode
+        guard["inference_gate"] = is_inference_question
     if config.retry_overlap:
         guard["require_context_overlap"] = True
-    match = {"refusal_match": config.refusal_match} if config.refusal_match != "whole" else {}
     if config.decider == "heuristic":
-        return {**guard, **match}
+        return guard
     from memspine.providers.decider import build_decider
 
     return {
         **guard,
-        **match,
         "decider": build_decider(
             config.decider,
             config.decider_model,
@@ -627,16 +603,8 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
                 date_check=config.judge_date_check,
                 empty_guard=config.judge_guards,
                 conventions=config.judge_conventions,
-                conventions_v2=config.judge_conventions_v2,
-                conventions_v3=config.judge_conventions_v3,
             )
-            if (
-                config.judge_guards
-                or config.judge_date_check
-                or config.judge_conventions
-                or config.judge_conventions_v2
-                or config.judge_conventions_v3
-            )
+            if (config.judge_guards or config.judge_date_check or config.judge_conventions)
             else AliasContainsJudge()
         )
     if config.judge_prompt == "opbench":
@@ -654,20 +622,12 @@ def build_judge(config: C01Config, chat: Any, model: str, judge_id: str | None =
     judge = RoutedLLMJudge(chat, model=model, suite=suite, judge_id=judge_id)
     if judge.spec.prompt_hash == sha256_text(DEFAULT_BINARY_PROMPT):  # pragma: no cover
         raise ValueError("the default binary judge prompt is not allowed in QA mode")
-    if (
-        config.judge_guards
-        or config.judge_date_check
-        or config.judge_conventions
-        or config.judge_conventions_v2
-        or config.judge_conventions_v3
-    ):
+    if config.judge_guards or config.judge_date_check or config.judge_conventions:
         return GuardedJudge(
             judge,
             date_check=config.judge_date_check,
             empty_guard=config.judge_guards,
             conventions=config.judge_conventions,
-            conventions_v2=config.judge_conventions_v2,
-            conventions_v3=config.judge_conventions_v3,
         )
     return judge
 
@@ -715,13 +675,11 @@ def build_reader_and_judge(config: C01Config) -> tuple[Reader, Judge, bool]:
     if inference_gated(config):  # R14-M-9: commit clause for inference questions only
         if not isinstance(qa_prompt, str):
             raise ValueError(
-                "read.inference_mode=gated / gated_v2 needs a fixed --qa-prompt (not routed / system)"
+                "read.inference_mode=gated needs a fixed --qa-prompt (not routed / system)"
             )
         from .readers import gated_inference_prompt
 
-        qa_prompt = gated_inference_prompt(
-            qa_prompt, config.qa_prompt, v2=inference_gated_v2(config)
-        )
+        qa_prompt = gated_inference_prompt(qa_prompt, config.qa_prompt)
     # #34: a reasoning prompt's reader keeps the final answer and gets room to reason.
     reasoning = config.qa_prompt in REASONING_QA_PROMPTS
     if config.bedrock:
@@ -1057,33 +1015,37 @@ async def run_c0_1(
             **({"verify_answer": True} if config.verify_answer else {}),
             **({"retry_refusal": True} if config.retry_refusal else {}),
             **({"retry_guard": True} if config.retry_guard else {}),
-            **({"retry_mode": config.retry_mode} if config.retry_mode != "neutral" else {}),
             **({"retry_overlap": True} if config.retry_overlap else {}),
             **({"no_record_hint": True} if config.no_record_hint else {}),
             **({"premise_tolerant": True} if config.premise_tolerant else {}),
-            **({"refusal_match": config.refusal_match} if config.refusal_match != "whole" else {}),
             **({"no_memory_prompt": True} if config.no_memory_prompt else {}),
             **({"stamp_timezone": config.stamp_timezone} if config.stamp_timezone != "UTC" else {}),
             **({"decider": config.decider} if config.decider != "heuristic" else {}),
             **({"judge_guards": True} if config.judge_guards else {}),
-            **({"judge_conventions": "conventions/v1"} if config.judge_conventions else {}),
-            **({"judge_conventions_v2": "conventions/v2"} if config.judge_conventions_v2 else {}),
-            **({"judge_conventions_v3": "conventions/v3"} if config.judge_conventions_v3 else {}),
+            **({"judge_conventions": "conventions"} if config.judge_conventions else {}),
             **({"count_verify": config.count_verify} if config.count_verify else {}),
-            **({"date_repair": "v1"} if config.date_repair else {}),
-            **({"duration_solve": f"v1/{config.duration_solve}"} if config.duration_solve else {}),
+            **({"date_repair": "date_repair"} if config.date_repair else {}),
+            **(
+                {"duration_solve": f"duration_solve/{config.duration_solve}"}
+                if config.duration_solve
+                else {}
+            ),
             **(
                 {
-                    "milestones": f"v1/{config.milestones}"
+                    "milestones": f"milestones/{config.milestones}"
                     + ("/inclusive" if config.milestones_inclusive else "")
                 }
                 if config.milestones
                 else {}
             ),
-            **({"verify_slots": f"v1/{config.verify_slots}"} if config.verify_slots else {}),
-            **({"evidence_table": "v1"} if config.evidence_table else {}),
             **(
-                {"assertion_check": f"v1/{config.assertion_check}"}
+                {"verify_slots": f"verify_slots/{config.verify_slots}"}
+                if config.verify_slots
+                else {}
+            ),
+            **({"evidence_table": "evidence_table"} if config.evidence_table else {}),
+            **(
+                {"assertion_check": f"assertion_check/{config.assertion_check}"}
                 if config.assertion_check
                 else {}
             ),

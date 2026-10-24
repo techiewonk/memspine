@@ -31,7 +31,7 @@ def test_flags_off_order_unchanged() -> None:
 
 @pytest.mark.parametrize(
     "offline",
-    [{"patterns_v2": True}, {"standing_v2": True}, {"patterns_v2": True, "standing_v2": True}],
+    [{"patterns": True}, {"standing": True}, {"patterns": True, "standing": True}],
 )
 def test_after_extract_graph(offline: dict[str, object]) -> None:
     order = _order(**offline)
@@ -42,7 +42,7 @@ def test_after_extract_graph(offline: dict[str, object]) -> None:
 
 
 def test_after_reconcile_and_histories_and_in_order() -> None:
-    order = _order(patterns_v2=True, standing_v2=True, reconcile_v2=True, histories_v2=True)
+    order = _order(patterns=True, standing=True, reconcile=True, histories=True)
     assert (
         order.index("histories")
         < order.index("pattern_observations")

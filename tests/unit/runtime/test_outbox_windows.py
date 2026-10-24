@@ -57,7 +57,15 @@ async def _engine(
             },
         },
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0, **write},
+        write={
+            "segment_max_turns": 6,
+            "segment_gap_s": 0,
+            "batch_max_windows": 1,
+            "window_extract": "facts",
+            "window_async": False,
+            "window_idle_s": 0.0,
+            **write,
+        },
         workers={"outbox": outbox},
     )
     await eng.start()

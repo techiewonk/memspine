@@ -80,10 +80,9 @@ class ConsolidationOptions(PolicyOptions):
     #: Costs one call per segment instead of one per session.
     mine_by_topic: bool = False
     #: #27: the ``extract`` prompt condition the miner selects: ``session``
-    #: (``extract@session``, unchanged) or ``session3`` (``extract@session3``: a
+    #: (``extract@session``, unchanged) or ``session3`` (``extract@session``: a
     #: worked example, a complete-coverage rule and a larger output cap, sent as
     #: the call's ``max_tokens``).
-    mine_prompt: str = "session"
     #: #29: number the transcript lines (``[n] [YYYY-MM-DD] ...``) so the miner can
     #: cite the lines a fact comes from (``turns``); a fact that cites valid lines
     #: gets those turns as parents instead of the whole session (segment).
@@ -98,7 +97,7 @@ class ConsolidationOptions(PolicyOptions):
     mine_event_dates_llm: bool = False
     #: #28: store each mined fact's multi-view fields as tags (``person:<name>``,
     #: ``loc:<place>``, ``topic:<class>``, normalised) for read-leg prefilters. With
-    #: the default ``mine_prompt`` the miner switches to ``extract@session4``, which
+    #: the default ``mine_prompt`` the miner switches to ``extract@session``, which
     #: asks for them; the statement itself is stored as the miner wrote it.
     mine_multiview: bool = False
     #: #30: after mining, derive one person-level list card per (person, class) of

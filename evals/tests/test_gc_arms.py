@@ -41,12 +41,12 @@ def test_arm_validates_and_keeps_the_jina_base(name: str) -> None:
 
 @pytest.mark.parametrize("name", GC)
 def test_every_llm_role_is_local_qwen_thinking_off(name: str) -> None:
-    roles = _load(name)["llm"]["roles"]
+    roles = _load(name)["model"]["llm"]
     assert roles
     for binding in roles.values():
-        assert binding["model"] == "ollama/qwen3.5:9b"
-        assert binding["api_base"] == "http://127.0.0.1:11434"
-        assert binding["no_think"] is True
+        assert binding["settings"]["model"] == "qwen3.5:9b"
+        assert binding["settings"]["base_url"] == "http://127.0.0.1:11434"
+        assert binding["settings"]["no_think"] is True
 
 
 def test_arm_keys() -> None:
@@ -61,7 +61,7 @@ def test_arm_keys() -> None:
     assert (
         gc2["read"]["view_tag_leg"]
         and gc2["read"]["raw_turn_floor"]
-        and "extract" in gc2["llm"]["roles"]
+        and "extract" in gc2["model"]["llm"]
     )
     assert (
         gc3["read"]["graph_leg"]
@@ -70,9 +70,9 @@ def test_arm_keys() -> None:
     )
     assert gc3["memories"]["associative"]["policies"]["entity_nodes"] is True
     assert gc3["memories"]["semantic"]["policies"]["extract_graph"]["granularity"] == "session"
-    assert gc3["graph"]["entity_embeddings"] is True and "extract_edges" in gc3["llm"]["roles"]
+    assert gc3["graph"]["entity_embeddings"] is True and "extract_edges" in gc3["model"]["llm"]
     assert gc9["read"]["profile_header_packing"] and {"summarize", "reflect"} <= set(
-        gc9["llm"]["roles"]
+        gc9["model"]["llm"]
     )
     assert gc9["memories"]["episodic"]["policies"]["consolidation"]["reflect_profile"] is True
     assert gc9["memories"]["reflective"]["enabled"] is True

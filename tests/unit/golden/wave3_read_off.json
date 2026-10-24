@@ -38,12 +38,12 @@
   "read|auto|When did Noor join the support group?": {
     "abstained": false,
     "contents": [
+      "Noor plan: adopt a child",
       "Noor: I joined a support group last Tuesday",
-      "Bram: the kids loved the pottery class yesterday",
       "Noor: I am researching adoption agencies this month"
     ],
     "mode": "replay",
-    "tokens_used": 37
+    "tokens_used": 31
   },
   "read|compose|How many times did Bram go camping?": {
     "abstained": false,
@@ -87,15 +87,15 @@
   "read|compose|When did Noor join the support group?": {
     "abstained": false,
     "contents": [
-      "Bram: I went camping with the kids last weekend",
       "Noor: I started a new painting of a lake sunset",
       "Noor: I joined a support group last Tuesday",
       "Bram: the kids loved the pottery class yesterday",
+      "Bram hobby: pottery and painting",
       "Noor: I am researching adoption agencies this month",
       "Noor plan: adopt a child"
     ],
     "mode": "compose",
-    "tokens_used": 68
+    "tokens_used": 65
   },
   "read|replay|How many times did Bram go camping?": {
     "abstained": false,
@@ -130,12 +130,12 @@
   "read|replay|When did Noor join the support group?": {
     "abstained": false,
     "contents": [
+      "Noor plan: adopt a child",
       "Noor: I joined a support group last Tuesday",
-      "Bram: the kids loved the pottery class yesterday",
       "Noor: I am researching adoption agencies this month"
     ],
     "mode": "replay",
-    "tokens_used": 37
+    "tokens_used": 31
   },
   "read|retrieve|How many times did Bram go camping?": {
     "abstained": false,
@@ -170,12 +170,12 @@
   "read|retrieve|When did Noor join the support group?": {
     "abstained": false,
     "contents": [
-      "Bram: the kids loved the pottery class yesterday",
+      "Noor plan: adopt a child",
       "Noor: I joined a support group last Tuesday",
       "Noor: I am researching adoption agencies this month"
     ],
     "mode": "retrieve",
-    "tokens_used": 37
+    "tokens_used": 31
   },
   "search|How many times did Bram go camping?": [
     [
@@ -233,20 +233,20 @@
   ],
   "search|When did Noor join the support group?": [
     [
-      "Bram: the kids loved the pottery class yesterday",
-      0.6613
-    ],
-    [
       "Noor: I joined a support group last Tuesday",
       0.6589
     ],
     [
-      "Noor: I am researching adoption agencies this month",
-      0.6487
+      "Noor plan: adopt a child",
+      0.6537
     ],
     [
-      "Noor plan: adopt a child",
-      0.6486
+      "Noor: I am researching adoption agencies this month",
+      0.6536
+    ],
+    [
+      "Noor: I started a new painting of a lake sunset",
+      0.6421
     ]
   ]
 }

@@ -8,10 +8,8 @@ SQLite runs everywhere. The SQLCipher wiring is checked with the stdlib stand-in
 
 from __future__ import annotations
 
-import dataclasses
 import importlib.util
 import os
-import shutil
 import sqlite3
 import subprocess
 import sys
@@ -25,7 +23,6 @@ import pytest
 import sqlalchemy as sa
 
 from memspine import Engine
-from memspine.clients.sqlite.files import legacy_file_connection
 from memspine.clients.sqlite.sync import sqlite_sync_engine
 from memspine.derive.failure_ledger import FailureLedger
 from memspine.derive.job import LeaseStore
@@ -33,9 +30,7 @@ from memspine.economy.ledger import CallCost, LedgerStore
 from memspine.services.storage.postgres import migrations as pg_migrations
 from memspine.services.storage.sqlite import migrations as sqlite_migrations
 from memspine.store.side_tables import (
-    SIDE_FILES,
     ensure_side_tables,
-    import_side_files,
     side_metadata,
 )
 
@@ -49,29 +44,13 @@ SIDE_TABLE_NAMES = set(side_metadata.tables)
 
 
 def _side_files(base: Path) -> list[Path]:
-    return [p for s in SIDE_FILES.values() if (p := Path(f"{base}{s}")).exists()]
+    return [
+        p for s in (".sleep", ".cost", ".deadletters.sqlite") if (p := Path(f"{base}{s}")).exists()
+    ]
 
 
 def _cost(ns: str = "-") -> CallCost:
     return CallCost(0, ns, "semantic", "mine_facts", "generative", "m", 1, 10, 2, 3.5, "ok")
-
-
-def _legacy_files(base: Path) -> None:
-    """Side files as an older version wrote them (raw sqlite3, the old path-mode stores)."""
-    leases = LeaseStore(f"{base}.sleep", clock=lambda: 100.0)
-    lease = leases.claim("u", "old-owner", "job-1", 30.0)
-    assert lease is not None
-    leases.bump_deposits("u", 3)
-    leases.release(lease)
-    assert leases.heartbeat(dataclasses.replace(lease, epoch=lease.epoch + 5), 1.0) is None
-    leases.close()
-    cost = LedgerStore(f"{base}.cost")
-    cost.add(_cost())
-    cost.add(_cost())
-    cost.close()
-    dead = FailureLedger(f"{base}.deadletters.sqlite", clock=lambda: 5.0)
-    dead.record("u", "w1", 0, "uncited", attempts=2)
-    dead.close()
 
 
 def _sync_sqlite(db: Path) -> sa.Engine:
@@ -110,38 +89,6 @@ def test_runtime_create_matches_the_alembic_revision(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------------- import
-def test_import_copies_once_and_renames(tmp_path: Path) -> None:
-    base = tmp_path / "m.db"
-    engine = _sync_sqlite(base)
-    _legacy_files(base)
-    first = import_side_files(
-        engine, str(base), open_file=legacy_file_connection, clock=lambda: 1.0
-    )
-    assert {i.kind for i in first} == {"sleep", "cost", "deadletters"}
-    assert not any(i.already_imported for i in first)
-    assert _side_files(base) == []
-    for imp in first:
-        assert Path(imp.renamed_to).name.endswith(".imported")
-        assert Path(imp.renamed_to).exists()
-    with engine.connect() as con:
-        assert con.execute(sa.text("SELECT COUNT(*) FROM cost_entry")).scalar() == 2
-        assert con.execute(sa.text("SELECT code FROM dead_letters")).all() == [("uncited",)]
-        state = con.execute(sa.text("SELECT deposits_since_run FROM sleep_state")).all()
-        assert state == [(3,)]
-        assert con.execute(sa.text("SELECT COUNT(*) FROM sleep_fence_log")).scalar() == 1
-    # the same content again (a crash after the commit, before the rename): nothing is copied twice
-    for imp in first:
-        shutil.copy(imp.renamed_to, imp.source)
-    again = import_side_files(engine, str(base), open_file=legacy_file_connection)
-    assert all(i.already_imported and i.rows == 0 for i in again)
-    assert {Path(i.renamed_to).name.rsplit(".", 1)[-1] for i in again} == {"1"}
-    with engine.connect() as con:
-        assert con.execute(sa.text("SELECT COUNT(*) FROM cost_entry")).scalar() == 2
-        assert con.execute(sa.text("SELECT COUNT(*) FROM dead_letters")).scalar() == 1
-    assert (
-        import_side_files(engine, str(base), open_file=legacy_file_connection) == []
-    )  # nothing left to import
-    engine.dispose()
 
 
 def _engine(db: Path, **extra: Any) -> Engine:
@@ -153,40 +100,11 @@ def _engine(db: Path, **extra: Any) -> Engine:
         storage={"records": {"provider": "sqlite", "settings": storage_settings}},
         model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        offline={"sleep_v2": True, "sleep_manual_only": True},
-        economy={"ledger_v2": True, "ledger_persist": True},
+        offline={"sleep": True, "sleep_manual_only": True},
+        economy={"ledger": True, "ledger_persist": True},
         read={"hybrid": False},
         **extra,
     )
-
-
-async def test_engine_start_imports_side_files_and_writes_none(tmp_path: Path) -> None:
-    db = tmp_path / "m.db"
-    _legacy_files(db)
-    eng = _engine(db)
-    await eng.start()
-    try:
-        assert _side_files(db) == []
-        assert sorted(p.name for p in tmp_path.glob("m.db.*.imported")) == [
-            "m.db.cost.imported",
-            "m.db.deadletters.sqlite.imported",
-            "m.db.sleep.imported",
-        ]
-        sched = eng._derive_sched
-        assert sched is not None and sched.store.offload
-        assert sched.store.state("u")["deposits_since_run"] == 3  # type: ignore[index]
-        assert eng.cost_report()["model_calls"] == 2  # the imported rows reload
-        await eng.write("Ilse likes tea", namespace="u")
-        assert sched.store.state("u")["deposits_since_run"] == 4  # type: ignore[index]
-        handle = await eng.sleep()
-        await handle.wait(timeout=60)
-        assert handle.status().state == "succeeded"
-    finally:
-        await eng.stop()
-    assert _side_files(db) == []
-    with sqlite3.connect(db) as con:
-        assert con.execute("SELECT lease_until FROM sleep_lease WHERE ns='*'").fetchone() == (0,)
-        assert con.execute("SELECT COUNT(*) FROM side_file_imports").fetchone() == (3,)
 
 
 # ---------------------------------------------------------------------------------- leases
@@ -306,7 +224,6 @@ async def test_encrypted_store_keeps_side_tables_inside_keyed_connections(
 ) -> None:
     monkeypatch.setenv(KEY_ENV, SECRET)
     db = tmp_path / "enc.db"
-    _legacy_files(db)
     await _encrypted_round_trip(db)
     assert _side_files(db) == []  # imported, and nothing written beside the database
     # every connection the engine opened (storage, leases, ledgers) went through the keyed driver,
@@ -317,7 +234,7 @@ async def test_encrypted_store_keeps_side_tables_inside_keyed_connections(
     assert all(s == f"PRAGMA key = '{SECRET}'" for s in keyed)
     with sqlite3.connect(db) as con:  # the stand-in is plain SQLite: the rows are in the main file
         assert con.execute("SELECT COUNT(*) FROM sleep_lease").fetchone()[0] >= 1
-        assert con.execute("SELECT COUNT(*) FROM dead_letters").fetchone() == (1,)
+        assert con.execute("SELECT COUNT(*) FROM dead_letters").fetchone() == (0,)
 
 
 @pytest.mark.skipif(not _HAS_SQLCIPHER, reason="SQLCipher driver ([encrypt]) not installed")
@@ -326,7 +243,6 @@ async def test_real_sqlcipher_side_tables_are_encrypted(
 ) -> None:  # pragma: no cover - needs the [encrypt] extra
     monkeypatch.setenv(KEY_ENV, SECRET)
     db = tmp_path / "real.db"
-    _legacy_files(db)
     await _encrypted_round_trip(db)
     assert _side_files(db) == []
     with pytest.raises(sqlite3.DatabaseError):
@@ -378,60 +294,3 @@ def test_postgres_leases_are_exclusive_across_engines() -> None:
     finally:
         a.dispose()
         b.dispose()
-
-
-@pg
-def test_postgres_import_is_idempotent(tmp_path: Path) -> None:
-    engine = _pg_engine()
-    try:
-        base = tmp_path / "memspine"
-        _legacy_files(base)
-        with engine.connect() as con:
-            before = con.execute(sa.text("SELECT COUNT(*) FROM cost_entry")).scalar() or 0
-        first = import_side_files(engine, str(base), open_file=legacy_file_connection)
-        assert {i.kind for i in first} == {"sleep", "cost", "deadletters"}
-        for imp in first:
-            shutil.copy(imp.renamed_to, imp.source)
-        again = import_side_files(engine, str(base), open_file=legacy_file_connection)
-        assert all(i.already_imported and i.rows == 0 for i in again)
-        with engine.connect() as con:
-            after = con.execute(sa.text("SELECT COUNT(*) FROM cost_entry")).scalar()
-        assert after == before + 2
-        assert _side_files(base) == []
-    finally:
-        engine.dispose()
-
-
-@pg
-async def test_postgres_engine_keeps_side_tables_in_the_database(tmp_path: Path) -> None:
-    data_dir = tmp_path / "derived"
-    base = data_dir / "memspine"
-    data_dir.mkdir()
-    _legacy_files(base)  # files an older version left under data_dir
-    eng = Engine(
-        template="core",
-        dotenv_path=None,
-        storage={
-            "records": {
-                "provider": "postgres",
-                "settings": {"url": PG_URL, "connect_timeout_s": 5.0, "statement_timeout_s": 30.0},
-            }
-        },
-        deployment={"data_dir": str(data_dir), "id": f"rm111-{uuid.uuid4().hex[:8]}"},
-        model={"embedding": {"provider": "hash", "settings": {}}},
-        memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        offline={"sleep_v2": True, "sleep_manual_only": True},
-        economy={"ledger_v2": True, "ledger_persist": True},
-        read={"hybrid": False},
-    )
-    await eng.start()
-    try:
-        assert _side_files(base) == []
-        await eng.write("Ilse likes tea", namespace="pg-u")
-        handle = await eng.sleep()
-        await handle.wait(timeout=60)
-        assert handle.status().state == "succeeded"
-        assert eng.cost_report()["model_calls"] >= 2
-    finally:
-        await eng.stop()
-    assert _side_files(base) == []

@@ -34,7 +34,7 @@ def _engine(path: Path, *, reconcile: bool = False, histories: bool = False, lin
         },
         model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        offline={"reconcile_v2": reconcile, "histories_v2": histories},
+        offline={"reconcile": reconcile, "histories": histories},
         write={"lineage_table": lineage},
     )
 
@@ -57,7 +57,7 @@ async def _run(eng: Engine, name: str) -> dict[str, object]:
 
 def test_flags_default_off_and_stage_not_scheduled() -> None:
     cfg = OfflineConfig()
-    assert cfg.reconcile_v2 is False and cfg.histories_v2 is False
+    assert cfg.reconcile is False and cfg.histories is False
     assert RECONCILE_STAGE not in SLEEP_CYCLE_ORDER and HISTORIES_STAGE not in SLEEP_CYCLE_ORDER
 
 

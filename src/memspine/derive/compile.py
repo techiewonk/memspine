@@ -1,4 +1,4 @@
-"""Compile the model's extraction output (``ItemV1``) into stored ``AssertionEnvelope`` objects (LIB-05).
+"""Compile the model's extraction output (``ExtractionItem``) into stored ``AssertionEnvelope`` objects (LIB-05).
 
 Pure and unwired (wired later by W2-06a). Imports only the stdlib, pydantic and ``memspine.schemas``.
 
@@ -55,7 +55,7 @@ from memspine.schemas.durable import (
 from memspine.schemas.durable.assessment import Binding, Modality
 from memspine.schemas.durable.common import SrcClass
 from memspine.schemas.reserved import reserved_hits
-from memspine.schemas.steps.shared import ItemV1
+from memspine.schemas.steps.shared import ExtractionItem
 
 __all__ = [
     "CHANGE_KEY",
@@ -413,7 +413,7 @@ def _compile_one(
     if not isinstance(chg, bool):
         return Rejection(index, RejectionCode.INVALID_FIELD, "chg must be a boolean")
     try:
-        parsed = ItemV1.model_validate(dict(item), strict=True)
+        parsed = ExtractionItem.model_validate(dict(item), strict=True)
     except ValidationError as exc:
         first = exc.errors()[0]
         where = ".".join(str(p) for p in first["loc"])

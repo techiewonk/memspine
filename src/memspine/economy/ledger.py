@@ -519,7 +519,7 @@ class WriteCostLedger:
 
 # --------------------------------------------------------------------------------- binding
 def installed() -> WriteCostLedger | None:
-    """The cost ledger bound for the current Engine (``economy.ledger_v2``), if any."""
+    """The cost ledger bound for the current Engine (``economy.ledger``), if any."""
     ledger: WriteCostLedger | None = _bindings.resolve("cost_ledger", None)
     return ledger
 

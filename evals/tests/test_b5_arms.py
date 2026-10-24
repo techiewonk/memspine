@@ -21,7 +21,7 @@ ROWS = [
     for r in csv.reader(
         [
             ln
-            for ln in (EVALS / "v2_queue.tsv").read_text(encoding="utf-8").splitlines()
+            for ln in (EVALS / "screen_queue.tsv").read_text(encoding="utf-8").splitlines()
             if ln and not ln.startswith("#")
         ],
         delimiter="\t",
@@ -41,8 +41,8 @@ def test_arm_matches_generator_and_validates(name: str) -> None:
 def test_row_resolves(row: dict) -> None:
     assert (g.ARMS / f"{row['arm']}.json").exists()
     ref = row["ref_run"]
-    if ref.startswith("v2-S"):
-        rid = ref[3:-3]
+    if ref.startswith("screen-S"):
+        rid = ref.removeprefix("screen-").removesuffix("-i2")
         ref_row = next(r for r in ROWS if r["id"] == rid)
         assert ref_row["kind"] == row["kind"]
         assert (g.ARMS / f"{ref_row['arm']}.json").exists()

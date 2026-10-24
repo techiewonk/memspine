@@ -1,5 +1,5 @@
 # ruff: noqa: RUF001
-"""W2-09: online entity resolution as an envelope stage (``write.resolver_v2``; W-19, M-15).
+"""W2-09: online entity resolution as an envelope stage (``write.resolver``; W-19, M-15).
 
 Order 300 in ``derive/envelope_stages.py``. For the subject and the object mention of every envelope the
 stage resolves the surface against the entities of the envelope's own scope, with no model call:
@@ -25,7 +25,7 @@ Envelope fields written (W2-10 reads them):
 * ``extras["resolve"]["subject" | "object"]`` = ``{"verdict": existing|new|pending_merge, "method": ...,
   "confidence": float, "pending_with": [ids]}``. Key names avoid the reserved ``*_id`` suffix.
 
-Entities are keyed by ``(tenant, owner)`` with ``isolation.scope_keys_v2`` on (the session is never part
+Entities are keyed by ``(tenant, owner)`` (the session is never part
 of the key), by the namespace string otherwise.
 """
 
@@ -74,7 +74,6 @@ class ResolveSettings:
     high: float = 0.9
     grey: float = 0.7
     max_cache: int = 1024
-    scoped: bool = True
 
 
 def _cosine(u: Sequence[float], v: Sequence[float]) -> float:
@@ -182,9 +181,7 @@ class EntityResolveStage:
         return out
 
     def _key(self, env: AssertionEnvelope, ctx: EnvelopeStageContext) -> ScopeKey:
-        if self.settings.scoped:
-            return (env.scope.tenant, env.scope.owner)
-        return (ctx.namespace,)
+        return (env.scope.tenant, env.scope.owner)
 
     async def _resolve_envelope(
         self, env: AssertionEnvelope, ctx: EnvelopeStageContext

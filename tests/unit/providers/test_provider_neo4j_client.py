@@ -132,9 +132,8 @@ async def test_graph_builder_opens_connector_and_builds_executor(
     seen: dict[str, Any] = {}
 
     class CaptureGraph:
-        def __init__(self, executor: Any, *, scoped: bool) -> None:
+        def __init__(self, executor: Any) -> None:
             seen["executor"] = executor
-            seen["scoped"] = scoped
 
         async def node_count(self) -> int:
             return 0
@@ -145,7 +144,6 @@ async def test_graph_builder_opens_connector_and_builds_executor(
     )
     executor = seen["executor"]
     assert isinstance(executor, service_module.DriverExecutor)
-    assert seen["scoped"] is True
     assert executor._driver is driver
     assert executor._database == "neo4j"
     assert executor._timeout == 1

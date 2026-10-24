@@ -5,7 +5,7 @@
 cd "D:/mem/memory research/memspine/evals"
 until grep -q "written:" runs/_logs/v32f-wD-local-n62-temporal-weight.log 2>/dev/null \
    || grep -q "Traceback" runs/_logs/v32f-wD-local-n62-temporal-weight.log 2>/dev/null; do sleep 300; done
-source <(sed -n '/^FROZEN=/,/^}/p' run_v32_chain.sh)
+source <(sed -n '/^FROZEN=/,/^}/p' run_chain.sh)
 FROZEN="D:/mem/memory research/_wt_screens_d/src"
 L="locomo data/locomo10.json"
 run "wD-local-temporal-n02" $L local-temporal-n02 4096

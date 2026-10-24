@@ -30,8 +30,8 @@ OUT_LOCAL.mkdir(parents=True, exist_ok=True)
 sys.path.insert(0, str(WT / "evals"))
 sys.path.insert(0, str(WT / "src"))
 from memspine_evals.judge_conventions import (
+    _extended_conventions,
     check_conventions,
-    check_conventions_v2,
     gold_items,
 )
 from memspine_evals.refusal import is_refusal
@@ -657,7 +657,7 @@ def main() -> None:
             try:
                 if check_conventions(question, ans, gold):
                     fn.append("conv_v1")
-                if check_conventions_v2(question, ans, gold):
+                if _extended_conventions(question, ans, gold):
                     fn.append("conv_v2")
             except Exception:
                 pass

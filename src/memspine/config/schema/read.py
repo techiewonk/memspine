@@ -237,13 +237,6 @@ class ReadConfig(ConfigModel):
     #: does not route the read: it keeps the default ``replay`` (retrieve when no
     #: hit is episodic). 0.0 = every choice routes (unchanged).
     planner_min_confidence: float = Field(default=0.0, ge=0.0, le=1.0)
-    #: #35: with ``planner: llm``, ``v2`` selects the ``plan@v2`` prompt, which also
-    #: writes one or two evidence-seeking subqueries for lookup questions ("Is X
-    #: religious?" -> "church", "faith"); the lookup read then fuses them by RRF as
-    #: extra search legs. ``v3`` (#36) selects ``plan@v3``: v2 plus the people the
-    #: question is about (``persons``) and its time expression (``time_expr``), which
-    #: feed the persons / time leg (``person_time_leg_k``). ``v1``: unchanged.
-    planner_version: Literal["v1", "v2", "v3"] = "v1"
     #: G2c: compose results get the same +-``replay_window`` neighbour expansion as
     #: replay mode (nearest first, within the budget), so routing an aggregation
     #: question to compose no longer loses the turns around each hit.
@@ -370,11 +363,11 @@ class ReadConfig(ConfigModel):
     standing_instructions: bool = False
     standing_min_trust: float = Field(default=0.7, ge=0.0, le=1.0)
     #: O4-08 (LIB-32, opt-in L5): lead the context with the precomputed standing answers the
-    #: ``offline.standing_v2`` sleep stage stored, for the topic entities of the retrieved keyed
+    #: ``offline.standing`` sleep stage stored, for the topic entities of the retrieved keyed
     #: facts, plus the guarded standing instructions (only when ``standing_instructions`` is off,
     #: which keeps its own block). A stale answer (its fact group changed since the build) is never
     #: shown; the reader falls back to live evidence. Read-only: nothing is written at read time.
-    standing_v2: bool = False
+    standing: bool = False
     #: O4-08: words the standing-answer block may use.
     standing_answers_budget: int = Field(default=120, ge=10)
     #: N18 (plan v3.2): the standing-preference cues. ``narrow`` (unchanged): requests
@@ -422,12 +415,6 @@ class ReadConfig(ConfigModel):
     #: mentions on the same event day with high word overlap are one occurrence, even
     #: when said on different days. Off: byte-identical.
     count_dedupe: bool = False
-    #: GP-3 (#14): fuse a graph leg into the RRF ranking: from the entities the
-    #: query names (else those of the best 3 hits of the other legs), walk the
-    #: association graph ``graph_depth`` entity hops to fact records and their
-    #: source turns. Needs associative memory with ``entity_nodes``. Off:
-    #: byte-identical.
-    graph_leg: bool = False
     graph_depth: int = Field(default=2, ge=1, le=3)
     graph_leg_k: int = Field(default=10, ge=1)
     #: GP-10 (#16): a graph walk never enters a record below this trust (nor a
@@ -486,7 +473,7 @@ class ReadConfig(ConfigModel):
     #: belongs to the community. Others never reach the context; with
     #: ``graph_leg`` on, the admitted ones join the graph leg. Off: byte-identical.
     graph_communities: bool = False
-    #: #36: with ``planner: llm`` and ``planner_version: v3``, the routed read fuses a
+    #: #36: with ``planner: llm`` and ``the base planner``, the routed read fuses a
     #: structured leg by RRF: records whose ``valid_from`` lies in the span the plan's
     #: ``time_expr`` names (H1 rules) and/or that are about the plan's ``persons``
     #: (``person:`` tags, else the record's entity), at most this many.
@@ -506,13 +493,13 @@ class ReadConfig(ConfigModel):
     #: each, in a fixed section order. Independent of ``profile_header``. Off:
     #: byte-identical.
     profile_header_packing: bool = False
-    #: MF-13: a header block rendered from the profile CARD (``offline.profile_card_v2``, stored in
-    #: ``profile_card_v2`` event-log markers): the latest card entries (latest wins per attribute),
+    #: MF-13: a header block rendered from the profile CARD (``offline.profile_card``, stored in
+    #: ``profile_card`` event-log markers): the latest card entries (latest wins per attribute),
     #: one dated line each with its source record ids and last-confirmed day, within
     #: ``profile_card_header_budget`` tokens (never more than half the read budget). Entries last
     #: confirmed over ``profile_card_max_age_days`` days ago (0 = no bound), and entries whose
     #: source records are all forgotten or not live, do not render. Independent of the reflective
-    #: ``profile_header`` (L4) and of the standing answers (L5). Needs ``offline.profile_card_v2``
+    #: ``profile_header`` (L4) and of the standing answers (L5). Needs ``offline.profile_card``
     #: to have written a card; with none, nothing renders. Off: byte-identical.
     profile_card_header: bool = False
     profile_card_header_budget: int = Field(default=200, ge=1)
@@ -723,13 +710,6 @@ class ReadConfig(ConfigModel):
     list_vote_top_k: int = Field(default=30, ge=1)
     list_pool: int = Field(default=3, ge=1, le=10)
     window_full_hits: int | None = Field(default=10, ge=0)
-    #: R14-M-1: a no-model list-depth trigger that replaces the ``list_trigger`` regex when
-    #: ``list_mode`` is on. It scores the question shape (intent cues, wh opener, perfect aspect,
-    #: plural head, modal wording, length) together with the first vector leg's score profile
-    #: (flat top scores, small first gap) with fixed logistic weights
-    #: (``read/list_trigger.py``). Costs one extra query embedding and one 30-deep vector search
-    #: per read. Off: the regex decides, unchanged.
-    list_mode_trigger_v2: bool = False
     #: R14-M-1: in list mode, reorder the reranked pool greedily so hits of a session already
     #: represented are penalised (``coverage_session_penalty`` x the number already picked, on
     #: min-max relevance) and duplicate contents sink to the tail, before the usual cut. Same
@@ -771,51 +751,34 @@ class ReadConfig(ConfigModel):
     #: N33 (Memori, Mem0): the BM25 leg's RRF weight for a question of at most
     #: ``SHORT_QUERY_WORDS`` content words. None: unchanged.
     short_query_lexical_weight: float | None = Field(default=None, ge=0.0)
-    #: N59 (Dakera name boost): an RRF leg of raw turns naming the question's proper
-    #: nouns and years beyond the speakers (``temporal_query.entity_leg``).
-    entity_leg: bool = False
     #: R3-05a (LIB-34, R-08): the entity leg over RESOLVED entity ids (the associative
     #: entity index): Mem0 boost, max over the matched entities, capped, with hub damping
-    #: ``1/(1+0.001 (degree-1)^2)``. Joins fusion as the ``entity_v2`` leg. Off: unchanged.
-    entity_leg_v2: bool = False
-    #: R3-04 (R-05, R-06, R-07; ``memspine.read.legs``): candidate generation through the leg
-    #: registry: ``vector`` (dense), ``lexical`` (language-aware BM25 over the live records,
-    #: Tokeniser + scorer ports) and ``temporal`` (event intervals in the question's anchored
-    #: window), each a registered family that feeds the existing fusion. The lexical leg takes
-    #: the place of the tantivy BM25 leg (it runs when ``hybrid`` is on) and the temporal leg
-    #: the place of ``temporal_leg``. An empty leg (no records on its layer, no query terms, no
-    #: window, no embedder) reports a reason and returns nothing; it is never an error. Off: the
-    #: current legs, unchanged.
-    #: FU-TEMPORAL: the temporal leg runs only with ``temporal_leg`` and reads the same keys as
-    #: the old leg (``temporal_relative``, ``temporal_infer_year``, ``temporal_rank``,
-    #: ``temporal_soft``, ``temporal_leg_mentions``, ``temporal_leg_event_dates``); the lexical
-    #: leg honours ``lexical_strip_names`` and ``lexical_dates``; the router's ``legs_off`` applies
-    #: to every registered leg. See ``docs/v2/RETIRED.md`` "Temporal rules: old -> v2".
-    legs_v2: bool = False
-    #: W2-14 (R-07, M-10; needs ``legs_v2``): the ``temporal`` leg reads the precision the write path
+    #: ``1/(1+0.001 (degree-1)^2)``. Joins fusion as the ``entity`` leg. Off: unchanged.
+    entity_leg: bool = False
+    #: W2-14 (R-07, M-10; needs ``legs``): the ``temporal`` leg reads the precision the write path
     #: stored. A ``happened:`` interval is a stated period (a year-precision fact spans the year): it
     #: still matches any window that overlaps it, but its score is weighted by how much of it the
     #: window covers, so a day-precision fact outranks a year-precision one for a day question.
     #: Validity intervals (a state that held for a while) are not weighted. Off: unchanged.
     temporal_precision_aware: bool = False
-    #: R3-04 (R-06): the scorer behind the ``lexical`` leg under ``legs_v2``. Only ``bm25`` is
+    #: R3-04 (R-06): the scorer behind the ``lexical`` leg under ``legs``. Only ``bm25`` is
     #: implemented; another scorer (for example a word-vector one) registers through
     #: ``memspine.read.legs.register_scorer`` and is then named here.
     lexical_scorer: Literal["bm25"] = "bm25"
-    #: R3-04 (R-06): the default tokeniser language of the ``lexical`` leg under ``legs_v2``
+    #: R3-04 (R-06): the default tokeniser language of the ``lexical`` leg under ``legs``
     #: (ISO 639-1: stop words and Snowball stemming; any other value: no stemming). CJK text is
     #: always indexed as character bigrams.
     lexical_language: str = "en"
     #: R3-04 (R-06): per-namespace language override, ``{"ns-de": "de"}``. Empty: the default.
     lexical_namespace_languages: dict[str, str] = Field(default_factory=dict)
-    #: R3-05c (R-10; needs ``legs_v2``): the ``episode`` leg (family ``derived``, layer L2) searches
+    #: R3-05c (R-10; needs ``legs``): the ``episode`` leg (family ``derived``, layer L2) searches
     #: episode records (window episodes, ``kind:episode`` facts, session-close episodes) by vector
     #: and BM25, then lifts each hit to its member turns through lineage (``source.parents``, or
     #: the lineage table under ``write.lineage_table``) and joins fusion with turn ids. Lifted
     #: turns pass the read gates (status, quarantine, consent, erasure, date and scope filters).
     #: A namespace with no L2 record gives an empty leg (``no_records:L2``), never an error.
     #: Off: unchanged.
-    episode_leg_v2: bool = False
+    episode_leg: bool = False
     #: R3-05c: the most member turns one episode hit lifts to.
     episode_lift_max_turns: int = Field(default=8, ge=1)
     #: R3-05c: score carry-over of the lift: a turn scores ``episode_score * carry ** hops``
@@ -823,11 +786,11 @@ class ReadConfig(ConfigModel):
     episode_lift_carry: float = Field(default=0.9, gt=0.0, le=1.0)
     #: R3-05b (R-09, ``read.legs.graph`` ``OneHopConvergent``): the graph one-hop leg. From the
     #: query's entities (and the entities of the best base hits) it walks one hop over the
-    #: compiled, non-tentative edges (``graph.edge_compiler_v2``) and keeps the nodes reached from
+    #: compiled, non-tentative edges (``graph.edge_compiler``) and keeps the nodes reached from
     #: at least ``graph_leg_min_seeds`` seeds; the records on the connecting edges are lifted to
     #: their evidence turns through lineage. Family ``structured``, layer L3 (empty with
-    #: ``no_records:L3`` when L3 is not populated). Needs ``legs_v2``. Off: unchanged.
-    graph_leg_v2: bool = False
+    #: ``no_records:L3`` when L3 is not populated). Needs ``legs``. Off: unchanged.
+    graph_leg: bool = False
     #: R3-05b: how many distinct seeds must reach a node for it to count as convergent.
     graph_leg_min_seeds: int = Field(default=2, ge=1)
     #: R3-05b: how many of the best base hits add their entity as a seed (0 = query entities only).
@@ -840,16 +803,6 @@ class ReadConfig(ConfigModel):
     #: judges event time (valid_from/valid_to), ``known_at`` recorded time, undecidable
     #: records are kept (flagged) rather than dropped. Applies to the read's date allow-list
     #: when an as-of or a ``recorded_before`` bound is active. Off: the date filter as before.
-    timeview_v2: bool = False
-    #: R3-10 (LIB-24, retrieve step 15): neighbour windows after rerank through
-    #: ``read.neighbours.expand``: budget-aware, viewer-checked, overlapping windows merged.
-    #: Replaces the G2c compose expansion (turn windows only). Off: unchanged.
-    #: FX-READPATH: in replay mode (the harness read; ``_window_turns``) the flag means the
-    #: adaptive window: pure filler neighbours (greetings, acknowledgements, emoji only;
-    #: ``derive.prepass.is_filler``) take no window slot, and the reach stretches over them by
-    #: at most as many turns again as the side's quota (-2/+4 by default); the hit, the gates,
-    #: the budget and ``seen`` are unchanged. See docs/v2/RETIRED.md (neighbours_v2 in replay).
-    neighbours_v2: bool = False
     #: N63 (EverMemOS multi-query, by rules): the question rewritten as a statement
     #: ("When did Ana go camping?" -> "Ana go camping") joins the search as a probe.
     statement_probe: bool = False
@@ -1032,14 +985,6 @@ class ReadConfig(ConfigModel):
     #: When the ledger call fires: ``event_questions`` (default; a date / duration / count
     #: question, or one that uses the grammar of plans and outcomes) or ``always``.
     event_ledger_trigger: Literal["event_questions", "always"] = "event_questions"
-    #: I29: whether retrieved memories are injected at all. ``off`` (default): always, as
-    #: today. (The ``decider`` form measured LoCoMo 81.6 -> 59.2 and is retired, G-22.)
-    #: ``store_calibrated``: the
-    #: namespace's own off-topic score level is learned lazily from a fixed set of generic
-    #: off-topic probes (``core/relevance_probes.py``) and a message passes only when its RAW
-    #: top score (vector cosine, or the reranker's raw score) clears that level by
-    #: ``relevance_gate_margin_sd`` standard deviations; otherwise an empty, abstained context.
-    relevance_gate: Literal["off", "store_calibrated"] = "off"
     #: I74: the personal-reference bypass of the gate. A message that names the store's
     #: own people / entities (a participant of the namespace, or a capitalised name present
     #: in the store, same rules as I60 ``entity_check``: exact, or a 3+ letter prefix) needs
@@ -1068,23 +1013,23 @@ class ReadConfig(ConfigModel):
     #: Needs ``relevance_gate: store_calibrated`` NOT to be set (it is a replacement, not a
     #: layer). Off (default): the I29/I74 path, unchanged. A named-entity bypass applies only
     #: when the named entity is in the store AND a candidate scores above the weak threshold.
-    gate_v2: bool = False
-    #: R3-11: what a ``weak`` gate decision does under ``gate_v2``. ``keep``: the weak
+    gate: bool = False
+    #: R3-11: what a ``weak`` gate decision does under ``gate``. ``keep``: the weak
     #: records pass, flagged low-confidence in the forensics. ``abstain``: an empty, abstained
     #: context (the same as ``missing``).
-    gate_v2_weak: Literal["keep", "abstain"] = "keep"
-    #: R3-11: what makes a named reference real under ``gate_v2`` (an unknown name never
+    gate_weak: Literal["keep", "abstain"] = "keep"
+    #: R3-11: what makes a named reference real under ``gate`` (an unknown name never
     #: bypasses). ``hit`` (default): the name resolves in the store AND a candidate record
     #: mentions it or scores above the weak threshold. ``scored``: stricter, a candidate must
     #: score above the weak threshold (a name in a question about something the store never
     #: stated then no longer waves its records through).
-    gate_v2_named: Literal["hit", "scored"] = "hit"
+    gate_named: Literal["hit", "scored"] = "hit"
     #: R3-12 (LIB-43, R-22 B; wired in ``read/pipeline/deep.py``): ``True`` runs the deep
     #: tier after the first pass: rules first (zero calls when every obligation is met), then
     #: one sufficiency check, at most one rewrite and one extra retrieval, never a loop. Model
     #: calls go through the bound ``sufficiency``/``plan`` role and are counted. Needs
     #: ``obligations`` for its rule check (it derives the report itself when that is off).
-    deep_v2: bool = False
+    deep: bool = False
     #: R3-16 (LIB-15, ER-19; wired in ``read/pipeline/deep.py``): ``True`` derives evidence
     #: obligations (joins, durations, lists, counts, latest) from the typed query contract
     #: and checks them against the read's records; the report goes to the forensics and the
@@ -1135,15 +1080,7 @@ class ReadConfig(ConfigModel):
     #: E03: directory of the persistent query cache (JSON). None: in memory.
     external_cache_dir: str | None = None
 
-    #: R3-13 / LIB-45: the external public-knowledge block of ``read/external.py`` on top of
-    #: the ``external_evidence`` opt-in (which must be ``cache`` or ``web``; this flag never
-    #: enables lookups by itself). The planner (a generic or explicitly public question,
-    #: within the call cap) decides whether to call; snippets are filtered (freshness, https,
-    #: dedupe, per-domain cap) and packed into a separate labelled ``public`` block of at
-    #: most ``external_v2_budget_tokens``; it is never deposited. Off: the E03 block is
-    #: unchanged.
-    external_v2: bool = False
-    external_v2_budget_tokens: int = Field(default=300, ge=1)
+    external_budget_tokens: int = Field(default=300, ge=1)
     #: R3-15 / LIB-19 (ER-31 B): cache whole read results, keyed by scope, viewer, query,
     #: config, model ids and the store / erasure generations. Every hit is revalidated
     #: (POL-1) against the live store before it is returned; a partial revalidation
@@ -1165,23 +1102,23 @@ class ReadConfig(ConfigModel):
     #: ``perspective_mode`` for the per-entity subject weight to bite. A ``full`` read (the whole
     #: store fits) and a question that names no known participant pair are read as before.
     #: Off: unchanged.
-    decompose_v2: bool = False
+    decompose: bool = False
     #: R14-M-12: most entities one question is split into; a longer list is cut to the first ones
     #: named.
-    decompose_v2_max_entities: int = Field(default=3, ge=2, le=6)
+    decompose_max_entities: int = Field(default=3, ge=2, le=6)
 
-    #: R3-01 (LIB-47, R-01/R-02, ER-29): the v2 read entry. On: the question is NFKC-normalised
+    #: R3-01 (LIB-47, R-01/R-02, ER-29): the tiered read entry. On: the question is NFKC-normalised
     #: (whitespace collapsed), the viewer is bound to the principal (``viewer``), and a depth tier
     #: (fast / standard / deep, with its generative-call and rerank-pool caps) is chosen from
-    #: ``tiers_v2_depth`` and the typed contract; the tier is recorded (wiretap, forensics) and
+    #: ``tiers_depth`` and the typed contract; the tier is recorded (wiretap, forensics) and
     #: served to later stages. FX-READPATH: the tier is consumed: with a reranker active the
     #: assembly search fetches at least the tier's rerank pool (fast 32 / standard 48 / deep 64)
-    #: before the rerank, and ``deep_v2`` runs its model calls only in a tier that allows
+    #: before the rerank, and ``deep`` runs its model calls only in a tier that allows
     #: generative calls (deep). Off (default): the read entry is unchanged.
-    tiers_v2: bool = False
-    #: R3-01: the default depth under ``tiers_v2``; ``auto`` picks deep only for join / list /
+    tiers: bool = False
+    #: R3-01: the default depth under ``tiers``; ``auto`` picks deep only for join / list /
     #: history shapes when a worker model is bound, else the first allowed tier (fast).
-    tiers_v2_depth: Literal["auto", "fast", "standard", "deep"] = "fast"
+    tiers_depth: Literal["auto", "fast", "standard", "deep"] = "fast"
     #: R3-02 (LIB-16, R-03): build the typed query contract by rules (answer type, shape, time view,
     #: scope, targets, attributes; unknown fields stay unknown) and render its ``[contract] ...``
     #: header as the first lead line of the context. Independent of ``query_contract`` (the A03
@@ -1192,16 +1129,16 @@ class ReadConfig(ConfigModel):
     #: commit-with-cited-reason clause ONLY for a question the rules contract
     #: (``read.contract.build_contract``, ``request == "inference"``: would / likely / might /
     #: hypothetical) types as a judgement; every other shape keeps the unchanged prompt (the
-    #: ``grounded_v2`` clause on every shape cost dev 86.7 -> 81.5). The clause still allows
+    #: ``grounded`` clause on every shape cost dev 86.7 -> 81.5). The clause still allows
     #: "not mentioned" when no memory line bears on the question (category 5 stays answerable
     #: by abstaining). The refusal retry (``--retry-refusal``) uses the same clause on those
     #: questions instead of the neutral retry. Rules only, no extra model call. Consumed by the
     #: eval reader (``memspine_evals.readers``); the engine read path is untouched. Off (default):
-    #: prompts and retry unchanged. ``gated_v2`` (R14-INFER2) = the same route with a widened,
+    #: prompts and retry unchanged. ``gated`` (R14-INFER2) = the same route with a widened,
     #: generic English judgement shape (``inference_shape``: would / might / likely / "do you think"
     #: / "what kind of person" / counterfactual "if ... would", with a factual-opener negative
     #: list) in place of the contract check alone; the refusal retry uses the same widened gate.
-    inference_mode: Literal["off", "gated", "gated_v2"] = "off"
+    inference_mode: Literal["off", "gated"] = "off"
     #: R3-03 (LIB-23, R-04/R-05): the rule router. On: the legs come from a ``RoutePlan`` over the
     #: layers the store actually has populated (L0 turns, L1 facts, L2 sessions, L3 graph, L5
     #: profile); the optional entity / graph / episode legs that the plan leaves out or skips
@@ -1211,14 +1148,14 @@ class ReadConfig(ConfigModel):
     router_rules: bool = False
     #: O4-01b (O-06): read-side freshness. On: each search computes, per derived layer, the gap
     #: between the namespace's latest raw-turn seq and the minimum ``covers_seq`` of the layer's
-    #: stamped records (stamped under ``offline.budget_v2``), flags the layer ``stale`` when the gap
+    #: stamped records (stamped under ``offline.budget``), flags the layer ``stale`` when the gap
     #: exceeds ``freshness_stale_gap`` and records it in the read trace (forensics ``freshness``)
     #: and the ``read.freshness`` tap. Metadata only: results are unchanged.
     #: Off (default): unchanged.
-    freshness_v2: bool = False
+    freshness: bool = False
     #: O4-01b: raw-turn seqs a derived layer may lag behind before it is flagged stale.
     freshness_stale_gap: int = Field(default=20, ge=0)
-    #: O4-01b: with ``freshness_v2``, when the derived layer is stale for the query the raw turns
+    #: O4-01b: with ``freshness``, when the derived layer is stale for the query the raw turns
     #: newer than its ``covers_seq`` join the candidate pool as one more fused leg (newest first,
     #: at most ``freshness_fallback_max``), so answers are not missing new facts. Off (default):
     #: unchanged.
@@ -1231,18 +1168,6 @@ class ReadConfig(ConfigModel):
     #: ahead with the barrier reported ``partial`` (tap ``read.pending``); it never blocks longer than
     #: this. ``0`` (default): off, no wait. Does nothing without ``workers.outbox``.
     wait_for_pending_s: float = Field(default=0.0, ge=0.0, le=300.0)
-
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_moved(cls, value: Any) -> Any:
-        """ADR-081: the lexical provider moved to ``storage.lexical``; ADR-082: the reranker
-        and the read decider moved to ``model.rerank`` / ``model.decider.read``."""
-        from memspine.config.schema.model import MOVED_READ_KEYS, reject_model_moved_keys
-        from memspine.config.schema.storage import reject_moved_keys
-
-        reject_moved_keys(value, "read", ("lexical_provider", "lexical_settings"))
-        reject_model_moved_keys(value, "read", MOVED_READ_KEYS)
-        return value
 
     @model_validator(mode="after")
     def _header_shares_leave_room(self) -> ReadConfig:

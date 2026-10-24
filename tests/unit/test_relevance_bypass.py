@@ -5,29 +5,18 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+import pytest
+
 from memspine import Engine
-from memspine.compose.pack import AssembledContext
 from memspine.config.schema import ReadConfig
 from memspine.core.owner_check import first_person, referenced_names, store_vocab
 from memspine.observability.trace import search_forensics
-from memspine.read.pipeline.state import ReadResult
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
 
-class EmptyingGate:
-    """Stands in for the calibrated gate: always empties the context, and counts its runs."""
-
-    def __init__(self) -> None:
-        self.calls = 0
-
-    async def __call__(self, query: str, result: ReadResult, ns: str | None = None) -> ReadResult:
-        self.calls += 1
-        return ReadResult(result.mode, AssembledContext(abstained=True))
-
-
-def _engine(**read: Any) -> tuple[Engine, EmptyingGate]:
-    eng = Engine(
+def _engine(**read: Any) -> Engine:
+    return Engine(
         template="core",
         dotenv_path=None,
         storage={
@@ -38,11 +27,8 @@ def _engine(**read: Any) -> tuple[Engine, EmptyingGate]:
         },
         model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
-        read={"record_access": False, "relevance_gate": "store_calibrated", **read},
+        read={"record_access": False, "gate": True, **read},
     )
-    fake = EmptyingGate()
-    eng._calibrated_gate = fake  # type: ignore[method-assign]
-    return eng, fake
 
 
 async def _seed(eng: Engine) -> None:
@@ -83,63 +69,65 @@ def test_first_person_tokens() -> None:
     assert first_person("What is a mime?") is None
 
 
-async def test_named_message_bypasses_the_gate() -> None:
-    eng, fake = _engine()
+async def test_named_message_bypasses_with_current_evidence() -> None:
+    eng = _engine()
     await eng.start()
     try:
         await _seed(eng)
         with search_forensics() as stages:
             out = await eng.read("Where did Caroline move from?", namespace="a", mode="replay")
         assert out.context.records and not out.context.abstained
-        assert fake.calls == 0  # the gate never ran
-        assert stages["relevance_bypass"]["fired"] is True
-        assert stages["relevance_bypass"]["names"] == ["Caroline"]
+        entry = stages["relevance_gate"]
+        assert entry["state"] == "bypass"
+        assert entry["bypass_reason"] == "named_reference"
+        assert entry["names"] == ["Caroline"]
     finally:
         await eng.stop()
 
 
 async def test_generic_request_still_gated_and_logged() -> None:
-    eng, fake = _engine()
+    eng = _engine()
     await eng.start()
     try:
         await _seed(eng)
         with search_forensics() as stages:
             out = await eng.read("Write me a poem about autumn", namespace="a", mode="replay")
-        assert out.context.abstained and fake.calls == 1
-        assert stages["relevance_bypass"]["fired"] is False
+        assert out.context.abstained
+        assert stages["relevance_gate"]["state"] == "missing"
     finally:
         await eng.stop()
 
 
-async def test_first_person_is_a_separate_option() -> None:
-    query = "What should I cook tonight?"
-    eng, fake = _engine()  # named: first person does not bypass
-    await eng.start()
-    try:
-        await _seed(eng)
-        assert (await eng.read(query, namespace="a", mode="replay")).context.abstained
-    finally:
-        await eng.stop()
-    eng, fake = _engine(relevance_gate_bypass="named_or_first_person")
-    await eng.start()
-    try:
-        await _seed(eng)
-        with search_forensics() as stages:
-            out = await eng.read(query, namespace="a", mode="replay")
-        assert out.context.records and fake.calls == 0
-        assert stages["relevance_bypass"]["kind"] == "first_person"
-    finally:
-        await eng.stop()
+async def test_first_person_without_evidence_does_not_bypass(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from memspine.read.pipeline import gate as gate_pipeline
 
+    async def unsupported(
+        _eng: Any, _ns: str, _query: str, records: Any, _leg: str
+    ) -> dict[str, float]:
+        return {r.record_id: -1.0 for r in records}
 
-async def test_none_disables_the_bypass() -> None:
-    eng, fake = _engine(relevance_gate_bypass="none")
+    monkeypatch.setattr(gate_pipeline, "_gate_scores", unsupported)
+    eng = _engine(relevance_gate_bypass="named_or_first_person")
     await eng.start()
     try:
         await _seed(eng)
         with search_forensics() as stages:
-            out = await eng.read("Where did Caroline move from?", namespace="a", mode="replay")
-        assert out.context.abstained and fake.calls == 1
-        assert "relevance_bypass" not in stages
+            await eng.read("What should I cook tonight?", namespace="a", mode="replay")
+        assert stages["relevance_gate"]["bypass_reason"] is None
+    finally:
+        await eng.stop()
+
+
+async def test_none_disables_named_bypass() -> None:
+    eng = _engine(relevance_gate_bypass="none")
+    await eng.start()
+    try:
+        await _seed(eng)
+        with search_forensics() as stages:
+            await eng.read("Where did Caroline move from?", namespace="a", mode="replay")
+        assert stages["relevance_gate"]["bypass_reason"] is None
+        assert stages["relevance_gate"]["names"] == []
     finally:
         await eng.stop()

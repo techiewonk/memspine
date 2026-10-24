@@ -1,4 +1,4 @@
-"""OW-D / O4-09: activation tiers and multi-resolution compression (``offline.decay_v2``), model-free."""
+"""OW-D / O4-09: activation tiers and multi-resolution compression (``offline.decay``), model-free."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema.observability import TapConfig
-from memspine.derive.pipeline.stages import decay_v2
+from memspine.derive.pipeline.stages import decay
 from memspine.derive.pipeline.stages.maintenance import compress, decay_sweep
 from memspine.observability import tap
 from memspine.store import lineage as lineage_store
@@ -33,7 +33,7 @@ def _tap_reset():
     tap.shutdown()
 
 
-def _engine(*, v2: bool, lineage: bool = False, **offline: Any) -> Engine:
+def _engine(*, enabled: bool, lineage: bool = False, **offline: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
@@ -47,13 +47,13 @@ def _engine(*, v2: bool, lineage: bool = False, **offline: Any) -> Engine:
         memories={"semantic": {"enabled": True}, "episodic": {"enabled": True}},
         read={"record_access": False},
         write={"lineage_table": lineage},
-        offline={"decay_v2": v2, **offline},
+        offline={"decay": enabled, **offline},
     )
 
 
 def _at(monkeypatch: pytest.MonkeyPatch, days: float) -> None:
     now = datetime.now(UTC) + timedelta(days=days)
-    monkeypatch.setattr(decay_v2, "_now", lambda: now)
+    monkeypatch.setattr(decay, "_now", lambda: now)
 
 
 async def _tiers(eng: Engine, ns: str = "a") -> dict[str, str]:
@@ -71,13 +71,13 @@ async def _transition_reasons(eng: Engine) -> list[str]:
     return [str(e.payload.get("reason")) for e in events if e.kind is EventKind.DECAY_TRANSITION]
 
 
-async def test_flag_off_keeps_the_idle_day_tiers() -> None:
-    eng = _engine(v2=False)
+async def test_disabled_decay_skips() -> None:
+    eng = _engine(enabled=False)
     await eng.start()
     try:
         await eng.write("a plain turn of talk", namespace="a", memory_type="episodic")
         stats = await decay_sweep(eng._pipeline_ctx())
-        assert stats == {"status": "ok", "transitions": 0}  # fresh: still hot
+        assert stats == {"status": "skipped", "reason": "offline.decay is off"}
         assert await _transition_reasons(eng) == []
     finally:
         await eng.stop()
@@ -86,7 +86,7 @@ async def test_flag_off_keeps_the_idle_day_tiers() -> None:
 async def test_idle_records_go_cold_once_and_protected_ones_stay_hot(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    eng = _engine(v2=True, decay_protected_kinds=["semantic"])
+    eng = _engine(enabled=True, decay_protected_kinds=["semantic"])
     await eng.start()
     try:
         await eng.write("an idle episodic turn", namespace="a", memory_type="episodic")
@@ -112,7 +112,7 @@ async def test_idle_records_go_cold_once_and_protected_ones_stay_hot(
 
 
 async def test_reactivation_climbs_with_the_margin(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = _engine(v2=True)
+    eng = _engine(enabled=True)
     await eng.start()
     try:
         await eng.write("a turn that gets used again", namespace="a", memory_type="episodic")
@@ -131,7 +131,7 @@ async def test_reactivation_climbs_with_the_margin(monkeypatch: pytest.MonkeyPat
 
 
 async def test_nothing_is_deleted(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = _engine(v2=True)
+    eng = _engine(enabled=True)
     await eng.start()
     try:
         for i in range(3):
@@ -164,7 +164,7 @@ def _multires(records: list[MemoryRecord]) -> list[MemoryRecord]:
 async def test_multires_runs_up_to_the_cap_and_keeps_the_members(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    eng = _engine(v2=True, lineage=True, decay_multires_jobs=1)
+    eng = _engine(enabled=True, lineage=True, decay_multires_jobs=1)
     await eng.start()
     calls: list[str] = []
 
@@ -200,7 +200,7 @@ async def test_multires_runs_up_to_the_cap_and_keeps_the_members(
 
 async def test_cap_zero_plans_and_reports_only(monkeypatch: pytest.MonkeyPatch) -> None:
     tap.configure(TapConfig(enabled=True, sink="memory"))
-    eng = _engine(v2=True)
+    eng = _engine(enabled=True)
     await eng.start()
     calls = 0
 
@@ -230,7 +230,7 @@ async def test_cap_zero_plans_and_reports_only(monkeypatch: pytest.MonkeyPatch) 
 
 
 async def test_without_a_model_the_levels_are_extractive(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = _engine(v2=True, decay_multires_jobs=1)
+    eng = _engine(enabled=True, decay_multires_jobs=1)
     await eng.start()
     try:
         await _cold_group(eng, monkeypatch)
@@ -247,7 +247,7 @@ async def test_without_a_model_the_levels_are_extractive(monkeypatch: pytest.Mon
 
 async def test_tap_reports_tier_moves(monkeypatch: pytest.MonkeyPatch) -> None:
     tap.configure(TapConfig(enabled=True, sink="memory"))
-    eng = _engine(v2=True)
+    eng = _engine(enabled=True)
     await eng.start()
     try:
         await eng.write("an idle episodic turn", namespace="a", memory_type="episodic")

@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import io
 import json
+import os
+import re
 from pathlib import Path
 
 import pytest
@@ -105,8 +107,8 @@ def test_resolve_arm_and_offline_swap() -> None:
     assert off["model"]["embedding"] == {"provider": "hash", "settings": {}}
     assert off["model"]["rerank"]["chain"] == []
     assert any("embedder" in n for n in notes) and any("reranker" in n for n in notes)
-    name, arm = step.resolve_arm("scr-b8-write-v2")
-    assert name == "scr-b8-write-v2" and arm["model"]["embedding"]["provider"] == "st"
+    name, arm = step.resolve_arm("scr-b8-write")
+    assert name == "scr-b8-write" and arm["model"]["embedding"]["provider"] == "st"
     with pytest.raises(FileNotFoundError):
         step.resolve_arm("no-such-arm")
 
@@ -323,7 +325,10 @@ def test_reset_clears_the_store_and_load_replaces_the_conversation(tmp_path: Pat
     async def go(s: step.StepSession) -> None:
         await s.execute("say Bram: I keep a hedgehog named Spike in the garden.")
         await s.execute("turn 2")
-        assert len(s.written) == 3 and len(await s._records()) == 3
+        assert (
+            len(s.written) == 3
+            and len([r for r in await s._records() if r.memory_type == "episodic"]) == 3
+        )
         await s.execute("reset")
         assert s.written == [] and s.next_turn == 0 and await s._records() == []
         await s.execute(f"load {other}")
@@ -381,7 +386,7 @@ def test_tuning_set_unset_params_config_sweep_export(tmp_path: Path) -> None:
         await s.execute("set read.assembly.relative_floor=0.9")
         await s.execute("set read.assembly.relative_floor=banana")  # refused by the schema
         await s.execute("set read.nonsense=3")
-        await s.execute("set embedding.provider=hash")  # a rebuild key
+        await s.execute("set model.embedding.provider=hash")  # a rebuild key
         await s.execute("rerun ask q1")
         assert s._last_read["q1"]["tokens"] < before
         await s.execute("sweep read.assembly.relative_floor 0.1,0.9 ask q1,q7")
@@ -411,8 +416,9 @@ def test_tuning_set_unset_params_config_sweep_export(tmp_path: Path) -> None:
         and "rerun window" in text
     )
     arm = json.loads((arms / "tuned.json").read_text(encoding="utf-8"))
-    assert arm["read"]["assembly"]["relative_floor"] == 0.5 and arm["embedding"] == {
-        "provider": "hash"
+    assert arm["read"]["assembly"]["relative_floor"] == 0.5 and arm["model"]["embedding"] == {
+        "provider": "hash",
+        "settings": {},
     }
     assert (
         "--- export arm tuned" in text and "read.assembly.relative_floor: (absent) -> 0.5" in text
@@ -475,11 +481,35 @@ def test_prompt_edit_rerun_window_diff_and_reset(tmp_path: Path) -> None:
     assert "structured.window" in text and "window_extract" in text and "reader.qa" in text
     assert "(edited this session)" in text
     assert "(scratch: nothing deposited)" in text
-    assert "items before 8, after 1:" in text and "-7 removed" in text
-    assert "items before 8, after 8:" in text  # reset: the same eight items come back
+    comparisons = re.findall(r"items before (\d+), after (\d+): .*?-(\d+) removed", text)
+    assert len(comparisons) == 2
+    before, edited, removed = map(int, comparisons[0])
+    restored_before, restored_after, restored_removed = map(int, comparisons[1])
+    assert before > edited and removed == before - edited
+    assert restored_before == restored_after == before and restored_removed == 0
     assert "no window 'nosuchwindow'" in text
     bundle = session.out / f"{session.run_id}--bundle"
     log = _jsonl(bundle / "tuning.jsonl")
     assert [r["command"] for r in log].count("rerun window") == 2
     assert {"prompt edit", "prompt reset"} <= {r["command"] for r in log}
     assert not _bundle_checks(bundle)
+
+
+def test_startup_failure_restores_environment_and_closes_engine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    before = os.environ.get("MEMSPINE_FORENSICS_DIR")
+    session = step.StepSession(
+        load_dataset("demo"), "demo-1", "demo", out=tmp_path, offline=True, stream=io.StringIO()
+    )
+    start = session.start
+
+    async def fail_after_start() -> None:
+        await start()
+        raise RuntimeError("injected startup failure")
+
+    monkeypatch.setattr(session, "start", fail_after_start)
+    with pytest.raises(RuntimeError, match="injected startup failure"):
+        asyncio.run(session.run([]))
+    assert os.environ.get("MEMSPINE_FORENSICS_DIR") == before
+    assert session.system is None

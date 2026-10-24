@@ -119,7 +119,7 @@ class MemoryEvent(BaseModel):
     namespace: str
     ts: datetime = Field(default_factory=lambda: datetime.now(UTC))
     actor: str = "system"
-    schema_version: int = 1
+    schema_version: int = Field(default=1, ge=1, le=1)
     payload: dict[str, Any] = Field(default_factory=dict)
     fingerprint: str = ""
 

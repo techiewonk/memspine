@@ -118,12 +118,18 @@ class AssembleRequest(_Request):
 
 
 class FeedbackRequest(_Request):
-    """#54: a like / dislike / note on one record of the caller's namespace."""
+    """Explicit current feedback on a record in the caller's namespace."""
 
     record_id: str
-    signal: Literal["like", "dislike", "note"]
+    signal: Literal["correction", "rejection", "confirmation", "rating"]
     note: str | None = Field(default=None, max_length=constants.FEEDBACK_NOTE_MAX_CHARS)
     actor: str = "user"
+    new_value: str | int | float | bool | None = None
+    new_text: str | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
+    quote: str | None = None
+    turn: int | None = None
+    source_id: str | None = None
 
 
 class RetrieveRequest(_Request):

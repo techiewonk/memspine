@@ -34,7 +34,7 @@ Stage table of the 302 wrong answers (80.4% run): recall 69, cuts 61 (56 at the 
 
 OP-Bench against our own no-memory BASE (62.8): baseline 21.2 on dev = -66%; with gate + bypass 43.2 = -31%.
 
-**Contamination notice (I80, 2026-10-11).** The `grounded` / `grounded_detail` reader prompts printed a LoCoMo gold answer as an example until the fix of 8cebf97. Every absolute LoCoMo number above that came from `--qa-prompt grounded`, `grounded_detail`, `grounded_v2`, `grounded_v3` or `grounded_ordered` (including 80.4, 81.4 and the r7 arms) is contaminated; relative comparisons between arms sharing the prompt stand; a re-baseline on the clean prompt is needed before any absolute claim.
+**Contamination notice (I80, 2026-10-11).** The `grounded` / `grounded_detail` reader prompts printed a LoCoMo gold answer as an example until the fix of 8cebf97. Every absolute LoCoMo number above that came from `--qa-prompt grounded`, `grounded_detail`, `grounded`, `grounded_v3` or `grounded_ordered` (including 80.4, 81.4 and the r7 arms) is contaminated; relative comparisons between arms sharing the prompt stand; a re-baseline on the clean prompt is needed before any absolute claim.
 
 ### 1.2 Every screen verdict so far
 

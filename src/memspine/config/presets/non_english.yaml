@@ -2,5 +2,5 @@
 # are skipped instead of misfiring (I23).
 read:
   language_guard: "on"
-# W2-07 / P-10: pair this preset with `prompts: {layout_v2: true}` to add the same-language rule
+# W2-07 / P-10: pair this preset with `prompts: {layout: true}` to add the same-language rule
 # to write prompts for non-English input. Not enabled here until its multilingual screen has run.

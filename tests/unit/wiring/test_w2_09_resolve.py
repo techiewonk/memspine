@@ -1,4 +1,4 @@
-"""W2-09: online entity resolution with pending_merge (``write.resolver_v2``; W-19, M-15).
+"""W2-09: online entity resolution with pending_merge (``write.resolver``; W-19, M-15).
 
 Model-free: invented names (Noor, Ilse, Bram, Tomasz), the hash embedder or a scripted vector table,
 a stub window LLM for the one end-to-end window."""
@@ -37,7 +37,7 @@ from memspine.services.embedding.hash import HashEmbedding
 from memspine.services.llm.base import LLMRouter
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind
-from memspine.store.migrate import ReplayBuilder
+from memspine.store.rebuild import ReplayBuilder
 
 NOW = datetime(2023, 6, 1, 12, 0, tzinfo=UTC)
 SCOPE_A = OwnerScope(tenant="t", owner="ilse")
@@ -125,7 +125,7 @@ def test_flag_is_off_by_default_and_stage_registered_only_when_on() -> None:
             }
         }
     )
-    assert cfg.write.resolver_v2 is False
+    assert cfg.write.resolver is False
     assert (cfg.write.resolve_high, cfg.write.resolve_grey, cfg.write.resolve_cache) == (
         0.9,
         0.7,
@@ -145,7 +145,7 @@ def test_flag_is_off_by_default_and_stage_registered_only_when_on() -> None:
                 "startup_timeout_s": None,
             }
         },
-        write={"window_extract": "facts", "envelope_v2": True, "resolver_v2": True},
+        write={"window_extract": "facts", "resolver": True},
     )
     (stage,) = _envelope_stages(Eng(), on)
     assert stage.name == "resolve" and stage.order == 300
@@ -346,16 +346,17 @@ async def test_entities_never_cross_owners() -> None:
     assert c.subject.entity_id == a.subject.entity_id
 
 
-async def test_unscoped_keys_use_the_namespace() -> None:
-    st = _stage(scoped=False)
-    await st.run(
+async def test_registry_always_uses_typed_owner_scope() -> None:
+    stage = _stage()
+    await stage.run(
         _envs(SCOPE_A, ("Ilse Brandt", None, "Ilse Brandt lives in Leiden.")), _ctx("ns-one")
     )
-    assert len(st.registry.active(("ns-one",))) == 1 and not st.registry.active(KEY_A)
+    assert len(stage.registry.active(KEY_A)) == 1
+    assert not stage.registry.active(("ns-one",))
 
 
 # --- replay ----------------------------------------------------------------------------------------
-async def test_registry_replays_from_payloads_and_through_migrate(tmp_path: Path) -> None:
+async def test_registry_replays_from_payloads_and_through_replay(tmp_path: Path) -> None:
     client = SQLiteClient(SQLiteSpec(str(tmp_path / "src.db")))
     await client.open()
     src = SQLiteStorage(client)
@@ -479,7 +480,7 @@ async def test_calibrate_picks_a_pair_that_holds_on_the_held_out_half() -> None:
     assert test.homonym_merge_rate <= 0.01 and test.unrelated_merge_rate <= 0.01
 
 
-# --- end to end: one window, write.envelope_v2 + write.resolver_v2 -----------------------------------
+# --- end to end: one window, write.envelope + write.resolver -----------------------------------
 LINE = re.compile(r"^\[(\d+)\] \[[\d-]+\] (.+)$", re.M)
 
 
@@ -490,13 +491,9 @@ class WhoLLM:
     provider_id = "fake:who"
 
     def __init__(self) -> None:
-        self.legacy = FakeWindowLLM()
+        self.sections = FakeWindowLLM()
 
     async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
-        from memspine.prompts.structured import STRUCTURED_SYSTEM
-
-        if messages[0]["content"] != STRUCTURED_SYSTEM:
-            return await self.legacy.chat(messages, **options)
         items = []
         for n, text in LINE.findall(messages[-1]["content"]):
             who, said = text.split(": ", 1)
@@ -517,7 +514,7 @@ class WhoLLM:
                     "speaker": who,
                 }
             )
-        return json.dumps(items)
+        return json.dumps({"facts": items})
 
 
 async def _engine(monkeypatch: pytest.MonkeyPatch, path: Path, **write: Any) -> Engine:
@@ -553,7 +550,6 @@ async def _engine(monkeypatch: pytest.MonkeyPatch, path: Path, **write: Any) -> 
             "window_extract": "facts",
             "window_async": False,
             "window_idle_s": 0.0,
-            "envelope_v2": True,
             **write,
         },
     )
@@ -571,7 +567,7 @@ def _msgs(*lines: str) -> list[dict[str, str]]:
 async def test_end_to_end_window_resolves_and_logs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    eng = await _engine(monkeypatch, tmp_path / "on.db", resolver_v2=True)
+    eng = await _engine(monkeypatch, tmp_path / "on.db", resolver=True)
     try:
         await _send(
             eng,
@@ -586,7 +582,7 @@ async def test_end_to_end_window_resolves_and_logs(
         )
         stats = await eng.flush_windows()
         stage = eng.__dict__["_entity_resolve_stage"]
-        ents = stage.registry.active(("t", "ilse")) or stage.registry.active(("t/ilse",))
+        ents = stage.registry.active(("t", "ilse"))
         names = Counter(e.name for e in ents)
         assert names["Bram Vos"] + names["bram vos"] == 1  # the object resolved to one entity
         assert sum(n for name, n in names.items() if name == "Noor") >= 2  # homonym kept apart

@@ -62,9 +62,7 @@ GOOD = out(
 def test_plan_numbers_lines_and_is_frozen() -> None:
     plan = make_plan(3)
     assert [ln.alias for ln in plan.lines] == [1, 2, 3]
-    assert (
-        plan.complete and plan.output_schema == "session_close.call2.v1" and plan.session_id == "s1"
-    )
+    assert plan.complete and plan.output_schema == "session_close.call2" and plan.session_id == "s1"
     with pytest.raises(AttributeError):
         plan.budget_tokens = 1  # type: ignore[misc]
 

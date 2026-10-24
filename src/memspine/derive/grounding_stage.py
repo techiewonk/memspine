@@ -1,4 +1,4 @@
-"""W2-08 (W-17, W-08): grounding stage over a window's assertion envelopes (``write.grounding_v2``).
+"""W2-08 (W-17, W-08): grounding stage over a window's assertion envelopes (``write.grounding``).
 
 An envelope stage at order 200 (see ``derive/envelope_stages.py``). For each compiled assertion:
 
@@ -558,7 +558,7 @@ class _EngineDecider:
 
 
 def build_grounding_stage(eng: Any, config: Any) -> EnvelopeStage:
-    """``write.grounding_v2`` -> the stage, from the ``write.ground_*`` keys."""
+    """``write.grounding`` -> the stage, from the ``write.ground_*`` keys."""
     w = config.write
     return make_grounding_stage(
         action=w.ground_action,

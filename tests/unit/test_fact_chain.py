@@ -75,6 +75,7 @@ SECRET = "Caroline: my passport number is X4471920"
 def _projecting_engine(value: Any = "on") -> Engine:
     return Engine(
         template="core",
+        privacy={"erasure_redact_hidden": True},
         dotenv_path=None,
         storage={
             "records": {

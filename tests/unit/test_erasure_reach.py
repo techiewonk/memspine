@@ -12,9 +12,7 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.config import constants
-from memspine.store.events import EventKind, MemoryEvent
-from memspine.store.records import MemoryRecord, SourceInfo
+from memspine.store.records import MemoryRecord
 
 SECRET = "SECRETWORD0"
 
@@ -32,6 +30,7 @@ def _engine(**extra: Any) -> Engine:
         "model": {"embedding": {"provider": "hash", "settings": {}}},
         "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
     }
+    config["privacy"] = {"erasure_redact_hidden": True}
     config.update(extra)
     return Engine(**config)
 
@@ -96,42 +95,6 @@ async def test_hard_forget_of_a_member_erases_its_session_summary(engine: Engine
     assert SECRET not in log
     report = await engine.verify_forget(turns[0].record_id, namespace="a")
     assert report["clean"] is True
-
-
-async def test_legacy_summary_without_parents_is_still_found(engine: Engine) -> None:
-    """A summary written before the fix names its members only in the WRITE
-    payload; erasure and its proof must still reach it."""
-    turns = await _closed_session(engine)
-    legacy = MemoryRecord(
-        namespace="a",
-        memory_type="semantic",
-        content=f"summary: {SECRET} locker 4471",
-        source=SourceInfo(role=constants.DERIVED_ROLE, channel="consolidation", message_id="k"),
-    )
-    await engine._append_and_project(
-        MemoryEvent(
-            kind=EventKind.WRITE,
-            namespace="a",
-            actor="system",
-            payload={
-                "record": legacy.model_dump(mode="json"),
-                "consolidation": {
-                    "session_key": "k",
-                    "member_record_ids": [t.record_id for t in turns],
-                },
-            },
-        )
-    )
-    # Before the erasure, verify reports the legacy summary as a remaining descendant.
-    before = await engine.verify_forget(turns[0].record_id, namespace="a")
-    assert legacy.record_id in before["descendants_remaining"]  # type: ignore[operator]
-
-    await engine.forget(turns[0].record_id, namespace="a", hard=True)
-    storage = engine._require_started()
-    assert await storage.get_record(legacy.record_id) is None
-    log = " ".join(str(e.payload) for e in await storage.read_events())
-    assert SECRET not in log
-    assert (await engine.verify_forget(turns[0].record_id, namespace="a"))["clean"] is True
 
 
 async def test_verify_forget_walks_descendants_transitively(engine: Engine) -> None:

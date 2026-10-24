@@ -40,30 +40,6 @@ def _config(**overrides: Any) -> MemspineConfig:
 # ---------------------------------------------------------------------------- old keys
 
 
-@pytest.mark.parametrize(
-    ("old", "new_location"),
-    [
-        ({"storage": {"profile": "server"}}, "Alembic always runs"),
-        ({"storage": {"provider": "sqlite"}}, "storage.records.provider"),
-        ({"storage": {"settings": {"path": "x.db"}}}, "storage.records.settings"),
-        ({"vector": {"provider": "lancedb"}}, "storage.vector"),
-        ({"cache": {"provider": "memory"}}, "storage.cache"),
-        ({"graph": {"provider": "auto"}}, "storage.graph.provider"),
-        ({"graph": {"settings": {}}}, "storage.graph.settings"),
-        ({"graph": {"mirror": {"enabled": True}}}, "one graph client runs at a time"),
-        ({"read": {"lexical_provider": "tantivy"}}, "storage.lexical.provider"),
-        ({"read": {"lexical_settings": {}}}, "storage.lexical.settings"),
-        ({"runtime": {"deployment_id": "x"}}, "deployment.id"),
-    ],
-)
-def test_every_removed_key_is_rejected_naming_its_new_location(
-    old: dict[str, Any], new_location: str
-) -> None:
-    with pytest.raises(ConfigError, match="removed by ADR-081") as raised:
-        load_config(template="base", overrides=old)
-    assert new_location in str(raised.value)
-
-
 @pytest.mark.parametrize("slot", ["vector", "lexical", "records", "graph", "cache"])
 def test_required_slots_cannot_be_null(slot: str) -> None:
     with pytest.raises(ConfigError, match=f"storage.{slot}"):
@@ -160,29 +136,6 @@ def test_every_builtin_data_provider_declares_its_locality() -> None:
                 assert descriptor.locality is None, f"{category}:{name}"
     for key, locality in expected.items():
         assert seen[key] == locality, key
-
-
-@pytest.mark.parametrize(
-    "value", [{"provider": "neo4j"}, {"provider": "neo4j", "settings": {}}, None]
-)
-def test_graph_mirror_slot_is_rejected_naming_storage_graph(value: Any) -> None:
-    """ADR-081 amendment 2026-10-23: one graph client runs at a time. The key is rejected
-    whatever its value (null included), naming ``storage.graph`` as the replacement."""
-    for build in (
-        lambda: _config(storage={"graph_mirror": value}),
-        lambda: load_config(template="base", overrides={"storage": {"graph_mirror": value}}),
-    ):
-        with pytest.raises(ConfigError, match="storage.graph_mirror") as raised:
-            build()
-        message = str(raised.value)
-        assert "one graph client runs at a time" in message
-        assert "storage.graph" in message.replace("storage.graph_mirror", "")
-
-
-def test_graph_mirror_env_var_is_rejected() -> None:
-    env = {"MEMSPINE_STORAGE__GRAPH_MIRROR__PROVIDER": "neo4j"}
-    with pytest.raises(ConfigError, match="one graph client runs at a time"):
-        load_config(template="base", env=env)
 
 
 def test_no_graph_provider_declares_a_mirror_capability() -> None:

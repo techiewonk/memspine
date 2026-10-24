@@ -40,7 +40,7 @@ def test_flags_default_off() -> None:
             }
         }
     )
-    assert cfg.write.online_extractor_v2 is False
+    assert cfg.write.online_extractor is False
     assert cfg.read.wait_for_pending_s == 0.0
 
 
@@ -50,7 +50,7 @@ def test_flags_default_off() -> None:
 async def test_stage_notes_appear_in_the_window_stats(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = ItemLLM()
     llm.mutations[1] = lambda item: {**item, "text": "Mira said she repotted 99 orchids"}
-    eng = await _engine(monkeypatch, llm, grounding_v2=True, online_extractor_v2=True)
+    eng = await _engine(monkeypatch, llm, grounding=True, online_extractor=True)
     try:
         await _send(eng, "a", "s1", _w2_turns())
         stats = await eng.flush_windows()
@@ -68,7 +68,7 @@ async def test_flag_off_stats_have_no_new_keys_and_deposit_is_identical(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def run(**write: Any) -> tuple[dict[str, Any], list[str]]:
-        eng = await _engine(monkeypatch, ItemLLM(), grounding_v2=True, **write)
+        eng = await _engine(monkeypatch, ItemLLM(), grounding=True, **write)
         try:
             await _send(eng, "a", "s1", _w2_turns())
             stats = await eng.flush_windows()
@@ -77,7 +77,7 @@ async def test_flag_off_stats_have_no_new_keys_and_deposit_is_identical(
             await eng.stop()
 
     off, facts_off = await run()
-    on, facts_on = await run(online_extractor_v2=True)
+    on, facts_on = await run(online_extractor=True)
     assert "envelope_stages" not in off and "online_extractor" not in off
     assert facts_off == facts_on
     assert {k: v for k, v in on.items() if k not in ("envelope_stages", "online_extractor")} == off
@@ -225,7 +225,14 @@ async def _outbox_engine(monkeypatch: pytest.MonkeyPatch, path: Path, **read: An
             },
         },
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        write={"window_extract": "facts", "window_async": False, "window_idle_s": 0.0},
+        write={
+            "window_extract": "facts",
+            "window_async": False,
+            "window_idle_s": 0.0,
+            "segment_max_turns": 6,
+            "segment_gap_s": 0,
+            "batch_max_windows": 1,
+        },
         workers={"outbox": True},
         read=read,
     )

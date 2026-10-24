@@ -20,16 +20,27 @@ def _turn(speaker: str, text: str, n: int) -> Turn:
     return Turn(turn_id=f"D1:{n}", session_id="s1", speaker=speaker, text=text)
 
 
-def test_default_message_is_unchanged() -> None:
+def test_default_message_preserves_dataset_identity() -> None:
     sys_ = MemspineSystem(config=_HASH)
     msg = sys_._message(_turn("Caroline", "hi", 1), "Caroline: hi")
-    assert msg == {"role": "user", "content": "Caroline: hi"}
+    assert msg == {
+        "role": "user",
+        "content": "Caroline: hi",
+        "message_id": "D1:1",
+        "conversation_id": "eval:s1",
+    }
 
 
 def test_metadata_for_named_speakers_and_chat_roles() -> None:
     sys_ = MemspineSystem(config=_HASH, perspective_metadata=True)
     named = sys_._message(_turn("Caroline", "hi", 1), "Caroline: hi")
-    assert named == {"role": "user", "content": "Caroline: hi", "speaker": "Caroline"}
+    assert named == {
+        "role": "user",
+        "content": "Caroline: hi",
+        "speaker": "Caroline",
+        "message_id": "D1:1",
+        "conversation_id": "eval:s1",
+    }
     bot = sys_._message(_turn("assistant", "hello", 2), "assistant: hello")
     assert bot["role"] == "assistant"
     assert bot["speaker"] == "assistant"
@@ -49,8 +60,11 @@ def test_enabled_by_the_engine_policy_and_end_to_end_tags() -> None:
         await sys_.reset("item")
         await sys_.insert(_turn("Caroline", "My cousin needs a job.", 1))
         await sys_.insert(_turn("Melanie", "Does your cousin like cooking?", 2))
-        records = await sys_._engine._records(sys_.namespace)
-        return sorted(records, key=lambda r: r.content)
+        try:
+            records = await sys_._engine._records(sys_.namespace)
+            return sorted(records, key=lambda r: r.content)
+        finally:
+            await sys_.close()
 
     records = asyncio.run(run())
     by_text = {r.content: r for r in records}

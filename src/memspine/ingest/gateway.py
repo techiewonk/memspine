@@ -552,7 +552,7 @@ class IntakeGateway:
                 )
             finally:
                 INTAKE_LANDED.reset(token)
-        if eng._config().write.role_policy_v2:  # W2-03: keyed turns also get a typed record
+        if eng._config().write.role_policy:  # W2-03: keyed turns also get a typed record
             await self._route_typed(p, fresh, {**landed, **sink})
         return {**landed, **sink}
 

@@ -88,7 +88,7 @@ before model execution. Unused slots do not justify loading optional SDKs or
 weights.
 
 An explicit `model.llm.<role>` slot takes precedence over automatic
-`model.placement.tiers_v2` selection. The tier catalogue
+`model.placement.tiers` selection. The tier catalogue
 (`model.placement.catalogue`) remains the optional placement planner; declaring
 slots alone does not turn tier planning on.
 

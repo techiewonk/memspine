@@ -9,13 +9,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from alembic import command
 
 from memspine import Engine
 from memspine.derive.write import DerivedWithoutParents, write_derived
 from memspine.read.pipeline.lift import lineage_from_records
 from memspine.schemas.durable.lineage import LineageEdge
-from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
 from memspine.store import lineage as lineage_store
 from memspine.store.records import MemoryRecord, SourceInfo
 from memspine.trust.erasure_plan import plan_erasure
@@ -88,7 +86,7 @@ async def test_write_door_writes_edges_roles_and_caps_trust(tmp_path: Path) -> N
         rec = await _derive(
             eng,
             _fact([a.record_id, b.record_id]),
-            roles={b.record_id: "context"},
+            roles={a.record_id: "support", b.record_id: "context"},
             site="test",
         )
         assert rec.trust <= 0.3 + 1e-9  # POL-2: never above the least-trusted parent
@@ -125,7 +123,9 @@ async def test_refused_without_parents_and_tap_events(
         turns = await _turns(eng)
         with pytest.raises(DerivedWithoutParents):
             await _derive(eng, _fact([]), site="orphan")
-        await _derive(eng, _fact([turns[0].record_id]), site="ok")
+        await _derive(
+            eng, _fact([turns[0].record_id]), roles={turns[0].record_id: "support"}, site="ok"
+        )
     finally:
         await eng.stop()
     assert [n for n, _ in seen] == ["derive.lineage.refused", "derive.lineage.write"]
@@ -134,7 +134,7 @@ async def test_refused_without_parents_and_tap_events(
     assert seen[1][1]["roles"] == ["support"]
 
 
-async def test_flag_off_is_the_old_path(tmp_path: Path) -> None:
+async def test_disabled_lineage_table_uses_current_parent_links(tmp_path: Path) -> None:
     path = tmp_path / "m.db"
     eng = _engine(path, lineage=False)
     await eng.start()
@@ -155,8 +155,12 @@ async def test_planner_runs_over_the_sql_graph(tmp_path: Path) -> None:
     try:
         turns = await _turns(eng)
         a, b = turns[0], turns[1]
-        both = await _derive(eng, _fact([a.record_id, b.record_id], "both"))
-        only = await _derive(eng, _fact([a.record_id], "only a"))
+        both = await _derive(
+            eng,
+            _fact([a.record_id, b.record_id], "both"),
+            roles={a.record_id: "support", b.record_id: "support"},
+        )
+        only = await _derive(eng, _fact([a.record_id], "only a"), roles={a.record_id: "support"})
         binding = await _derive(
             eng, _fact([b.record_id], "bound to b"), roles={b.record_id: "binding"}
         )
@@ -182,14 +186,14 @@ async def test_lift_adapter_reads_the_table_when_on(tmp_path: Path) -> None:
         rec = await _derive(
             eng,
             _fact([turns[0].record_id, turns[1].record_id]),
-            roles={turns[1].record_id: "binding"},
+            roles={turns[0].record_id: "support", turns[1].record_id: "binding"},
         )
         lin, fetched = await lineage_from_records(eng, [rec], 3)
         roles = {e.parent: e.role for e in lin[rec.record_id]}
         assert roles == {turns[0].record_id: "support", turns[1].record_id: "binding"}
         assert set(fetched) == {turns[0].record_id, turns[1].record_id}
-        # a record with no rows (written before the flag) falls back to source.parents
-        old = _fact([turns[0].record_id], "older fact")
+        # A current raw record without table edges still exposes its declared source.parents.
+        old = _fact([turns[0].record_id], "raw fact")
         await eng._require_started().upsert_record(old)
         lin2, _ = await lineage_from_records(eng, [old], 3)
         assert [(e.parent, e.role) for e in lin2[old.record_id]] == [
@@ -197,24 +201,6 @@ async def test_lift_adapter_reads_the_table_when_on(tmp_path: Path) -> None:
         ]
     finally:
         await eng.stop()
-
-
-async def test_migration_backfills_support_edges(tmp_path: Path) -> None:
-    path = tmp_path / "m.db"
-    eng = _engine(path, lineage=False)
-    await eng.start()
-    try:
-        turns = await _turns(eng)
-        rec = await _derive(eng, _fact([turns[0].record_id, turns[1].record_id]))
-    finally:
-        await eng.stop()
-    command.downgrade(alembic_config(path), "0005")
-    with sqlite3.connect(path) as db:
-        assert db.execute("SELECT name FROM sqlite_master WHERE name='lineage'").fetchall() == []
-    upgrade_to_head(path)
-    assert sorted(_lineage_rows(path)) == sorted(
-        (rec.record_id, t.record_id, "support") for t in turns[:2]
-    )
 
 
 async def test_add_edges_is_idempotent_and_rejects_self_loop(tmp_path: Path) -> None:

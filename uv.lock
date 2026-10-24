@@ -1242,25 +1242,6 @@ local = [
 ]
 
 [[package]]
-name = "graspologic-native"
-version = "1.3.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-    { name = "scipy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b1/25/607bcadd51954aa98892e44d1536560abb06a81ff48288982bd8303983ee/graspologic_native-1.3.1.tar.gz", hash = "sha256:fa6be9c292508b8a876d45ac98ee550534d9e33fcf7129a6df8a95573101be4c", size = 2655991, upload-time = "2026-06-14T01:01:51.23Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/01/f7/c3642c95d7c3f60ade4a7b1d583bb76e9410e9ffe4185701ac87b533ccf2/graspologic_native-1.3.1-cp39-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl", hash = "sha256:72200aa468481d78d5b26735030c98f4a9e3388930c93043e1c01ef9fb2a0a62", size = 730640, upload-time = "2026-06-14T01:01:41.578Z" },
-    { url = "https://files.pythonhosted.org/packages/ee/d6/79475dec15daa002c066494283baac911b65d7956ed6a22c5f685c20987e/graspologic_native-1.3.1-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:7f4319b6d7f9e01d52986fbc13ffcf50e262351e9c78b0a3453c9130cdd1779c", size = 403084, upload-time = "2026-06-14T01:01:43.12Z" },
-    { url = "https://files.pythonhosted.org/packages/8d/73/5bcb4928f973996465cbd5dc1b33f9cbfbf1227d08fb3e0b8e82bb485a95/graspologic_native-1.3.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:1f622699db442f55fe754e44abef2586ce389a9e47e049208e4b324edbef9131", size = 417429, upload-time = "2026-06-14T01:01:44.423Z" },
-    { url = "https://files.pythonhosted.org/packages/c4/b7/0c2774a0f566bbb58f23ab450e4a3b89221b79e0c7aff5736c887c16d78b/graspologic_native-1.3.1-cp39-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:7fc1fd3fb6ee65c940053774841f6c74d3b88a8ab7afb92d5ac8cc09241394ff", size = 471428, upload-time = "2026-06-14T01:01:45.664Z" },
-    { url = "https://files.pythonhosted.org/packages/5f/25/887e991b4466c6ca07d6670f94b1382df87b302c0c996bc4e0ddd05ddc43/graspologic_native-1.3.1-cp39-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:279d922d977cd4a2cb70590a73fe589bb527e1171448d040b5e2b47e6aa58432", size = 619869, upload-time = "2026-06-14T01:01:47.045Z" },
-    { url = "https://files.pythonhosted.org/packages/64/61/f324b76d007eb765792acba95a39f9c0e749d2338049bc3a67b5adc75f65/graspologic_native-1.3.1-cp39-abi3-win_amd64.whl", hash = "sha256:85dfb19cedd7b9ca627b3d1f283d3270af0a3c2e8378c9e61fe1f56d09a2a1a0", size = 260864, upload-time = "2026-06-14T01:01:48.634Z" },
-    { url = "https://files.pythonhosted.org/packages/37/f6/c6fda035cb637e3fe205cc58c555ea68a091d519f7527b7d1351869cb0cd/graspologic_native-1.3.1-cp39-abi3-win_arm64.whl", hash = "sha256:8a631a522b597ff5cf1907efc9b03eb1bc268d8702cf0777efb85769dff29dab", size = 246883, upload-time = "2026-06-14T01:01:49.92Z" },
-]
-
-[[package]]
 name = "greenlet"
 version = "3.5.6"
 source = { registry = "https://pypi.org/simple" }
@@ -2344,7 +2325,6 @@ all = [
     { name = "fastapi" },
     { name = "flashrank" },
     { name = "gliner2", extra = ["local"] },
-    { name = "graspologic-native" },
     { name = "ladybug" },
     { name = "llama-cpp-python" },
     { name = "llmlingua" },
@@ -2370,9 +2350,6 @@ aws = [
 ]
 cache = [
     { name = "cashews", extra = ["diskcache", "redis"] },
-]
-community = [
-    { name = "graspologic-native" },
 ]
 compress = [
     { name = "llmlingua" },
@@ -2496,7 +2473,6 @@ requires-dist = [
     { name = "fastuuid", specifier = ">=0.14.0" },
     { name = "flashrank", marker = "extra == 'rerank'", specifier = ">=0.2.10" },
     { name = "gliner2", extras = ["local"], marker = "extra == 'ner'", specifier = ">=2.1.0,<3" },
-    { name = "graspologic-native", marker = "extra == 'community'", specifier = ">=1.3.1,<1.4" },
     { name = "greenlet", specifier = ">=3.5.6" },
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "huggingface-hub", specifier = ">=2.2.0,<3" },
@@ -2512,7 +2488,7 @@ requires-dist = [
     { name = "markitdown", marker = "extra == 'ingest'", specifier = ">=0.1.8" },
     { name = "memspine", extras = ["aws", "taskiq", "rest"], marker = "extra == 'prod-aws'" },
     { name = "memspine", extras = ["graph", "cache", "ingest", "ner"], marker = "extra == 'local'" },
-    { name = "memspine", extras = ["graph", "cache", "ingest", "ner", "community", "compress", "llmlocal", "opensearch", "temporal", "taskiq", "rest", "rerank", "static", "aws", "postgres", "weaviate", "neo4j", "mongodb"], marker = "extra == 'all'" },
+    { name = "memspine", extras = ["graph", "cache", "ingest", "ner", "compress", "llmlocal", "opensearch", "temporal", "taskiq", "rest", "rerank", "static", "aws", "postgres", "weaviate", "neo4j", "mongodb"], marker = "extra == 'all'" },
     { name = "mkdocs-material", marker = "extra == 'dev'", specifier = ">=9.7.7" },
     { name = "mkdocstrings", extras = ["python"], marker = "extra == 'dev'", specifier = ">=1.0.7" },
     { name = "model2vec", marker = "extra == 'static'", specifier = ">=0.10.0" },
@@ -2555,7 +2531,7 @@ requires-dist = [
     { name = "xxhash", specifier = ">=4.0.1" },
     { name = "zstandard", specifier = ">=0.25.0" },
 ]
-provides-extras = ["anyllm", "graph", "cache", "ingest", "ner", "decider", "community", "compress", "llmlocal", "opensearch", "temporal", "taskiq", "rest", "otel", "rerank", "st", "static", "aws", "promptopt", "postgres", "weaviate", "neo4j", "mongodb", "encrypt", "local", "prod-aws", "all", "dev"]
+provides-extras = ["anyllm", "graph", "cache", "ingest", "ner", "decider", "compress", "llmlocal", "opensearch", "temporal", "taskiq", "rest", "otel", "rerank", "st", "static", "aws", "promptopt", "postgres", "weaviate", "neo4j", "mongodb", "encrypt", "local", "prod-aws", "all", "dev"]
 
 [package.metadata.requires-dev]
 dev = [

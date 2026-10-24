@@ -169,8 +169,8 @@ async def main() -> None:
     )
     await bench_reranker(
         "bge-reranker-base (onnx, CPU ONNX)",
-        "BAAI/bge-reranker-base",
-        OnnxReranker("BAAI/bge-reranker-base"),
+        "Xenova/ms-marco-MiniLM-L-6-v2",
+        OnnxReranker("Xenova/ms-marco-MiniLM-L-6-v2"),
     )
     await bench_reranker(
         "Qwen3-Reranker-0.6B (GPU)",

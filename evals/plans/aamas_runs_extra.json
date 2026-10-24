@@ -34,14 +34,19 @@
           "utility_weight": 0.0
         }
       },
-      "embedding": {
-        "provider": "openai_compatible",
-        "model": "bedrock/cohere.embed-v4:0",
-        "dim": 1024,
-        "aws_region": "us-east-1",
-        "request_dimensions": true,
-        "query_input_type": "search_query",
-        "document_input_type": "search_document"
+      "model": {
+        "embedding": {
+          "provider": "bedrock",
+          "settings": {
+            "model": "cohere.embed-v4:0",
+            "dim": 1024,
+            "aws_region": "us-east-1",
+            "request_dimensions": true,
+            "query_input_type": "search_query",
+            "document_input_type": "search_document",
+            "request_timeout_s": 60.0
+          }
+        }
       }
     }
   },
@@ -88,10 +93,30 @@
       "qa_prompt": "dated",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
           }
         }
       },
@@ -110,10 +135,30 @@
       "qa_prompt": "dated_infer",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
           }
         }
       },
@@ -127,7 +172,27 @@
       ],
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "core_terms_leg": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       },
       "notes": "extra BM25 leg over the question's core terms, fused by RRF; needs read.hybrid (default true). One change on memspine-base."
@@ -141,8 +206,28 @@
       ],
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "assembly": {
             "latest_slots": 3
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
           }
         }
       },
@@ -156,8 +241,28 @@
       ],
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "assembly": {
             "dedupe_jaccard": 0.8
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
           }
         }
       },
@@ -172,16 +277,44 @@
       "qa_prompt": "dated",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
           },
-          "rerank": "qwen3",
-          "rerank_model": "Qwen/Qwen3-Reranker-0.6B",
-          "candidate_pool": 3,
-          "rerank_date_prefix": true,
-          "skip_rerank_for_ordering": true
+          "candidate_pool": 3
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          },
+          "rerank": {
+            "chain": [
+              {
+                "provider": "qwen3",
+                "settings": {
+                  "model": "Qwen/Qwen3-Reranker-0.6B"
+                }
+              }
+            ],
+            "date_prefix": true,
+            "skip_for_ordering": true
+          }
         }
       },
       "notes": "Qwen/Qwen3-Reranker-0.6B (Apache-2.0) via read.rerank: qwen3, memspine[st] (transformers + torch) and a ~1.2 GB model download; pool 3x, [Date:] prefix, skip for ordering, as R-bge / R-cohere. Without the extra the engine skip-logs and runs combo-A-pool, so check the rerank log line before trusting a score. Control: combo-A-pool."

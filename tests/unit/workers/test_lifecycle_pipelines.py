@@ -50,7 +50,9 @@ async def make_ctx(**config_overrides: object) -> tuple[PipelineContext, Harness
     storage = SQLiteStorage(client)
     await storage.start()
     harness = Harness(storage, RecordProjector(storage))
-    resolved = load_config(template="core", overrides=dict(config_overrides))
+    overrides = dict(config_overrides)
+    overrides.setdefault("offline", {"decay": True, "decay_boundaries": (0.55, 0.35, 0.2)})
+    resolved = load_config(template="core", overrides=overrides)
     ctx = PipelineContext(storage=storage, config=resolved.config, append_event=harness.append)
     return ctx, harness
 
@@ -193,13 +195,13 @@ async def test_decay_then_compress_then_rebuild_round_trips() -> None:
 
     await decay_sweep(ctx)
     stats = await compress(ctx)
-    assert stats == {"status": "ok", "compressed": 1}
+    assert stats["status"] == "ok" and stats["compressed"] == 1
 
     [record] = await ctx.storage.list_records("agent/a", "episodic")
     assert record.content == "" and record.content_zstd is not None
 
     rerun = await compress(ctx)
-    assert rerun == {"status": "ok", "compressed": 0}  # idempotent
+    assert rerun["status"] == "ok" and rerun["compressed"] == 0  # idempotent
 
     # A read verb on top of raw storage (the pipeline harness has no Engine):
     # inflation must restore the original bytes exactly.
@@ -229,7 +231,7 @@ async def test_compress_respects_legal_hold() -> None:
     await write(harness, episode("held evidence", minutes_ago=200 * 24 * 60))
     await decay_sweep(ctx)
     stats = await compress(ctx)
-    assert stats == {"status": "ok", "compressed": 0}  # frozen representation
+    assert stats["status"] == "ok" and stats["compressed"] == 0  # frozen representation
 
 
 async def test_read_only_context_skips_mutating_pipelines() -> None:

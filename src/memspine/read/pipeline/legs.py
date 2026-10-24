@@ -61,7 +61,6 @@ from memspine.models.encoders.query.temporal_query import (
     cohesion_leg,
     comparison_speaker_legs,
     entity_expand_leg,
-    entity_leg,
     has_bridge_cue,
     metadata_leg,
     sentence_leg,
@@ -70,7 +69,6 @@ from memspine.models.encoders.query.temporal_query import (
     speaker_of,
     speaker_vector_leg,
     subject_vector_leg,
-    temporal_leg,
     view_tag_leg,
 )
 from memspine.observability import tap
@@ -145,7 +143,11 @@ def _encoder(eng: Any) -> QueryEncoder:
             storage = eng._require_started()
 
             async def load(ns: str) -> list[MemoryRecord]:
-                return [r for r in await storage.list_records(ns, "semantic") if CUE_TAG in r.tags]
+                return [
+                    r
+                    for r in await storage.list_records(ns, "semantic")
+                    if CUE_TAG in r.tags and eng._consent_ok(r)
+                ]
 
             eng._query_encoder = CueQueryEncoder(load)
         else:
@@ -174,6 +176,7 @@ async def _encoder_legs(eng: Any, ns: str, query: str) -> list[list[LegHit]]:
             or cue.namespace != ns
             or cue.status is not RecordStatus.ACTIVATED
             or cue.quarantined
+            or not eng._consent_ok(cue)
             or cue.trust < floor
             or CUE_TAG not in cue.tags
             or match.target_id not in cue.source.parents
@@ -188,7 +191,7 @@ async def _metadata_legs(
 ) -> list[list[LegHit]]:
     """C3': the non-empty temporal / metadata legs for this query (opt-in).
 
-    ``temporal`` (FU-TEMPORAL): under ``read.legs_v2`` the registry's temporal leg ran already;
+    ``temporal`` (FU-TEMPORAL): under ``read.legs`` the registry's temporal leg ran already;
     its hits take the place the old temporal leg held in this list, so fusion sees the legs in
     the same order with the flag on and off."""
     read = eng._config().read
@@ -210,7 +213,6 @@ async def _metadata_legs(
         or read.sentence_leg
         or read.recency_leg
         or read.entity_leg
-        or read.entity_leg_v2
         or read.speaker_probe
         or read.view_tag_leg
     ):
@@ -223,43 +225,8 @@ async def _metadata_legs(
             and not r.quarantined
             and r.memory_type != "shared"
         ]
-        if read.temporal_leg and read.legs_v2:
-            # R3-04 / FU-TEMPORAL: the registry's temporal leg (same keys), passed in
-            if temporal:
-                legs.append(NamedLeg("temporal", [LegHit(h.record_id, h.score) for h in temporal]))
-        elif read.temporal_leg:
-            # F2 / W7: relative phrases in the question resolve against the as-of
-            # time or the read time; without either the call is unchanged.
-            anchored: dict[str, Any] = {}
-            if read.temporal_relative or active_as_of() is not None:
-                anchored = {
-                    "anchor": active_as_of() or eng._clock(),
-                    "week": read.relative_week,
-                }
-            if read.temporal_infer_year and live:
-                # N45: a yearless date resolves against the conversation's "now".
-                anchored["year_ref"] = active_as_of() or max(
-                    r.valid_from if r.valid_from.tzinfo else r.valid_from.replace(tzinfo=UTC)
-                    for r in live
-                )
-            if read.temporal_rank != "midpoint":
-                anchored["rank"] = read.temporal_rank
-            if read.temporal_soft:
-                anchored["soft"] = True
-            if read.temporal_leg_mentions:
-                anchored["mentions"] = True
-            legs.append(
-                NamedLeg(
-                    "temporal",
-                    temporal_leg(
-                        query,
-                        live,
-                        fetch_k,
-                        event_dates=read.temporal_leg_event_dates,
-                        **anchored,
-                    ),
-                )
-            )
+        if read.temporal_leg and temporal:
+            legs.append(NamedLeg("temporal", [LegHit(h.record_id, h.score) for h in temporal]))
         if read.metadata_leg:
             legs.append(metadata_leg(query, live, fetch_k))
         if read.subject_leg:
@@ -278,14 +245,10 @@ async def _metadata_legs(
         if read.view_tag_leg:
             # G-16 (SimpleMem symbolic leg): location / topic / person view tags.
             legs.append(NamedLeg("view_tags", view_tag_leg(query, live, fetch_k)))
-        if read.entity_leg_v2 and "entity" not in read_request.legs_off():
-            legs += await _entity_leg_v2(eng, ns, query, live, fetch_k)
-        if read.entity_leg or read.speaker_probe:
+        if read.entity_leg and "entity" not in read_request.legs_off():
+            legs += await _entity_leg(eng, ns, query, live, fetch_k)
+        if read.speaker_probe:
             speakers = {s for r in live if (s := speaker_of(r.content)) is not None}
-            if read.entity_leg:
-                # N59 (Dakera name boost): proper nouns and years the question
-                # names, beyond the speakers, matched in raw turns.
-                legs.append(NamedLeg("entity", entity_leg(query, live, fetch_k, speakers)))
             if read.speaker_probe:
                 # N40 (MemMachine): the question in stored-turn form, "Name: ...".
                 named = sorted(
@@ -316,7 +279,7 @@ async def registry_base_legs(
     probe_texts: Sequence[str],
     probe_vectors: Sequence[Any],
 ) -> tuple[Any, Any, Any]:
-    """R3-04 (``read.legs_v2``; R-05, R-06, R-07): base candidates through the leg registry.
+    """R3-04 (``read.legs``; R-05, R-06, R-07): base candidates through the leg registry.
 
     Same return shape as the inline path in ``router._search``: ``(vector_hits, lexical_hits,
     extra_legs)``. ``vector`` (dense), ``lexical`` (language-aware BM25) and ``temporal`` (event
@@ -376,8 +339,8 @@ async def registry_base_legs(
     lexical_on = use_hybrid and "lexical" not in off
     names = ["vector", *(["lexical"] if lexical_on else []), *(["temporal"] if temporal_on else [])]
     registry = lib.REGISTRY
-    graph_on = read.graph_leg_v2 and "graph" not in off
-    episode_on = read.episode_leg_v2 and "episode" not in off
+    graph_on = read.graph_leg and "graph" not in off
+    episode_on = read.episode_leg and "episode" not in off
     if episode_on or graph_on or read.profile_card_header:
         ctx.layer_registry = await read_request.layer_inventory(
             eng,
@@ -390,6 +353,9 @@ async def registry_base_legs(
         registry = lib.with_episode_leg(lib.REGISTRY)
         names.append("episode")
     out = await lib.run_legs(registry, names, ctx)
+    tap.event(
+        "read.legs", names=names, hits={name: len(result.hits) for name, result in out.items()}
+    )
     vector_hits = list(out["vector"].hits)
     lexical_hits = (
         [LexicalHit(h.record_id, h.score) for h in out["lexical"].hits] if lexical_on else []
@@ -477,7 +443,7 @@ async def _caller_visible_edges(
     for edge, rid in in_scope:
         if rid not in seen:
             record = records.get(rid) if rid else None
-            seen[rid] = record is not None and (viewer is None or visible_to(record.tags, viewer))
+            seen[rid] = record is not None and (viewer is None or visible_to(record, viewer))
         if seen[rid]:
             out.append(edge)
     return out
@@ -503,7 +469,7 @@ def _compiled_edges(edges: Sequence[GraphEdge]) -> list[GraphEdge]:
     return [
         e
         for e in edges
-        if e.properties.get("compiled") == "edge_compiler_v2"
+        if e.properties.get("compiled") == "edge_compiler"
         and e.weight > 0
         and e.properties.get("record_id")
     ]
@@ -582,11 +548,11 @@ async def _graph_hop_leg(
     fetch_k: int,
     ctx: Any,
 ) -> list[Any]:
-    """R3-05b (``read.graph_leg_v2``, R-09): the graph one-hop leg and its lift to evidence turns.
+    """R3-05b (``read.graph_leg``, R-09): the graph one-hop leg and its lift to evidence turns.
 
     Seeds: the entity nodes the query names (``_graph_seeds``) plus the entities of the best
     ``read.graph_leg_seed_hits`` base hits. Edges: the compiled layer of the embedded graph
-    (``graph.edge_compiler_v2``; tentative edges are passed on flagged, the leg drops and counts
+    (``graph.edge_compiler``; tentative edges are passed on flagged, the leg drops and counts
     them). The leg returns fact records; they are lifted to their evidence turns through lineage and
     re-gated (``lift_episode_hits``: consent, erasure, scope). One named leg ``graph`` (family
     ``structured``)."""
@@ -648,17 +614,17 @@ async def _graph_hop_leg(
     return [NamedLeg("graph", turns)] if turns else []
 
 
-async def _entity_leg_v2(
+async def _entity_leg(
     eng: Any, ns: str, query: str, live: Sequence[MemoryRecord], fetch_k: int
 ) -> list[list[LegHit]]:
-    """R3-05a (``read.entity_leg_v2``, LIB-34, R-08): the entity leg over resolved ids.
+    """R3-05a (``read.entity_leg``, LIB-34, R-08): the entity leg over resolved ids.
 
     The entities the question names are today's graph seeds (``_graph_seeds``: n-gram match
     on the entity index, the focal entity, the optional NER hook); the records that mention
     them come from the associative store's live ``mentions`` edges. Scored by the library:
     the Mem0 boost, max over the matched entities, capped, with hub damping by degree. The
     role of an entity in a record is subject (the record's ``entity``), object (its ``dst:``
-    tag) or mention. One named leg ``entity_v2`` (family ``structured``)."""
+    tag) or mention. One named leg ``entity`` (family ``structured``)."""
     if eng._associative is None or _unqualified_graph_blocked():
         return []
     seeds = await eng._graph_seeds(ns, query)
@@ -702,11 +668,11 @@ async def _entity_leg_v2(
             hits=len(result.leg.hits),
         )
     hits = [LegHit(h.record_id, h.score) for h in result.leg.hits]  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
-    return [NamedLeg("entity_v2", hits)] if hits else []
+    return [NamedLeg("entity", hits)] if hits else []
 
 
 async def _person_time_leg(eng: Any, ns: str, plan: ReadPlan) -> list[LegHit]:
-    """#36: the ``plan@v3`` structured leg: live records whose ``valid_from`` lies in
+    """#36: the ``plan`` structured leg: live records whose ``valid_from`` lies in
     the span the plan's ``time_expr`` names and/or that are about its ``persons``.
 
     The span comes from the H1 rules (an absolute date first, else a relative phrase
@@ -829,62 +795,6 @@ async def _graph_walk(
         admit=eng._graph_admit(ns, history=history),
         max_degree=constants.GRAPH_LEG_MAX_DEGREE,
     )
-
-
-async def _graph_leg(
-    eng: Any,
-    ns: str,
-    query: str,
-    vector_hits: Sequence[VectorHit],
-    lexical_hits: Sequence[LexicalHit],
-    extra_legs: list[list[LegHit]],
-    use_hybrid: bool,
-) -> list[LegHit]:
-    """GP-3 (``read.graph_leg``): one more RRF leg from the association graph.
-
-    Seeds are the entities the query names, else the entities of the best
-    ``GRAPH_LEG_FALLBACK_HITS`` hits of the other legs. The walk
-    (:meth:`AssociativeMemory.seed_expand`, ``read.graph_depth`` entity hops,
-    GP-10 trust caps) yields fact records nearest first; each is followed by
-    its source turns (``source.parents``) that the same gate admits. The first
-    ``read.graph_leg_k`` form the leg. Its hits then pass every search gate
-    (status, quarantine, admission) like any other leg's. Failures degrade to
-    no leg (an enhancer, never a gate)."""
-    if eng._associative is None or _unqualified_graph_blocked():
-        return []
-    try:
-        if use_hybrid or extra_legs:
-            prelim = [
-                rid
-                for rid, _ in rrf_fuse(
-                    list(vector_hits),
-                    list(lexical_hits),
-                    extra=extra_legs,
-                    limit=constants.GRAPH_LEG_FALLBACK_HITS,
-                )
-            ]
-        else:
-            prelim = [hit.record_id for hit in vector_hits]
-        reached = await eng._graph_walk(ns, query, prelim[: constants.GRAPH_LEG_FALLBACK_HITS])
-        storage = eng._require_started()
-        admit = eng._graph_admit(ns)
-        limit = eng._config().read.graph_leg_k
-        ids: list[str] = []
-        for record, _hops in reached:
-            if len(ids) >= limit:
-                break
-            if record.record_id not in ids:
-                ids.append(record.record_id)
-            for parent_id in record.source.parents:
-                if len(ids) >= limit or parent_id in ids:
-                    continue
-                parent = await storage.get_record(parent_id)
-                if parent is not None and admit(parent):
-                    ids.append(parent_id)
-    except Exception as exc:  # an enhancer, never a gate
-        _log.warning("read.graph_leg_failed", namespace=ns, error=str(exc))
-        return []
-    return [LegHit(rid, 1.0) for rid in ids]
 
 
 async def _graph_node_legs(
@@ -1036,62 +946,15 @@ async def _asset_overlay(
     return context
 
 
-async def _external_overlay(
-    eng: Any, query: str, ns: str, context: AssembledContext
-) -> AssembledContext:
-    """E03 ``read.external_evidence``: for an invited inference or a recommendation
-    request only, one ``[public knowledge]`` block built from a generic public query (the
-    question's lowercase topic words, with every name, place and retrieved-context
-    capital word removed). The block carries its own clause: it never proves that a
-    person did, owns, visited or said anything. Nothing is stored. A failure or refusal
-    leaves the context as it was and is recorded in the forensics."""
-    mode = eng._config().read.external_evidence
-    if mode == "off":
-        return context
-    if eng._config().read.external_v2:
-        return await _external_overlay_v2(eng, query, ns, context, mode)
-    from memspine.services.external import (
-        format_public_block,
-        invites_inference,
-        private_terms_from,
-    )
-
-    if not invites_inference(query):
-        return context
-    evidence = [r for r in context.records if constants.LEAD_TAG not in r.tags]
-    if not evidence:
-        return context  # no personal premise to join the public relation to
-    try:
-        state = await eng._persp_state_for(ns)
-        private = private_terms_from((r.content for r in evidence), names=state["known"])
-        result = await eng._external_broker().lookup(query, private, allow_network=mode == "web")
-        if (fx := _FORENSICS.get()) is not None:
-            fx["external_evidence"] = {
-                "status": result.status,
-                "public_query": result.public_query,
-                "provider": result.provider,
-                "n_snippets": len(result.snippets),
-            }
-        if not result.usable:
-            return context
-        text = format_public_block(result)
-        block = eng._lead_record(ns, text, evidence, extra_tags=("ext:public",))
-        context.records = [*context.records, block]
-        context.tokens_used += estimate_tokens(text)
-    except Exception as exc:  # an enhancer, never a gate
-        _log.warning("read.external_evidence_failed", namespace=ns, error=str(exc))
-    return context
-
-
 class _TokenCounter:
     def count(self, text: str) -> int:
         return estimate_tokens(text)
 
 
-async def _external_overlay_v2(
-    eng: Any, query: str, ns: str, context: AssembledContext, mode: str
+async def _external_overlay(
+    eng: Any, query: str, ns: str, context: AssembledContext
 ) -> AssembledContext:
-    """R3-13 / LIB-45 ``read.external_v2`` (needs ``read.external_evidence`` ``cache`` or ``web``):
+    """R3-13 / LIB-45 ``read.external`` (needs ``read.external_evidence`` ``cache`` or ``web``):
     the planner (``plan_external``) decides from the typed contract, the broker looks up a
     privacy-filtered generic query, and the snippets become one separate labelled ``public`` block
     (``external_block``: freshness, https, dedupe, per-domain cap, token budget). The block is a
@@ -1106,6 +969,9 @@ async def _external_overlay_v2(
     from memspine.services.external import private_terms_from
 
     read = eng._config().read
+    mode = read.external_evidence
+    if mode == "off":
+        return context
     broker = eng._external_broker()
     plan = plan_external(
         build_typed_contract(query),
@@ -1129,7 +995,7 @@ async def _external_overlay_v2(
                 "public_query": result.public_query,
                 "provider": result.provider,
                 "n_snippets": len(result.snippets),
-                "v2": True,
+                "enabled": True,
             }
         if not result.usable:
             tap.event(
@@ -1146,7 +1012,7 @@ async def _external_overlay_v2(
         ]
         block = external_block(
             snippets,
-            read.external_v2_budget_tokens,
+            read.external_budget_tokens,
             _TokenCounter(),
             config=ExternalConfig(enabled=True, max_snippets=read.external_max_results),
             now=datetime.now(UTC),
@@ -1723,7 +1589,11 @@ async def _community_gate(
         allowed: list[str] = []
         for parent_id in await eng._associative.entity_communities(ns, seeds):
             parent = await storage.get_record(parent_id)
-            if parent is not None and parent.source.channel == "reorganize" and admit(parent):
+            if (
+                parent is not None
+                and parent.source.channel == "community_summary"
+                and admit(parent)
+            ):
                 allowed.append(parent_id)
         return allowed
     except Exception as exc:
@@ -1830,6 +1700,15 @@ def _evict_from_encoder(eng: Any, event: MemoryEvent) -> None:
     """#61: a forgotten, quarantined or archived record leaves the query
     encoder's in-process index (its text must not outlive the erasure)."""
     assert eng._query_encoder is not None
+    if event.kind is EventKind.MARKER and event.payload.get("marker") == "erasure_manifest":
+        manifest = event.payload.get("manifest", {})
+        ids = manifest.get("ids", {}) if isinstance(manifest, dict) else {}
+        erased = ids.get("record_ids", []) if isinstance(ids, dict) else []
+        hidden = event.payload.get("hidden", [])
+        for record_id in [*erased, *hidden]:
+            if isinstance(record_id, str):
+                eng._query_encoder.evict(event.namespace, record_id)
+        return
     record_id = event.payload.get("record_id")
     if not isinstance(record_id, str):
         return

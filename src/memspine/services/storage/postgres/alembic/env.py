@@ -1,8 +1,7 @@
 """Alembic environment for the memspine Postgres storage profile (F-16d, M-04).
 
-Run programmatically via ``memspine.services.storage.postgres.migrations``. The revisions are
-explicit, dialect-neutral DDL (no ``metadata.create_all``), so the tree can be replayed against
-any SQLAlchemy dialect and compared with the SQLite tree column for column.
+Run programmatically via ``memspine.services.storage.postgres.migrations``.
+The fresh baseline creates the current shared SQL schema.
 """
 
 from __future__ import annotations

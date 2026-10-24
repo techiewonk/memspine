@@ -448,13 +448,15 @@ def test_screen_refusals_and_launch(tmp_path: Path) -> None:
         ok["queued"] is True
         and calls
         and calls[0][-2:] == ["S01", "sample"]
-        and calls[0][1].endswith("run_v2_batch.sh")
+        and calls[0][1].endswith("run_screen_batch.sh")
     )
     api.last_verify["stale"] = True
     assert "stale" in api.studio_screen(arm="studio-t", screen="S01")["reason"]
     # the status tool reads the queue log tail and the ledger
     (logs / "v2_S01_sample_1013-1200.log").write_text("line1\nline2\n", encoding="utf-8")
-    (logs / "v2_results.tsv").write_text("ts\tscreen\tnet\n2026-10-14\tS01\t3\n", encoding="utf-8")
+    (logs / "screen_results.tsv").write_text(
+        "ts\tscreen\tnet\n2026-10-14\tS01\t3\n", encoding="utf-8"
+    )
     st = api.studio_screen_status()
     assert st["tail"][-1] == "line2" and st["ledger_rows"][0]["screen"] == "S01"
     api.close()

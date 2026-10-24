@@ -51,7 +51,8 @@ def test_combo_a_config_is_copied_into_the_cat5_and_qwen3_arms() -> None:
     qwen = arms["R-qwen3"]["config_delta"]["read"]
     for key, value in combo["config_delta"]["read"].items():
         assert qwen[key] == value
-    assert (qwen["rerank"], qwen["candidate_pool"]) == ("qwen3", 3)
+    rerank = arms["R-qwen3"]["config_delta"]["model"]["rerank"]
+    assert (rerank["chain"][0]["provider"], qwen["candidate_pool"]) == ("qwen3", 3)
 
 
 def test_arm_categories_override_the_dataset_block() -> None:

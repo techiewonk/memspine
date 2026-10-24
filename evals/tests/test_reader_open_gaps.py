@@ -47,12 +47,8 @@ def test_existing_prompt_ids_are_byte_identical() -> None:
     assert _sha(QA_PROMPTS["grounded_generic"]) == "147e6cd54d5fae44"
     # 2026-10-11: ``grounded`` / ``grounded_detail`` are the clean prompts (placeholders for the
     # example dates); the contaminated texts survive byte-identical as ``*_legacy``.
-    assert _sha(QA_PROMPTS["grounded_legacy"]) == "314a230e5871ff32"
-    assert _sha(QA_PROMPTS["grounded_detail_legacy"]) == "c9c7a18b1abd70fe"
-    assert _sha(QA_PROMPTS["grounded"]) == "71c12de625d763d4"
+    assert _sha(QA_PROMPTS["grounded"]) == "b3e8ee1a7aa139d6"
     assert _sha(QA_PROMPTS["grounded_detail"]) == "2041cb1d42c3014a"
-    assert _sha(QA_PROMPTS["grounded_v2"]) == "8d07d3f6294e9cce"
-    assert _sha(QA_PROMPTS["grounded_v3"]) == "b3e8ee1a7aa139d6"
     assert _sha(QA_PROMPTS["grounded_ordered"]) == "abcd8ba8ec0fe324"
     assert _sha(QA_PROMPTS["default"]) == "83fc53c604167050"
 
@@ -126,12 +122,12 @@ def test_generic_router(question: str, variant: str) -> None:
         context="c", question=question, question_date="d"
     )
     assert routed.describe()["qa_prompt"] == "routed_generic"
-    assert routed.describe()["qa_router"] == "generic-shape-v1"
+    assert routed.describe()["qa_router"] == "generic-shape"
 
 
 def test_routed_describe_unchanged() -> None:
     d = ROUTED_QA_PROMPTS["routed"].describe()
-    assert d["qa_prompt"] == "routed" and d["qa_router"] == "shape-v1"
+    assert d["qa_prompt"] == "routed" and d["qa_router"] == "shape"
 
 
 def test_cli_accepts_new_prompts_and_retry_guard() -> None:
@@ -192,7 +188,7 @@ def test_no_retry_on_empty_context() -> None:
 
 def test_default_reader_id_and_behaviour_unchanged_by_the_guard_option() -> None:
     off = RefusalRetryReader(_Reader())
-    assert off.reader_id == "stub+retry-neutral" and off.guard_absent_entity is False
+    assert off.reader_id == "stub+retry" and off.guard_absent_entity is False
     assert "retry_guard_absent_entity" not in off.describe()
     inner = _Reader("Not mentioned.", "Rome")
     # an absent entity is still retried when the guard is off

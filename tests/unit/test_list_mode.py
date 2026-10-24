@@ -128,6 +128,7 @@ async def _vote_contents(eng: Engine, question: str) -> list[str] | None:
     return [(await eng._require_started().get_record(rid)).content for rid, _ in leg]
 
 
+@pytest.mark.usefixtures("force_list_signal")
 async def test_leg_fires_for_set_question_naming_one_speaker() -> None:
     eng = _engine(list_mode=True)
     await eng.start()
@@ -173,6 +174,7 @@ async def test_leg_failure_is_soft(monkeypatch: pytest.MonkeyPatch) -> None:
         await eng.stop()
 
 
+@pytest.mark.usefixtures("force_list_signal")
 async def test_deep_vector_fetch_for_the_vote() -> None:
     eng = _engine(list_mode=True, list_vote_depth=50)
     await eng.start()
@@ -279,3 +281,12 @@ async def test_off_or_untriggered_reads_are_identical(monkeypatch: pytest.Monkey
     finally:
         await off.stop()
         await on.stop()
+
+
+@pytest.fixture
+def force_list_signal(monkeypatch: pytest.MonkeyPatch) -> None:
+    from memspine.read.list_trigger import ListSignal
+
+    monkeypatch.setattr(
+        "memspine.read.list_trigger.list_signal", lambda *a, **k: ListSignal(True, 1.0, {})
+    )

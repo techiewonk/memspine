@@ -35,7 +35,7 @@ def _lexical_reranker(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     return sizes
 
 
-#: The old ``read.rerank_v2: true`` default chain (ADR-082: one ``model.rerank.chain`` entry each).
+#: The old ``read.rerank: true`` default chain (ADR-082: one ``model.rerank.chain`` entry each).
 _V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "onnx")]
 
 

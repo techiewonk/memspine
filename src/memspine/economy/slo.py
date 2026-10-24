@@ -137,7 +137,7 @@ _IN_READ: ContextVar[bool] = ContextVar("memspine_slo_in_read", default=False)
 
 
 def installed_ledger() -> SloLedger | None:
-    """The read-latency ledger bound for the current Engine (``runtime.scheduler_v2``), if any."""
+    """The read-latency ledger bound for the current Engine (``runtime.scheduler``), if any."""
     ledger: SloLedger | None = _bindings.resolve("slo_ledger", None)
     return ledger
 

@@ -121,7 +121,7 @@ class NamespaceJob:
         self.store, self.ns, self.stages, self.kind = store, ns, tuple(stages), kind
         self.run_stage, self.owner, self.job_id, self.ttl = run_stage, owner, job_id, ttl
         self.full, self.prepare, self.cancelled, self.head_seq = full, prepare, cancelled, head_seq
-        self.budget = budget  # O4-01b (offline.budget_v2); None = no budget, nothing below runs
+        self.budget = budget  # O4-01b (offline.budget); None = no budget, nothing below runs
 
     async def _io(self, fn: Callable[..., Any], *args: Any) -> Any:
         """One store write: on a worker thread for the storage database (RM-111 WP5: the loop must
@@ -245,7 +245,7 @@ class NamespaceJob:
 
 
 class SleepHandle:
-    """Returned immediately by ``sleep()`` under ``offline.sleep_v2``; never blocks (OF-1)."""
+    """Returned immediately by ``sleep()`` under ``offline.sleep``; never blocks (OF-1)."""
 
     def __init__(self, job_id: str, ns: str, kind: str = "sleep") -> None:
         self.job_id, self.ns, self.kind = job_id, ns, kind

@@ -229,8 +229,6 @@ def apply_opbench_protocol(args: argparse.Namespace) -> list[str]:
         "judge_guards",
         "judge_date_check",
         "judge_conventions",
-        "judge_conventions_v2",
-        "judge_conventions_v3",
         "count_verify",
         "date_repair",
         "duration_solve",
@@ -369,11 +367,9 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         verify_answer=args.verify_answer,
         retry_refusal=args.retry_refusal,
         retry_guard=args.retry_guard,
-        retry_mode=args.retry_mode,
         retry_overlap=args.retry_overlap,
         no_record_hint=args.no_record_hint,
         premise_tolerant=args.premise_tolerant,
-        refusal_match=args.refusal_match,
         no_memory_prompt=args.no_memory_prompt,
         decider=args.decider,
         decider_model=args.decider_model,
@@ -386,8 +382,6 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         judge_guards=args.judge_guards,
         judge_date_check=args.judge_date_check,
         judge_conventions=args.judge_conventions,
-        judge_conventions_v2=args.judge_conventions_v2,
-        judge_conventions_v3=args.judge_conventions_v3,
         count_verify=args.count_verify,
         date_repair=args.date_repair,
         duration_solve=args.duration_solve,
@@ -632,18 +626,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=(
             "default",
             "dated",
-            "dated2",
             "dated_infer",
-            "dated3",
             "grounded",
             "grounded_detail",
-            "grounded_legacy",
-            "grounded_detail_legacy",
             "grounded_nodate",
-            "grounded_detail_nodate",
             "grounded_ordered",
-            "grounded_v2",
-            "grounded_v3",
+            "grounded",
             "grounded_generic",
             "grounded_generic_infer",
             "grounded_generic_list",
@@ -681,14 +669,6 @@ def build_parser() -> argparse.ArgumentParser:
         "by default",
     )
     c01.add_argument(
-        "--retry-mode",
-        choices=("neutral", "assertive"),
-        default="neutral",
-        help="I1: wording of the --retry-refusal instruction. neutral (default) never claims "
-        "evidence exists; assertive is the original firmer wording, kept to reproduce earlier "
-        "runs (reader id loses the -neutral suffix)",
-    )
-    c01.add_argument(
         "--retry-overlap",
         action="store_true",
         help="I1: with --retry-refusal, accept the retry answer only when it shares a content "
@@ -708,14 +688,6 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="IANA",
         help="F5: the zone the dataset's naive wall-clock session stamps are read in (default "
         "UTC: stored as written, no conversion; a one-time warning says so)",
-    )
-    c01.add_argument(
-        "--refusal-match",
-        choices=("whole", "legacy"),
-        default="whole",
-        help="I22: what counts as a refusal (--retry-refusal, date check). whole (default): the "
-        "WHOLE answer is a refusal statement; legacy: the original substring regexes, which also "
-        "matched negative facts ('There is no school on Friday', 'I did not go')",
     )
     c01.add_argument(
         "--no-record-hint",
@@ -768,22 +740,6 @@ def build_parser() -> argparse.ArgumentParser:
         "word equals its digit, a one-letter typo in a proper noun, a list holding every gold "
         "item plus uncontradicted extras) as score_conventions; the LLM verdict (score) is "
         "unchanged, so every run has two columns; off by default",
-    )
-    c01.add_argument(
-        "--judge-conventions-v2",
-        action="store_true",
-        help="I77: also record the verdict under the v2 conventions (v1 plus: a date written "
-        "another way, a quantity in another unit of the same dimension, an ordinal in digits or "
-        "words, a listed everyday alias) as score_conventions_v2 / convention_v2; a third column "
-        "next to score and score_conventions, which never change; off by default",
-    )
-    c01.add_argument(
-        "--judge-conventions-v3",
-        action="store_true",
-        help="R14-M-17: also record the verdict under the v3 conventions (v2 plus: a list matched "
-        "with negation scoped to the item, a short gold contained in the answer with extra "
-        "detail, a city for a country, 'N years ago' met by a year) as score_conventions_v3 / "
-        "convention_v3; a column next to the others, which never change; off by default",
     )
     c01.add_argument(
         "--repair-evidence",

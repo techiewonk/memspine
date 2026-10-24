@@ -3,12 +3,12 @@
 Adapters from today's records to the pure libraries ``memory.prospective`` / ``memory.procedural``,
 and the two sweeps the sleep cycle runs behind their flags:
 
-* ``memories.prospective.policies.v2`` : stated plans (records tagged ``mod:plan``) become
+* ``memories.prospective.policies.enabled`` : stated plans (records tagged ``mod:plan``) become
   intentions with a time window or a cue; later facts close them (done / cancelled); old ones expire;
   the ones worth surfacing now are reminders. Advisory only: nothing is delivered or acted on.
-* ``memories.procedural.policies.v2`` : repeated how-to skills and plans of one name become a
-  procedure with versions; its counts change only on *explicit* like / dislike feedback (a feedback
-  event whose actor is not the engine itself); the engine's own outcome-receipt likes are implicit and
+* ``memories.procedural.policies.enabled`` : repeated how-to skills and plans of one name become a
+  procedure with versions; its counts change only on *explicit* confirmation / rejection / rating feedback (a feedback
+  event whose actor is not the engine itself); the engine's own outcome receipts are implicit and
   are refused and counted.
 
 Both outputs are a pure function of the source records (and, for procedures, the FEEDBACK events on
@@ -64,10 +64,10 @@ __all__ = [
     "ProceduralReport",
     "ProspectiveReport",
     "build_record_procedures",
+    "procedural_on",
     "procedural_report",
-    "procedural_v2_on",
+    "prospective_on",
     "prospective_report",
-    "prospective_v2_on",
     "suggest_for",
 ]
 
@@ -76,7 +76,7 @@ _SKIP_TYPES = frozenset({"prospective", "shared", "procedural", "resource", "wor
 #: Perspective modalities that are neither a plan nor a plain statement (they close nothing).
 _NON_FACT_MODS = frozenset({"hypo", "wish", "opinion", "question", "request"})
 #: Explicit feedback signals that move a procedure's counts (a note carries no result).
-_RESULT_OF = {"like": "success", "dislike": "failure"}
+_RESULT_OF = {"confirmation": "success", "rejection": "failure", "correction": "failure"}
 #: Procedures need this many agreeing sources before they exist (library default).
 MIN_REPEATS = 2
 
@@ -94,14 +94,14 @@ def _policy_on(config: MemspineConfig, memory_type: str, key: str) -> bool:
     return bool(mem is not None and mem.enabled and mem.policies.get(key))
 
 
-def prospective_v2_on(config: MemspineConfig) -> bool:
-    """``memories.prospective.policies.v2``: advisory intentions and reminders (O4-10)."""
-    return _policy_on(config, "prospective", "v2")
+def prospective_on(config: MemspineConfig) -> bool:
+    """``memories.prospective.policies.enabled``: advisory intentions and reminders (O4-10)."""
+    return _policy_on(config, "prospective", "enabled")
 
 
-def procedural_v2_on(config: MemspineConfig) -> bool:
-    """``memories.procedural.policies.v2``: advisory procedures from repeated how-tos (O4-10)."""
-    return _policy_on(config, "procedural", "v2")
+def procedural_on(config: MemspineConfig) -> bool:
+    """``memories.procedural.policies.enabled``: advisory procedures from repeated how-tos (O4-10)."""
+    return _policy_on(config, "procedural", "enabled")
 
 
 def _aware(t: datetime) -> datetime:
@@ -418,7 +418,7 @@ class ProceduralReport:
 async def _feedback_events(
     storage: _Storage, ns: str, record_ids: set[str]
 ) -> list[tuple[int, str, str, bool]]:
-    """(seq, record id, result, explicit) of each like / dislike on ``record_ids``. An event the
+    """(seq, record id, result, explicit) of each explicit feedback assessment on ``record_ids``. An event the
     engine wrote itself (actor ``system``: an outcome receipt) is implicit; anything else a person
     or the host chose to send is explicit."""
     found: list[tuple[int, str, str, bool]] = []
@@ -430,7 +430,15 @@ async def _feedback_events(
         for ev in batch:
             if ev.kind is EventKind.FEEDBACK and ev.namespace == ns:
                 rid = str(ev.payload.get("record_id", ""))
-                result = _RESULT_OF.get(str(ev.payload.get("signal", "")))
+                feedback = ev.payload.get("feedback")
+                if not isinstance(feedback, dict):
+                    continue
+                kind = str(feedback.get("kind", ""))
+                result = _RESULT_OF.get(kind)
+                if kind == "rating":
+                    rating = feedback.get("rating")
+                    if isinstance(rating, int) and not isinstance(rating, bool):
+                        result = "success" if rating >= 4 else "failure" if rating <= 2 else None
                 if rid in record_ids and result is not None:
                     found.append((ev.seq or 0, rid, result, ev.actor != "system"))
         last = batch[-1].seq
@@ -444,7 +452,7 @@ async def procedural_report(
 ) -> ProceduralReport:
     """Procedures of one namespace with their counts from explicit feedback.
 
-    A like is a success and a dislike a failure of the procedure its record sourced, counted only for
+    A confirmation or high rating is a success; rejection, correction or low rating is a failure of the procedure its record sourced, counted only for
     the record's current version and only when explicit. Implicit ones (the engine's own receipts)
     go through ``memory.procedural.update`` with ``explicit=False`` and are refused there.
     """

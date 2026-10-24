@@ -1,4 +1,4 @@
-"""F-02c: edge compiler and link projection (``graph.edge_compiler_v2``), model-free."""
+"""F-02c: edge compiler and link projection (``graph.edge_compiler``), model-free."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import GraphConfig
 from memspine.config.schema.observability import TapConfig
-from memspine.derive.pipeline.stages.edge_compiler_v2 import (
+from memspine.derive.pipeline.stages.edge_compiler import (
     COMPILED,
     EdgeCompiler,
     LinkProjection,
@@ -30,7 +30,7 @@ def _tap_reset():
     tap.shutdown()
 
 
-def _engine(*, on: bool = True, scoped: bool = False, **extra: Any) -> Engine:
+def _engine(*, on: bool = True, **extra: Any) -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
@@ -47,8 +47,7 @@ def _engine(*, on: bool = True, scoped: bool = False, **extra: Any) -> Engine:
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
         read={"record_access": False},
-        graph={"edge_compiler_v2": on},
-        isolation={"scope_keys_v2": scoped},
+        graph={"edge_compiler": on},
         **extra,
     )
 
@@ -86,7 +85,7 @@ def _projection(edges):
 
 
 def test_flag_default_off_and_stage_not_scheduled() -> None:
-    assert GraphConfig().edge_compiler_v2 is False
+    assert GraphConfig().edge_compiler is False
     assert COMPILE_EDGES_STAGE not in SLEEP_CYCLE_ORDER
 
 
@@ -242,7 +241,7 @@ async def test_stage_retires_edges_of_a_record_that_is_no_longer_an_assertion(mo
             return None
 
         monkeypatch.setattr(
-            "memspine.derive.pipeline.stages.edge_compiler_v2.retract_after_forget", _noop
+            "memspine.derive.pipeline.stages.edge_compiler.retract_after_forget", _noop
         )
         await eng.forget(rec.record_id, namespace=NS)
         mine = lambda: [
@@ -267,12 +266,9 @@ async def test_scope_keyed_edges_use_tenant_and_owner() -> None:
         tags=["kind:state", "rel:works_at", "dst:Acme"],
     )
     twin = rec.model_copy(update={"namespace": "acme/alice/s2", "record_id": rec.record_id})
-    off = EdgeCompiler(scoped=False)
-    on = EdgeCompiler(scoped=True)
-    e_off = off.envelope(rec)
-    e_on = on.envelope(rec)
-    assert e_off.scope.owner == "acme/alice/s1"  # today: the whole namespace
-    assert (e_on.scope.tenant, e_on.scope.owner) == ("acme", "alice/s1")
+    on = EdgeCompiler()
+    envelope = on.envelope(rec)
+    assert (envelope.scope.tenant, envelope.scope.owner) == ("acme", "alice/s1")
     other_tenant = rec.model_copy(update={"namespace": "globex/alice/s1"})
     k_on = {e.key for e in on.compile([rec], rec.namespace).delta.edges}
     k_other = {e.key for e in on.compile([other_tenant], other_tenant.namespace).delta.edges}
@@ -280,8 +276,8 @@ async def test_scope_keyed_edges_use_tenant_and_owner() -> None:
     assert twin.namespace != rec.namespace
 
 
-async def test_stage_uses_scope_keys_flag_and_scheduled_when_on() -> None:
-    eng = _engine(scoped=True)
+async def test_stage_uses_typed_scope_and_is_scheduled_when_enabled() -> None:
+    eng = _engine()
     await eng.start()
     try:
         await _fact(eng, "Alice", "works_at", "Acme")

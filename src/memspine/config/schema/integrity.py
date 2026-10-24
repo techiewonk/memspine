@@ -86,16 +86,16 @@ class IntegrityConfig(ConfigModel):
     #: treats the cross-namespace edges of a lineage as one grant chain that must
     #: stay visible (connected, within ``grant_horizon``). Needs
     #: ``attenuation: product``. Off: unchanged.
-    horizon_v2: bool = False
-    #: With ``horizon_v2``: the hops a deposit may travel beyond its first grantee
+    horizon: bool = False
+    #: With ``horizon``: the hops a deposit may travel beyond its first grantee
     #: (``0``: read but never re-shared). None = no explicit cap (only the implicit
     #: horizon where ``kappa ** n`` falls under ``admission_threshold``).
     grant_horizon: int | None = Field(default=None, ge=0)
 
     @model_validator(mode="after")
     def _horizon_needs_product(self) -> IntegrityConfig:
-        if self.horizon_v2 and self.attenuation != "product":
-            raise ConfigError("integrity.horizon_v2 needs integrity.attenuation 'product'")
+        if self.horizon and self.attenuation != "product":
+            raise ConfigError("integrity.horizon needs integrity.attenuation 'product'")
         return self
 
     @field_validator("attenuation")

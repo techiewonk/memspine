@@ -11,18 +11,14 @@ Handled kinds (M11):
   row. Lifecycle transitions must never carry full snapshots — a snapshot taken
   before the append overwrites whatever changed in between (empirically: a
   concurrent RETRIEVE's access stats were erased and a just-accessed record
-  demoted to dormant). Legacy full-snapshot payloads (``record`` key) from
-  pre-P3.1 logs still replay,
+  demoted to dormant). Only current delta payloads are supported,
 - ``FORGET`` — soft-delete (status=DELETED, valid_to closed); the M7 hard-delete
   cascade with referential retention lands in Phase 4,
 - ``RETRIEVE`` — reinforcement stats (M1): ``last_accessed_at`` advances
   (max(), idempotent) and ``access_count`` increments. The counter is
   at-least-once — a crash between apply and checkpoint may recount a batch —
   which is acceptable by design for an approximate reinforcement signal.
-- ``FEEDBACK`` (#54) — per-record feedback counts in ``scoring``: a ``like`` or
-  ``dislike`` increments its count; any event carrying a note increments
-  ``notes``. At-least-once like RETRIEVE (a crash between apply and checkpoint
-  may recount); the transform that reads them is bounded.
+- ``FEEDBACK`` is audit-only for public feedback; internal outcome receipts update procedural counters.
 - ``SESSION`` (#53) — ``scoring.passive`` set (state ``passive``) or cleared
   (``active``) on every record the event lists. Idempotent.
 """
@@ -72,7 +68,6 @@ _DELTA_TAG_UNION = frozenset({"tags_add", "tags"})
 
 
 #: #54: the feedback signals the projector counts.
-_FEEDBACK_SIGNALS = frozenset({"like", "dislike", "note"})
 
 
 class RecordStore(Protocol):
@@ -104,16 +99,13 @@ class RecordProjector(Projector):
         elif event.kind is EventKind.RETRIEVE:
             await self._apply_retrieve(event)
         elif event.kind is EventKind.FEEDBACK:
-            await self._apply_feedback(event)
+            await self._apply_outcome_receipt(event)
         elif event.kind is EventKind.SESSION:
             await self._apply_session(event)
         # other kinds materialize in later phases (M2-M7)
 
     async def _apply_decay_transition(self, event: MemoryEvent) -> None:
         payload = event.payload
-        if "record" in payload:  # legacy full snapshot (pre-P3.1 logs) — replayable
-            await self._store.upsert_record(MemoryRecord.model_validate(payload["record"]))
-            return
         record = await self._store.get_record(str(payload["record_id"]))
         if record is None:
             # A FORGET/hard-delete raced the transition: nothing to patch.
@@ -212,19 +204,26 @@ class RecordProjector(Projector):
             )
             await self._store.upsert_record(record.model_copy(update={"scoring": scoring}))
 
-    async def _apply_feedback(self, event: MemoryEvent) -> None:
-        record = await self._store.get_record(str(event.payload.get("record_id")))
-        signal = str(event.payload.get("signal"))
-        if record is None or signal not in _FEEDBACK_SIGNALS:
+    async def _apply_outcome_receipt(self, event: MemoryEvent) -> None:
+        """Materialize current internal outcome receipts; public feedback is audit-only."""
+        receipt = event.payload.get("feedback")
+        if (
+            event.actor != "system"
+            or not isinstance(receipt, dict)
+            or receipt.get("channel") != "outcome_receipt"
+        ):
             return
-        update: dict[str, int] = {}
-        if signal == "like":
-            update["likes"] = record.scoring.likes + 1
-        elif signal == "dislike":
-            update["dislikes"] = record.scoring.dislikes + 1
-        if signal == "note" or event.payload.get("content"):
-            update["notes"] = record.scoring.notes + 1  # every event carrying a note
-        scoring = record.scoring.model_copy(update=update)
+        field = {
+            "confirmation": "likes",
+            "rejection": "dislikes",
+            "annotation": "notes",
+        }.get(str(receipt.get("kind")))
+        if field is None:
+            return
+        record = await self._store.get_record(str(event.payload.get("record_id")))
+        if record is None:
+            return
+        scoring = record.scoring.model_copy(update={field: getattr(record.scoring, field) + 1})
         await self._store.upsert_record(record.model_copy(update={"scoring": scoring}))
 
     async def _apply_session(self, event: MemoryEvent) -> None:

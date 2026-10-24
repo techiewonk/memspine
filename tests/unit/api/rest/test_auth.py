@@ -111,9 +111,13 @@ async def test_api_key_binds_principal_and_namespaces(engine: Engine, keys: None
     reads = [
         e
         for e in await engine._require_started().read_events(0, 10_000)
-        if e.kind is EventKind.READ_AUDIT
+        if e.kind is EventKind.MARKER
+        and e.payload.get("marker") == "audit_chain"
+        and e.payload["record"]["action"] == "read"
     ]
-    assert reads and reads[-1].actor == "alice"  # the bound principal, not a claim
+    assert (
+        reads and reads[-1].payload["record"]["actor"] == "alice"
+    )  # the bound principal, not a claim
 
 
 async def test_admin_routes_need_the_admin_role(engine: Engine, keys: None) -> None:

@@ -45,7 +45,7 @@
       "path": "src/memspine/ingest/windows.py",
       "line": 116,
       "symbol": "_build_windows",
-      "observation": "Enabled windows require llm.roles.window_extract and construct PromptWindowExtractor; online_extractor_v2 without a model returns None. This is current opt-in code, not proof the default silently generates.",
+      "observation": "Enabled windows require llm.roles.window_extract and construct PromptWindowExtractor; online_extractor without a model returns None. This is current opt-in code, not proof the default silently generates.",
       "recommendation": "Reuse segmentation/grounding with a non-generative candidate producer; validate zero-generation profile and required capabilities at startup.",
       "phase": "BI-01/06",
       "gate": "A profile with no LLM role produces grounded allowed candidates/annotations or explicit unresolved outcomes without losing the whole stage."
@@ -211,7 +211,7 @@
       "priority": "P1",
       "classification": "CODE_CONFIRMED_TARGET_GAP",
       "title": "Copied-excerpt erasure policy needs expanded surface coverage",
-      "path": "src/memspine/trust/pipeline/erasure_v2.py",
+      "path": "src/memspine/trust/pipeline/erasure.py",
       "line": 261,
       "symbol": "forget",
       "observation": "Existing erasure state/lineage/purge machinery is reusable. It does not by itself prove the target20 copy classes, new copied bundles, durable statuses and seven-day backup restore requirements.",

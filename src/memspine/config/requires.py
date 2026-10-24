@@ -90,49 +90,28 @@ def _holds(config: Any, need: Need) -> bool:
 
 
 _FACTS = ("facts", "facts_graph", "all")
-_ENVELOPE = Need(
-    "write.envelope_v2", why="the envelope stages are built only inside the envelope write"
-)
+_ENVELOPE = Need("write.window_extract", _FACTS, why="a window mode with the facts section")
 _WINDOW = Need("write.window_extract", why="a window mode other than off")
-_LEGS = Need("read.legs_v2", why="the leg registry the v2 legs register into")
 
 #: dotted flag key -> prerequisites that must hold while the flag is on.
 REQUIRES: dict[str, tuple[Need, ...]] = {
     # --- write: the envelope stack (audit finding 1) ---
-    "write.segmentation_v2": (_WINDOW,),
-    "write.envelope_v2": (
-        Need("write.window_extract", _FACTS, why="a window mode with the facts section"),
-    ),
-    "write.prompt_v2": (_ENVELOPE,),
-    "write.temporal_v2": (_ENVELOPE,),
-    "write.integration_v2": (_ENVELOPE,),
-    "write.grounding_v2": (_ENVELOPE,),
-    "write.coverage_v2": (_ENVELOPE,),
-    "write.resolver_v2": (_ENVELOPE,),
+    "write.temporal": (_ENVELOPE,),
+    "write.integration": (_ENVELOPE,),
+    "write.grounding": (_ENVELOPE,),
+    "write.coverage": (_ENVELOPE,),
+    "write.resolver": (_ENVELOPE,),
     "write.prepass": (_WINDOW,),
     # --- read: legs and blocks that read what another switch builds ---
-    "read.graph_leg_v2": (
-        _LEGS,
-        Need("graph.edge_compiler_v2", why="the leg walks compiled edges"),
-    ),
-    "read.episode_leg_v2": (_LEGS,),
-    "read.temporal_precision_aware": (_LEGS,),
-    "read.standing_v2": (Need("offline.standing_v2", why="the standing answers it leads with"),),
+    "read.standing": (Need("offline.standing", why="the standing answers it leads with"),),
     "read.profile_card_header": (
-        Need("offline.profile_card_v2", why="the profile card it renders (MF-13)"),
-    ),
-    "read.external_v2": (
-        Need(
-            "read.external_evidence",
-            ("cache", "web"),
-            why="the E03 opt-in; this flag never enables lookups",
-        ),
+        Need("offline.profile_card", why="the profile card it renders (MF-13)"),
     ),
     "model.rerank.search_pool": (
         Need("model.rerank.chain", why="the reranker chain the wide pool feeds"),
     ),
     "read.graph_node_search": (Need("graph.entity_embeddings", why="embedded entity names"),),
-    "read.deep_v2": (
+    "read.deep": (
         Need(
             "model.llm.sufficiency",
             alt=("model.llm.plan",),
@@ -141,21 +120,17 @@ REQUIRES: dict[str, tuple[Need, ...]] = {
         ),
     ),
     # --- trust ---
-    "firewall.gates_v2": (
-        Need("firewall.enabled", why="the gates sit on the firewall's flagging"),
-    ),
+    "firewall.gates": (Need("firewall.enabled", why="the gates sit on the firewall's flagging"),),
     # --- offline ---
-    "offline.profile_card_v2": (Need("offline.session_close_v2", why="the call-2 profile ops"),),
-    "offline.sleep_scoped": (Need("offline.sleep_v2", why="the sleep cycle it scopes"),),
+    "offline.profile_card": (Need("offline.session_close", why="the call-2 profile ops"),),
+    "offline.sleep_scoped": (Need("offline.sleep", why="the sleep cycle it scopes"),),
     # --- economy ---
-    "economy.ledger_persist": (Need("economy.ledger_v2", why="the ledger it persists"),),
+    "economy.ledger_persist": (Need("economy.ledger", why="the ledger it persists"),),
     "economy.budget": (
-        Need("economy.ledger_v2", why="the spend it limits"),
+        Need("economy.ledger", why="the spend it limits"),
         Need("workers.outbox", why="the deferred derivation it pauses"),
     ),
     # --- privacy ---
-    "privacy.erasure_redact_hidden": (Need("privacy.erasure_v2", why="the erasure plan"),),
-    "privacy.erasure_rederive": (Need("privacy.erasure_v2", why="the erasure plan"),),
 }
 
 

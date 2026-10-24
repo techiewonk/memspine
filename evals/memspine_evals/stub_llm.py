@@ -288,6 +288,8 @@ def install_stub_openai_compat(stub: StubOpenAICompat | None = None) -> Iterator
     from memspine.clients.bedrock import BedrockConnector
 
     class Runtime:
+        meta = SimpleNamespace(region_name="us-east-1")
+
         def converse(self, **request: Any) -> dict[str, Any]:
             messages = [
                 {"role": "system", "content": item["text"]} for item in request.get("system", [])

@@ -13,7 +13,7 @@ edge relation ride as properties (so no user text is ever spliced into Cypher):
 ``(:MemNode)-[:MemRel {key, rel_type, namespace, weight, kind, props}]->(:MemNode)``
 
 Keys. Unscoped (today's keys, parity with ``sql_adjacency``): a node is keyed by its id and an
-edge by ``(src, dst, rel_type)``. With ``isolation.scope_keys_v2`` (``scoped=True``) both include
+edge by ``(src, dst, rel_type)``. With ``isolation.scope_keys`` (``scoped=True``) both include
 the namespace, so two tenants never MERGE onto one node or edge. ``delete_node`` and ``edges_of``
 take a bare node id (the port has no namespace there) and match on the ``id`` property.
 
@@ -339,21 +339,20 @@ def _load(raw: object) -> dict[str, object]:
 class Neo4jGraphStore:
     """``GraphStore`` over a :class:`Neo4jExecutor`. See the module docstring."""
 
-    def __init__(self, executor: Neo4jExecutor | None = None, *, scoped: bool = False) -> None:
+    def __init__(self, executor: Neo4jExecutor | None = None) -> None:
         if executor is None:
             raise MissingServiceError("graph:neo4j", extra="neo4j")
         self._ex = executor
-        self.scoped = scoped
         self._schema_done = False
         self._qualifier_columns_done = False  # RM-96 backfill ran (once per store)
         self._id_index_done = False  # RM-96 node id index ensured (once per store)
 
     # -- keys ------------------------------------------------------------------------------
     def node_key(self, node_id: str, namespace: str) -> str:
-        return f"{namespace}{_SEP}{node_id}" if self.scoped else node_id
+        return f"{namespace}{_SEP}{node_id}"
 
     def edge_key(self, src: str, dst: str, rel: str, namespace: str) -> str:
-        prefix = f"{namespace}{_SEP}" if self.scoped else ""
+        prefix = f"{namespace}{_SEP}"
         return f"{prefix}{src}{_SEP}{dst}{_SEP}{rel}"
 
     async def _run(self, op: str, **params: Any) -> list[dict[str, Any]]:

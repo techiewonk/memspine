@@ -2,7 +2,7 @@
 
 ``REGISTRY`` carries the three always-on legs: ``vector`` (dense), ``lexical`` (language-aware
 BM25 through the Tokeniser / scorer ports, :mod:`.lexical`) and ``temporal`` (event intervals in
-an anchored time window, :mod:`.temporal`). Wired behind ``read.legs_v2``; see
+an anchored time window, :mod:`.temporal`). Wired behind ``read.legs``; see
 ``memspine.read.pipeline.legs.registry_base_legs``.
 """
 

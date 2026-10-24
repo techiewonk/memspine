@@ -1,4 +1,4 @@
-"""W2-03: wiring of LIB-13 into the write path (``write.role_policy_v2``).
+"""W2-03: wiring of LIB-13 into the write path (``write.role_policy``).
 
 * :func:`decide` runs the :class:`~memspine.ingest.roles.RolePolicy` and the echo guard for one raw turn and
   returns the tags the raw record carries (``derive_use:*``, ``echo``, ``echo_of:*``, ``assent_candidate``),

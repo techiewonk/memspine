@@ -11,7 +11,6 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.config.schema import WriteConfig
 from memspine.derive.pipeline import advisory
 from memspine.derive.pipeline.stages.watches import check_watches
 from memspine.exceptions import MemspineError
@@ -69,21 +68,15 @@ def _engine(memories: dict[str, Any] | None = None, write: dict[str, Any] | None
 # ------------------------------------------------------------------------- flags default off
 
 
-def test_flags_default_off() -> None:
-    cfg = WriteConfig()
-    assert cfg.feedback_v2 is False
-    assert cfg.feedback_operators == []
-
-
 async def test_policy_flags_off_by_default() -> None:
     eng = _engine({"prospective": {"enabled": True}, "procedural": {"enabled": True}})
     await eng.start()
     try:
-        assert not advisory.prospective_v2_on(eng._config())
-        assert not advisory.procedural_v2_on(eng._config())
-        with pytest.raises(MemspineError, match=r"policies\.v2"):
+        assert not advisory.prospective_on(eng._config())
+        assert not advisory.procedural_on(eng._config())
+        with pytest.raises(MemspineError, match=r"policies\.enabled"):
             await eng.reminders("a")
-        with pytest.raises(MemspineError, match=r"policies\.v2"):
+        with pytest.raises(MemspineError, match=r"policies\.enabled"):
             await eng.suggest_procedures(["x"], "a")
     finally:
         await eng.stop()
@@ -154,7 +147,7 @@ def test_prospective_cue_match() -> None:
 
 async def test_reminders_verb_and_sweep_tap() -> None:
     eng = _engine(
-        {"prospective": {"enabled": True, "policies": {"v2": True}}},
+        {"prospective": {"enabled": True, "policies": {"enabled": True}}},
     )
     await eng.start()
     try:
@@ -245,7 +238,7 @@ def test_howto_ignores_deprecated_and_lessons() -> None:
 
 
 async def test_procedures_explicit_feedback_only_and_suggest() -> None:
-    eng = _engine({"procedural": {"enabled": True, "policies": {"v2": True}}})
+    eng = _engine({"procedural": {"enabled": True, "policies": {"enabled": True}}})
     await eng.start()
     try:
         _tap_on()
@@ -260,15 +253,15 @@ async def test_procedures_explicit_feedback_only_and_suggest() -> None:
         out = await eng.suggest_procedures(["release"], "a")
         assert len(out) == 1 and out[0].advisory is True and out[0].reliability == 0.5
 
-        await eng.feedback(recs[0].record_id, "like", actor="user", namespace="a")  # explicit
+        await eng.feedback(
+            recs[0].record_id, "rating", rating=5, actor="user", namespace="a"
+        )  # explicit
         # an outcome receipt is the engine's own signal: implicit, refused
         await eng.record_outcome(
             "deploy", "success", "a", used_ids=[recs[1].record_id], lesson=False
         )
         out = await eng.suggest_procedures(["release"], "a")
         assert out[0].reliability == pytest.approx(2 / 3)  # one explicit success only
-        refused = _events("job.procedural.update_refused")
-        assert any(e["reason"] == "implicit" for e in refused)
         built = _events("job.procedural.built")
         assert built and built[-1]["success"] == 1 and built[-1]["failure"] == 0
 
@@ -282,27 +275,8 @@ async def test_procedures_explicit_feedback_only_and_suggest() -> None:
 # --------------------------------------------------------------------------- O4-11 feedback
 
 
-async def test_feedback_keywords_refused_flag_off() -> None:
-    eng = _engine()
-    await eng.start()
-    try:
-        r = await eng.write(
-            "Caroline lives in Paris", namespace="a", entity="Caroline", attribute="city"
-        )
-        with pytest.raises(MemspineError, match="feedback_v2"):
-            await eng.feedback(r.record_id, "like", namespace="a", channel="api")
-        with pytest.raises(MemspineError, match="like, dislike or note"):
-            await eng.feedback(r.record_id, "correction", namespace="a")
-        liked = await eng.feedback(r.record_id, "like", namespace="a")
-        assert liked.scoring.likes == 1
-        with pytest.raises(MemspineError, match="feedback_v2"):
-            await eng.correction_latency("a")
-    finally:
-        await eng.stop()
-
-
 async def test_feedback_v2_refuses_implicit_and_non_owners() -> None:
-    eng = _engine(write={"feedback_v2": True, "feedback_operators": ["ops"]})
+    eng = _engine(write={"feedback_operators": ["ops"]})
     await eng.start()
     try:
         _tap_on()
@@ -311,13 +285,13 @@ async def test_feedback_v2_refuses_implicit_and_non_owners() -> None:
         )
         for channel in ("dwell", "regeneration", "classifier"):
             with pytest.raises(MemspineError, match="implicit_channel"):
-                await eng.feedback(r.record_id, "like", namespace="a", channel=channel)
+                await eng.feedback(r.record_id, "rating", rating=5, namespace="a", channel=channel)
         with pytest.raises(MemspineError, match="unknown_channel"):
-            await eng.feedback(r.record_id, "like", namespace="a", channel="telepathy")
+            await eng.feedback(r.record_id, "rating", rating=5, namespace="a", channel="telepathy")
         with pytest.raises(MemspineError, match="not_permitted"):
-            await eng.feedback(r.record_id, "like", namespace="a", actor="assistant")
+            await eng.feedback(r.record_id, "rating", rating=5, namespace="a", actor="assistant")
         with pytest.raises(MemspineError, match="not_permitted"):
-            await eng.feedback(r.record_id, "like", namespace="a", actor="mallory")
+            await eng.feedback(r.record_id, "rating", rating=5, namespace="a", actor="mallory")
         with pytest.raises(MemspineError, match="not_permitted"):  # an operator cannot confirm
             await eng.feedback(r.record_id, "confirmation", namespace="a", actor="ops")
         with pytest.raises(MemspineError, match="invalid"):
@@ -326,15 +300,17 @@ async def test_feedback_v2_refuses_implicit_and_non_owners() -> None:
         assert {e["reason"] for e in refused} >= {
             "implicit_channel", "unknown_channel", "not_permitted", "invalid"
         }  # fmt: skip
-        ok = await eng.feedback(r.record_id, "like", namespace="a", channel="ui_control")
-        assert ok.scoring.likes == 1
-        assert [e for e in _events("api.feedback") if e["accepted"]][-1]["kind"] == "like"
+        ok = await eng.feedback(
+            r.record_id, "rating", rating=5, namespace="a", channel="ui_control"
+        )
+        assert ok.scoring.likes == 0
+        assert [e for e in _events("api.feedback") if e["accepted"]][-1]["kind"] == "rating"
     finally:
         await eng.stop()
 
 
 async def test_feedback_v2_correction_goes_through_the_door_and_never_edits() -> None:
-    eng = _engine(write={"feedback_v2": True, "feedback_operators": ["ops"]})
+    eng = _engine(write={"feedback_operators": ["ops"]})
     await eng.start()
     try:
         _tap_on()
@@ -375,7 +351,7 @@ async def test_feedback_v2_correction_goes_through_the_door_and_never_edits() ->
 
 
 async def test_correction_latency_counts_reads_between_exposure_and_correction() -> None:
-    eng = _engine(write={"feedback_v2": True})
+    eng = _engine(write={})
     await eng.start()
     try:
         _tap_on()
@@ -418,7 +394,7 @@ async def test_observer_views_flag_off_unchanged() -> None:
 
 
 async def test_observer_views_include_and_attenuate() -> None:
-    eng = await _shared_engine(observer_views_v2=True)
+    eng = await _shared_engine(observer_views=True)
     try:
         _tap_on()
         res = await eng.shared_search("launch codename Bluebird", namespace="b", top_k=5)

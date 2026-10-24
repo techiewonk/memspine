@@ -108,19 +108,13 @@ async def _decided(eng: Any, task: str, question: str, context: str | None, heur
     return label
 
 
-async def _list_fires(eng: Any, query: str) -> bool:
-    """B1 list-mode trigger; ``task=list_mode`` of the decider replaces the regex."""
-    fired = eng._list_mode_fires(query)
-    if not eng._config().read.list_mode or not eng._decider_active("list_mode"):
-        return fired  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
-    return await eng._decided("list_mode", query, None, "set" if fired else "single") == "set"  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
-
-
-async def _list_fires_v2(eng: Any, ns: str, query: str) -> bool:
-    """R14-M-1 (``read.list_mode_trigger_v2``): list depth from the question shape and the
+async def _list_fires(eng: Any, ns: str, query: str) -> bool:
+    """R14-M-1 (``read.list_mode_trigger``): list depth from the question shape and the
     first vector leg's score profile. ``task=list_mode`` of the decider still overrides."""
     from memspine.read.list_trigger import list_signal
 
+    if not eng._config().read.list_mode:
+        return False
     fired = False
     sig = None
     try:
@@ -129,16 +123,16 @@ async def _list_fires_v2(eng: Any, ns: str, query: str) -> bool:
         sig = list_signal(query, [h.score for h in hits])
         fired = sig.fire
     except Exception as exc:  # an enhancer, never a gate: fall back to the regex
-        _log.warning("read.list_trigger_v2_failed", error=str(exc))
+        _log.warning("read.list_trigger_failed", error=str(exc))
         fired = eng._list_mode_fires(query)
     tap.event(
-        "read.list_trigger_v2",
+        "read.list_trigger",
         fired=fired,
         score=None if sig is None else round(sig.score, 4),
         regex=eng._list_mode_fires(query),
     )
     if (fx := _FORENSICS.get()) is not None:
-        fx["list_trigger_v2"] = {"fired": fired, "score": None if sig is None else sig.score}
+        fx["list_trigger"] = {"fired": fired, "score": None if sig is None else sig.score}
     if not eng._decider_active("list_mode"):
         return fired
     return await eng._decided("list_mode", query, None, "set" if fired else "single") == "set"  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
@@ -247,18 +241,15 @@ async def _llm_read_plan(eng: Any, query: str) -> ReadPlan | None:
             insp.planner_io(role="plan", version=None, outcome="unbound", query=query)
         return None
     try:
-        version = eng._config().read.planner_version
         plan = await structured_call(
             eng._llm.for_role("plan"),
-            # #35: plan@v2 also writes evidence-seeking subqueries for lookups;
-            # #36: plan@v3 also names the persons and the time expression.
-            eng._prompts.select("plan", condition=None if version == "v1" else version),
+            eng._prompts.select("plan"),
             {"query": query},
             ReadPlan,
         )
         if insp.inspect_enabled():
             insp.planner_io(
-                role="plan", version=version, outcome="ok", query=query, plan=plan.model_dump()
+                role="plan", version="base", outcome="ok", query=query, plan=plan.model_dump()
             )
         return plan
     except Exception as exc:
@@ -349,11 +340,8 @@ def _read_cache(eng: Any) -> ReadCache[ReadResult] | None:
 
 
 def _cache_scope(eng: Any, namespace: str) -> OwnerScope:
-    """The scope in the read-cache key. F-16c ``isolation.scope_keys_v2``: the typed tenant + owner
-    of the namespace (the session is never in a key); off: the namespace as both, as before."""
-    if eng._config().isolation.scope_keys_v2:
-        return Scope.from_namespace(namespace).to_owner_scope()
-    return OwnerScope(tenant=namespace, owner=namespace)
+    """Use the typed tenant and owner identity; sessions never enter cache keys."""
+    return Scope.from_namespace(namespace).to_owner_scope()
 
 
 def _read_cache_key(eng: Any, query: str, namespace: str, viewer: str | None, params: Any) -> Any:
@@ -378,7 +366,7 @@ def _read_cache_key(eng: Any, query: str, namespace: str, viewer: str | None, pa
             model_ids=model_ids,
             store_generation=_key_store_generation(eng),
             erasure_generation=eng.__dict__.get("_erasure_generation", 0),
-            consent_generation=trust_consent.generation(eng),  # T5-03: None unless consent.v2
+            consent_generation=trust_consent.generation(eng),  # T5-03: None unless consent.enabled
         )
     except ValueError:  # e.g. an empty query: not cacheable
         return None
@@ -450,7 +438,7 @@ def _cache_put(eng: Any, key: Any, result: ReadResult) -> None:
 
 @dataclass(frozen=True, slots=True)
 class ReadPlanState:
-    """What the v2 request stage decided for one read."""
+    """What the request stage decided for one read."""
 
     request: ReadRequest | None = None
     tier: Tier | None = None
@@ -460,17 +448,17 @@ class ReadPlanState:
     legs_off: frozenset[str] = frozenset()
 
 
-#: The wiring state of the read in progress (None: no v2 flag is on, or outside ``Engine.read``).
+#: The wiring state of the read in progress (None: no request feature is on, or outside ``Engine.read``).
 _READ_PLAN: ContextVar[ReadPlanState | None] = ContextVar("memspine_read_plan", default=None)
 
 
 def current_plan() -> ReadPlanState | None:
-    """The v2 plan of the read running in this task, for later stages (tier, route, contract)."""
+    """The plan of the read running in this task, for later stages (tier, route, contract)."""
     return _READ_PLAN.get()
 
 
-def v2_flags_on(read: Any) -> bool:
-    return bool(read.tiers_v2 or read.contract_rules or read.router_rules)
+def request_features_on(read: Any) -> bool:
+    return bool(read.tiers or read.contract_rules or read.router_rules)
 
 
 def typed_contract(eng: Any, query: str) -> TypedContract:
@@ -549,7 +537,7 @@ async def layer_inventory(
         graph_store=eng._graph is not None,
     )
     registry = (await LayerRegistry.load(storage, ns, template)).with_selected(selected)
-    if eng._config().offline.profile_card_v2 or read.profile_card_header:
+    if eng._config().offline.profile_card or read.profile_card_header:
         registry = registry.with_artifacts("L5", await eng._profile_card_entry_count(ns))
     return registry
 
@@ -560,18 +548,15 @@ async def layer_state(eng: Any, ns: str, read: Any) -> LayerState:
     Enabled = what the template switches on plus every populated layer; counts = live records per
     ``layer`` column. Two router-specific supplements keep the earlier behaviour where the column
     cannot say it: L2 also counts the distinct sessions of the raw turns (the episode leg reads
-    sessions, not summaries) and L3 is on when a graph store is. If the registry cannot be built
-    (no storage, an old store) the inferred adapter :func:`_inferred_layer_state` answers."""
-    try:
-        storage = eng._require_started()
-        template = LayerTemplate.from_config(
-            eng._config(),
-            worker_model=_services(eng, read).worker_model,
-            graph_store=eng._graph is not None,
-        )
-        registry = await LayerRegistry.load(storage, ns, template)
-    except Exception:  # fall back, never fail a read on bookkeeping
-        return await _inferred_layer_state(eng, ns, read)
+    sessions, not summaries) and L3 is on when a graph store is. Registry errors propagate;
+    current stores must provide the required layer bookkeeping."""
+    storage = eng._require_started()
+    template = LayerTemplate.from_config(
+        eng._config(),
+        worker_model=_services(eng, read).worker_model,
+        graph_store=eng._graph is not None,
+    )
+    registry = await LayerRegistry.load(storage, ns, template)
     counts: dict[str, int] = dict(registry.counts)
     enabled: set[str] = set(registry.enabled) | {"L0", "L1"}
     listed = await eng._records(ns)
@@ -593,37 +578,6 @@ async def layer_state(eng: Any, ns: str, read: Any) -> LayerState:
     )
 
 
-async def _inferred_layer_state(eng: Any, ns: str, read: Any) -> LayerState:
-    """The pre-registry adapter (RW-A): layers inferred from memory type, tags and the graph store.
-
-    L0 = episodic raw turns, L1 = other stored records (facts), L2 = distinct sessions
-    (``group_id``) of the raw turns, L3 = graph store (count = records, an upper bound),
-    L5 = profile / preference records. Services come from the live engine."""
-    counts: dict[str, int] = {}
-    sessions: set[str] = set()
-    for rec in await eng._records(ns):
-        layer = _layer_of(rec)
-        if layer is None:
-            continue
-        counts[layer] = counts.get(layer, 0) + 1
-        if layer == "L0" and rec.group_id:
-            sessions.add(rec.group_id)
-    enabled: set[str] = {"L0", "L1"}
-    if sessions:
-        counts["L2"] = len(sessions)
-        enabled.add("L2")
-    if eng._graph is not None:
-        counts["L3"] = counts.get("L0", 0) + counts.get("L1", 0)
-        enabled.add("L3")
-    if counts.get("L5"):
-        enabled.add("L5")
-    return LayerState(
-        enabled=frozenset(enabled),  # type: ignore[arg-type]
-        counts=counts,  # type: ignore[arg-type]
-        services=_services(eng, read),
-    )
-
-
 async def plan_read(
     eng: Any,
     query: str,
@@ -633,15 +587,15 @@ async def plan_read(
     budget_tokens: int,
     as_of: Any = None,
 ) -> tuple[str, ReadPlanState]:
-    """Entry of a read under any of ``read.tiers_v2`` / ``contract_rules`` / ``router_rules``.
+    """Entry of a read under any of ``read.tiers`` / ``contract_rules`` / ``router_rules``.
 
     Returns the (possibly normalised) query and the plan, which :func:`current_plan` serves
     to the later stages. The caller does not call this with all three flags off."""
     read = eng._config().read
     request: ReadRequest | None = None
     tier: Tier | None = None
-    cfg = TiersReadConfig(default_depth=read.tiers_v2_depth)
-    if read.tiers_v2:
+    cfg = TiersReadConfig(default_depth=read.tiers_depth)
+    if read.tiers:
         fields: dict[str, Any] = {
             "query": query,
             "scope": OwnerScope(tenant=ns, owner=viewer or ns),
@@ -719,7 +673,7 @@ async def plan_read(
 def tier_pool() -> int:
     """FX-READPATH (R-13): the rerank pool of the tier chosen for this read, else 0.
 
-    Only a read under ``read.tiers_v2`` has a tier; the assembly search fetches at least this
+    Only a read under ``read.tiers`` has a tier; the assembly search fetches at least this
     many candidates before the rerank chain (see ``windows._assemble_core``)."""
     plan = _READ_PLAN.get()
     return plan.tier.max_rerank_pool if plan is not None and plan.tier is not None else 0

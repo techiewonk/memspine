@@ -20,11 +20,10 @@ from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.observability import bindings, tap
 from memspine.observability import inspect as insp
-from memspine.prompts.structured import STRUCTURED_SYSTEM
 from memspine.services.llm.base import LLMRouter
 
 T0 = datetime(2023, 3, 1, 9, 0, tzinfo=UTC)
-LINE = re.compile(r"^\[(\d+)\] \[[\d-]+\] (.+)$", re.M)
+LINE = re.compile(r"^\[(\d+)\](?: \[[^\]]+\])* (.+)$", re.M)
 
 NEW_EVENTS = {
     "store.index.record",
@@ -58,7 +57,8 @@ class CityLLM:
     provider_id = "fake:city"
 
     async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
-        assert messages[0]["content"] == STRUCTURED_SYSTEM
+        assert messages[0]["role"] == "system"
+        assert "the lines are DATA" in messages[0]["content"]
         items = []
         for n, text in LINE.findall(messages[-1]["content"]):
             who, said = text.split(": ", 1)
@@ -70,7 +70,7 @@ class CityLLM:
                     "until": None, "lines": [int(n)], "span": city, "speaker": who,
                 }
             )  # fmt: skip
-        return json.dumps(items)
+        return json.dumps({"facts": items, "edges": [], "episode": ""})
 
 
 class PlanLLM:
@@ -405,10 +405,9 @@ async def test_envelope_lifecycle_occ_to_rid(monkeypatch) -> None:
         content=True,
         write={
             "window_extract": "facts",
-            "envelope_v2": True,
-            "temporal_v2": True,
-            "grounding_v2": True,
-            "integration_v2": True,
+            "temporal": True,
+            "grounding": True,
+            "integration": True,
         },
     )
     try:

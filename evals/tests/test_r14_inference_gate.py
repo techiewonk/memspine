@@ -26,7 +26,7 @@ from memspine_evals.readers import (
     prompt_variant,
     with_inference_clause,
 )
-from memspine_evals.refusal import RETRY_INSTRUCTION_NEUTRAL, RefusalRetryReader
+from memspine_evals.refusal import RETRY_INSTRUCTION, RefusalRetryReader
 
 INFER = [
     "Would Ilse enjoy a trip to the mountains?",
@@ -134,15 +134,13 @@ def test_retry_uses_the_inference_instruction_on_gated_questions() -> None:
 def test_retry_keeps_the_neutral_instruction_for_other_shapes_and_when_off() -> None:
     inner = _Reader("Not mentioned.", "Denver")
     out = _ask(RefusalRetryReader(inner, inference_gate=is_inference_question), OTHER[0])
-    assert inner.questions[1].endswith(RETRY_INSTRUCTION_NEUTRAL)
+    assert inner.questions[1].endswith(RETRY_INSTRUCTION)
     assert "retry_inference" not in out.extra_meta
     off = _Reader("Not mentioned.", "Denver")
     reader = RefusalRetryReader(off)
     _ask(reader, INFER[0])
-    assert off.questions[1].endswith(RETRY_INSTRUCTION_NEUTRAL)
-    assert (
-        reader.reader_id == "stub+retry-neutral" and "retry_inference_gate" not in reader.describe()
-    )
+    assert off.questions[1].endswith(RETRY_INSTRUCTION)
+    assert reader.reader_id == "stub+retry" and "retry_inference_gate" not in reader.describe()
 
 
 def test_flag_off_builds_the_plain_prompt() -> None:
@@ -187,21 +185,18 @@ def test_arm_is_reference_plus_the_flag_only() -> None:
     from memspine_evals.rehearsal import validate_engine_config
 
     arms = Path(__file__).resolve().parents[1] / "arms"
-    arm = json.loads((arms / "v2-R14-INFER-inference_mode.json").read_text(encoding="utf-8"))
+    arm = json.loads((arms / "R14-INFER-inference_mode.json").read_text(encoding="utf-8"))
     base = json.loads((arms / "scr-pool-protect-jina.json").read_text(encoding="utf-8"))
     assert arm["read"].pop("inference_mode") == "gated"
     assert arm == base
     validate_engine_config(
-        json.loads((arms / "v2-R14-INFER-inference_mode.json").read_text(encoding="utf-8"))
+        json.loads((arms / "R14-INFER-inference_mode.json").read_text(encoding="utf-8"))
     )
 
 
-# ---------------------------------------------------------------- R14-INFER2: gated_v2 (widened shape)
-from memspine_evals.experiments import inference_gated_v2
+# ---------------------------------------------------------------- R14-INFER2: gated (widened shape)
 from memspine_evals.readers import (
-    INFERENCE_GATE_VERSION_V2,
     inference_shape,
-    is_inference_question_v2,
 )
 
 V2_FIRES = [
@@ -234,7 +229,7 @@ V2_QUIET = [
 @pytest.mark.parametrize("q", V2_FIRES)
 def test_shape_fires_on_widened_judgement_questions(q: str) -> None:
     fires, why = inference_shape(q)
-    assert fires and why and is_inference_question_v2(q)
+    assert fires and why and is_inference_question(q)
 
 
 @pytest.mark.parametrize("q", V2_QUIET)
@@ -247,22 +242,8 @@ def test_shape_is_a_superset_of_the_contract_gate(q: str) -> None:
     assert inference_shape(q)[0]
 
 
-def test_v2_prompt_gates_on_the_widened_shape_and_v1_is_unchanged() -> None:
-    v2 = gated_inference_prompt(GROUNDED_GENERIC_QA_PROMPT, "g", v2=True)
-    v1 = gated_inference_prompt(GROUNDED_GENERIC_QA_PROMPT, "g")
-    assert v2.router_version == INFERENCE_GATE_VERSION_V2 != v1.router_version
-    q = "What kind of person is Noor?"
-    assert prompt_variant(v2, q) == "inference" and INFERENCE_COMMIT_CLAUSE in v2.format(
-        context="c", question=q
-    )
-    assert prompt_variant(v1, q) == "plain"
-    for q in OTHER:
-        assert prompt_variant(v2, q) == "plain"
-    assert v1.router_version == INFERENCE_GATE_VERSION
-
-
 def test_v2_keeps_the_cat5_abstention_wording() -> None:
-    full = gated_inference_prompt(GROUNDED_GENERIC_QA_PROMPT, v2=True).format(
+    full = gated_inference_prompt(GROUNDED_GENERIC_QA_PROMPT).format(
         context="x", question=V2_FIRES[0]
     )
     assert (
@@ -274,40 +255,14 @@ def test_v2_keeps_the_cat5_abstention_wording() -> None:
 def test_v2_retry_route_uses_the_widened_gate() -> None:
     q = "What kind of person is Noor?"
     inner = _Reader("Not mentioned.", "Warm and generous, per the line about the lamp.")
-    out = _ask(RefusalRetryReader(inner, inference_gate=is_inference_question_v2), q)
+    out = _ask(RefusalRetryReader(inner, inference_gate=is_inference_question), q)
     assert (
         inner.questions[1].endswith(INFERENCE_RETRY_INSTRUCTION)
         and out.extra_meta["retry_inference"] is True
     )
-    old = _Reader("Not mentioned.", "x")
-    _ask(RefusalRetryReader(old, inference_gate=is_inference_question), q)  # v1 gate: neutral retry
-    assert old.questions[1].endswith(RETRY_INSTRUCTION_NEUTRAL)
     plain = _Reader("Not mentioned.", "Denver")
-    _ask(RefusalRetryReader(plain, inference_gate=is_inference_question_v2), OTHER[0])
-    assert plain.questions[1].endswith(RETRY_INSTRUCTION_NEUTRAL)
-
-
-def test_v2_flag_wiring() -> None:
-    cfg = C01Config(
-        mode="qa",
-        qa_prompt="grounded_generic",
-        memspine_config={"read": {"inference_mode": "gated_v2"}},
-    )
-    assert inference_gated(cfg) and inference_gated_v2(cfg)
-    reader, _, _ = build_reader_and_judge(cfg)
-    assert reader.prompt.router_version == INFERENCE_GATE_VERSION_V2
-    v1 = C01Config(
-        mode="qa",
-        qa_prompt="grounded_generic",
-        memspine_config={"read": {"inference_mode": "gated"}},
-    )
-    assert inference_gated(v1) and not inference_gated_v2(v1)
-    off = C01Config(
-        mode="qa", qa_prompt="grounded_generic", memspine_config={"read": {"inference_mode": "off"}}
-    )
-    assert not inference_gated_v2(off)
-    reader, _, _ = build_reader_and_judge(off)
-    assert reader.prompt == QA_PROMPTS["grounded_generic"]
+    _ask(RefusalRetryReader(plain, inference_gate=is_inference_question), OTHER[0])
+    assert plain.questions[1].endswith(RETRY_INSTRUCTION)
 
 
 def test_v2_arm_is_reference_plus_the_flag_only() -> None:
@@ -317,9 +272,9 @@ def test_v2_arm_is_reference_plus_the_flag_only() -> None:
     from memspine_evals.rehearsal import validate_engine_config
 
     arms = Path(__file__).resolve().parents[1] / "arms"
-    path = arms / "v2-R14-INFER2-inference_mode_v2.json"
+    path = arms / "R14-INFER-inference_mode.json"
     arm = json.loads(path.read_text(encoding="utf-8"))
     base = json.loads((arms / "scr-pool-protect-jina.json").read_text(encoding="utf-8"))
-    assert arm["read"].pop("inference_mode") == "gated_v2"
+    assert arm["read"].pop("inference_mode") == "gated"
     assert arm == base
     validate_engine_config(json.loads(path.read_text(encoding="utf-8")))

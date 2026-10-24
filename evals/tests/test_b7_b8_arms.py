@@ -18,12 +18,10 @@ sys.path.insert(0, str(EVALS))
 import gen_b7_arms as g
 from memspine_evals.rehearsal import validate_engine_config
 
-from memspine.config.requires import check_requires
-from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 
 COLS = ["id", "batch", "pkg", "arm", "ref_run", "rule", "sets", "deps", "kind", "est_min", "flag"]
-LINES = (EVALS / "v2_queue.tsv").read_text(encoding="utf-8").splitlines()
+LINES = (EVALS / "screen_queue.tsv").read_text(encoding="utf-8").splitlines()
 ROWS = [
     dict(zip(COLS, r, strict=False))
     for r in csv.reader([ln for ln in LINES if ln and not ln.startswith("#")], delimiter="\t")
@@ -49,8 +47,8 @@ def test_row_resolves(row: dict) -> None:
     assert (g.ARMS / f"{row['arm']}.json").exists()
     assert row["rule"] in {"PROMOTE", "NONINF", "PARITY", "REPORT", "REF"}
     ref = row["ref_run"]
-    if ref.startswith("v2-S"):
-        rid = ref[3:-3]
+    if ref.startswith("screen-S"):
+        rid = ref.removeprefix("screen-").removesuffix("-i2")
         ref_row = next(r for r in ROWS if r["id"] == rid)
         assert ref_row["kind"] == row["kind"], "a reference must be built the same way (J or GC)"
         assert (g.ARMS / f"{ref_row['arm']}.json").exists()
@@ -72,19 +70,12 @@ def test_every_inert_screen_is_rearmed_or_skipped_with_a_reason() -> None:
 def test_deep_screens_bind_the_sufficiency_role() -> None:
     for name in ("deep", "obligations"):
         arm = json.loads((g.ARMS / f"scr-b7-{name}.json").read_text(encoding="utf-8"))
-        assert "sufficiency" in arm["llm"]["roles"]
-        assert arm["read"]["deep_v2"] is True
+        assert "sufficiency" in arm["model"]["llm"]
+        assert arm["read"]["deep"] is True
     arm = json.loads((g.ARMS / "scr-b7-deep.json").read_text(encoding="utf-8"))
-    del arm["llm"]["roles"]["sufficiency"]
+    del arm["model"]["llm"]["sufficiency"]
     with pytest.raises(ConfigError, match="sufficiency"):
-        check_requires(MemspineConfig.model_validate(arm), strict=True)
-
-
-def test_the_old_deep_arms_now_fail_the_strict_validator() -> None:
-    for name in ("v2-R3-12-deep_v2", "v2-R3-16-obligations", "v2-R3-13-external_v2"):
-        arm = json.loads((g.ARMS / f"{name}.json").read_text(encoding="utf-8"))
-        with pytest.raises(ConfigError):
-            validate_engine_config(arm)
+        validate_engine_config(arm)
 
 
 def test_budget_pair_differs_only_in_exact_budget() -> None:

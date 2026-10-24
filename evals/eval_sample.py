@@ -5,7 +5,7 @@
 
 Prints wins / losses / ties, net, delta (accuracy points for LoCoMo, mean score points x100 for OP-Bench), a paired
 bootstrap interval over the sampled questions (2000 draws, seed 7: a spread, not a test), per-category wins/losses,
-cost (tokens, USD) and latency p50/p95, and appends one row to ``runs/_logs/v2_results.tsv`` (``v2_ledger.py``).
+cost (tokens, USD) and latency p50/p95, and appends one row to ``runs/_logs/screen_results.tsv`` (``screen_ledger.py``).
 A sample of 60-100 questions cannot carry an adoption decision; it only ranks arms and shows where to iterate. The
 paired gate (``paired_gate.py``) is used here only for the manifest comparability check.
 """
@@ -19,7 +19,7 @@ import random
 from collections import defaultdict
 from pathlib import Path
 
-import v2_ledger
+import screen_ledger
 from memspine_evals.manifest import comparability_key, percentile
 from memspine_evals.paired_gate import compare_manifests
 from memspine_evals.seal import read_manifest
@@ -228,7 +228,7 @@ def main() -> None:
     elif not (am and rm):
         print("   WARNING: manifest missing: comparability not verified")
     if not a.no_ledger:
-        v2_ledger.append(
+        screen_ledger.append(
             {
                 "mode": a.mode,
                 "screen": a.screen,
@@ -259,7 +259,7 @@ def main() -> None:
                 ),
             }
         )
-        print(f"   ledger: {v2_ledger.results_path()}")
+        print(f"   ledger: {screen_ledger.results_path()}")
 
 
 if __name__ == "__main__":

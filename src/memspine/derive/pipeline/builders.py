@@ -243,15 +243,10 @@ def _build_fact_miner(eng: Any) -> Any:
     if eng._llm is None or eng._prompts is None or "extract" not in eng._llm.roles:
         return None
     llm = eng._llm.for_role("extract")
-    # H2: the session variant (no pronouns, absolute dates, one fact each) when
-    # shipped; the base extract prompt otherwise. #27: ``consolidation.mine_prompt``
-    # picks another session variant, whose token budget becomes the output cap.
-    variant = str(eng._consolidation_option("mine_prompt", "session"))
-    if variant == "session" and eng._consolidation_option("mine_multiview", False):
-        variant = "session4"  # #28: the default prompt asks for no view fields
-    prompt = eng._prompts.select("extract", condition=variant)
+    # One current session extraction prompt; its budget is the output cap.
+    prompt = eng._prompts.select("extract", condition="session")
     options: dict[str, Any] = {}
-    if variant != "session" and prompt.token_budget:
+    if prompt.token_budget:
         options["max_tokens"] = prompt.token_budget
 
     async def mine(content: str) -> list[ExtractedFact]:
@@ -272,9 +267,7 @@ def _build_fact_miner(eng: Any) -> Any:
     cache = eng._cache
 
     async def mine_cached(content: str) -> list[ExtractedFact]:
-        key = "mine:" + fingerprint_payload(
-            {"model": model, "prompt": version, "variant": variant, "content": content}
-        )
+        key = "mine:" + fingerprint_payload({"model": model, "prompt": version, "content": content})
         hit = await cache.get(key)
         if hit is not None:
             return ExtractedFacts.model_validate_json(hit).facts
@@ -449,12 +442,12 @@ CLOSE_ROLES = ("session_close", "summarize", "extract")
 
 
 def _build_close_call(eng: Any) -> Callable[[list[dict[str, str]]], Awaitable[str]] | None:
-    """O4-02: the call-2 model call, only with ``offline.session_close_v2`` and a bound role.
+    """O4-02: the call-2 model call, only with ``offline.session_close`` and a bound role.
 
     The prompt is the library's (``derive.session_close.render_prompt``: a stable prefix with no
     examples and the same-language rule, then the data body), sent as raw messages through an
     existing role's model binding, so no new prompt template exists."""
-    if not eng._config().offline.session_close_v2 or eng._llm is None:
+    if not eng._config().offline.session_close or eng._llm is None:
         return None
     role = next((r for r in CLOSE_ROLES if r in eng._llm.roles), None)
     if role is None:

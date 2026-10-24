@@ -1,4 +1,4 @@
-"""R14-M-12 / OBS-10 (``read.decompose_v2``): map-reduce read for multi-entity questions.
+"""R14-M-12 / OBS-10 (``read.decompose``): map-reduce read for multi-entity questions.
 
 Called from ``router._read_planned`` in place of ``eng._read`` (so the read scopes, the read
 cache, the contract header, consent and the audit all wrap the merged result exactly once).
@@ -138,11 +138,11 @@ async def decomposed_read(
     """The map-reduce read, or None when ``query`` is not a multi-entity question (or the
     split gave nothing better than the ordinary read): the caller then reads as before."""
     cfg = eng._config().read
-    if not cfg.decompose_v2 or _INSIDE.get():
+    if not cfg.decompose or _INSIDE.get():
         return None
     if not _CAPITAL.search(query):  # cheap gate before the store is listed
         return None
-    plan = rules.plan(query, await known_names(eng, ns), cfg.decompose_v2_max_entities)
+    plan = rules.plan(query, await known_names(eng, ns), cfg.decompose_max_entities)
     if plan is None:
         tap.event("read.decompose", fired=False)
         return None

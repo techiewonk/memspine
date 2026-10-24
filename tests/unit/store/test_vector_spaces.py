@@ -298,7 +298,7 @@ def test_stale_derivations_listing_and_plan():
     old_model = _rec("old model", model_id="qwen2", prompt_hash="ph2")
     old_prompt = _rec("old prompt", model_id="qwen3.5-9b", prompt_hash="ph1")
     explicit = _rec("explicit", derivation=derivation_digest("qwen3.5-9b", "ph2"))
-    legacy = _rec("legacy")
+    legacy = _rec("unstamped")
     legacy = legacy.model_copy(update={"fingerprint": RecordFingerprint()})
     raw = _rec("raw turn", memory_type="episodic")
     other_ns = _rec("elsewhere", ns="v", model_id="qwen2", prompt_hash="ph1")
@@ -307,8 +307,8 @@ def test_stale_derivations_listing_and_plan():
     report = stale_derivations(records, *current, namespace="u")
     assert set(report.stale_ids) == {old_model.record_id, old_prompt.record_id, legacy.record_id}
     assert report.total_derived == 5  # the raw turn and the other namespace are not counted
-    assert report.by_model == {"qwen2": 1, "qwen3.5-9b": 1, "legacy": 1}
-    assert report.by_prompt == {"ph2": 1, "ph1": 1, "legacy": 1}
+    assert report.by_model == {"qwen2": 1, "qwen3.5-9b": 1, "unstamped": 1}
+    assert report.by_prompt == {"ph2": 1, "ph1": 1, "unstamped": 1}
 
     plan = rederive_plan(report, batch=2)
     assert [len(b) for b in plan.batches] == [2, 1] and plan.size == 3

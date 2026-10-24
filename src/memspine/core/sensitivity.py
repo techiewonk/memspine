@@ -60,7 +60,7 @@ CATEGORY_GRADE: dict[str, str] = {
 }
 
 #: W16 lexicon name -> canonical category.
-_LEGACY = {
+_TOPIC_CATEGORIES = {
     "health": "health",
     "religion": "religion",
     "sexual_orientation": "sexuality_gender",
@@ -169,8 +169,8 @@ def grade_text(text: str) -> SensitivityLabel:
 
     The grade is the highest grade among the matched categories."""
     found: list[str] = []
-    for legacy, pattern in SENSITIVE_CATEGORIES.items():
-        name = _LEGACY[legacy]
+    for topic, pattern in SENSITIVE_CATEGORIES.items():
+        name = _TOPIC_CATEGORIES[topic]
         if pattern.search(text) and name not in found:
             found.append(name)
     for name, pattern in _EXTRA.items():
@@ -192,11 +192,9 @@ def label_tags(label: SensitivityLabel | tuple[str, Sequence[str]]) -> list[str]
 
 
 def label_of(tags: Iterable[str]) -> SensitivityLabel:
-    """The label a record's tags carry. A record that only has the W16 ``sensitive:<topic>``
-    tags (written before this module) is graded from those; no tag at all is ``none``."""
+    """The label carried by current sensitivity grade/category tags; no tag is ``none``."""
     grade = "none"
     categories: list[str] = []
-    legacy: list[str] = []
     for tag in tags:
         if tag.startswith(GRADE_TAG_PREFIX):
             value = tag[len(GRADE_TAG_PREFIX) :]
@@ -204,13 +202,6 @@ def label_of(tags: Iterable[str]) -> SensitivityLabel:
                 grade = value
         elif tag.startswith(CATEGORY_TAG_PREFIX):
             categories.append(tag[len(CATEGORY_TAG_PREFIX) :])
-        elif tag.startswith("sensitive:"):
-            name = _LEGACY.get(tag[len("sensitive:") :])
-            if name:
-                legacy.append(name)
-    if grade == "none" and not categories and legacy:
-        grade = max((CATEGORY_GRADE[c] for c in legacy), key=grade_rank)
-        categories = legacy
     return SensitivityLabel(grade, tuple(categories))
 
 

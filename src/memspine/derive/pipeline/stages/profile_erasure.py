@@ -1,10 +1,10 @@
 """Derive: the profile card under a turn forget (FU-CLOSE; O4-07 follow-up), opt-in.
 
-``offline.profile_card_v2`` off (default): nothing here runs. On, when a supporting turn is
+``offline.profile_card`` off (default): nothing here runs. On, when a supporting turn is
 forgotten (soft or hard) :func:`scrub_profile_cards` runs at once, under the namespace write lock
 the forget already holds, instead of waiting for the next sleep:
 
-* a new ``profile_card_v2`` marker is appended without the entries supported only by the forgotten
+* a new ``profile_card`` marker is appended without the entries supported only by the forgotten
   turns (entries with other support lose just those ids), so the current card never serves them;
 * on a hard forget the text of every older card marker that carries a removed entry (its key,
   value and contest values) is redacted in the log with the storage pass hard forget already uses
@@ -59,7 +59,7 @@ async def scrub_profile_cards(
     eng: Any, namespace: str, record_ids: Sequence[str], hard: bool
 ) -> dict[str, object]:
     """Drop forgotten support from the namespace's current card (lock held by the caller)."""
-    if not eng._config().offline.profile_card_v2:
+    if not eng._config().offline.profile_card:
         return {"status": "off"}
     if eng._config().event_log.mode is EventLogMode.EPHEMERAL:
         return {"status": "skipped", "reason": "no durable log for the card"}

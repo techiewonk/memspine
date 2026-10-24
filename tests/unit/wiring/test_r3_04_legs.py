@@ -1,4 +1,4 @@
-"""R3-04: core retrieval legs behind one registry (read.legs_v2). Model-free: hash embedder."""
+"""R3-04: core retrieval legs behind one registry (read.legs). Model-free: hash embedder."""
 
 from __future__ import annotations
 
@@ -33,7 +33,6 @@ def _ctx(records: list[MemoryRecord], query: str, **kw: Any) -> lib.LegContext:
 
 def test_flag_defaults_off_and_bm25_is_the_scorer() -> None:
     cfg = ReadConfig()
-    assert cfg.legs_v2 is False
     assert cfg.lexical_scorer == "bm25"
     assert cfg.lexical_language == "en"
     assert cfg.lexical_namespace_languages == {}
@@ -327,23 +326,6 @@ async def _ids(eng: Engine, q: str) -> list[str]:
     return [r.content for r, _ in await eng.search(q, namespace="a", top_k=3)]
 
 
-async def test_flag_off_is_unchanged_and_never_touches_the_registry(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    called: list[str] = []
-    real = legs_core.run_legs
-    monkeypatch.setattr(lib, "run_legs", lambda *a, **k: called.append("x") or real(*a, **k))
-    default = await _engine()
-    explicit = await _engine(legs_v2=False)
-    try:
-        q = "which cat did Alice adopt"
-        assert await _ids(default, q) == await _ids(explicit, q)
-    finally:
-        await default.stop()
-        await explicit.stop()
-    assert called == []
-
-
 async def test_flag_on_routes_candidates_through_the_registry_and_finds_the_record(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -353,7 +335,7 @@ async def test_flag_on_routes_candidates_through_the_registry_and_finds_the_reco
         "event",
         lambda stage, /, **f: seen.append(f["leg"]) if stage == "read.leg" else None,
     )
-    eng = await _engine(legs_v2=True, temporal_leg=True)
+    eng = await _engine(temporal_leg=True)
     try:
         hits = await _ids(eng, "which cat did Alice adopt")
         dated = await _ids(eng, "what happened on 7 May 2023")
@@ -365,7 +347,7 @@ async def test_flag_on_routes_candidates_through_the_registry_and_finds_the_reco
 
 
 async def test_flag_on_with_hybrid_off_runs_vector_and_temporal_only() -> None:
-    eng = await _engine(legs_v2=True, hybrid=False, temporal_leg=True)
+    eng = await _engine(hybrid=False, temporal_leg=True)
     try:
         hits = await _ids(eng, "what happened on 7 May 2023")
     finally:

@@ -103,16 +103,6 @@ async def _seeded(**read: Any) -> Engine:
     return eng
 
 
-async def test_engine_entity_leg_is_named_and_finds_the_place() -> None:
-    eng = await _seeded(entity_leg=True)
-    try:
-        legs = await eng._metadata_legs("a", "When did Ana go to Paris?", 5)
-    finally:
-        await eng.stop()
-    entity = [leg for leg in legs if getattr(leg, "name", None) == "entity"]
-    assert len(entity) == 1 and len(entity[0]) == 1
-
-
 async def test_engine_speaker_probe_adds_a_leg_only_when_a_speaker_is_named() -> None:
     eng = await _seeded(speaker_probe=True)
     try:

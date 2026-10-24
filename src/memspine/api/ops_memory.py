@@ -15,7 +15,7 @@ from memspine.services.embedding.base import embed_queries
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.store.scope import grant_allows, validate_namespace
-from memspine.trust.pipeline import gates_v2
+from memspine.trust.pipeline import gates
 
 _log = get_logger(__name__)
 
@@ -331,9 +331,9 @@ async def _shared_search(
         return results  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
     [query_vector] = await embed_queries(eng._embedder, [query])
     integrity = eng._integrity()
-    # O4-11 (``memories.shared.policies.observer_views_v2``, off): foreign hits are judged by the
+    # O4-11 (``memories.shared.policies.observer_views``, off): foreign hits are judged by the
     # observer view (LIB-44 over the LIB-21 grant chain) instead of the per-edge attenuation below.
-    observer_v2 = bool(eng._memory_policy(eng._config(), "shared").get("observer_views_v2"))
+    observer = bool(eng._memory_policy(eng._config(), "shared").get("observer_views"))
     candidates: list[tuple[MemoryRecord, float, float]] = []
     for grantor in sorted(grants):
         # SF-7/ADR-018: one grantor's broken vector index must not sink the
@@ -362,7 +362,7 @@ async def _shared_search(
                     )
                     continue
                 score = eng._scoring.composite_score(record, relevance=hit.score)
-                if observer_v2:
+                if observer:
                     home = (
                         await eng.effective_trust(record.record_id)
                         if integrity.enabled and integrity.live_reevaluation
@@ -378,9 +378,9 @@ async def _shared_search(
                         if integrity.live_reevaluation
                         else record.trust
                     )
-                    if gates_v2.gates_on(eng) and integrity.horizon_v2:
+                    if gates.gates_on(eng) and integrity.horizon:
                         # W2-04 gate 4 over the T5-01 grant: a visible chain, attenuated trust
-                        gate = gates_v2.read_item(
+                        gate = gates.read_item(
                             record.model_copy(update={"trust": min(1.0, max(0.0, home))}),
                             ns,
                             grants=[integrity.grant(grantor, ns)],
@@ -410,7 +410,7 @@ async def _shared_search(
                 error=str(exc),
                 exc_info=True,
             )
-    if observer_v2:
+    if observer:
         results.extend(_observer_results(ns, candidates, grants, integrity))
     results = rank_pairs(results)
     # COR-2/ADR-018: the per-grantor loop appended up to top_k EACH — a final

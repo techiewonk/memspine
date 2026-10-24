@@ -114,7 +114,7 @@ class _Counted:
 
     async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
         self._counts[self._role] = self._counts.get(self._role, 0) + 1
-        costed = _costs.installed() is not None  # W2-12: economy.ledger_v2
+        costed = _costs.installed() is not None  # W2-12: economy.ledger
         t0 = time.perf_counter() if costed else 0.0
         reported: tuple[int, int] | None = None
 
@@ -253,7 +253,7 @@ class ThinkingCapped:
 class LLMRouter:
     """Role -> provider table resolved from config at engine start."""
 
-    #: MD-01: the resolved model plan when ``model.placement.tiers_v2`` built this router, else None.
+    #: MD-01: the resolved model plan when ``model.placement.tiers`` built this router, else None.
     model_plan: Any = None
 
     def __init__(

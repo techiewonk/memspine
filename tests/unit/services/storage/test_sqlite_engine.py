@@ -220,36 +220,6 @@ async def test_baseline_creates_working_graph_tables(tmp_path: Path) -> None:
         await client.close()
 
 
-async def test_migration_adds_group_id_and_tags_columns(tmp_path: Path) -> None:
-    """D2: a fresh file DB has the sub-scoping columns, and the guarded 0002
-    migration is safe on the existing-DB path (downgrade to 0001, up to head)."""
-    from sqlalchemy import create_engine, inspect
-
-    from memspine.services.storage.sqlite.migrations import alembic_config
-
-    db = tmp_path / "scoped.db"
-    upgrade_to_head(db)
-
-    def columns() -> set[str]:
-        engine = create_engine(f"sqlite:///{db}")
-        try:
-            return {c["name"] for c in inspect(engine).get_columns("memory_records")}
-        finally:
-            engine.dispose()
-
-    assert {"group_id", "tags"} <= columns()
-
-    # Simulate a pre-D2 database: drop back to 0001 (removes the columns), then
-    # upgrade again — the guarded add-column must re-add them without erroring.
-    from alembic import command
-
-    cfg = alembic_config(db)
-    command.downgrade(cfg, "0001")
-    assert not ({"group_id", "tags"} & columns())
-    command.upgrade(cfg, "head")
-    assert {"group_id", "tags"} <= columns()
-
-
 async def test_baseline_creates_no_lexical_table(tmp_path: Path) -> None:
     """v0.2: the transactional-DB FTS5 lexical table was removed with the
     sqlite_fts5 provider — the baseline must not create it (the BM25 leg is the

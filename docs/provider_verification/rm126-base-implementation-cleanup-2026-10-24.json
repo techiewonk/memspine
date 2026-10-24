@@ -1,0 +1,164 @@
+{
+  "task": "RM-126",
+  "decision": "ADR-086 / D-110",
+  "date": "2026-10-24",
+  "status": "verified",
+  "scope": [
+    "Owner-approved A01-A19 compatibility removals and latest implementations as the sole base.",
+    "Unversioned implementation names and current strict configuration contracts; no generation aliases.",
+    "Fresh SQLite/Postgres baselines; no historical-store adoption, upcasting or migration bridges.",
+    "Current replay retained; embedder identity is embedder:<model>.",
+    "Current read, trust, audit, erasure, write, segmentation, extraction, decay and community paths consolidated."
+  ],
+  "preserved_contracts": [
+    "External API/model/dataset versions and current schema-version validation.",
+    "Meaningful optional feature and policy controls; current replay and operational integrity checks.",
+    "Historical ADRs and measurement evidence."
+  ],
+  "tests": {
+    "main": {
+      "cases": 9125,
+      "passed": 8850,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 275
+    },
+    "evaluation": {
+      "cases": 1909,
+      "passed": 1893,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 16
+    },
+    "main_chunks": [
+      {
+        "chunk": 1,
+        "cases": 363,
+        "passed": 302,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 61
+      },
+      {
+        "chunk": 2,
+        "cases": 562,
+        "passed": 557,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 5
+      },
+      {
+        "chunk": 3,
+        "cases": 1321,
+        "passed": 1320,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      {
+        "chunk": 4,
+        "cases": 1700,
+        "passed": 1700,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "chunk": 5,
+        "cases": 445,
+        "passed": 443,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 2
+      },
+      {
+        "chunk": 6,
+        "cases": 347,
+        "passed": 343,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 4
+      },
+      {
+        "chunk": 7,
+        "cases": 839,
+        "passed": 708,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 131
+      },
+      {
+        "chunk": 8,
+        "cases": 453,
+        "passed": 397,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 56
+      },
+      {
+        "chunk": 9,
+        "cases": 485,
+        "passed": 485,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "chunk": 10,
+        "cases": 474,
+        "passed": 473,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      {
+        "chunk": 11,
+        "cases": 412,
+        "passed": 411,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1
+      },
+      {
+        "chunk": 12,
+        "cases": 519,
+        "passed": 519,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      {
+        "chunk": 13,
+        "cases": 554,
+        "passed": 543,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 11
+      },
+      {
+        "chunk": 14,
+        "cases": 651,
+        "passed": 649,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 2
+      }
+    ],
+    "aggregation": "Each main chunk uses its latest successful run; focused agent runs are not added again. Skips include optional integration/native/service cases and expected skips."
+  },
+  "checks": {
+    "ruff": "passed",
+    "format": "1731 files formatted",
+    "mypy": "668 source files passed",
+    "import_contracts": "18 kept, 0 broken",
+    "provider_defaults": "up to date",
+    "stage_params": "up to date",
+    "schema_exports": "276 files match regenerated output",
+    "git_diff_check": "passed (line-ending normalization warnings only)"
+  },
+  "limitations": [
+    "Optional native/external-service paths not exercised by skipped tests.",
+    "Dependency freshness audit previously found FastAPI locked at 0.161.1 while 0.162.0 was available; no unrelated dependency upgrade was made."
+  ],
+  "delivery": "Local working-tree changes only; no commit or push."
+}

@@ -18,15 +18,13 @@ from types import SimpleNamespace
 from typing import Any
 
 import pytest
-from sqlalchemy import delete, select, update
+from sqlalchemy import delete, select
 from structlog.testing import capture_logs
 
 from memspine import Engine
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 from memspine.providers.lifecycle import ProviderLifecycleManager
-from memspine.providers.registry import GRAPH_STORES, UnknownProviderError
-from memspine.providers.selection import ProviderSelectionError, select_provider
 from memspine.runtime.container import Wiring, _graph_descriptor, resolve_graph_pin
 from memspine.services.storage.provider_metadata import SqlProjectionBindingStore
 from memspine.services.storage.records_port import ProjectionTargetBinding
@@ -51,20 +49,6 @@ def ladybug(monkeypatch: pytest.MonkeyPatch) -> Iterator[dict[str, bool]]:
 
 
 # ------------------------------------------------------------------------------- rename
-def test_old_graph_provider_name_is_rejected_with_the_new_name() -> None:
-    with pytest.raises(ProviderSelectionError, match="renamed to 'sql_adjacency'"):
-        select_provider("graph", "sqlite_adjacency")
-    with pytest.raises(UnknownProviderError, match="renamed to 'sql_adjacency'"):
-        GRAPH_STORES.get("sqlite_adjacency")
-    assert GRAPH_STORES.find("sqlite_adjacency") is None  # no alias
-    assert GRAPH_STORES.get("sql_adjacency").ref.name == "sql_adjacency"
-
-
-async def test_engine_refuses_the_old_graph_provider_name(tmp_path: Path) -> None:
-    eng = _engine(tmp_path, storage={"graph": {"provider": "sqlite_adjacency"}})
-    with pytest.raises(ConfigError, match="renamed to 'sql_adjacency'"):
-        await eng.start()
-    await eng.stop()
 
 
 # ------------------------------------------------------------------------------- engine e2e
@@ -143,33 +127,6 @@ async def test_explicit_provider_change_is_blocked_without_a_verified_switch(
     with pytest.raises(ConfigError, match="verified projection switch"):
         await explicit.start()
     await explicit.stop()
-
-
-async def test_a_binding_recorded_under_the_old_name_is_adopted(
-    tmp_path: Path, ladybug: dict[str, bool]
-) -> None:
-    first = _engine(tmp_path)
-    await first.start()
-    await first.stop()
-    from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
-
-    client = SQLiteClient(SQLiteSpec(str(tmp_path / "pin.db")))
-    await client.open()
-    async with client.engine.begin() as conn:  # what a pre-rename database holds
-        await conn.execute(
-            update(provider_projector_bindings)
-            .where(provider_projector_bindings.c.projector_name == "graph")
-            .values(provider="graph:sqlite_adjacency:v1", target_fingerprint="0" * 64)
-        )
-    await client.close()
-    for graph in ({}, {"storage": {"graph": {"provider": "sql_adjacency"}}}):
-        eng = _engine(tmp_path, **graph)
-        await eng.start()
-        try:
-            assert eng.describe()["graph"] == "SqlAdjacencyGraph"
-        finally:
-            await eng.stop()
-        assert await _bound(tmp_path) == "graph:sql_adjacency:v1"
 
 
 # ------------------------------------------------------------------------------- per dialect

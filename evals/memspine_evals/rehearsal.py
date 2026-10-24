@@ -97,6 +97,7 @@ def arm_engine_config(plan: dict[str, Any], arm: dict[str, Any]) -> dict[str, An
 RAW_POLICIES = frozenset(
     {
         "entity_nodes",
+        "subject_tagging",
         "entity_summaries",
         "extract_graph",
         "perspective",
@@ -115,12 +116,12 @@ def validate_engine_config(config: dict[str, Any]) -> None:
     misspelt key there would otherwise pass start-up silently.
     """
     from memspine.compose.pack import AssemblyOptions
+    from memspine.config.loader import load_config
     from memspine.config.requires import check_requires
-    from memspine.config.schema import MemspineConfig
     from memspine.core.policies.scoring import ScoringOptions
 
-    parsed = MemspineConfig.model_validate(config)
-    # FU-REQS: the arm is a screen, so the soft needs count too (deep_v2 with no bound sufficiency
+    parsed = load_config(template="base", env={}, overrides=config).config
+    # FU-REQS: the arm is a screen, so the soft needs count too (deep with no bound sufficiency
     # role is rules-only with zero model calls: an arm that cannot show an effect)
     check_requires(parsed, strict=True)
     if parsed.read.scoring:

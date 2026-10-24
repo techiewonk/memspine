@@ -1,0 +1,20 @@
+{
+  "knobs": [
+    {
+      "path": "read.temporal_rank",
+      "values": [
+        "midpoint",
+        "overlap"
+      ],
+      "default": "midpoint"
+    },
+    {
+      "path": "storage.lexical.settings.date_tokens",
+      "values": [
+        false,
+        true
+      ],
+      "default": false
+    }
+  ]
+}

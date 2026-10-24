@@ -52,7 +52,7 @@ FREE_STAGES: frozenset[str] = frozenset(
 )
 
 
-#: O4-01b (O-06): while a derivation runs under ``offline.budget_v2``, the newest raw-turn seq per
+#: O4-01b (O-06): while a derivation runs under ``offline.budget``, the newest raw-turn seq per
 #: namespace at the moment it started. The write door stamps it on every derived record as
 #: ``covers_seq``. Unset (the default) means nothing is stamped.
 COVERS_SEQ: ContextVar[Mapping[str, int] | None] = ContextVar("memspine_covers_seq", default=None)

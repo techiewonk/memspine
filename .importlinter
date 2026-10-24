@@ -264,7 +264,7 @@ allow_indirect_imports = True
 ; ---------------------------------------------------------------------------------------
 
 [importlinter:contract:v1-core-leaf]
-name = v1 core imports no service, memory, worker, client, protocol or engine
+name = base core imports no service, memory, worker, client, protocol or engine
 type = forbidden
 source_modules =
     memspine.core
@@ -281,7 +281,7 @@ forbidden_modules =
 allow_indirect_imports = True
 
 [importlinter:contract:v1-services-below-memories]
-name = v1 services never import memories, workers, protocols, engine
+name = base services never import memories, workers, protocols, engine
 type = forbidden
 source_modules =
     memspine.services
@@ -296,7 +296,7 @@ forbidden_modules =
 allow_indirect_imports = True
 
 [importlinter:contract:v1-memories-below-workers]
-name = v1 memories never import workers, protocols, engine
+name = base memories never import workers, protocols, engine
 type = forbidden
 source_modules =
     memspine.memories
@@ -310,7 +310,7 @@ forbidden_modules =
 allow_indirect_imports = True
 
 [importlinter:contract:v1-workers-below-engine]
-name = v1 workers never import protocols, engine
+name = base workers never import protocols, engine
 type = forbidden
 source_modules =
     memspine.workers
@@ -323,7 +323,7 @@ forbidden_modules =
 allow_indirect_imports = True
 
 [importlinter:contract:v1-support-packages]
-name = v1 config, prompts, observability import no service, memory, worker, protocol or engine
+name = base config, prompts, observability import no service, memory, worker, protocol or engine
 type = forbidden
 source_modules =
     memspine.config
@@ -342,7 +342,7 @@ forbidden_modules =
 allow_indirect_imports = True
 
 [importlinter:contract:v1-engine-not-protocols]
-name = v1 engine never imports protocols or cli
+name = base engine never imports protocols or cli
 type = forbidden
 source_modules =
     memspine.api.engine

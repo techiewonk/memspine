@@ -444,12 +444,18 @@ def build_app(
 
     @app.post("/feedback")
     async def feedback(body: FeedbackRequest, ns: Namespace, request: Request) -> MemoryRecord:
-        # #54: counts only; the bounded utility transform caps what a caller can move.
         return await scope(request, ns).feedback(  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
             body.record_id,
             body.signal,
             note=body.note,
             actor=_actor(request, body.actor),
+            channel="api",
+            new_value=body.new_value,
+            new_text=body.new_text,
+            rating=body.rating,
+            quote=body.quote,
+            turn=body.turn,
+            source_id=body.source_id,
         )
 
     @app.delete("/records/{record_id}")

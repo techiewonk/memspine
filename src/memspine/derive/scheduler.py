@@ -3,7 +3,7 @@
 ``DerivationScheduler`` owns the trigger bookkeeping (deposit counts, idle timers, the minimum
 gap), starts :class:`~memspine.derive.job.NamespaceJob` tasks and hands back a non-blocking
 :class:`~memspine.derive.job.SleepHandle`. It is built by the engine only under
-``offline.sleep_v2`` (default off); with the flag off nothing here is imported at run time.
+``offline.sleep`` (default off); with the flag off nothing here is imported at run time.
 
 It runs in the host process (G-19 A): triggers fire while a process is alive, once at open
 (catch-up from the persisted counters), on each deposit commit and from a per-namespace idle timer.
@@ -92,7 +92,7 @@ class DerivationScheduler:
         self.store, self.policy, self.clock = store, policy, clock
         self._run_stage, self._stages, self._maint = run_stage, stages, maintenance_stages
         self._prepare, self._ttl = prepare, lease_ttl
-        self.budget = budget  # O4-01b (offline.budget_v2): caps model work per cycle per namespace
+        self.budget = budget  # O4-01b (offline.budget): caps model work per cycle per namespace
         self._covers_snapshot = covers_snapshot  # O4-01b: stamps covers_seq on derived records
         self.last_seq = 0  # highest committed event seq this process has seen
         self._background, self._idle_timers = background_priority, idle_timers

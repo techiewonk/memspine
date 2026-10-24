@@ -72,7 +72,7 @@ __all__ = [
     "validate_call2",
 ]
 
-CALL2_SCHEMA = "session_close.call2.v1"
+CALL2_SCHEMA = "session_close.call2"
 """Name of the output schema the plan asks for (also part of idempotency keys)."""
 
 _STUB_PROMPT_CHARS = 240

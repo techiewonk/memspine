@@ -46,9 +46,13 @@ def _fact() -> ExtractedFact:
 
 
 async def _derived(eng: Engine) -> list[str]:
+    from memspine.trust.pipeline.erasure_state import visible_id
+
     storage = eng._require_started()
     return [
-        r.content for r in await storage.list_records("a", "semantic") if "X4471920" in r.content
+        r.content
+        for r in await storage.list_records("a", "semantic")
+        if "X4471920" in r.content and visible_id(eng, r.record_id)
     ]
 
 

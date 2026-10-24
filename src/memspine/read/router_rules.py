@@ -21,7 +21,7 @@ Decided rules this module encodes:
     ``standing_answers`` stage deposits); it does not read cards or reflective insights;
   - the **reflective** header (``read.profile_header`` / ``profile_header_packing``) renders L4
     reflective records (``reflect_profile`` insights) and is not a routed leg;
-  - the **profile card** (``offline.profile_card_v2``) lives in ``profile_card_v2`` event-log
+  - the **profile card** (``offline.profile_card``) lives in ``profile_card`` event-log
     MARKERs, not in layered records, so no layer gate can see it; its only consumer is the
     ``read.profile_card_header`` header block (``compose/pipeline/sections.py``).
 * A leg runs only when its layer is enabled **and** populated, and its service is installed.

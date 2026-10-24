@@ -23,14 +23,11 @@ from memspine.core.window import (
     segment,
 )
 from memspine.exceptions import ConfigError
-from memspine.prompts.registry import PromptRegistry
 from memspine.services.llm.base import LLMRouter
 from memspine.workers.windows import (
     build_transcript,
-    grounded,
     validate_edges,
     validate_episode,
-    validate_facts,
 )
 
 T0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
@@ -57,7 +54,10 @@ class FakeWindowLLM:
 
     async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
         user = messages[-1]["content"]
-        sections = re.search(r"sections: (.+)\.$", user.strip(), re.M).group(1).split(", ")  # type: ignore[union-attr]
+        section_match = re.search(r"sections: (.+)\.$", user.strip(), re.M | re.I)
+        if section_match is None:
+            return "[]"  # validation repair: no replacements supplied by this fixture
+        sections = section_match.group(1).split(", ")
         self.calls.append(sections)
         self.transcripts.append(user)
         self.entered.set()
@@ -70,14 +70,15 @@ class FakeWindowLLM:
         if "facts" in sections:
             out["facts"] = [
                 {
-                    "entity": text.split(":")[0],
-                    "attribute": "event",
-                    "value": f"{text.split(':')[0]} said {text.split(': ', 1)[1]}",
+                    "s": text.split(":")[0],
+                    "r": "event",
+                    "o": None,
+                    "text": f"{text.split(':')[0]} said {text.split(': ', 1)[1]}",
                     "kind": "event",
-                    "turns": [n],
+                    "mode": "asserted",
+                    "neg": False,
+                    "lines": [n + 1000] if self.fake_span else [n],
                     "span": "no such words" if self.fake_span else text.split(": ", 1)[1],
-                    "persons": [text.split(":")[0]],
-                    "topic": "activities",
                 }
                 for n, text in lines
             ]
@@ -196,7 +197,15 @@ async def _engine(
             },
         },
         memories={"episodic": {"enabled": True}, "semantic": semantic},
-        write={"window_extract": mode, "window_async": False, "window_idle_s": 0.0, **write},
+        write={
+            "segment_max_turns": write.get("window_max_turns", 6),
+            "segment_gap_s": 0,
+            "batch_max_windows": 1,
+            "window_extract": mode,
+            "window_async": False,
+            "window_idle_s": 0.0,
+            **write,
+        },
         **({"firewall": firewall} if firewall is not None else {}),
     )
     await eng.start()
@@ -204,11 +213,13 @@ async def _engine(
 
 
 async def _facts(eng: Engine, ns: str = "a") -> list[Any]:
+    from memspine.trust.pipeline.erasure_state import visible_id
+
     storage = eng._require_started()
     return [
         r
         for r in await storage.list_records(ns, "semantic")
-        if r.source.channel == "mining" and "window_fact" in r.tags
+        if r.source.channel == "mining" and "window_fact" in r.tags and visible_id(eng, r.record_id)
     ]
 
 
@@ -342,32 +353,6 @@ def test_discard_removes_a_turn_from_the_open_window() -> None:
 # --- validation helpers ----------------------------------------------------------------------
 
 
-def test_grounded_ignores_case_punctuation_and_spacing_but_keeps_order() -> None:
-    lines = ["Mira: We hiked up Ben Nevis, finally!"]
-    assert grounded("hiked up ben nevis", lines)
-    assert grounded("We  hiked up Ben Nevis finally", lines)
-    assert not grounded("up hiked", lines) and not grounded("", lines)
-    assert not grounded("hiked up Ben Lomond", lines)
-
-
-def test_validate_facts_drops_invalid_ungrounded_and_uncited_items_alone() -> None:
-    lines = ["Mira: I adopted a cat named Pip", "Tomas: nice"]
-    good = {
-        "entity": "Mira",
-        "attribute": "pet",
-        "value": "Mira adopted a cat named Pip",
-        "turns": [1],
-        "span": "adopted a cat named Pip",
-    }
-    fake = {**good, "span": "adopted a dog"}
-    uncited = {**good, "turns": [9]}
-    bad = {"entity": "Mira"}
-    out = validate_facts([good, fake, uncited, bad, "junk"], lines)
-    assert out is not None and len(out.facts) == 1
-    assert (out.returned, out.invalid, out.ungrounded, out.uncited) == (5, 2, 2, 1)
-    assert validate_facts("not a list", lines) is None and validate_facts(None, lines) is None
-
-
 def test_validate_edges_and_episode() -> None:
     edge = {
         "src_entity": "Mira",
@@ -392,14 +377,13 @@ def test_validate_edges_and_episode() -> None:
 
 
 def test_prompt_renders_only_the_requested_sections() -> None:
-    prompt = PromptRegistry().for_role("window_extract")
-    assert prompt.prompt_version.startswith("window_extract@1")
-    base = {"content": "[1] [2023-01-01] Ana: hi", "participants": "Ana", "turn_count": 1}
-    facts = prompt.render({**base, "sections": ["facts"]})[0]["content"]
-    both = prompt.render({**base, "sections": ["facts", "episode"]})[0]["content"]
-    assert "SECTION facts" in facts and "SECTION edges" not in facts
-    assert "SECTION episode" not in facts and "SECTION episode" in both
-    assert "facts, episode" in both
+    from memspine.prompts.structured import window_messages
+
+    facts = window_messages(("facts",), "[1] [2023-05-08] Mira: hello")
+    both = window_messages(("facts", "episode"), "[1] [2023-05-08] Mira: hello")
+    assert "Sections: facts." in facts[-1]["content"]
+    assert "Sections: facts, episode." in both[-1]["content"]
+    assert "(2) episode:" not in facts[0]["content"] and "(2) episode:" in both[0]["content"]
 
 
 # --- the engine ------------------------------------------------------------------------------
@@ -462,7 +446,7 @@ async def test_facts_are_grounded_deposited_with_the_cited_turns_as_parents(
             [parent] = fact.source.parents
             assert parent in turns and turns[parent].content.split(": ", 1)[1] in fact.content
             assert "atomic_fact" in fact.tags and any(t.startswith("mined:win:") for t in fact.tags)
-            assert "person:mira" in fact.tags and "topic:activities" in fact.tags
+            assert fact.fingerprint.envelope is not None
             assert fact.trust <= turns[parent].trust
         assert stats["windows_by_reason"] == {"turns": 1, "flush": 1}
         assert stats["calls_by_layer"] == {"facts": 2}
@@ -490,7 +474,7 @@ async def test_each_section_fails_closed_alone(monkeypatch: pytest.MonkeyPatch) 
         await eng.stop()
 
 
-async def test_ungrounded_facts_are_dropped_and_counted(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_uncited_items_are_rejected_and_counted(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeWindowLLM()
     llm.fake_span = True
     eng = await _engine(monkeypatch, llm)
@@ -498,47 +482,8 @@ async def test_ungrounded_facts_are_dropped_and_counted(monkeypatch: pytest.Monk
         await _send(eng, "a", "s1", _turns("trip", 3))
         stats = await eng.flush_windows()
         assert await _facts(eng) == []
-        assert stats["facts_returned"] == 3 and stats["facts_ungrounded"] == 3
+        assert stats["facts_returned"] == 3 and stats["items_dead"] == 3
         assert stats["facts_deposited"] == 0 and stats["sections_dropped"] == 0
-    finally:
-        await eng.stop()
-
-
-async def test_split_always_makes_two_calls_per_window(monkeypatch: pytest.MonkeyPatch) -> None:
-    llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, mode="all", window_split="always")
-    try:
-        await _send(eng, "a", "s1", _turns("trip", 4))
-        stats = await eng.flush_windows()
-        assert sorted(llm.calls) == [["episode"], ["facts", "edges"]]
-        assert stats["calls"] == 2 and stats["split_calls"] == 2 and stats["split_active"]
-        assert stats["calls_by_layer"] == {"facts": 1, "edges": 1, "episode": 1}
-    finally:
-        await eng.stop()
-
-
-async def test_split_never_keeps_one_call(monkeypatch: pytest.MonkeyPatch) -> None:
-    llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, mode="all", window_split="never")
-    try:
-        await _send(eng, "a", "s1", _turns("trip", 4))
-        await eng.flush_windows()
-        assert llm.calls == [["facts", "edges", "episode"]]
-    finally:
-        await eng.stop()
-
-
-async def test_auto_split_after_repeated_parse_failures(monkeypatch: pytest.MonkeyPatch) -> None:
-    llm = FakeWindowLLM()
-    llm.garbage_when_joint = True  # the joint reply never parses; single-group calls do
-    eng = await _engine(monkeypatch, llm, mode="all", window_split="auto", window_max_turns=2)
-    try:
-        await _send(eng, "a", "s1", _turns("trip", 24))  # 12 windows
-        stats = await eng.flush_windows()
-        assert stats["split_active"] and stats["parse_failures"] == 8  # the first 8 failed
-        assert stats["split_calls"] > 0
-        assert len(await _facts(eng)) == 8  # windows 9-12 (2 turns each) after the split
-        assert stats["sections_dropped"] == 24  # 8 failed joint calls x 3 sections
     finally:
         await eng.stop()
 
@@ -751,14 +696,16 @@ async def test_counters_windows_per_session_and_calls_per_turn(
         await eng.stop()
 
 
-async def test_session_closed_hook_and_stub_stage(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_session_closed_hook_records_boundary_when_processing_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     llm = FakeWindowLLM()
     eng = await _engine(monkeypatch, llm)
     try:
         await _send(eng, "a", "s1", _turns("trip", 4))
         out = await eng.close_session("a", "s1")
         assert out["status"] == "ok" and out["closed"] == 1
-        assert out["hook"]["status"] == "stub" and out["hook"]["windows"] == 1
+        assert out["hook"]["status"] == "skipped"
         assert len(await _facts(eng)) == 4  # closing the session ran its pending window
         storage = eng._require_started()
         events = await storage.read_events(after_seq=0, limit=10000)
@@ -774,7 +721,7 @@ async def test_session_closed_hook_and_stub_stage(monkeypatch: pytest.MonkeyPatc
         await eng.stop()
 
 
-async def test_close_session_without_windows_runs_only_the_stub() -> None:
+async def test_close_session_without_windows_records_boundary() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
@@ -791,7 +738,7 @@ async def test_close_session_without_windows_runs_only_the_stub() -> None:
     try:
         assert (await eng.close_session("a", None))["status"] == "skipped"
         out = await eng.close_session("a", "s9")
-        assert out["hook"]["status"] == "stub"
+        assert out["hook"]["status"] == "skipped"
     finally:
         await eng.stop()
 
@@ -962,3 +909,18 @@ def test_build_transcript_names_the_speaker_and_numbers_the_lines() -> None:
         "[2] [2023-05-08] Ben: see you there",
     ]
     assert texts[1] == "Ben: see you there" and people == ["ana", "Ben"]
+
+
+async def test_base_prompt_requests_all_selected_sections_in_one_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    llm = FakeWindowLLM()
+    eng = await _engine(monkeypatch, llm, mode="all")
+    try:
+        await _send(eng, "a", "s1", _turns("trip", 4))
+        stats = await eng.flush_windows()
+        assert llm.calls == [["facts", "edges", "episode"]]
+        assert stats["calls"] == 1
+        assert len(await _facts(eng)) == 4 and stats["episodes_deposited"] == 1
+    finally:
+        await eng.stop()

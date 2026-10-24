@@ -224,13 +224,13 @@ async def test_hybrid_relevance_outranks_recency(hybrid_engine: Engine) -> None:
 # ── F2: a broken lexical leg degrades to vector-only, never crashes search ─────
 
 
-async def test_lexical_search_failure_degrades_to_vector(hybrid_engine: Engine) -> None:
+async def test_registry_lexical_does_not_depend_on_service_search(hybrid_engine: Engine) -> None:
     alpha = await hybrid_engine.write("alpha topic note")
     await hybrid_engine.write("beta topic note")
     hybrid_engine._vector = OnlyRecordVector(alpha.record_id)
     hybrid_engine._lexical = RaisingLexical()  # every lexical search raises
     results = await hybrid_engine.search("beta")  # must not raise
-    assert {record.content for record, _ in results} == {"alpha topic note"}
+    assert {record.content for record, _ in results} == {"alpha topic note", "beta topic note"}
 
 
 async def test_nul_in_content_does_not_poison_projector(hybrid_engine: Engine) -> None:

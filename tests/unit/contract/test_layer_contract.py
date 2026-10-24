@@ -386,29 +386,6 @@ async def _null_layer(eng: Engine, record_ids: list[str]) -> None:
         )
 
 
-async def test_layer_counts_equals_hydrated_layers_for_null_layer_legacy_rows(eng: Engine) -> None:
-    turn = await _turn(eng)
-    fact = await eng.write(
-        "Tomasz prefers black coffee.", namespace=NS, memory_type="semantic", entity="Tomasz",
-        attribute="drink",
-    )  # fmt: skip
-    summary = await _derived(eng, turn, "consolidation", None, "Synthetic consolidation note.")
-    entity = await _derived(eng, turn, "entity_summary", None, "Synthetic entity note.")
-    await _null_layer(eng, [turn.record_id, fact.record_id, summary.record_id, entity.record_id])
-    storage = eng._require_started()
-
-    hydrated = await storage.list_records(NS)
-    live = [
-        r for r in hydrated if r.status.value in ("activated", "resolving") and not r.quarantined
-    ]
-    expected: dict[str, int] = {}
-    for r in live:
-        expected[r.layer] = expected.get(r.layer, 0) + 1
-    assert await storage.layer_counts(NS) == expected
-    assert expected.get("L1", 0) >= 1, "a NULL-layer semantic fact hydrates to L1, not L0"
-    assert expected.get("L2", 0) >= 1 and expected.get("L3", 0) >= 1
-
-
 async def test_layer_counts_equals_hydrated_layers_after_normal_writes(eng: Engine) -> None:
     turn = await _turn(eng)
     await eng.write("Ilse owns a kiln.", namespace=NS, memory_type="semantic", entity="Ilse",

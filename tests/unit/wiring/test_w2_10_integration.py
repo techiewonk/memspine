@@ -1,4 +1,4 @@
-"""W2-10: the integration ladder as an envelope stage (``write.integration_v2``, order 400). Model-free:
+"""W2-10: the integration ladder as an envelope stage (``write.integration``, order 400). Model-free:
 envelopes are built directly, and one end-to-end window runs with a stub window LLM and the hash embedder."""
 
 from __future__ import annotations
@@ -24,7 +24,6 @@ from memspine.derive.integration_stage import (
     integration_stage,
 )
 from memspine.observability import tap
-from memspine.prompts.structured import STRUCTURED_SYSTEM
 from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope
@@ -150,7 +149,7 @@ def test_flag_off_by_default() -> None:
         }
     ).write
     assert (
-        w.integration_v2 is False
+        w.integration is False
         and w.integration_cardinality == {}
         and w.integration_decide_unhinted is False
     )
@@ -342,7 +341,7 @@ class CityLLM:
         self.calls = 0
 
     async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
-        assert messages[0]["content"] == STRUCTURED_SYSTEM
+        assert "Sections:" in messages[-1]["content"]
         self.calls += 1
         items = []
         for n, text in LINE.findall(messages[-1]["content"]):
@@ -364,7 +363,7 @@ class CityLLM:
                     "speaker": who,
                 }
             )
-        return json.dumps(items)
+        return json.dumps({"facts": items})
 
 
 async def engine(monkeypatch: pytest.MonkeyPatch, llm: Any, **write: Any) -> Engine:
@@ -398,7 +397,6 @@ async def engine(monkeypatch: pytest.MonkeyPatch, llm: Any, **write: Any) -> Eng
             "window_extract": "facts",
             "window_async": False,
             "window_idle_s": 0.0,
-            "envelope_v2": True,
             **write,
         },
     )
@@ -462,7 +460,7 @@ def test_stage_registered_only_with_the_flag() -> None:
                 "startup_timeout_s": None,
             }
         },
-        write={"window_extract": "facts", "envelope_v2": True, "integration_v2": True},
+        write={"window_extract": "facts", "integration": True},
     )
     assert [s.order for s in _envelope_stages(E(), cfg)] == [400]
 
@@ -473,7 +471,7 @@ async def test_e2e_aba_and_order_swap(
 ) -> None:
     plan = [("s0", "Oslo", 0), ("s1", "Rome", 4), ("s2", "Oslo", 8)]
     eng = await engine(
-        monkeypatch, CityLLM(), integration_v2=True, integration_cardinality={"lives_in": "one"}
+        monkeypatch, CityLLM(), integration=True, integration_cardinality={"lives_in": "one"}
     )
     try:
         for i in order:
@@ -517,7 +515,7 @@ async def test_e2e_flag_off_has_no_integ_tags(monkeypatch: pytest.MonkeyPatch) -
 
 async def test_e2e_cardinality_many_keeps_both_live(monkeypatch: pytest.MonkeyPatch) -> None:
     eng = await engine(
-        monkeypatch, CityLLM(), integration_v2=True, integration_cardinality={"lives_in": "many"}
+        monkeypatch, CityLLM(), integration=True, integration_cardinality={"lives_in": "many"}
     )
     try:
         await say(eng, "s0", "Oslo", 0)
@@ -559,10 +557,9 @@ def test_behavioural_inv_order_swap_passes_with_the_flag_and_fails_without(tmp_p
                 memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
                 write=(
                     {
-                        "integration_v2": True,
-                        "envelope_v2": True,
+                        "integration": True,
                         "window_extract": "facts",
-                        "online_extractor_v2": True,
+                        "online_extractor": True,
                     }
                     if on
                     else {}

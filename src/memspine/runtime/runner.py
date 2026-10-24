@@ -140,7 +140,7 @@ class InlineRunner:
         self._stopping = False
         self._current: Claim | None = None
         self._retry_holes_next = True
-        #: RT-02 (``runtime.scheduler_v2``): both None = unchanged behaviour
+        #: RT-02 (``runtime.scheduler``): both None = unchanged behaviour
         self._backpressure: Backpressure | None = None
         self._ledger: SloLedger | None = None
 

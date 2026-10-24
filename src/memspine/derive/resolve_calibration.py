@@ -513,7 +513,7 @@ async def _outcome(
     case: Case, high: float, grey: float, embed: Embed | None, max_cache: int
 ) -> str:
     stage = EntityResolveStage(
-        ResolveSettings(high=high, grey=grey, max_cache=max_cache, scoped=True), embed=embed
+        ResolveSettings(high=high, grey=grey, max_cache=max_cache), embed=embed
     )
     first = await stage.resolve_surface(case.a_name, scope=_SCOPE, key=_KEY, text=case.a_text)
     second = await stage.resolve_surface(case.b_name, scope=_SCOPE, key=_KEY, text=case.b_text)

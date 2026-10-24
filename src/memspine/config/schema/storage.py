@@ -49,43 +49,6 @@ class EncryptionConfig(ConfigModel):
         return self
 
 
-#: ADR-081 amendment 2026-10-23: the optional second graph client (a Neo4j mirror) is gone.
-_ONE_GRAPH_CLIENT = (
-    "removed with no replacement key (ADR-081 amendment 2026-10-23): one graph client runs "
-    "at a time; select it with storage.graph (neo4j stays available as storage.graph.provider)"
-)
-
-#: ADR-081 / RM-111: removed keys and their new location. There are no aliases (ADR-068);
-#: an old key is rejected with an error naming where it moved.
-MOVED_KEYS: dict[str, str] = {
-    "storage.profile": "removed with no replacement key (Alembic always runs for durable "
-    "SQL; start from the 'embedded' or 'server' config template)",
-    "storage.provider": "storage.records.provider",
-    "storage.settings": "storage.records.settings (settings.data_dir moved to deployment.data_dir)",
-    "vector": "storage.vector",
-    "cache": "storage.cache",
-    "graph.provider": "storage.graph.provider",
-    "graph.settings": "storage.graph.settings",
-    "graph.mirror": _ONE_GRAPH_CLIENT,
-    "storage.graph_mirror": _ONE_GRAPH_CLIENT,
-    "read.lexical_provider": "storage.lexical.provider",
-    "read.lexical_settings": "storage.lexical.settings",
-    "runtime.deployment_id": "deployment.id",
-}
-
-
-def reject_moved_keys(value: Any, area: str, keys: tuple[str, ...]) -> None:
-    """Raise a ``ConfigError`` naming the new location of a removed key (ADR-081)."""
-    if not isinstance(value, Mapping):
-        return
-    for key in keys:
-        if key in value:
-            dotted = f"{area}.{key}" if area else key
-            target = MOVED_KEYS[dotted]
-            hint = target if target.startswith("removed") else f"use {target}"
-            raise ConfigError(f"config key {dotted!r} was removed by ADR-081; {hint}")
-
-
 #: ADR-081 / RM-112: ``storage.documents`` providers that are designed but not shipped. Each is
 #: rejected by name until its provider lands (filesystem shipped with RM-111; s3, weaviate and
 #: mongodb with RM-112). Empty: every designed documents provider has shipped.
@@ -162,14 +125,13 @@ class StorageConfig(ConfigModel):
 
     @model_validator(mode="before")
     @classmethod
-    def _reject_moved_and_null(cls, value: Any) -> Any:
-        return cls.reject_moved_and_null(value)
+    def _reject_null(cls, value: Any) -> Any:
+        return cls.reject_null(value)
 
     @staticmethod
-    def reject_moved_and_null(value: Any) -> Any:
+    def reject_null(value: Any) -> Any:
         """Reject removed keys, null required slots and a planned (not yet shipped)
         documents provider."""
-        reject_moved_keys(value, "storage", ("profile", "provider", "settings", "graph_mirror"))
         if isinstance(value, Mapping):
             for slot in ("records", "vector", "lexical", "graph", "cache"):
                 if slot in value and value[slot] is None:
@@ -223,11 +185,4 @@ class GraphConfig(ConfigModel):
     model_config = ConfigDict(extra="forbid")
 
     entity_embeddings: bool = False
-    key_v2: bool = False
-    edge_compiler_v2: bool = False
-
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_moved(cls, value: Any) -> Any:
-        reject_moved_keys(value, "graph", ("provider", "settings", "mirror"))
-        return value
+    edge_compiler: bool = False

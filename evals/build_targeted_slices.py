@@ -16,7 +16,7 @@ Outputs, committed under ``analysis/`` (same keys as ``sample_slice_*.json`` plu
 
     fail_slice_<name>_s<seed>.json        all conversations that hold the family's questions
     fail_slice_<name>_s<seed>_c3.json     the three conversations with the most family failures (engine-LLM rows are ingest-bound)
-    ../v2_slice_map.tsv                   screen -> slice mapping read by run_v2_queue.sh (see ``SCREEN_OVERRIDES``)
+    ../screen_slice_map.tsv                   screen -> slice mapping read by run_screen_queue.sh (see ``SCREEN_OVERRIDES``)
 
 Families (class names are those of the solution map):
 
@@ -131,9 +131,7 @@ SCREEN_OVERRIDES: dict[str, tuple[str, ...]] = {
     "S73": (
         "fail_reader",
     ),  # read.inference_mode; its category-5 row is CAT5_SCREENS (must still abstain)
-    "S74": (
-        "fail_reader",
-    ),  # read.inference_mode=gated_v2 (widened shape); cat-5 row is CAT5_SCREENS
+    "S74": ("fail_reader",),  # read.inference_mode=gated (widened shape); cat-5 row is CAT5_SCREENS
     "S77": ("fail_list", MIX),
     "S79": ("fail_list", MIX),
     "S82": ("fail_fusion", MIX),
@@ -145,18 +143,17 @@ SCREEN_OVERRIDES: dict[str, tuple[str, ...]] = {
         "fail_temporal",
         MIX,
     ),  # GLIFT: derived hits only find turns, on the GC graph base (docs/v2/GLIFT.md)
-    "G3": ("fail_temporal", MIX, "fail_retrieval"),  # GLIFT on v2-PICK3-j + the GC graph build
+    "G3": ("fail_temporal", MIX, "fail_retrieval"),  # GLIFT on PICK3-j + the GC graph build
 }
 # S20-CAT5: screens whose arm gates or abstains on irrelevant evidence also run on the LoCoMo category-5 (adversarial)
 # slices of make_cat5_slice.py. The row carries a sixth column ``categories=5`` that the queue turns into ``--categories 5``
-# (the reference run uses the same categories and a distinct cached name). S20 = read.gate_v2; the S55 / S63 arms contain it.
+# (the reference run uses the same categories and a distinct cached name). S20 = read.gate; the S55 / S63 arms contain it.
 CAT5_SCREENS = (
     "S20",
     "S55",
     "S63",
     "S73",
-    "S74",
-)  # S73/S74: the gated inference clause must not commit on cat 5
+)  # S73: the base gated inference clause must not commit on cat 5
 CAT5_SLICE = "analysis/sample_slice_loc_cat5_s{seed}.json"
 CAT5_SLICE_C3 = "analysis/sample_slice_loc_cat5_s{seed}_c3.json"
 CAT5_COLUMN = "categories=5"
@@ -446,11 +443,11 @@ def build_map(queue: list[dict], solution_map: dict, seed: int = SEED) -> list[t
 
 def render_map(rows: list[tuple]) -> str:
     head = (
-        "# screen -> targeted slice (FAIL-SLICE; written by evals/build_targeted_slices.py, read by run_v2_queue.sh in MODE=sample)\n"
+        "# screen -> targeted slice (FAIL-SLICE; written by evals/build_targeted_slices.py, read by run_screen_queue.sh in MODE=sample)\n"
         "# columns: screen<TAB>set<TAB>slice (reader-flag rows, kind J)<TAB>slice_gc (engine-LLM rows, kind GC: top-3 conversations)<TAB>note\n"
         "# optional column 6 'categories=5': that row's run passes --categories 5 (LoCoMo category-5 adversarial slices) and its reference run uses the same categories; without it run.sh keeps 1,2,3,4.\n"
         "# A screen with several rows runs once per slice. A screen without a row keeps the random sample slices.\n"
-        "# Disable the whole map with V2_SLICE_MAP= (empty); use another file with V2_SLICE_MAP=path. OP-Bench ('o') sets are not mapped.\n"
+        "# Disable the whole map with SCREEN_SLICE_MAP= (empty); use another file with SCREEN_SLICE_MAP=path. OP-Bench ('o') sets are not mapped.\n"
     )
     return head + "".join("\t".join(r) + "\n" for r in rows)
 
@@ -484,7 +481,7 @@ def main() -> None:
     ap.add_argument("--runs-dir", type=Path, default=None)
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--out-dir", type=Path, default=HERE / "analysis")
-    ap.add_argument("--map-out", type=Path, default=HERE / "v2_slice_map.tsv")
+    ap.add_argument("--map-out", type=Path, default=HERE / "screen_slice_map.tsv")
     ap.add_argument(
         "--check",
         action="store_true",
@@ -495,7 +492,7 @@ def main() -> None:
     order, meta, right = read_universe(find_runs_dir(a.runs_dir))
     split = json.loads((HERE / SPLIT).read_text(encoding="utf-8"))
     slices = build_all(labels, order, meta, right, split, a.seed)
-    queue = read_queue(HERE / "v2_queue.tsv")
+    queue = read_queue(HERE / "screen_queue.tsv")
     rows = build_map(queue, json.loads((HERE / SOLUTION_MAP).read_text(encoding="utf-8")), a.seed)
     files = {a.out_dir / n: json.dumps(s, indent=1) + "\n" for n, s in slices.items()}
     files[a.map_out] = render_map(rows)

@@ -116,7 +116,12 @@ async def test_audit_trail_has_no_memory_text(eng: Engine) -> None:
     assert [e["tool"] for e in tools.audit] == ["memory_write", "memory_search"]
     assert "SECRETISH" not in repr(list(tools.audit))
     actions = await eng._require_started().read_events(after_seq=0, limit=1000)
-    assert any(e.payload.get("action") == "agent_tool.memory_write" for e in actions if e.payload)
+    assert any(
+        e.payload.get("marker") == "audit_chain"
+        and e.payload["record"]["op"] == "agent_tool.memory_write"
+        for e in actions
+        if e.payload
+    )
 
 
 # ── guards ───────────────────────────────────────────────────────────────────

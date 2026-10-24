@@ -1,0 +1,7 @@
+[
+  {
+    "plan": "evals/plans/wave_runs.json",
+    "id": "w1-cat5-dated",
+    "reason": "superseded dated prompt generation"
+  }
+]

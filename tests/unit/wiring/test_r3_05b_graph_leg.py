@@ -1,4 +1,4 @@
-"""R3-05b: the graph one-hop leg (read.graph_leg_v2, OneHopConvergent). Model-free.
+"""R3-05b: the graph one-hop leg (read.graph_leg, OneHopConvergent). Model-free.
 
 Edges are built through the F-02c compiler from stub facts (no model, hash embedder).
 """
@@ -12,7 +12,7 @@ import pytest
 
 from memspine import Engine
 from memspine.config.schema import ReadConfig
-from memspine.derive.pipeline.stages.edge_compiler_v2 import compile_graph_edges
+from memspine.derive.pipeline.stages.edge_compiler import compile_graph_edges
 from memspine.read import legs as lib
 from memspine.read.legs import core as legs_core
 from memspine.read.legs import graph as legs_graph
@@ -41,7 +41,7 @@ def _node(name: str) -> str:
 
 def test_flag_defaults_off() -> None:
     cfg = ReadConfig()
-    assert cfg.graph_leg_v2 is False
+    assert cfg.graph_leg is False
     assert cfg.graph_leg_min_seeds == 2 and cfg.graph_leg_seed_hits == 3
 
 
@@ -150,11 +150,10 @@ async def _engine(**read: Any) -> Engine:
             "episodic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
-        graph={"edge_compiler_v2": True},
+        graph={"edge_compiler": True},
         read={
             "hybrid": True,
             "record_access": False,
-            "legs_v2": True,
             "graph_leg_seed_hits": 0,
             **read,
         },
@@ -233,7 +232,7 @@ async def test_flag_off_never_runs_the_graph_leg(monkeypatch: pytest.MonkeyPatch
 
 
 async def test_no_l3_flag_on_is_an_empty_leg_not_an_error(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = await _engine(graph_leg_v2=True)
+    eng = await _engine(graph_leg=True)
     spy = _Spy(monkeypatch)
     try:
         await eng.write(TURNS["ilse"], namespace=NS, memory_type="episodic", valid_from=T0)
@@ -251,7 +250,7 @@ async def test_no_l3_flag_on_is_an_empty_leg_not_an_error(monkeypatch: pytest.Mo
 async def test_convergence_picks_the_bridge_and_fusion_receives_the_leg(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    eng = await _engine(graph_leg_v2=True, family_fusion=True)
+    eng = await _engine(graph_leg=True, family_fusion=True)
     spy = _Spy(monkeypatch)
     try:
         ids = await _build(eng)
@@ -271,7 +270,7 @@ async def test_convergence_picks_the_bridge_and_fusion_receives_the_leg(
 
 
 async def test_tentative_edges_do_not_bridge(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = await _engine(graph_leg_v2=True)
+    eng = await _engine(graph_leg=True)
     spy = _Spy(monkeypatch)
     try:
         ids = await _build(eng)
@@ -286,7 +285,7 @@ async def test_tentative_edges_do_not_bridge(monkeypatch: pytest.MonkeyPatch) ->
 
 
 async def test_erased_evidence_is_not_returned(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = await _engine(graph_leg_v2=True)
+    eng = await _engine(graph_leg=True)
     spy = _Spy(monkeypatch)
     try:
         ids = await _build(eng)
@@ -301,7 +300,7 @@ async def test_erased_evidence_is_not_returned(monkeypatch: pytest.MonkeyPatch) 
 
 
 async def test_consent_gate_hides_lifted_turns(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = await _engine(graph_leg_v2=True)
+    eng = await _engine(graph_leg=True)
     spy = _Spy(monkeypatch)
     try:
         ids = await _build(eng)
@@ -315,7 +314,7 @@ async def test_consent_gate_hides_lifted_turns(monkeypatch: pytest.MonkeyPatch) 
 
 async def test_seed_hits_add_entities(monkeypatch: pytest.MonkeyPatch) -> None:
     # the query names only Ilse; the top base hit is Tomasz's turn, whose fact entity seeds the walk
-    eng = await _engine(graph_leg_v2=True, graph_leg_seed_hits=5)
+    eng = await _engine(graph_leg=True, graph_leg_seed_hits=5)
     spy = _Spy(monkeypatch)
     try:
         await _build(eng)

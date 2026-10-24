@@ -1,6 +1,6 @@
-"""W2-15: coverage check and ONE targeted re-extraction (``write.coverage_v2``, envelope-stage order
+"""W2-15: coverage check and ONE targeted re-extraction (``write.coverage``, envelope-stage order
 250). Model-free: envelopes are built through the real compiler from hand-written lines (invented
-names, domains used nowhere else), then one end-to-end window runs with ``write.envelope_v2`` + the
+names, domains used nowhere else), then one end-to-end window runs with ``write.envelope`` + the
 flag and a stub window LLM that omits a line on the first call."""
 
 from __future__ import annotations
@@ -32,7 +32,6 @@ from memspine.derive.envelope_stages import EnvelopeStageContext, run_envelope_s
 from memspine.derive.grounding_stage import make_grounding_stage
 from memspine.ingest.windows import _envelope_stages
 from memspine.observability import tap
-from memspine.prompts.structured import STRUCTURED_SYSTEM
 from memspine.schemas.durable import OwnerScope
 
 NOW = datetime(2024, 3, 9, 12, 0, tzinfo=UTC)
@@ -139,14 +138,13 @@ def test_flag_off_registers_nothing_and_on_registers_one_stage_at_250_after_grou
             }
         }
     )
-    assert off.write.coverage_v2 is False and off.write.coverage_threshold == 0.8
+    assert off.write.coverage is False and off.write.coverage_threshold == 0.8
     assert _envelope_stages(SimpleNamespace(), off) == ()
     on = MemspineConfig(
         write={
             "window_extract": "facts",
-            "envelope_v2": True,
-            "grounding_v2": True,
-            "coverage_v2": True,
+            "grounding": True,
+            "coverage": True,
         },
         runtime={
             "provider_services": {
@@ -317,7 +315,7 @@ class ScriptLLM:
 
     async def chat(self, messages: list[dict[str, str]], **_: Any) -> str:
         user = messages[-1]["content"]
-        targeted = messages[0]["content"] != STRUCTURED_SYSTEM
+        targeted = self.extractions > 0
         if targeted:
             self.targeted += 1
             user = user.split("NEW:", 1)[1].split("CONTEXT:", 1)[0]
@@ -334,7 +332,7 @@ class ScriptLLM:
             n, text = rows[0]
             who, said = text.split(": ", 1)
             items.append(_item(n, who, f"{who} said {said} and paid 90 euros", said))
-        return json.dumps({"facts": items} if targeted else items)
+        return json.dumps({"facts": items})
 
 
 def _turns() -> list[dict[str, str]]:
@@ -361,9 +359,7 @@ async def test_end_to_end_one_extra_call_adds_the_omitted_facts_and_the_ledger_c
     seen: list[tuple[str, dict[str, Any]]] = []
     monkeypatch.setattr(tap, "event", lambda stage, /, **f: seen.append((stage, f)))
     llm = ScriptLLM(first=2, hallucinate=True)
-    eng = await _engine(
-        monkeypatch, llm, grounding_v2=True, coverage_v2=True, economy={"ledger_v2": True}
-    )
+    eng = await _engine(monkeypatch, llm, grounding=True, coverage=True, economy={"ledger": True})
     try:
         await _send(eng, "a", "s1", _turns())
         await eng.flush_windows()
@@ -388,7 +384,7 @@ async def test_end_to_end_complete_extraction_makes_no_extra_call(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = ScriptLLM(first=4)
-    eng = await _engine(monkeypatch, llm, grounding_v2=True, coverage_v2=True)
+    eng = await _engine(monkeypatch, llm, grounding=True, coverage=True)
     try:
         await _send(eng, "a", "s1", _turns())
         await eng.flush_windows()
@@ -401,7 +397,7 @@ async def test_end_to_end_flag_off_makes_no_extra_call_and_deposits_as_before(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = ScriptLLM(first=2)
-    eng = await _engine(monkeypatch, llm, grounding_v2=True)
+    eng = await _engine(monkeypatch, llm, grounding=True)
     try:
         await _send(eng, "a", "s1", _turns())
         await eng.flush_windows()

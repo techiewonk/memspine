@@ -347,7 +347,7 @@ class TemporalRunner:
                 claim = await asyncio.to_thread(
                     self._journal.claim_step,
                     journal_operation_id,
-                    f"pipeline/{pipeline_name}/v1",
+                    f"pipeline/{pipeline_name}",
                     binding,
                     owner_id,
                 )
@@ -384,7 +384,7 @@ class TemporalRunner:
             try:
                 handle = runtime.options(
                     timeout=timedelta(seconds=self.resonate_task_timeout_s)
-                ).run(call_id, "memspine.pipeline.activity.v1", call_id)
+                ).run(call_id, "memspine.pipeline.activity", call_id)
                 result = await handle.result()
                 if not isinstance(result, dict):
                     raise ConfigError("pipeline result must be a dictionary")
@@ -404,7 +404,7 @@ class TemporalRunner:
             finally:
                 calls.pop(call_id, None)
 
-        activity_function = activity.defn(name="memspine.run_pipeline.v1")(run_pipeline)
+        activity_function = activity.defn(name="memspine.run_pipeline")(run_pipeline)
         try:
             runtime = Resonate(
                 env={},
@@ -421,7 +421,7 @@ class TemporalRunner:
 
                 return await cast(asyncio.Future[dict[str, Any]], resonate_context.run(execute))
 
-            runtime.register(coordinator, name="memspine.pipeline.activity.v1")
+            runtime.register(coordinator, name="memspine.pipeline.activity")
             self._resonate = runtime
             runtime.start()
 
@@ -505,7 +505,7 @@ class TemporalRunner:
         from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 
         handle = await cast(_TemporalClient, self._client).start_workflow(
-            "memspine.pipeline.v1",
+            "memspine.pipeline",
             invocation,
             id=workflow_id_for_invocation(self.deployment_id, invocation_id),
             task_queue=self.task_queue,

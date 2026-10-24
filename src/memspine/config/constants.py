@@ -92,35 +92,6 @@ LEIDEN_MAX_CLUSTER_SIZE = 1000
 # scored higher on synthetic graphs but stays a calibration candidate (#24).
 LEIDEN_ITERATIONS = 10
 
-# Hybrid community algorithm (KB-12, ADR-043). ``auto`` = Leiden when the
-# ``[community]`` extra is installed, else reorganize stays a no-op; ``lpa``
-# opts into the built-in label propagation without the extra.
-COMMUNITY_ALGORITHM: Literal["auto", "leiden", "lpa"] = "auto"
-# LPA passes that refine a Leiden result (boundary nodes only; stops early).
-COMMUNITY_REFINE_PASSES = 10
-# LPA passes over the touched nodes in an incremental (per-sleep) run.
-COMMUNITY_INCREMENTAL_PASSES = 3
-# Pass cap for LPA alone (``algorithm: lpa`` full build).
-COMMUNITY_LPA_MAX_PASSES = 30
-# Collapse guard: an LPA result whose largest community holds more than this
-# share of a graph of at least COMMUNITY_COLLAPSE_MIN_NODES nodes is rejected
-# and the previous partition kept (LPA alone collapsed at mu >= 0.5, KB-12).
-COMMUNITY_COLLAPSE_SHARE = 0.5
-COMMUNITY_COLLAPSE_MIN_NODES = 100
-# With a previous partition the guard judges growth: the largest community
-# must also exceed the previous largest (over live nodes) by more than this
-# share of it. A Leiden partition with a legitimate dense core above the share
-# would otherwise trip the guard on every later run (fix/graph-review #1).
-COMMUNITY_COLLAPSE_GROWTH = 0.25
-# Incremental mode: a warm Leiden refresh runs once incrementally placed nodes
-# exceed this share of the graph, or every COMMUNITY_REFRESH_EVERY sleeps.
-COMMUNITY_REFRESH_FRACTION = 0.10
-COMMUNITY_REFRESH_EVERY = 5
-# Summary economy (#84): a community whose membership Jaccard against its
-# summarised member set is at least this keeps its summary parent. 1.0 = off
-# (only an identical membership keeps it, the pre-#84 behaviour); 0.8 is the
-# KB-12 recommendation.
-COMMUNITY_SUMMARY_KEEP_JACCARD = 1.0
 
 # Reflective memory (M13.7): maximum reflection-on-reflection depth.
 REFLECTION_DEPTH_CAP = 2
@@ -547,10 +518,6 @@ WINDOW_TOPIC_MIN_PAIRS = 20
 #: A topic shift never closes a window of fewer turns than this (a one-turn window has no
 #: context to extract from).
 WINDOW_TOPIC_MIN_TURNS = 2
-#: ``window_split: auto`` splits a window's call into two (facts + edges / episode) once this
-#: share of the last ``WINDOW_SPLIT_RECENT`` calls failed to parse, and not before that many.
-WINDOW_SPLIT_FAIL_RATE = 0.25
-WINDOW_SPLIT_RECENT = 8
 #: Pending call-1 edges kept per namespace for the sleep stage (an unconsumed backlog is
 #: capped, oldest dropped and counted); one narrative is cut at this many characters.
 WINDOW_PENDING_EDGES_MAX = 5000
@@ -560,7 +527,7 @@ WINDOW_EPISODE_CHANNEL = "window_episode"
 #: O4-02: channel of a session summary / stitched episode written by call 2 at session close.
 SESSION_CLOSE_CHANNEL = "session_close"
 #: O4-07: MARKER payload name of the profile card state of one namespace (latest wins).
-PROFILE_CARD_MARKER = "profile_card_v2"
+PROFILE_CARD_MARKER = "profile_card"
 
 #: #30 (person-level list cards): a (person, class) group needs at least this many
 #: event facts to get a card; a card lists at most the newest ``MAX_ITEMS`` of them
@@ -646,7 +613,7 @@ CAUSAL_WALK_DECAY = 0.9
 #: answers, and the rel of the LINK written beside it (associative memory on).
 REPLY_TO_PREFIX = "reply_to:"
 
-# W2-03 (``write.role_policy_v2``): tags a raw turn carries so derivation can tell what it may use.
+# W2-03 (``write.role_policy``): tags a raw turn carries so derivation can tell what it may use.
 ROLE_USE_TAG_PREFIX = "derive_use:"  # derive_use:stated|proposal|evidence|excluded
 ECHO_TAG = "echo"  # the turn repeats memory text the engine injected or the last read returned
 ECHO_OF_PREFIX = "echo_of:"  # echo_of:<memory id>

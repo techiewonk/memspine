@@ -1,4 +1,4 @@
-"""RW-A: R3-01 tiers_v2, R3-02 contract_rules, R3-03 router_rules wiring (model-free)."""
+"""RW-A: R3-01 tiers, R3-02 contract_rules, R3-03 router_rules wiring (model-free)."""
 
 from __future__ import annotations
 
@@ -69,7 +69,7 @@ async def test_tiers_v2_normalises_query_and_resets_plan(monkeypatch: pytest.Mon
         return out
 
     monkeypatch.setattr(rq, "plan_read", spy)
-    eng = await _engine(tiers_v2=True)
+    eng = await _engine(tiers=True)
     try:
         await _read(eng, "  Where   does Alice live?  ", viewer="alice")
         assert rq.current_plan() is None  # reset after the read

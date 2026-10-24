@@ -171,8 +171,8 @@ async def test_graph_auto_without_ladybug_is_refused_naming_the_slot(
             "sql_adjacency",
         ),
         ({"workers": {"outbox": True}}, "workers.outbox"),
-        ({"offline": {"sleep_v2": True}}, "offline.sleep_v2"),
-        ({"economy": {"ledger_v2": True, "ledger_persist": True}}, "economy.ledger_persist"),
+        ({"offline": {"sleep": True}}, "offline.sleep"),
+        ({"economy": {"ledger": True, "ledger_persist": True}}, "economy.ledger_persist"),
     ],
 )
 async def test_sql_only_features_are_refused_before_anything_opens(

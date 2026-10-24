@@ -7,10 +7,7 @@ import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
 
-from alembic import command
-
 from memspine import Engine
-from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
 
@@ -79,14 +76,3 @@ async def test_columns_are_filled_on_write_and_conversation_reads_one(tmp_path: 
     ]
     assert [t.content for t in users] == ["we went skiing in the alps"]
     assert other_ns == []
-
-
-async def test_migration_backfills_existing_rows(tmp_path: Path) -> None:
-    path = tmp_path / "m.db"
-    await _seed(path)
-    command.downgrade(alembic_config(path), "0004")  # drops the two columns
-    with sqlite3.connect(path) as db:
-        cols = {row[1] for row in db.execute("PRAGMA table_info(memory_records)")}
-    assert "session_key" not in cols
-    upgrade_to_head(path)
-    assert all(r[1] in ("s1", "s2") and r[2] in ("user", "assistant") for r in _columns(path))

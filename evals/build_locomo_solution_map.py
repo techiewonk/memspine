@@ -4,7 +4,7 @@
 
 CPU only, no model call. Text-free by construction: ids, setting keys, package ids, screen ids, doc section names.
 The screen catalogue (id, layer, title, setting, status) is read from ``docs/v2/SCREEN_ATLAS.html`` (the JS array
-``S``) and ``evals/v2_queue.tsv`` (batch, arm, sets); the class registry comes from ``locomo_problem_classes``.
+``S``) and ``evals/screen_queue.tsv`` (batch, arm, sets); the class registry comes from ``locomo_problem_classes``.
 
 Solution ``status`` (one of ``STATUSES``):
 
@@ -175,7 +175,7 @@ SOLUTIONS: list[dict] = [
         "SOL-LEGS-V2",
         "v2 leg registry, rule router, depth tiers",
         "built_off_default",
-        ["read.legs_v2", "read.router_rules", "read.tiers_v2"],
+        ["read.legs", "read.router_rules", "read.tiers"],
         ["R3-04", "R3-03", "R3-01"],
         ["S10", "S12", "S36", "S37", "S38", "S60"],
         [ref(D_ATLAS, "S10, S12, S36-S38")],
@@ -199,10 +199,10 @@ SOLUTIONS: list[dict] = [
         "Graph extraction in sleep plus one-hop graph / entity legs",
         "built_off_default",
         [
-            "read.graph_leg_v2",
-            "read.entity_leg_v2",
-            "graph.edge_compiler_v2",
-            "graph.key_v2",
+            "read.graph_leg",
+            "read.entity_leg",
+            "graph.edge_compiler",
+            "graph.key",
             "consolidation (gc3 arm)",
         ],
         ["F-02c", "R3-05a", "R3-05b"],
@@ -220,7 +220,7 @@ SOLUTIONS: list[dict] = [
         "SOL-EPISODE",
         "Session summaries / episodes lifted to turns (L2)",
         "built_off_default",
-        ["offline.session_close_v2", "read.episode_leg_v2", "sleep summary arm (gc9)"],
+        ["offline.session_close", "read.episode_leg", "sleep summary arm (gc9)"],
         ["O4-02", "R3-05c"],
         ["S01", "S31", "S33", "S61", "S64"],
         [ref(D_ATLAS, "S01, S31, S33"), ref(D_RECALL, "s8 N (implicit answer)")],
@@ -234,14 +234,14 @@ SOLUTIONS: list[dict] = [
     ),
     sol(
         "SOL-WINDOWFACTS",
-        "Write-time fact extraction (window_extract, write-v2 stack incl. temporal stage W2-14)",
+        "Write-time fact extraction (window_extract, write stack incl. temporal stage W2-14)",
         "built_off_default",
         [
             "write.window_extract=facts",
-            "write.envelope_v2",
-            "write.temporal_v2",
-            "write.stamping_v2",
-            "write.segmentation_v2",
+            "write.envelope",
+            "write.temporal",
+            "write.stamping",
+            "write.segmentation",
         ],
         ["W2-06a", "W2-14", "W2-05", "W2-02"],
         ["S03", "S04", "S43", "S44", "S45", "S48", "S62"],
@@ -295,7 +295,7 @@ SOLUTIONS: list[dict] = [
         "SOL-DEEPREAD",
         "Deep read: one sufficiency check and at most one targeted re-search",
         "built_off_default",
-        ["read.deep_v2", "model.llm.sufficiency"],
+        ["read.deep", "model.llm.sufficiency"],
         ["R3-12"],
         ["S55", "S63"],
         [ref(D_ATLAS, "S55"), ref(D_FULL, "s5 lever 3")],
@@ -339,10 +339,10 @@ SOLUTIONS: list[dict] = [
         "Derived list memory: standing answers, patterns, communities",
         "built_off_default",
         [
-            "offline.standing_v2",
-            "offline.patterns_v2",
-            "offline.communities_v2",
-            "read.standing_v2",
+            "offline.standing",
+            "offline.patterns",
+            "offline.communities",
+            "read.standing",
         ],
         ["O4-08", "O4-05", "O4-06"],
         ["S34", "S35", "S40", "S64"],
@@ -358,7 +358,7 @@ SOLUTIONS: list[dict] = [
         "SOL-OBLIG",
         "Evidence obligations for joins, durations, lists, counts",
         "built_off_default",
-        ["read.obligations", "read.deep_v2"],
+        ["read.obligations", "read.deep"],
         ["R3-16"],
         ["S56", "S63"],
         [ref(D_ATLAS, "S56"), ref(D_GAP, "R3-16 in docs/v2/data/packages.py")],
@@ -390,13 +390,13 @@ SOLUTIONS: list[dict] = [
             "read.temporal_infer_year",
             "read.temporal_leg_event_dates",
             "read.temporal_leg_mentions (on)",
-            "read.timeview_v2",
+            "read.timeview",
         ],
         ["R3-04", "R3-14", "W2-14"],
         ["S24", "S62", "S63"],
         [ref(D_RECALL, "s8 T1-T4"), ref(D_FULL, "s4.1")],
         {"temporal_evidence_missing": P},
-        "S24 (time view) is skipped: no as-of question set. W2-14 (write.temporal_v2) is measured only through the S62 bundle.",
+        "S24 (time view) is skipped: no as-of question set. W2-14 (write.temporal) is measured only through the S62 bundle.",
     ),
     sol(
         "SOL-RELANCHOR",
@@ -473,7 +473,7 @@ SOLUTIONS: list[dict] = [
         "SOL-BUNDLES",
         "Neighbour turns v2, exact token budget, complete evidence bundles",
         "built_off_default",
-        ["read.neighbours_v2", "read.exact_budget", "read.evidence_bundles"],
+        ["read.neighbours", "read.exact_budget", "read.evidence_bundles"],
         ["R3-10", "R3-09a", "R3-09b"],
         ["S19", "S52", "S53", "S54", "S63"],
         [ref(D_GAP, "R03"), ref(D_ATLAS, "S19, S53, S54")],
@@ -625,7 +625,7 @@ BUNDLE_OF = {
 
 def load_screens(atlas: Path | None = None, queue: Path | None = None) -> dict[str, dict]:
     atlas = atlas or REPO / "docs" / "v2" / "SCREEN_ATLAS.html"
-    queue = queue or HERE / "v2_queue.tsv"
+    queue = queue or HERE / "screen_queue.tsv"
     txt = atlas.read_text(encoding="utf-8")
     m = re.search(r"const S=(\[.*?\n\]);", txt, re.S)
     if not m:

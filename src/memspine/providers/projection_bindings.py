@@ -14,8 +14,6 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncEngine
-
 from memspine.config.schema import MemspineConfig
 from memspine.exceptions import ConfigError
 from memspine.observability.logging import get_logger
@@ -29,10 +27,6 @@ from memspine.providers.registry import (
 )
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.storage.records_port import ProjectionTargetBinding
-from memspine.services.storage.sqlite.schema import (
-    projector_offsets,
-    provider_projector_bindings,
-)
 from memspine.store.projections.projector import Projector
 
 _log = get_logger(__name__)
@@ -119,65 +113,6 @@ def projection_target_bindings(
 
 #: ADR-081 amendment 2026-10-23: durable names the removed graph mirror (the Neo4j outbox
 #: projection, ``storage.graph_mirror``) left behind. Nothing reads them any more.
-RETIRED_GRAPH_MIRROR_PROJECTOR = "graph_neo4j"
-RETIRED_GRAPH_MIRROR_STAGE = "graph_projection"
-RETIRED_GRAPH_MIRROR_SCOPE = ("default", "graph-neo4j")
-
-
-async def retire_graph_mirror_state(storage: Any, engine: AsyncEngine) -> dict[str, int]:
-    """Drop what a store that once ran the removed graph mirror still holds (idempotent).
-
-    Left alone, these rows would never fail a start, but they are not inert: a stale
-    ``graph_neo4j`` high-water mark is the minimum the rolling event-log prune respects (so
-    pruning would stop for good), its binding row would show in the projection diagnostics,
-    and queued ``graph_projection`` items would count towards the outbox backlog that
-    backpressure reads. The rows deleted are the mirror projector's offset and binding, and
-    the outbox jobs, progress and items of its private ``(default, graph-neo4j)`` scope and
-    stage. Nothing else is touched: the mirror's Neo4j database itself is outside the engine
-    and is left for the operator to drop. Returns the count removed per kind."""
-    from sqlalchemy import delete, inspect
-
-    from memspine.services.storage.outbox_tables import outbox, outbox_item, outbox_progress
-
-    removed = {"offset": 0, "binding": 0, "outbox_jobs": 0, "outbox_progress": 0, "outbox_items": 0}
-    if await storage.get_offset(RETIRED_GRAPH_MIRROR_PROJECTOR):
-        await storage.reset_offset(RETIRED_GRAPH_MIRROR_PROJECTOR)
-        removed["offset"] = 1
-    tenant, owner = RETIRED_GRAPH_MIRROR_SCOPE
-    async with engine.begin() as conn:
-        tables = set(await conn.run_sync(lambda sync: set(inspect(sync).get_table_names())))
-        if provider_projector_bindings.name in tables:
-            result = await conn.execute(
-                delete(provider_projector_bindings).where(  # every deployment lost the mirror
-                    provider_projector_bindings.c.projector_name == RETIRED_GRAPH_MIRROR_PROJECTOR
-                )
-            )
-            removed["binding"] = int(result.rowcount or 0)
-        if projector_offsets.name in tables:  # a SQL offset the records port does not own
-            result = await conn.execute(
-                delete(projector_offsets).where(
-                    projector_offsets.c.projector_name == RETIRED_GRAPH_MIRROR_PROJECTOR
-                )
-            )
-            removed["offset"] = max(removed["offset"], int(result.rowcount or 0))
-        for key, table, stage_column in (
-            ("outbox_jobs", outbox, outbox.c.stage),
-            ("outbox_progress", outbox_progress, outbox_progress.c.job_kind),
-            ("outbox_items", outbox_item, outbox_item.c.stage),
-        ):
-            if table.name not in tables:
-                continue
-            result = await conn.execute(
-                delete(table).where(
-                    table.c.tenant == tenant,
-                    table.c.owner == owner,
-                    stage_column == RETIRED_GRAPH_MIRROR_STAGE,
-                )
-            )
-            removed[key] = int(result.rowcount or 0)
-    if any(removed.values()):
-        _log.info("provider.graph_mirror_retired", **removed)
-    return removed
 
 
 def projection_target_fingerprint(
@@ -257,12 +192,8 @@ def projection_target_fingerprint(
 
 
 __all__ = [
-    "RETIRED_GRAPH_MIRROR_PROJECTOR",
-    "RETIRED_GRAPH_MIRROR_SCOPE",
-    "RETIRED_GRAPH_MIRROR_STAGE",
     "projection_target_bindings",
     "projection_target_fingerprint",
-    "retire_graph_mirror_state",
 ]
 
 

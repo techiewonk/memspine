@@ -311,10 +311,6 @@ class ProjectionBindingPort(Protocol):
 
     async def bound_provider(self, deployment_id: str, projector_name: str) -> str | None: ...
 
-    async def adopt_renamed_provider(
-        self, target: ProjectionTargetBinding, old_provider: str
-    ) -> bool: ...
-
     async def ensure(self, target: ProjectionTargetBinding) -> str: ...
 
 

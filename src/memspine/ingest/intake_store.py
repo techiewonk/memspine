@@ -1,8 +1,8 @@
 """Durable ledger for the intake gateway (W2-01; LIB-30 ``IntakeStore`` over SQL).
 
 ``IntakeBook`` (``ingest.intake``) is pure and synchronous; its state lives in an injected store. This
-module persists that state in the engine's own database (three small tables on their own
-``MetaData``, created on first use, so the Alembic tree and the v1 baseline are untouched):
+module persists that state in the engine's own database. Its tables are part of the current
+fresh SQL baseline:
 
 ``intake_source``  one row per (scope, source): latest version, version records, live segments (JSON).
 ``intake_write``   one row per S3-3 write id, with the real record id once the record exists.
@@ -22,7 +22,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict
 from typing import Any
 
-from sqlalchemy import Column, MetaData, String, Table, Text, delete, insert, select, update
+from sqlalchemy import delete, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -34,6 +34,19 @@ from memspine.ingest.intake import (
     VersionRecord,
 )
 from memspine.schemas.public.receipt import Readiness, Receipt
+from memspine.services.storage.intake_tables import (
+    INTAKE_TABLES as INTAKE_TABLES,
+)
+from memspine.services.storage.intake_tables import (
+    conversation_identity,
+    intake_intent,
+    intake_source,
+    intake_write,
+    message_identity,
+)
+from memspine.services.storage.intake_tables import (
+    intake_metadata as intake_metadata,
+)
 
 __all__ = [
     "INTAKE_TABLES",
@@ -47,69 +60,6 @@ __all__ = [
     "record_ids",
     "set_readiness",
 ]
-
-intake_metadata = MetaData()
-
-intake_source = Table(
-    "intake_source",
-    intake_metadata,
-    Column("scope_key", String, primary_key=True),
-    Column("source_id", String, primary_key=True),
-    Column("state", Text, nullable=False),
-)
-intake_write = Table(
-    "intake_write",
-    intake_metadata,
-    Column("scope_key", String, primary_key=True),
-    Column("write_id", String, primary_key=True),
-    Column("source_id", String, nullable=False),
-    Column("record_id", String, nullable=True),
-    Column("data", Text, nullable=False),
-)
-intake_intent = Table(
-    "intake_intent",
-    intake_metadata,
-    Column("intent_id", String, primary_key=True),
-    Column("scope_key", String, nullable=False),
-    Column("namespace", String, nullable=False),
-    Column("source_id", String, nullable=False),
-    Column("status", String, nullable=False),
-    Column("receipt", Text, nullable=False),
-    Column("readiness", Text, nullable=False),
-    Column("apply", Text, nullable=True),
-    Column("created_at", String, nullable=False),
-)
-
-# Public message identity is deliberately separate from raw records. ``data`` contains only the
-# source envelope metadata (including stable input fingerprints), never the message text.
-message_identity = Table(
-    "intake_message_identity",
-    intake_metadata,
-    Column("namespace", String, primary_key=True),
-    Column("message_id", String, primary_key=True),
-    Column("conversation_id", String, nullable=False),
-    Column("session_id", String, nullable=False),
-    Column("intent_id", String, nullable=True),
-    Column("write_id", String, nullable=True),
-    Column("record_id", String, nullable=True),
-    Column("data", Text, nullable=False),
-)
-conversation_identity = Table(
-    "intake_conversation_identity",
-    intake_metadata,
-    Column("namespace", String, primary_key=True),
-    Column("conversation_id", String, primary_key=True),
-    Column("session_id", String, nullable=False),
-    Column("intent_id", String, nullable=True),
-)
-
-INTAKE_TABLES: tuple[str, ...] = (
-    "intake_source",
-    "intake_write",
-    "intake_intent",
-    "intake_message_identity",
-    "intake_conversation_identity",
-)
 
 
 async def ensure_schema(engine: AsyncEngine) -> None:

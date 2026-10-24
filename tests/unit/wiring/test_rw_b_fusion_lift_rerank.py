@@ -14,7 +14,7 @@ from memspine.services.rerank.jina import JinaReranker
 _GOLD = "zyzzyva"
 
 
-#: The old ``read.rerank_v2: true`` default chain (ADR-082: one ``model.rerank.chain`` entry each).
+#: The old ``read.rerank: true`` default chain (ADR-082: one ``model.rerank.chain`` entry each).
 _V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "onnx")]
 
 
@@ -196,7 +196,7 @@ async def _rerank_run(cache: dict[str, Any], **rerank: Any) -> tuple[list[str], 
 async def test_rerank_v2_chain_falls_back_and_never_scores_zero() -> None:
     cache = {"jina": None, "qwen3": _Fake("qwen3:fake"), "onnx": _Fake("minilm:fake")}
     _, fx = await _rerank_run(cache)
-    v2 = fx["rerank_v2"]
+    v2 = fx["rerank"]
     assert v2["model"] == "qwen3:fake"
     assert v2["fallback_used"] == "qwen3"
     assert v2["tried"] == [{"mode": "jina", "outcome": "unavailable"}]
@@ -206,7 +206,7 @@ async def test_rerank_v2_chain_falls_back_and_never_scores_zero() -> None:
 async def test_rerank_v2_pool_cap_leaves_tail_unscored() -> None:
     cache = {"jina": _Fake("jina:fake"), "qwen3": None, "onnx": None}
     ids, fx = await _rerank_run(cache, pool=3)
-    v2 = fx["rerank_v2"]
+    v2 = fx["rerank"]
     assert v2["scored"] == 3 and len(v2["unscored"]) == 5
     assert len(ids) == 8  # unscored candidates stay in the result, after the scored ones
     scored_ids = {rid for rid, _ in fx["rerank_scores"]}
@@ -216,13 +216,13 @@ async def test_rerank_v2_pool_cap_leaves_tail_unscored() -> None:
 async def test_rerank_v2_none_scores_are_unscored() -> None:
     cache = {"jina": _Fake("jina:fake", [1.0, None, 2.0, None, 3.0, None, 4.0, None])}
     _, fx = await _rerank_run(cache)
-    assert fx["rerank_v2"]["scored"] == 4 and len(fx["rerank_v2"]["unscored"]) == 4
+    assert fx["rerank"]["scored"] == 4 and len(fx["rerank"]["unscored"]) == 4
 
 
 async def test_rerank_v2_all_unavailable_is_unscored() -> None:
     cache = {"jina": None, "qwen3": None, "onnx": None}
     ids, fx = await _rerank_run(cache)
-    assert fx["rerank_v2"]["model"] is None and fx["rerank_v2"]["scored"] == 0
+    assert fx["rerank"]["model"] is None and fx["rerank"]["scored"] == 0
     assert len(ids) == 8
 
 

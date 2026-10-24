@@ -10,7 +10,7 @@ from enum import StrEnum
 from typing import Literal, Protocol
 
 from pydantic import Field, model_validator
-from sqlalchemy import JSON, Column, Integer, String, Table, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from memspine.providers.changes import (
@@ -29,6 +29,12 @@ from memspine.providers.changes import (
     TargetConfigRef,
 )
 from memspine.providers.settings import StrictSettings
+from memspine.services.storage.provider_tables import (
+    _generation_rows,
+    _operations,
+    _plans,
+    _switch_rows,
+)
 from memspine.services.storage.sqlite.schema import metadata as _switch_metadata
 
 
@@ -278,27 +284,6 @@ class ProjectionSwitchStore(Protocol):
     ) -> None: ...
 
 
-_generation_rows = Table(
-    "provider_projection_generations",
-    _switch_metadata,
-    Column("deployment_id", String(256), primary_key=True),
-    Column("logical_service_id", String(256), primary_key=True),
-    Column("generation_id", String(256), primary_key=True),
-    Column("status", String(32), nullable=False),
-    Column("revision", Integer, nullable=False),
-    Column("payload", JSON, nullable=False),
-)
-_switch_rows = Table(
-    "provider_projection_switches",
-    _switch_metadata,
-    Column("switch_id", String(128), primary_key=True),
-    Column("deployment_id", String(256), nullable=False, index=True),
-    Column("status", String(32), nullable=False),
-    Column("revision", Integer, nullable=False),
-    Column("payload", JSON, nullable=False),
-)
-
-
 async def verified_active_projection_routes(
     connection: AsyncConnection,
     deployment_id: str,
@@ -316,8 +301,6 @@ async def verified_active_projection_routes(
         ChangeStatus,
         OperationRecord,
         ProjectionRebuildResult,
-        _operations,
-        _plans,
     )
 
     active_evidence_statuses = {

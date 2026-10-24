@@ -9,7 +9,7 @@ Axes (every cell asserts no leak and no resurrection):
              needed. The outbox-fed mirror these cells once used was removed by the ADR-081
              amendment of 2026-10-23)
 * operation  cross-tenant read, cross-owner read, multi-party read without a viewer, hard erase then
-             read, hard erase then restart then read, erase then replay (``migrate``) then read,
+             read, hard erase then restart then read, erase then replay (``replay_sqlite``) then read,
              ``Engine.rebuild`` then read
 
 The workload and the stub model roles are the EX-1a ones (hash embedder, stub LLM callables,
@@ -33,8 +33,8 @@ import memspine
 from memspine.schemas.durable import OwnerScope
 from memspine.scope import ScopeRefused
 from memspine.store import lineage as lineage_store
-from memspine.store.migrate import dump_store, migrate_sqlite
-from memspine.trust.erasure_service import ErasureService, ErasureServiceDisabled
+from memspine.store.rebuild import dump_store, replay_sqlite
+from memspine.trust.erasure_service import ErasureService
 
 sys.path.insert(0, str(Path(__file__).parent))
 from test_ex1a_embedded import (
@@ -412,12 +412,12 @@ async def test_erase_restart_read(cell: Cell) -> None:
 @matrix("erase_replay_read", g1=True)
 async def test_erase_replay_read(cell: Cell) -> None:
     if cell.profile != "embedded":
-        pytest.skip("replay: migrate_sqlite replays a SQLite source; the server replay is rebuild")
+        pytest.skip("replay: replay_sqlite replays a SQLite source; the server replay is rebuild")
     await _erase(cell)
     secret_id, gone = cell.ids["secret_turn"], cell.gone()
     await cell.w.eng.stop()
     target = cell.tmp / "replayed.db"
-    rep = await migrate_sqlite(str(cell.db), str(target))
+    rep = await replay_sqlite(str(cell.db), str(target))
     assert rep.events_written == rep.events_read > 0
 
     import json
@@ -467,17 +467,6 @@ async def test_rebuild_then_read(cell: Cell) -> None:
 
 
 # --------------------------------------------------------------------------- the service itself
-
-
-async def test_service_needs_the_flag(tmp_path: Path, stubs: dict[str, Any]) -> None:
-    o = _overrides(tmp_path / "off.db")
-    o["privacy"] = {"erasure_v2": False}
-    eng = await memspine.open(dotenv_path=None, **o)
-    try:
-        with pytest.raises(ErasureServiceDisabled):
-            await ErasureService(eng).plan("r1", NS_ILSE)
-    finally:
-        await eng.stop()
 
 
 async def test_service_execute_matches_the_handle(tmp_path: Path, stubs: dict[str, Any]) -> None:

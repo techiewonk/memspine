@@ -15,9 +15,9 @@ from memspine_evals.datasets.locomo import LoCoMoDataset, parse_evidence_ids
 from memspine_evals.experiments import C01Config
 from memspine_evals.judge import GuardedJudge, JudgeScale, Verdict
 from memspine_evals.judge_conventions import (
-    CONVENTIONS_V3_VERSION,
-    check_conventions_v2,
-    check_conventions_v3,
+    CONVENTIONS_VERSION,
+    _extended_conventions,
+    check_conventions,
     list_item_recall,
     strict_list_ok,
 )
@@ -75,8 +75,8 @@ CALIBRATION = Path(__file__).resolve().parents[1] / "analysis" / "judge_calibrat
     ],
 )
 def test_v3_credits(question: str, gold: str, answer: str, rule: str) -> None:
-    assert check_conventions_v2(question, answer, gold) is None  # v3 adds, v2 did not have it
-    hit = check_conventions_v3(question, answer, gold)
+    assert _extended_conventions(question, answer, gold) is None  # v3 adds, v2 did not have it
+    hit = check_conventions(question, answer, gold)
     assert hit is not None and hit.rule == rule
 
 
@@ -122,13 +122,13 @@ def test_v3_credits(question: str, gold: str, answer: str, rule: str) -> None:
     ],
 )
 def test_v3_does_not_credit(question: str, gold: str, answer: str) -> None:
-    assert check_conventions_v3(question, answer, gold) is None
+    assert check_conventions(question, answer, gold) is None
 
 
 def test_v3_keeps_v2_credits_and_names() -> None:
-    hit = check_conventions_v3("When?", "Saturday, November 5, 2022.", "5 November, 2022")
+    hit = check_conventions("When?", "Saturday, November 5, 2022.", "5 November, 2022")
     assert hit is not None and hit.rule == "date_format"
-    assert check_conventions_v3("How many?", "five", "5").rule == "numeral"  # type: ignore[union-attr]
+    assert check_conventions("How many?", "five", "5").rule == "numeral"  # type: ignore[union-attr]
 
 
 def test_v3_calibration_set_has_no_false_positive() -> None:
@@ -138,8 +138,8 @@ def test_v3_calibration_set_has_no_false_positive() -> None:
             "calibration text is local only (evals/runs/_analysis); see judge_agreement.FULL_SET"
         )
     judged = {r["id"]: r["source_judge_label"] for r in rows}
-    res = with_conventions(rows, judged)["v3"]
-    assert res["false_positives"] == 0 and res["false_positives_beyond_v2"] == 0
+    res = with_conventions(rows, judged)
+    assert res["new_false_positives"] == 0
 
 
 # -- strict list ----------------------------------------------------------------------------------
@@ -313,25 +313,25 @@ def _fixture_rows() -> list[dict[str, Any]]:
 def test_rescore_columns() -> None:
     res = r14_rescore.rescore(_fixture_rows(), {("c1", "0-5")})
     t = res["table"]["cat1-4"]
-    assert (t["n"], t["raw"], t["v3"], t["strict"]) == (6, 3, 5, 4)
+    assert (t["n"], t["raw"], t["conventions"], t["strict"]) == (6, 3, 5, 4)
     assert (t["n-E"], t["raw-E"], t["strict-E"]) == (5, 2, 3)
     assert res["table"]["cat1"] == {
         "n": 2,
         "n_errata": 0,
         "raw": 2,
-        "v3": 2,
+        "conventions": 2,
         "strict": 1,
         "n-E": 2,
         "raw-E": 2,
         "strict-E": 1,
     }
-    rules = {s["key"]: s["v3_rule"] for s in res["rows"] if s["v3_rule"]}
+    rules = {s["key"]: s["convention_rule"] for s in res["rows"] if s["convention_rule"]}
     assert rules == {("c1", "0-2"): "geography", ("c1", "0-4"): "relative_year"}
 
 
 def test_rescore_never_lowers_raw_via_v3_and_strict_never_exceeds_v3() -> None:
     for s in r14_rescore.rescore(_fixture_rows(), set())["rows"]:
-        assert s["v3"] >= s["raw"] and s["strict"] <= s["v3"]
+        assert s["conventions"] >= s["raw"] and s["strict"] <= s["conventions"]
 
 
 def test_cli_end_to_end_counts_only_on_stdout(
@@ -416,32 +416,28 @@ class _Inner:
 
 
 async def test_guarded_judge_v3_column_keeps_official_score() -> None:
-    judge = GuardedJudge(_Inner(0.0), conventions_v3=True)
+    judge = GuardedJudge(_Inner(0.0), conventions=True)
     v = await judge.score("Which country did Ilse fly to?", "Ilse flew to Toronto.", "Canada")
     assert v.score == 0.0
-    assert v.meta["score_conventions_v3"] == 1.0 and v.meta["convention_v3"] == "geography"
-    assert "score_conventions" not in v.meta and "score_conventions_v2" not in v.meta
-    assert judge.spec.params["conventions_v3"] == CONVENTIONS_V3_VERSION
-    ok = await GuardedJudge(_Inner(1.0), conventions_v3=True).score("q", "x", "y")
-    assert (
-        ok.score == 1.0
-        and ok.meta["score_conventions_v3"] == 1.0
-        and "convention_v3" not in ok.meta
-    )
+    assert v.meta["score_conventions"] == 1.0 and v.meta["convention"] == "geography"
+    assert "score_conventions_v2" not in v.meta and "score_conventions_v3" not in v.meta
+    assert judge.spec.params["conventions"] == CONVENTIONS_VERSION
+    ok = await GuardedJudge(_Inner(1.0), conventions=True).score("q", "x", "y")
+    assert ok.score == 1.0 and ok.meta["score_conventions"] == 1.0 and "convention" not in ok.meta
 
 
 async def test_guarded_judge_off_is_unchanged() -> None:
     off = GuardedJudge(_Inner(0.0))
     v = await off.score("Which country?", "Toronto", "Canada")
-    assert v.meta == {} and "conventions_v3" not in off.spec.params
+    assert v.meta == {} and "conventions" not in off.spec.params
 
 
 def test_cli_flags_and_config_defaults() -> None:
     parser = build_parser()
     base = parser.parse_args(["c0-1", "--dataset", "locomo"])
-    assert base.judge_conventions_v3 is False and base.repair_evidence is False
+    assert base.judge_conventions is False and base.repair_evidence is False
     on = parser.parse_args(
-        ["c0-1", "--dataset", "locomo", "--judge-conventions-v3", "--repair-evidence"]
+        ["c0-1", "--dataset", "locomo", "--judge-conventions", "--repair-evidence"]
     )
-    assert on.judge_conventions_v3 is True and on.repair_evidence is True
-    assert C01Config().judge_conventions_v3 is False
+    assert on.judge_conventions is True and on.repair_evidence is True
+    assert C01Config().judge_conventions is False

@@ -1,7 +1,7 @@
 """Derive stage: ``erasure_rederive`` (FU-ERASE), behind ``privacy.erasure_rederive``.
 
-``privacy.erasure_v2`` hides a dependant of an erased record and queues it for re-derivation
-(:func:`memspine.trust.pipeline.erasure_v2.queue`). This stage consumes that queue:
+``privacy.erasure`` hides a dependant of an erased record and queues it for re-derivation
+(:func:`memspine.trust.pipeline.erasure_state.queue`). This stage consumes that queue:
 
 * **re-derivable kind** (a session or community summary, a mined fact) with live parents left: the
   producer's model role (``summarize`` / ``extract``, outside the namespace lock) is re-run over the
@@ -15,7 +15,7 @@ A new version is tagged ``rederived_from:<old id>``, so a crash between the writ
 re-runs without a second model call or a duplicate (the old row is simply purged next time). The
 queue is rebuilt from the MARKER events at start, so a restart resumes where it stopped.
 
-Profile card entries are not records and are not queued: with ``offline.profile_card_v2`` the stage
+Profile card entries are not records and are not queued: with ``offline.profile_card`` the stage
 also runs the card upkeep (``profile_sleep``), which expires entries whose support turn is gone.
 
 Free text never reaches a tap event (ids and counts only).
@@ -40,7 +40,7 @@ from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.store.records import MemoryRecord, RecordStatus, SourceInfo
 from memspine.trust.firewall import instruction_shaped
-from memspine.trust.pipeline import erasure_v2
+from memspine.trust.pipeline import erasure_state as erasure
 
 _log = get_logger(__name__)
 
@@ -73,11 +73,11 @@ async def erasure_rederive(ctx: PipelineContext) -> dict[str, object]:
     if not ctx.config.privacy.erasure_rederive:
         return {"status": "skipped", "reason": "privacy.erasure_rederive is off"}
     eng = ctx.erasure_engine
-    if eng is None or not ctx.config.privacy.erasure_v2:
-        return {"status": "skipped", "reason": "privacy.erasure_v2 is off or no engine bound"}
+    if eng is None:
+        return {"status": "skipped", "reason": "no engine bound"}
     totals: Counter[str] = Counter()
     errors: list[str] = []
-    for entry in erasure_v2.queue(eng):
+    for entry in erasure.queue(eng):
         try:
             outcome = await _one(eng, ctx, entry)
         except Exception as exc:  # one bad item must not stop the queue; it stays queued
@@ -85,7 +85,7 @@ async def erasure_rederive(ctx: PipelineContext) -> dict[str, object]:
             _log.warning("erasure_rederive.failed", record=entry.get("record_id"), error=str(exc))
             continue
         totals[outcome] += 1
-    if ctx.config.offline.profile_card_v2:
+    if ctx.config.offline.profile_card:
         from memspine.derive.pipeline.stages.profile_card import profile_sleep
 
         expired = (await profile_sleep(ctx)).get("expired")
@@ -109,7 +109,7 @@ def _namespace(eng: Any, entry: dict[str, object], dep: MemoryRecord | None) -> 
 async def _one(eng: Any, ctx: PipelineContext, entry: dict[str, object]) -> str:
     storage = eng._require_started()
     rid = str(entry["record_id"])
-    st = erasure_v2.state(eng)
+    st = erasure.state(eng)
     if rid not in st.hidden:
         eng.__dict__.get("_erasure_queue", {}).pop(rid, None)
         return "stale"
@@ -118,7 +118,7 @@ async def _one(eng: Any, ctx: PipelineContext, entry: dict[str, object]) -> str:
     if ns is None:
         return "unresolved"
     if dep is None:  # the row is gone already (a retried forget): nothing left to re-derive
-        await erasure_v2.release(eng, [rid], ns)
+        await erasure.release(eng, [rid], ns)
         return "released"
 
     # Parents still alive: those the plan left plus the row's own, never an erased or hidden one.
@@ -171,7 +171,7 @@ async def _drop(eng: Any, storage: Any, ns: str, dep: MemoryRecord) -> str:
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
         if not await _purge_row(eng, storage, ns, dep.record_id):
             return "held"  # legal hold: it stays hidden and queued
-        await erasure_v2.mark_dropped(eng, [dep.record_id], ns)
+        await erasure.mark_dropped(eng, [dep.record_id], ns)
     return "dropped_no_rederive"
 
 
@@ -179,7 +179,7 @@ async def _retire(eng: Any, storage: Any, ns: str, dep: MemoryRecord) -> str:
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
         if not await _purge_row(eng, storage, ns, dep.record_id):
             return "held"
-        await erasure_v2.release(eng, [dep.record_id], ns)
+        await erasure.release(eng, [dep.record_id], ns)
     return "rederived"
 
 
@@ -253,7 +253,7 @@ async def _summary(
         )
         if not await _purge_row(eng, storage, ns, dep.record_id):
             return "held"
-        await erasure_v2.release(eng, [dep.record_id], ns)
+        await erasure.release(eng, [dep.record_id], ns)
     return "rederived"
 
 

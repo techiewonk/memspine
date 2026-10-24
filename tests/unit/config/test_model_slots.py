@@ -23,7 +23,6 @@ from memspine.config.schema import (
     llm_slots,
     weights_settings,
 )
-from memspine.config.schema.model import MOVED_KEYS
 from memspine.exceptions import ConfigError
 
 _RUNTIME = {
@@ -50,97 +49,6 @@ def _llm(model: str = "ollama/qwen3.5:9b", **extra: Any) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------- old keys
-
-_OLD_KEYS: list[tuple[dict[str, Any], str]] = [
-    ({"embedding": {"provider": "hash"}}, "model.embedding.provider"),
-    ({"embedding": {"settings": {}}}, "model.embedding.settings"),
-    ({"embedding": {"profile": "gpu"}}, "model.embedding.preset"),
-    ({"embedding": {"pin_profile": True}}, "model.embedding.pin_preset"),
-    ({"embedding": {"migrate_profile": True}}, "model.embedding.migrate_preset"),
-    ({"embedding": {"batch_size": 8}}, "model.embedding.batch_size"),
-    ({"embedding": {"versioned_spaces": True}}, "model.embedding.versioned_spaces"),
-    ({"embedding": {}}, "model.embedding"),
-    ({"llm": {"roles": {}}}, "model.llm.<role>"),
-    ({"llm": {"structured": {"retry_on_error": True}}}, "model.llm.<role>.structured"),
-    ({"models": {"profiles": {}}}, "inline slots"),
-    ({"models": {"bindings": {}}}, "model.decider.route"),
-    ({"models": {"gliner_max_models": 2}}, "model.placement.max_loaded_models"),
-    ({"models": {"escalation": {}}}, "model.llm.<role>.escalation"),
-    ({"models": {"thinking": {"judge": 64}}}, "model.llm.<role>.thinking"),
-    ({"models": {"topic": {}}}, "model.extraction.topic"),
-    ({"models": {"embedder_profile": "gpu"}}, "model.embedding.preset"),
-    ({"models": {"rerank": "off"}}, "model.rerank.chain: []"),
-    ({"models": {"default_rerankers": "none"}}, "model.placement.catalogue_rerankers"),
-    ({"models": {"tiers_v2": True}}, "model.placement.tiers_v2"),
-    ({"models": {"catalogue": []}}, "model.placement.catalogue"),
-    ({"models": {"gpus": []}}, "model.placement.gpus"),
-    ({"models": {"detect_gpus": True}}, "model.placement.detect_gpus"),
-    ({"models": {"ram_mb": 1}}, "model.placement.ram_mb"),
-    ({"models": {"gpu_headroom_mb": 1}}, "model.placement.gpu_headroom_mb"),
-    ({"models": {"role_tier": {}}}, "model.placement.role_tier"),
-    ({"models": {"pins": {}}}, "model.placement.pins"),
-    ({"models": {"allow_hosted": True}}, "model.placement.allow_hosted"),
-    ({"models": {"required_roles": []}}, "model.placement.required_roles"),
-    ({"models": {"on_missing_model": "skip"}}, "model.placement.on_missing_model"),
-    ({"decision": {"provider": "gliner2"}}, "model.decider.route"),
-    ({"read": {"rerank": "onnx"}}, "model.rerank.chain"),
-    ({"read": {"rerank_settings": {}}}, "model.rerank.chain[].settings"),
-    ({"read": {"rerank_v2": True}}, "model.rerank.chain"),
-    ({"read": {"rerank_v2_chain": ["jina"]}}, "model.rerank.chain"),
-    ({"read": {"rerank_v2_pool": 32}}, "model.rerank.pool"),
-    ({"read": {"rerank_v2_search_pool": 8}}, "model.rerank.search_pool"),
-    ({"read": {"rerank_max_top_k": 8}}, "model.rerank.max_top_k"),
-    ({"read": {"rerank_keep": 8}}, "model.rerank.keep"),
-    ({"read": {"rerank_blend": 0.5}}, "model.rerank.blend"),
-    ({"read": {"rerank_gate": 0.5}}, "model.rerank.gate"),
-    ({"read": {"rerank_context": 1}}, "model.rerank.context"),
-    ({"read": {"rerank_date_prefix": True}}, "model.rerank.date_prefix"),
-    ({"read": {"rerank_balanced": True}}, "model.rerank.balanced"),
-    ({"read": {"rerank_chunk_chars": 512}}, "model.rerank.chunk_chars"),
-    ({"read": {"rerank_chunk_overlap": 8}}, "model.rerank.chunk_overlap"),
-    ({"read": {"rerank_floor": "skip"}}, "model.rerank.floor"),
-    ({"read": {"skip_rerank_for_ordering": True}}, "model.rerank.skip_for_ordering"),
-    ({"read": {"decider": "opendecider"}}, "model.decider.read.provider"),
-    ({"read": {"decider_model": "x"}}, "model.decider.read.settings.model"),
-    ({"read": {"decider_device": "cpu"}}, "model.decider.read.settings.device"),
-    ({"read": {"decider_threads": 2}}, "model.decider.read.settings.threads"),
-    ({"read": {"decider_backend": "onnx"}}, "model.decider.read.settings.backend"),
-    ({"read": {"decider_dtype": "bfloat16"}}, "model.decider.read.settings.dtype"),
-    ({"read": {"decider_tasks": []}}, "model.decider.read.tasks"),
-    ({"read": {"decider_min_confidence": 0.6}}, "model.decider.read.min_confidence"),
-    ({"read": {"decider_workers": 2}}, "model.decider.read.workers"),
-    ({"ingest": {"asset_vision": "ollama"}}, "model.vision.provider"),
-    ({"ingest": {"asset_vision_model": "x"}}, "model.vision.settings.model"),
-    ({"ingest": {"asset_vision_url": "http://x"}}, "model.vision.settings.api_base"),
-    ({"ingest": {"asset_vision_timeout_s": 5.0}}, "model.vision.timeout_s"),
-]
-
-
-@pytest.mark.parametrize(("old", "new_location"), _OLD_KEYS)
-def test_every_removed_key_is_rejected_naming_its_new_location(
-    old: dict[str, Any], new_location: str
-) -> None:
-    with pytest.raises(ConfigError, match="removed by ADR-082") as raised:
-        load_config(template="base", overrides=old)
-    assert new_location in str(raised.value)
-    with pytest.raises(ConfigError, match="removed by ADR-082"):
-        _config(**old)
-
-
-def test_the_rejection_table_is_fully_covered() -> None:
-    covered = set()
-    for old, _ in _OLD_KEYS:
-        ((area, body),) = old.items()
-        covered.add(area)
-        covered.update(f"{area}.{key}" for key in body)
-    assert set(MOVED_KEYS) <= covered
-
-
-def test_old_keys_are_rejected_from_the_environment() -> None:
-    with pytest.raises(ConfigError, match="model.rerank.keep"):
-        load_config(template="base", env={"MEMSPINE_READ__RERANK_KEEP": "5"})
-    with pytest.raises(ConfigError, match="model.embedding.provider"):
-        load_config(template="base", env={"MEMSPINE_EMBEDDING__PROVIDER": "hash"})
 
 
 def test_old_warmup_categories_are_rejected() -> None:
@@ -191,7 +99,7 @@ def test_defaults() -> None:
     assert model.decider.route is None and model.decider.read is None
     assert model.vision is None
     placement = model.placement
-    assert placement.tiers_v2 is False and placement.catalogue == []
+    assert placement.tiers is False and placement.catalogue == []
     assert placement.catalogue_rerankers == "shipped" and placement.max_loaded_models == 1
     assert placement.gpu_headroom_mb == 512 and placement.on_missing_model == "error"
 
@@ -279,7 +187,7 @@ def test_sample_from_the_adr_validates() -> None:
                 },
             },
             "vision": None,
-            "placement": {"tiers_v2": False, "max_loaded_models": 1},
+            "placement": {"tiers": False, "max_loaded_models": 1},
         },
         read={"planner": "decision"},
     )
@@ -687,7 +595,7 @@ def test_benchmark_template_pins_the_embedder_in_the_model_block() -> None:
 def test_read_v2_presets_carry_the_shipped_rerank_chain() -> None:
     from memspine.config import presets
 
-    for name in ("read-v2-core", "read-v2-graph"):
+    for name in ("read-core", "read-graph"):
         config = load_config(template="base", overrides=presets.load_preset(name)).config
         assert [s.provider for s in config.model.rerank.chain] == ["jina", "qwen3", "onnx"]
 

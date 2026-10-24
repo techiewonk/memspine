@@ -1,5 +1,5 @@
-"""OW-C wiring: O4-05 pattern observations (offline.patterns_v2), O4-08 standing answers
-(offline.standing_v2 sleep side, read.standing_v2 read side). Model-free; hash embedder."""
+"""OW-C wiring: O4-05 pattern observations (offline.patterns), O4-08 standing answers
+(offline.standing sleep side, read.standing read side). Model-free; hash embedder."""
 
 from __future__ import annotations
 
@@ -114,8 +114,8 @@ def _tap_events() -> list[dict[str, Any]]:
 
 def test_flags_default_off_and_order_unchanged() -> None:
     cfg = OfflineConfig()
-    assert cfg.patterns_v2 is False and cfg.standing_v2 is False
-    assert ReadConfig().standing_v2 is False
+    assert cfg.patterns is False and cfg.standing is False
+    assert ReadConfig().standing is False
     assert (
         MemspineConfig(
             runtime={
@@ -133,7 +133,7 @@ def test_flags_default_off_and_order_unchanged() -> None:
 
 
 async def test_sleep_order_inserts_the_stages_only_when_on() -> None:
-    eng = _engine(offline={"patterns_v2": True, "standing_v2": True})
+    eng = _engine(offline={"patterns": True, "standing": True})
     await eng.start()
     try:
         keys = list(await eng.sleep())
@@ -187,7 +187,7 @@ def test_adapter_reads_event_attribute_and_preference_kind() -> None:
 
 async def test_patterns_on_writes_a_recurrence_with_lineage_and_trust_cap(tmp_path: Path) -> None:
     path = tmp_path / "m.db"
-    eng = _engine(path, lineage=True, offline={"patterns_v2": True})
+    eng = _engine(path, lineage=True, offline={"patterns": True})
     tap.configure(TapConfig(enabled=True, sink="memory"))
     await eng.start()
     try:
@@ -218,7 +218,7 @@ async def test_patterns_on_writes_a_recurrence_with_lineage_and_trust_cap(tmp_pa
 
 
 async def test_changed_support_retires_the_observation() -> None:
-    eng = _engine(offline={"patterns_v2": True})
+    eng = _engine(offline={"patterns": True})
     await eng.start()
     try:
         facts = await _weekly(eng, 3)
@@ -235,7 +235,7 @@ async def test_changed_support_retires_the_observation() -> None:
 
 
 async def test_observations_are_not_inputs_of_the_next_run() -> None:
-    eng = _engine(offline={"patterns_v2": True, "patterns_kinds": ["recurrence"]})
+    eng = _engine(offline={"patterns": True, "patterns_kinds": ["recurrence"]})
     await eng.start()
     try:
         await _weekly(eng, 5)
@@ -296,7 +296,7 @@ async def test_standing_off_writes_nothing() -> None:
 
 async def test_standing_build_refresh_and_stale_skip(tmp_path: Path) -> None:
     path = tmp_path / "m.db"
-    eng = _engine(path, lineage=True, offline={"standing_v2": True}, read={"standing_v2": True})
+    eng = _engine(path, lineage=True, offline={"standing": True}, read={"standing": True})
     tap.configure(TapConfig(enabled=True, sink="memory"))
     HIT_LOG.clear()
     await eng.start()
@@ -337,7 +337,7 @@ async def test_standing_build_refresh_and_stale_skip(tmp_path: Path) -> None:
 
 
 async def test_standing_cap_limits_new_answers() -> None:
-    eng = _engine(offline={"standing_v2": True, "standing_max_answers": 1})
+    eng = _engine(offline={"standing": True, "standing_max_answers": 1})
     await eng.start()
     try:
         await _city(eng, "Lisbon", 0, "s0")
@@ -350,7 +350,7 @@ async def test_standing_cap_limits_new_answers() -> None:
 
 
 async def test_guarded_instructions_only_firm_user_text() -> None:
-    eng = _engine(read={"standing_v2": True}, offline={"standing_v2": True})
+    eng = _engine(read={"standing": True}, offline={"standing": True})
     await eng.start()
     try:
         fact = await _city(eng, "Lisbon", 0, "s0")

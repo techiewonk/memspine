@@ -54,7 +54,7 @@ That is the one implicit link, and it is validated.
 | `storage.provider` / `storage.settings` | `storage.records.provider` / `.settings` | `settings.data_dir` moves to `deployment.data_dir` |
 | `vector.provider` / `vector.settings` | `storage.vector.*` | |
 | `read.lexical_provider` / `read.lexical_settings` | `storage.lexical.*` | `read.lexical_scorer`, `lexical_language`, `lexical_strip_names`, `lexical_namespace_languages`, `short_query_lexical_weight` stay in `read` |
-| `graph.provider` / `graph.settings` | `storage.graph.*` | `graph.edge_compiler_v2`, `key_v2`, `entity_embeddings` stay in `graph` |
+| `graph.provider` / `graph.settings` | `storage.graph.*` | `graph.edge_compiler`, `key`, `entity_embeddings` stay in `graph` |
 | `graph.mirror.{enabled,provider,settings}` | removed (amendment 2026-10-23) | was `storage.graph_mirror`; one graph client runs at a time, so select Neo4j as `storage.graph` |
 | `cache.provider` / `cache.settings` | `storage.cache.*` | the disk cache path defaults under `deployment.data_dir` |
 | `runtime.deployment_id` | `deployment.id` | |
@@ -343,8 +343,8 @@ native asyncio API).
   `[graph]` extra the start fails naming `storage.graph`; it never silently selects
   `sql_adjacency`, which is refused explicitly, as is `storage.vector: pgvector`.
 - SQL-only features are refused before anything opens (`providers/records_features.py`; contract
-  section 10): the outbox, `offline.sleep_v2`, `economy.ledger_persist`,
-  `write.envelope_v2` (the RM-111 WP5 side tables) and projection switches. The intake gateway
+  section 10): the outbox, `offline.sleep`, `economy.ledger_persist`,
+  `write.envelope` (the RM-111 WP5 side tables) and projection switches. The intake gateway
   fails at call time. There are no side files to import.
 
 **Documents.** `storage.documents: {provider: mongodb, settings: {bucket, max_bytes, url,

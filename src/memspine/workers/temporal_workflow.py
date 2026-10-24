@@ -22,14 +22,14 @@ class PipelineInvocation(TypedDict):
     max_result_bytes: int
 
 
-@workflow.defn(name="memspine.pipeline.v1")
+@workflow.defn(name="memspine.pipeline")
 class PipelineWorkflow:
     """Send only immutable invocation identity to the Activity worker."""
 
     @workflow.run
     async def run(self, invocation: PipelineInvocation) -> dict[str, Any]:
         result = await workflow.execute_activity(
-            "memspine.run_pipeline.v1",
+            "memspine.run_pipeline",
             invocation,
             result_type=dict,
             start_to_close_timeout=timedelta(seconds=invocation["activity_timeout_s"]),

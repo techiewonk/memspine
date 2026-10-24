@@ -41,10 +41,15 @@ def test_generic_instruction_arm() -> None:
 
     arm = json.loads((ARMS / "best-generic-prompt.json").read_text(encoding="utf-8"))
     best = json.loads((ARMS / "BEST_dev_2026-10-10.json").read_text(encoding="utf-8"))
-    assert arm["embedding"]["query_instruction"] == GENERIC_QWEN_QUERY_INSTRUCTION
+    assert (
+        arm["model"]["embedding"]["settings"]["query_instruction"] == GENERIC_QWEN_QUERY_INSTRUCTION
+    )
     assert "past conversations" not in GENERIC_QWEN_QUERY_INSTRUCTION
     assert arm["read"] == best["read"] and arm["storage"] == best["storage"]
-    assert best["embedding"]["query_instruction"] != GENERIC_QWEN_QUERY_INSTRUCTION
+    assert (
+        best["model"]["embedding"]["settings"]["query_instruction"]
+        != GENERIC_QWEN_QUERY_INSTRUCTION
+    )
     assert "grounded_generic" in (ARMS / "best-generic-prompt.flags").read_text(encoding="utf-8")
 
 

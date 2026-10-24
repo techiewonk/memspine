@@ -12,11 +12,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from test_w2_06b_prompt_v2 import WindowLLM, _run
+from test_w2_06b_prompt import WindowLLM, _run
 from test_window_write import _facts
 
 
-# --- 1. write.prompt_v2 partial-parse recovery ------------------------------------------------
+# --- 1. write.prompt partial-parse recovery ------------------------------------------------
 class _Edgeless(WindowLLM):
     """facts valid, edges malformed (a string)."""
 
@@ -31,7 +31,7 @@ class _Edgeless(WindowLLM):
 
 async def test_valid_facts_survive_malformed_edges(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = _Edgeless()
-    eng, stats = await _run(monkeypatch, llm, n=3, window_extract="all", prompt_v2=True)
+    eng, stats = await _run(monkeypatch, llm, n=3, window_extract="all")
     try:
         assert len(await _facts(eng)) >= 1
         assert stats["sections_dropped"] >= 1
@@ -65,7 +65,7 @@ class _FlakyOnce(WindowLLM):
 
 async def test_whole_reply_unparseable_is_re_asked_once(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = _FlakyOnce(1)
-    eng, _ = await _run(monkeypatch, llm, n=3, window_extract="all", prompt_v2=True)
+    eng, _ = await _run(monkeypatch, llm, n=3, window_extract="all")
     try:
         assert llm.asks == 1
         assert len(await _facts(eng)) >= 1
@@ -77,7 +77,7 @@ async def test_still_unparseable_after_the_re_ask_fails_closed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = _FlakyOnce(2)
-    eng, stats = await _run(monkeypatch, llm, n=3, window_extract="all", prompt_v2=True)
+    eng, stats = await _run(monkeypatch, llm, n=3, window_extract="all")
     try:
         assert llm.asks == 1  # one re-ask, never a loop
         assert stats["parse_failures"] >= 1 and len(await _facts(eng)) == 0
@@ -131,7 +131,7 @@ async def test_episode_only_in_the_one_call_path(monkeypatch: pytest.MonkeyPatch
 async def _engine_for(monkeypatch: pytest.MonkeyPatch, llm: WindowLLM) -> Any:
     from test_w2_06a_envelope import _engine
 
-    return await _engine(monkeypatch, llm, window_extract="all", prompt_v2=True, prepass="rules")
+    return await _engine(monkeypatch, llm, window_extract="all", prepass="rules")
 
 
 # --- 3. a contest marks both sides ---------------------------------------------------------
@@ -141,11 +141,11 @@ async def _contest_run(monkeypatch: pytest.MonkeyPatch, integration: bool) -> li
     class Changed(CityLLM):
         async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
             items = json.loads(await super().chat(messages, **options))
-            for it in items:
+            for it in items["facts"]:
                 it["chg"] = True
             return json.dumps(items)
 
-    eng = await engine(monkeypatch, Changed(), integration_v2=integration)
+    eng = await engine(monkeypatch, Changed(), integration=integration)
     try:
         await say(eng, "s0", "Oslo", 0)
         await say(eng, "s1", "Rome", 4)
@@ -271,7 +271,7 @@ async def test_envelope_survives_a_restart(monkeypatch: pytest.MonkeyPatch, tmp_
 def test_fingerprint_without_an_envelope_dumps_as_before() -> None:
     from memspine.store.records import RecordFingerprint
 
-    assert "envelope" not in RecordFingerprint().model_dump(mode="json")
+    assert RecordFingerprint().model_dump(mode="json")["envelope"] is None
     assert RecordFingerprint(envelope={"a": 1}).model_dump(mode="json")["envelope"] == {"a": 1}
 
 

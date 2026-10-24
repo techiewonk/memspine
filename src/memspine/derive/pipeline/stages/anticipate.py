@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from memspine.core.policies.consolidation import ConsolidationPolicy
 from memspine.derive.pipeline.stages.context import PipelineContext, _policy_options
-from memspine.derive.pipeline.stages.session_stage import _legacy_tag_check, _run_session_stage
+from memspine.derive.pipeline.stages.session_stage import _run_session_stage
 from memspine.store.records import MemoryRecord
 
 
@@ -42,5 +42,4 @@ async def anticipate(ctx: PipelineContext) -> dict[str, object]:
             written += len(cues) if isinstance(cues, list) else len(texts)  # I72: skips write 0
         return written, errors
 
-    legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"anticipated:{key}" in r.tags)
-    return await _run_session_stage(ctx, "anticipate", "cues", legacy, work)
+    return await _run_session_stage(ctx, "anticipate", "cues", work)

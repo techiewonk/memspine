@@ -1,12 +1,12 @@
 {
-  "checked_at": "2026-10-23T17:12:30.645876+00:00",
+  "checked_at": "2026-10-24T05:36:45.832130+00:00",
   "target_python": "3.13.0",
   "evidence_level": "Published Requires-Python and release-file metadata, not runtime proof",
   "host_wheel_scope": "Interpreter/platform running this audit only; not a cross-platform guarantee",
   "manifest_source": "pyproject.toml and uv.lock",
   "source_sha256": {
-    "pyproject.toml": "0303505984370c7739466c5df557d6d77bc067e4ef85d3ed101de73bc260c124",
-    "uv.lock": "36c2e5bed4c84ef6ae8f1d83c4e760ef5bd0f36e86d3c2b2f5735478a8e11778"
+    "pyproject.toml": "95111ac45f29706e64790180067f22d28ea2db404d3c7b967d360eeb2353d892",
+    "uv.lock": "a28b6b20f39f9e0ccfb111df0fb4e64d3c84a4433bd3b8ebcaed8e46c6b71e4d"
   },
   "packages": [
     {
@@ -258,15 +258,15 @@
       "locked": [
         "0.161.1"
       ],
-      "latest_python313": "0.161.1",
-      "latest_within_constraints": "0.161.1",
-      "lock_current": true,
+      "latest_python313": "0.162.0",
+      "latest_within_constraints": "0.162.0",
+      "lock_current": false,
       "requires_python": [
         ">=3.10"
       ],
       "host_compatible_wheel": true,
       "wheel_filenames": [
-        "fastapi-0.161.1-py3-none-any.whl"
+        "fastapi-0.162.0-py3-none-any.whl"
       ],
       "source": "https://pypi.org/pypi/fastapi/json"
     },
@@ -414,35 +414,6 @@
         "gliner2-2.1.0-py3-none-any.whl"
       ],
       "source": "https://pypi.org/pypi/gliner2/json"
-    },
-    {
-      "name": "graspologic-native",
-      "references": [
-        {
-          "area": "community",
-          "requirement": "graspologic-native>=1.3.1,<1.4"
-        }
-      ],
-      "locked": [
-        "1.3.1"
-      ],
-      "latest_python313": "1.3.1",
-      "latest_within_constraints": "1.3.1",
-      "lock_current": true,
-      "requires_python": [
-        ">=3.9"
-      ],
-      "host_compatible_wheel": true,
-      "wheel_filenames": [
-        "graspologic_native-1.3.1-cp39-abi3-macosx_10_12_x86_64.macosx_11_0_arm64.macosx_10_12_universal2.whl",
-        "graspologic_native-1.3.1-cp39-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl",
-        "graspologic_native-1.3.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
-        "graspologic_native-1.3.1-cp39-abi3-musllinux_1_2_aarch64.whl",
-        "graspologic_native-1.3.1-cp39-abi3-musllinux_1_2_x86_64.whl",
-        "graspologic_native-1.3.1-cp39-abi3-win_amd64.whl",
-        "graspologic_native-1.3.1-cp39-abi3-win_arm64.whl"
-      ],
-      "source": "https://pypi.org/pypi/graspologic-native/json"
     },
     {
       "name": "greenlet",

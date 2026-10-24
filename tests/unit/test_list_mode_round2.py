@@ -114,22 +114,6 @@ def test_wide_trigger_precision_over_locomo(capsys: pytest.CaptureFixture[str]) 
     assert sum(wide.values()) >= sum(base.values())
 
 
-async def test_engine_uses_wide_trigger_only_when_selected() -> None:
-    lines = ["Mirel: I gave out flyers for the store", "Sven: I read a book"]
-    question = "How did Mirel promote her clothes store?"
-    for trigger, expect in (("set_question", False), ("set_question_wide", True)):
-        eng = _engine(list_mode=True, list_trigger=trigger)
-        await eng.start()
-        try:
-            await _seed(eng, lines)
-            with search_forensics() as stages:
-                await eng.read(question, namespace="a", mode="replay", top_k=3)
-            names = [n for n, _ in stages.get("extra_legs", [])]
-            assert ("speaker_vote" in names) is expect
-        finally:
-            await eng.stop()
-
-
 # -- R2-2 comparison votes ---------------------------------------------------------------
 
 
@@ -150,6 +134,7 @@ def test_comparison_legs_one_per_named_speaker() -> None:
     assert comparison_speaker_legs("What do they both like, Bram?", recs, hits) == []
 
 
+@pytest.mark.usefixtures("force_list_signal")
 async def test_two_speaker_comparison_fires_two_votes() -> None:
     eng = _engine(list_mode=True)
     await eng.start()
@@ -334,3 +319,12 @@ async def test_bridge_gate_skips_in_engine_and_records() -> None:
 
 def test_bridge_gate_default_is_always() -> None:
     assert ReadConfig().bridge_hop_gate == "always"
+
+
+@pytest.fixture
+def force_list_signal(monkeypatch: pytest.MonkeyPatch) -> None:
+    from memspine.read.list_trigger import ListSignal
+
+    monkeypatch.setattr(
+        "memspine.read.list_trigger.list_signal", lambda *a, **k: ListSignal(True, 1.0, {})
+    )

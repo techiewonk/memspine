@@ -347,7 +347,7 @@ async def _lead_section(
         block = await eng._standing_block(ns)
         if block is not None:
             candidates.append((standing, block[0]))
-    if read_cfg.standing_v2:  # O4-08: precomputed standing answers
+    if read_cfg.standing:  # O4-08: precomputed standing answers
         answers_block = await standing_block(eng, ns, scored)
         if answers_block is not None:
             candidates.append((standing, answers_block))
@@ -919,8 +919,8 @@ async def _profile_card_section(
 ) -> MemoryRecord | None:
     """MF-13 (``read.profile_card_header``): the profile-card header, or None.
 
-    The consumer of the marker-backed card (``offline.profile_card_v2``): the latest
-    ``profile_card_v2`` marker of the namespace (latest wins per attribute), minus entries last
+    The consumer of the marker-backed card (``offline.profile_card``): the latest
+    ``profile_card`` marker of the namespace (latest wins per attribute), minus entries last
     confirmed more than ``read.profile_card_max_age_days`` ago (0 = no bound). An entry is shown
     only while every cited source record is still live (present, activated, not quarantined,
     through the same live view as any context record). Since the marker has no per-source

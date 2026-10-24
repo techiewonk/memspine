@@ -137,15 +137,15 @@ memory_records = Table(
     # F-02a (migration 0006): the record envelope. ``layer`` L0..L5 (M-02), ``type_tag`` (M-03),
     # ``provenance_class`` (M-07), the speaker / addressee / asker axes as indexed columns and the
     # subject list as an orjson blob (M-08), the content + derivation fingerprint as an orjson blob
-    # (P-12), and the record's own ``schema_version`` (M-26). All nullable but ``schema_version``.
-    Column("layer", String),
-    Column("type_tag", String),
-    Column("provenance_class", String),
+    # (P-12), and the record's own ``schema_version`` (M-26). Required identity/envelope values are written by every current producer.
+    Column("layer", String, nullable=False),
+    Column("type_tag", String, nullable=False),
+    Column("provenance_class", String, nullable=False),
     Column("spk", String),
     Column("addr", String),
     Column("ask", String),
     Column("sub", LargeBinary),
-    Column("fingerprint", LargeBinary),
+    Column("fingerprint", LargeBinary, nullable=False),
     Column("schema_version", Integer, nullable=False, server_default="1"),
     # F-02b (migration 0008): tri-temporal. ``source_at`` (when said, iso) plus the precision of
     # it, and the precision / approximate flag / basis of the event interval (valid_from..valid_to).

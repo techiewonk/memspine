@@ -1,6 +1,6 @@
 """Derive stage: histories (near-duplicate merge, value histories) (O4-04, LIB-20).
 
-Flag ``offline.histories_v2`` (default off; the stage then reports ``skipped`` and the sleep cycle
+Flag ``offline.histories`` (default off; the stage then reports ``skipped`` and the sleep cycle
 does not schedule it). On, per namespace under the namespace lock:
 
 1. **Near-duplicates (S5, O-13 B).** ``find_near_duplicates`` clusters live semantic facts of one key
@@ -76,8 +76,8 @@ def build_value_history(records: Iterable[MemoryRecord], namespace: str) -> Valu
 
 async def histories(ctx: PipelineContext) -> dict[str, object]:
     """O4-04: merge near-duplicates and rebuild the value histories."""
-    if not ctx.config.offline.histories_v2:
-        return {"status": "skipped", "reason": "offline.histories_v2 off"}
+    if not ctx.config.offline.histories:
+        return {"status": "skipped", "reason": "offline.histories off"}
     if ctx.append_event is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     now = datetime.now(UTC)

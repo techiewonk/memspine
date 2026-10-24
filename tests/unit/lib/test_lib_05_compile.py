@@ -1,4 +1,4 @@
-"""LIB-05: ItemV1 -> AssertionEnvelope compiler. Invented names only."""
+"""LIB-05: ExtractionItem -> AssertionEnvelope compiler. Invented names only."""
 
 from __future__ import annotations
 
@@ -350,7 +350,7 @@ def test_ids_vary_with_inputs() -> None:
 
 
 def test_accepts_itemv1_instances() -> None:
-    from memspine.schemas.steps.shared import ItemV1
+    from memspine.schemas.steps.shared import ExtractionItem
 
-    res = compile_items([ItemV1(**item())], ctx())
+    res = compile_items([ExtractionItem(**item())], ctx())
     assert len(res.envelopes) == 1

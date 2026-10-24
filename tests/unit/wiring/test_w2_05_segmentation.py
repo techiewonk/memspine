@@ -1,4 +1,4 @@
-"""W2-05: segmentation v2 (``write.segmentation_v2``): time-gap cut, adaptive growth, call batching.
+"""W2-05: segmentation stream (``write.segmentation``): time-gap cut, adaptive growth, call batching.
 
 Model-free: the fake window LLM of ``test_window_write`` counts calls. The measured numbers of the
 200-turn workload are printed by ``test_calls_per_turn_200_turn_workload`` (run with ``-s``)."""
@@ -31,7 +31,7 @@ T0 = datetime(2023, 5, 8, 9, 0, tzinfo=UTC)
 # --- config ----------------------------------------------------------------------------------
 
 
-def test_the_flag_is_off_by_default() -> None:
+def test_segmentation_is_base_with_configurable_parameters() -> None:
     w = MemspineConfig(
         runtime={
             "provider_services": {
@@ -41,7 +41,7 @@ def test_the_flag_is_off_by_default() -> None:
             }
         }
     ).write
-    assert w.segmentation_v2 is False
+    assert "segmentation" not in type(w).model_fields
     assert (w.segment_gap_s, w.segment_calendar_day_cut) == (1800.0, False)
     assert (w.batch_max_tokens, w.batch_max_windows, w.batch_max_age_s) == (3000, 8, 30.0)
 
@@ -155,10 +155,10 @@ def test_long_turns_close_at_max_turns_and_the_token_cap_always_binds() -> None:
     assert [len(w.turns) for w in out] == [2, 2] and out[0].reason == "tokens"
 
 
-def test_without_a_gap_or_growth_it_matches_the_v1_segmenter() -> None:
+def test_without_a_gap_or_growth_it_matches_the_shared_window_boundaries() -> None:
     plain = WindowSettings(max_turns=6)
-    v1 = WindowSegmenter(plain)
-    v2 = StreamSegmenter(
+    shared = WindowSegmenter(plain)
+    stream = StreamSegmenter(
         plain,
         segmentation=SegmentationSettings(gap_s=0.0, calendar_day_cut=False, max_turns_cap=6),
     )
@@ -166,8 +166,8 @@ def test_without_a_gap_or_growth_it_matches_the_v1_segmenter() -> None:
     b: list[Any] = []
     for i in range(50):
         turn = _wt(i, i * 3, session="s1" if i < 30 else "s2")
-        a += v1.add(turn)
-        b += v2.add(turn)
+        a += shared.add(turn)
+        b += stream.add(turn)
     assert [(w.reason, w.record_ids) for w in a] == [(w.reason, w.record_ids) for w in b]
 
 
@@ -232,12 +232,20 @@ async def _engine(
                 "window_extract": {
                     "provider": "openai_compatible",
                     "timeout_s": 60.0,
-                    "settings": {"api_base": "http://test.invalid/v1", "model": "fake/window"},
+                    "settings": {"api_base": "http://test.invalid/shared", "model": "fake/window"},
                 }
             },
         },
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        write={"window_extract": mode, "window_async": False, "window_idle_s": 0.0, **write},
+        write={
+            "segment_max_turns": 6,
+            "segment_gap_s": 0,
+            "batch_max_windows": 1,
+            "window_extract": mode,
+            "window_async": False,
+            "window_idle_s": 0.0,
+            **write,
+        },
         **extra,
     )
     await eng.start()
@@ -271,20 +279,20 @@ def _contents(facts: list[Any]) -> list[str]:
     return sorted(re.sub(r"[0-9a-f]{12}$", "", f.content) for f in facts)
 
 
-async def test_flag_off_is_the_old_segmenter_and_one_call_per_window(
+async def test_fixed_caps_and_gap_disabled_use_one_call_per_window(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeWindowLLM()
     eng = await _engine(monkeypatch, llm)
     try:
-        # a 2-hour hole inside one session: v1 does not cut on it
+        # a 2-hour hole inside one session: shared does not cut on it
         await _send(eng, "a", "s1", _chat(5) + _chat(5, start=T0 + timedelta(hours=2), first=5))
         stats = await eng.flush_windows()
         assert isinstance(eng._windows._stores["a"].segmenter, WindowSegmenter)
-        assert eng._windows._seg is None and eng._windows._batcher is None
+        assert eng._windows._seg is not None and eng._windows._batcher is None
         assert "time_gap" not in stats["windows_by_reason"]
         assert stats["windows"] == 2 and stats["calls"] == len(llm.calls) == 2
-        assert "segmentation_v2" not in stats and "batches" not in stats
+        assert stats["segmentation"] is True and stats["batches"] == 0
     finally:
         await eng.stop()
 
@@ -293,7 +301,9 @@ async def test_a_time_gap_cuts_the_window_inside_one_session(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, segmentation_v2=True, batch_max_windows=1)
+    eng = await _engine(
+        monkeypatch, llm, segment_gap_s=1800.0, segment_max_turns=24, batch_max_windows=1
+    )
     try:
         await _send(
             eng, "a", "s1", _chat(4) + _chat(4, start=T0 + timedelta(minutes=3 + 45), first=4)
@@ -309,7 +319,7 @@ async def test_a_time_gap_cuts_the_window_inside_one_session(
 async def test_windows_grow_while_turns_are_short(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeWindowLLM()
     on = await _engine(
-        monkeypatch, llm, segmentation_v2=True, batch_max_windows=1, segment_max_turns=24
+        monkeypatch, llm, segment_gap_s=1800.0, batch_max_windows=1, segment_max_turns=24
     )
     try:
         await _send(on, "a", "s1", _chat(48))
@@ -333,10 +343,10 @@ async def test_calls_per_turn_200_turn_workload(
 ) -> None:
     """Stub-LLM calls per turn on a synthetic 200-turn, one-session workload, by arm."""
     arms: dict[str, dict[str, Any]] = {
-        "off (v1)": {},
-        "batch only": {"segmentation_v2": True, "segment_max_turns": 6},
-        "adaptive only": {"segmentation_v2": True, "batch_max_windows": 1},
-        "adaptive + batch": {"segmentation_v2": True},
+        "fixed windows": {},
+        "batch only": {"segment_max_turns": 6, "batch_max_windows": 4},
+        "adaptive only": {"segment_max_turns": 24, "batch_max_windows": 1},
+        "adaptive + batch": {"segment_max_turns": 24, "batch_max_windows": 4},
     }
     results: dict[str, tuple[int, int, int, list[str]]] = {}
     for name, write in arms.items():
@@ -363,13 +373,13 @@ async def test_calls_per_turn_200_turn_workload(
                 f"  {name:18s} windows={windows:3d} calls={calls:3d} "
                 f"calls/turn={calls / 200:.4f} facts={deposited}"
             )
-    off_calls = results["off (v1)"][1]
-    assert off_calls == results["off (v1)"][0]  # one call per window
+    off_calls = results["fixed windows"][1]
+    assert off_calls == results["fixed windows"][0]  # one call per window
     assert results["batch only"][1] < off_calls
     assert results["adaptive only"][1] < off_calls
     assert results["adaptive + batch"][1] < results["adaptive only"][1]
     # grounding and recall inside the band: every arm deposits the same facts
-    reference = results["off (v1)"][3]
+    reference = results["fixed windows"][3]
     for name, (_, _, deposited, contents) in results.items():
         assert deposited == 200, name
         assert contents == reference, name
@@ -379,7 +389,9 @@ async def test_grounding_maps_back_to_the_right_turns_inside_a_batch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, segmentation_v2=True, segment_max_turns=6)
+    eng = await _engine(
+        monkeypatch, llm, segment_gap_s=1800.0, batch_max_windows=4, segment_max_turns=6
+    )
     try:
         await _send(eng, "a", "s1", _chat(40))
         stats = await eng.flush_windows()
@@ -427,7 +439,9 @@ async def test_an_item_citing_two_windows_is_dropped_and_counted(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = _CrossWindowLLM()
-    eng = await _engine(monkeypatch, llm, segmentation_v2=True, segment_max_turns=6)
+    eng = await _engine(
+        monkeypatch, llm, segment_gap_s=1800.0, batch_max_windows=4, segment_max_turns=6
+    )
     try:
         await _send(eng, "a", "s1", _chat(30))
         stats = await eng.flush_windows()
@@ -440,7 +454,9 @@ async def test_an_item_citing_two_windows_is_dropped_and_counted(
 
 async def test_no_batching_across_namespaces(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, segmentation_v2=True, segment_max_turns=6)
+    eng = await _engine(
+        monkeypatch, llm, segment_gap_s=1800.0, batch_max_windows=4, segment_max_turns=6
+    )
     try:
         for chunk in range(0, 24, 6):  # interleave the two namespaces
             await _send(eng, "a", "s1", _chat(24, "Mira")[chunk : chunk + 6])
@@ -465,7 +481,8 @@ async def test_a_batch_holds_for_company_until_it_is_full_or_old(
     eng = await _engine(
         monkeypatch,
         llm,
-        segmentation_v2=True,
+        segment_gap_s=1800.0,
+        batch_max_windows=4,
         segment_max_turns=6,
         window_async=True,
         batch_max_age_s=3600.0,
@@ -497,7 +514,8 @@ async def test_outbox_batches_and_matches_the_in_memory_facts(
             llm,
             path=tmp_path / f"{outbox}.db",
             outbox=outbox,
-            segmentation_v2=True,
+            segment_gap_s=1800.0,
+            batch_max_windows=4,
             segment_max_turns=6,
         )
         try:
@@ -521,7 +539,8 @@ async def test_outbox_crash_before_the_batch_runs_loses_nothing(
         FakeWindowLLM(),
         path=db,
         outbox=True,
-        segmentation_v2=True,
+        segment_gap_s=1800.0,
+        batch_max_windows=4,
         segment_max_turns=6,
     )
     await _send(first, "a", "s1", _chat(30))  # batch mode: closed windows wait as outbox rows
@@ -530,12 +549,18 @@ async def test_outbox_crash_before_the_batch_runs_loses_nothing(
 
     llm = FakeWindowLLM()
     second = await _engine(
-        monkeypatch, llm, path=db, outbox=True, segmentation_v2=True, segment_max_turns=6
+        monkeypatch,
+        llm,
+        path=db,
+        outbox=True,
+        segment_gap_s=1800.0,
+        batch_max_windows=4,
+        segment_max_turns=6,
     )
     try:
         stats = await second.flush_windows()
         facts = await _facts(second)
-        # the open window at the crash was in memory (as in v1); the queued ones all ran
+        # the open window at the crash was in memory (as in shared); the queued ones all ran
         assert len(facts) >= 24 and stats["queued"] == 0
         assert stats["batches"] >= 1 and stats["calls"] < stats["windows_processed"]
     finally:
@@ -559,7 +584,8 @@ async def test_outbox_a_failed_batched_call_is_retried_and_loses_nothing(
         llm,
         path=tmp_path / "retry.db",
         outbox=True,
-        segmentation_v2=True,
+        segment_gap_s=1800.0,
+        batch_max_windows=4,
         segment_max_turns=6,
     )
     try:

@@ -53,7 +53,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument(
         "--ledger-screen",
         default="",
-        help="RUNBOOK2: also append the result to runs/_logs/v2_results.tsv",
+        help="RUNBOOK2: also append the result to runs/_logs/screen_results.tsv",
     )
     ap.add_argument("--ledger-mode", default="final")
     ap.add_argument("--ledger-arm", default="")
@@ -74,9 +74,9 @@ def main(argv: list[str] | None = None) -> int:
     for line in format_result(f"{a.arm} vs {a.ref}", r):
         print(line)
     if a.ledger_screen:
-        import v2_ledger
+        import screen_ledger
 
-        v2_ledger.append_paired(
+        screen_ledger.append_paired(
             r,
             mode=a.ledger_mode,
             screen=a.ledger_screen,

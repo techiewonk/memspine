@@ -1241,10 +1241,6 @@ class EvalRunner:
                         for k in (
                             "score_conventions",
                             "convention",
-                            "score_conventions_v2",
-                            "convention_v2",
-                            "score_conventions_v3",
-                            "convention_v3",
                         )
                         if k in verdict.meta
                     },

@@ -112,8 +112,8 @@ Every record sits on one layer. The layer comes from the record's memory type an
 |---|---|---|---|
 | **L0** | raw turns, resources | every write (episodic) | vector + BM25 legs, replay window |
 | **L1** | facts | window extraction (`mining`), user-written semantic | vector, lexical, entity legs; graph edges are compiled over these |
-| **L2** | episodes and summaries | session close, consolidation, window episodes, multi-resolution | episode leg (`read.episode_leg_v2`), lifted back to source turns |
-| **L3** | graph-derived records | graph extraction, entity and community summaries | graph leg (`read.graph_leg_v2`, ready when compiled edges exist) |
+| **L2** | episodes and summaries | session close, consolidation, window episodes, multi-resolution | episode leg (`read.episode_leg`), lifted back to source turns |
+| **L3** | graph-derived records | graph extraction, entity and community summaries | graph leg (`read.graph_leg`, ready when compiled edges exist) |
 | **L4** | observations, reflections | patterns, reflect_profile | profile header |
 | **L5** | standing answers, procedures, plans | standing answers, profile card | standing leg, profile-card header |
 
@@ -220,7 +220,6 @@ pip install "memspine[ner]"                    # gliner2 CPU entity extraction
 pip install "memspine[structured]"             # instructor — schema-validated LLM output
 pip install "memspine[compress]"               # llmlingua-2 — assembly compression
 pip install "memspine[rerank]"                 # flashrank — E8 cross-encoder rerank
-pip install "memspine[community]"              # graspologic-native — Leiden graph community detection (MIT)
 pip install "memspine[cache]"                  # cashews — disk / redis / valkey cache backends
 pip install "memspine[rest]"                   # FastAPI + uvicorn — REST protocol
 pip install "memspine[opensearch]"             # OpenSearch lexical/BM25 adapter (ADR-069)
@@ -243,7 +242,6 @@ pip install "memspine[llmlocal]"               # llama-cpp-python in-proc infere
 | `compress` | assembly-time context compression (llmlingua-2, E5/D-32) |
 | `rerank` | E8 cross-encoder rerank alternative (flashrank) |
 | `static` | E4 model2vec static-embedding prefilter (ADR-020) |
-| `community` | Leiden graph community detection (graspologic-native, MIT, D-40/ADR-043 — needs numpy + scipy, no numpy ceiling) |
 | `opensearch` | OpenSearch lexical adapter (`lexical.provider: opensearch`, ADR-069) |
 | `weaviate` | Weaviate lexical and vector adapters (`lexical`/`vector.provider: weaviate`, ADR-069) |
 | `temporal` / `taskiq` | Temporal Server + local Resonate / brokered worker runners (ADR-071) |
@@ -339,14 +337,15 @@ neighbours = await engine.related(a.record_id, namespace="dev", k=10)           
 alt = await engine.related(a.record_id, namespace="dev", k=10, strategy="bfs")         # or bfs | rrf
 ```
 
-**Community detection — background reorganize** *(needs `memspine[community]`)*
+**Community detection: background reorganize**
+
+The built-in deterministic label-propagation implementation groups the assertion
+ graph. No optional community dependency is required. Configure its current
+controls under `offline` and compile graph edges with `graph.edge_compiler`.
+
 ```python
-# Leiden (graspologic-native, then LPA refinement) clusters the link graph and writes one summary-parent record
-# per community; it runs inside the sleep cycle's `reorganize` stage.
-stats = await engine.sleep()          # consolidate → extract_graph → reorganize → decay → …
-print(stats["reorganize"])            # {'status': 'ok', 'communities': 2, 'parents': 2, 'superseded': 0}
-# Autonomous alternative: set workers.sleep_interval_seconds to run the cycle on a timer.
-# Tune granularity via memories.associative.policies.community.{resolution,max_cluster_size,random_seed}.
+stats = await engine.sleep()
+print(stats["reorganize"])
 ```
 
 **Prospective — watches**
@@ -445,7 +444,7 @@ memspine is **pre-alpha**. What's shipped vs. deferred, so you're not surprised:
 - **Graph selection defaults to `auto`.** It chooses a compatible local provider; SQLite adjacency is the zero-dependency option for SQLite; `ladybug` (`[graph]`) is the embedded-Cypher opt-in. Direct Neo4j and an independent optional mirror use typed graph construction. Graphiti-style `extract_graph` is **opt-in** (`memories.semantic.policies.extract_graph`).
 - **The autonomous scheduler is off by default and skipped on `:memory:`.** Set `workers.sleep_interval_seconds` to drive dynamics on a file-backed DB; production autonomous scheduling should pair with a durable runner (`[temporal]`/`[taskiq]`).
 - **Provider support is explicit.** Tantivy supplies lexical retrieval by default; OpenSearch, Weaviate and pgvector are optional adapters (ADR-069), and Neo4j is a direct graph provider. Their native contracts passed against disposable local servers only; production deployment acceptance (a real deployment controller and quiescence guard) is a separate gate, and SQL DELETE in pgvector is not physical-erasure proof. Unknown providers fail selection. See the [provider architecture plan](docs/PROVIDER_ARCHITECTURE_PLAN.md) and [ADR-068](docs/adr/ADR-068-provider-contracts-and-controlled-changes.md).
-- **Extras gate features.** `ingest`, `compress`, `rerank`, `static`, `community`, `cache` (disk/redis/valkey), `postgres`, `neo4j`, `opensearch`, `weaviate`, `aws`, and durable/brokered workers each need their extra installed.
+- **Extras gate features.** `ingest`, `compress`, `rerank`, `static`, `cache` (disk/redis/valkey), `postgres`, `neo4j`, `opensearch`, `weaviate`, `aws`, and durable/brokered workers each need their extra installed.
 - **REST has no authentication in v0.1.** The namespace comes from the `X-Memspine-Namespace` header verbatim — binding caller → namespace is the deployer's job (ADR-017/018). REST writes are forced onto the low-trust `rest` channel.
 - **Sync wrappers cover only** `start`/`write`/`retrieve`/`stop`; everything else is async.
 

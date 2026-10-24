@@ -200,8 +200,8 @@ async def test_memory_handle_and_tools_bind_their_verbs() -> None:
 # --------------------------------------------------------------------------- leases via lifecycle
 async def test_seam_leases_are_released_by_the_lifecycle_manager(tmp_path: Path) -> None:
     flags: dict[str, Any] = {
-        "runtime": {"scheduler_v2": True, "model_concurrency": 2},
-        "economy": {"ledger_v2": True},
+        "runtime": {"scheduler": True, "model_concurrency": 2},
+        "economy": {"ledger": True},
         "observability": {"ops_ledger": True},
     }
     a = _engine(tmp_path / "a.db", **flags)
@@ -213,8 +213,8 @@ async def test_seam_leases_are_released_by_the_lifecycle_manager(tmp_path: Path)
         resources = a._provider_resources
         assert resources is not None
         assert all(resources.states[s] is LifecycleState.REGISTERED for s in seams)
-        sched, cost, ops = a._sched_v2, a._cost_ledger, a._ops_ledger
-        assert sched is b._sched_v2 and cost is b._cost_ledger and ops is b._ops_ledger
+        sched, cost, ops = a._sched, a._cost_ledger, a._ops_ledger
+        assert sched is b._sched and cost is b._cost_ledger and ops is b._ops_ledger
         await a.stop()
         assert all(resources.states[s] is LifecycleState.STOPPED for s in seams)
         assert sched is not None and sched._opened  # b still holds the shared scheduler

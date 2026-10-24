@@ -51,7 +51,6 @@ __all__ = [
     "RelevanceLabels",
     "SufficiencyOut",
     "WindowEpisode",
-    "WindowFact",
     "WindowPayload",
     "fact_guard",
     "view_text",
@@ -226,7 +225,7 @@ class ExtractedFact(BaseModel):
     #: #29: the 1-based transcript lines the fact comes from, when the miner was
     #: shown numbered lines (``consolidation.mine_evidence_turns``); empty otherwise.
     turns: list[int] = Field(default_factory=list)
-    #: #28 (multi-view fields, ``extract@session4``): the people the fact involves,
+    #: #28 (multi-view fields, ``extract@session``): the people the fact involves,
     #: where it happened and its topic or class ("activities", "books read"). Each
     #: passes the #31 guards (:func:`view_text`); empty when the miner gave none.
     persons: list[str] = Field(default_factory=list)
@@ -429,7 +428,7 @@ class ReadPlan(BaseModel):
     entities: list[str] = Field(default_factory=list)
     #: At most three; a longer list is cut, blank entries dropped.
     subqueries: list[str] = Field(default_factory=list)
-    #: #36 (``plan@v3``): the people the question is about, and its time expression
+    #: #36 (``plan``): the people the question is about, and its time expression
     #: copied verbatim ("in May 2023", "last week"); None when it names no time.
     persons: list[str] = Field(default_factory=list)
     time_expr: str | None = None
@@ -728,26 +727,6 @@ class AnswerVerdictOut(BaseModel):
             return None
         text = str(_as_text(value)).strip()
         return None if text.lower() in ("", "none", "null") else text
-
-
-class WindowFact(ExtractedFact):
-    """W1 (``window_extract`` facts section): an :class:`ExtractedFact` plus the verbatim
-    ``span`` of a cited line that supports it (the grounding check) and who said / who it is
-    about. ``turns`` are the 1-based line numbers of the window transcript."""
-
-    span: str = ""
-    speaker: str | None = None
-    subject: str | None = None
-
-    @field_validator("span", mode="before")
-    @classmethod
-    def _span_text(cls, value: Any) -> Any:
-        return "" if value is None else str(_as_text(value))
-
-    @field_validator("speaker", "subject", mode="before")
-    @classmethod
-    def _who(cls, value: Any) -> Any:
-        return view_text(value)
 
 
 class WindowEpisode(BaseModel):

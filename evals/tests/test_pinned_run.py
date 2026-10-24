@@ -10,7 +10,9 @@ from pathlib import Path
 import pytest
 
 SCRIPT = Path(__file__).resolve().parents[1] / "pinned_run.sh"
-BASH = shutil.which("bash")
+from evals.tests.shell_tools import bash_executable
+
+BASH = bash_executable()
 pytestmark = pytest.mark.skipif(
     BASH is None or shutil.which("git") is None, reason="needs bash and git"
 )

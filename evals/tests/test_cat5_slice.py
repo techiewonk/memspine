@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import os
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -17,7 +16,9 @@ from memspine_evals.manifest import build_identity
 
 EVALS = Path(__file__).resolve().parents[1]
 ANALYSIS = EVALS / "analysis"
-BASH = shutil.which("bash")
+from evals.tests.shell_tools import bash_executable
+
+BASH = bash_executable()
 needs_bash = pytest.mark.skipif(BASH is None, reason="bash not available")
 ID = re.compile(r"^conv-\d+/\d+-\d+$")
 FULL, C3 = (
@@ -135,11 +136,11 @@ def test_committed_cat5_slices_match_the_dataset_when_available():
 def test_map_rows_for_the_relevance_screens():
     rows = [
         ln.split("\t")
-        for ln in (EVALS / "v2_slice_map.tsv").read_text(encoding="utf-8").splitlines()
+        for ln in (EVALS / "screen_slice_map.tsv").read_text(encoding="utf-8").splitlines()
         if ln and not ln.startswith("#")
     ]
     cat5 = {r[0]: r for r in rows if len(r) > 5}
-    assert set(cat5) == set(bts.CAT5_SCREENS) == {"S20", "S55", "S63", "S73", "S74"}
+    assert set(cat5) == set(bts.CAT5_SCREENS) == {"S20", "S55", "S63", "S73"}
     for r in cat5.values():
         assert (
             r[5] == "categories=5"
@@ -159,10 +160,10 @@ def test_map_rows_for_the_relevance_screens():
 
 # ---------------------------------------------------------------- queue (dry run: no GPU, no state)
 def dry(only, tmp_path, **env_extra):
-    env = {**os.environ, "PINNED_DRY_RUN": "1", "V2_LEDGER_DIR": str(tmp_path), **env_extra}
+    env = {**os.environ, "PINNED_DRY_RUN": "1", "SCREEN_LEDGER_DIR": str(tmp_path), **env_extra}
     env.pop("MODE", None)
     p = subprocess.run(
-        [BASH, str(EVALS / "run_v2_queue.sh"), "--dry-run", "--only", only],
+        [BASH, str(EVALS / "run_screen_queue.sh"), "--dry-run", "--only", only],
         capture_output=True,
         text=True,
         env=env,
@@ -189,7 +190,7 @@ def test_s20_dry_run_has_cat5_mix_and_opbench_rows(tmp_path):
         "--run-id smp-ref-scr-pool-protect-jina-" in ref
         and "-sample-loc-cat5-80-s20261013-cat5 " in ref
     )  # distinct cached name
-    assert "--arm v2-R3-11-gate_v2" in arm and "smp-S20-tgt-cat5-" in arm
+    assert "--arm R3-11-gate" in arm and "smp-S20-tgt-cat5-" in arm
     assert (
         "--ref smp-ref-scr-pool-protect-jina-" in out
         and "-cat5 --set loc --slice analysis/sample_slice_loc_cat5_s20261013.json" in out
@@ -219,11 +220,11 @@ def test_queue_without_the_column_keeps_old_behaviour(tmp_path):
         "S20\tloc\tanalysis/fail_slice_fail_list_s20261013.json\tanalysis/fail_slice_fail_list_s20261013_c3.json\tnote\n",
         encoding="utf-8",
     )
-    out = dry("S20", tmp_path, V2_SLICE_MAP=str(m))
+    out = dry("S20", tmp_path, SCREEN_SLICE_MAP=str(m))
     assert (
         "--categories" not in out
         and "-cat5" not in out
         and "fail_slice_fail_list_s20261013.json" in out
     )
-    out = dry("S20", tmp_path, V2_SLICE_MAP="")
+    out = dry("S20", tmp_path, SCREEN_SLICE_MAP="")
     assert "--categories" not in out and "sample_slice_loc_80" in out

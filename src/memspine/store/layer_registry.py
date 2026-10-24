@@ -64,13 +64,13 @@ class LayerTemplate:
         if _enabled("procedural") or _enabled("prospective"):
             on.add("L5")
         offline = getattr(config, "offline", None)
-        if getattr(offline, "session_close_v2", False) or getattr(offline, "decay_v2", False):
+        if getattr(offline, "session_close", False) or getattr(offline, "decay", False):
             on.add("L2")
-        if getattr(offline, "communities_v2", False):
+        if getattr(offline, "communities", False):
             on.add("L3")
-        if getattr(offline, "patterns_v2", False):
+        if getattr(offline, "patterns", False):
             on.add("L4")
-        if getattr(offline, "standing_v2", False) or getattr(offline, "profile_card_v2", False):
+        if getattr(offline, "standing", False) or getattr(offline, "profile_card", False):
             on.add("L5")
         return cls(enabled=frozenset(on))
 

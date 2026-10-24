@@ -9,8 +9,7 @@ bulk-loads it into each graph store, and measures:
 * **BFS** ``neighbors(seed, depth=d)`` for d = 1..3, p50/p95 over random seeds,
   on ``sql_adjacency`` and, when ``ladybug`` imports, on LadybugDB;
 * **PPR**: ``edge_list`` export time and ``personalized_pagerank`` p50/p95;
-* **communities**: ``partition_graph`` time for Leiden (when ``[community]`` is
-  installed) and LPA, community count, modularity (Leiden extra only), and
+* **communities**: base label-propagation time, community count, largest cluster, and
   determinism (a shuffled edge list must give the same partition).
 
 Usage::
@@ -38,11 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
-from memspine.memories.associative.communities import (
-    canonical_edges,
-    communities_available,
-    partition_graph,
-)
+from memspine.derive.communities import CommunityEdge, detect_communities
 from memspine.memories.associative.ppr import personalized_pagerank
 from memspine.services.graph.base import GraphEdge, GraphStore
 from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
@@ -197,31 +192,25 @@ async def _bench_bfs(
 
 
 def _bench_communities(edges: list[GraphEdge], *, seed: int) -> dict[str, Any]:
-    out: dict[str, Any] = {}
-    shuffled = list(edges)
+    """Benchmark the single current deterministic entity-community algorithm."""
+    current = [CommunityEdge(src=e.src, dst=e.dst, weight=e.weight) for e in edges]
+    shuffled = list(current)
     random.Random(seed).shuffle(shuffled)
-    algorithms = ["lpa"] + (["leiden"] if communities_available() else [])
-    for algorithm in algorithms:
-        start = time.perf_counter()
-        result = partition_graph(edges, algorithm=algorithm)  # type: ignore[arg-type]
-        elapsed = time.perf_counter() - start
-        again = partition_graph(shuffled, algorithm=algorithm)  # type: ignore[arg-type]
-        sizes = [len(c) for c in result.communities()]
-        row: dict[str, Any] = {
+    start = time.perf_counter()
+    result = detect_communities(current)
+    elapsed = time.perf_counter() - start
+    again = detect_communities(shuffled)
+    sizes = [len(c.members) for c in result.communities]
+    return {
+        "lpa": {
             "seconds": round(elapsed, 3),
             "communities": len(sizes),
             "largest": max(sizes, default=0),
-            "collapsed": result.collapsed,
-            "order_independent": again.labels == result.labels,
+            "collapsed": any(c.oversized for c in result.communities),
+            "order_independent": sorted(c.members for c in again.communities)
+            == sorted(c.members for c in result.communities),
         }
-        if communities_available() and result.labels:
-            import graspologic_native as gn
-
-            row["modularity"] = round(
-                gn.modularity(canonical_edges(edges), result.labels, resolution=1.0), 4
-            )
-        out[algorithm] = row
-    return out
+    }
 
 
 async def bench_size(
@@ -286,7 +275,7 @@ def to_markdown(report: dict[str, Any]) -> str:
         "# Graph benchmark (KB-8, #24)",
         "",
         f"Synthetic planted-community graphs, CPU only. Python {report['python']}; "
-        f"graspologic-native {'installed' if report['leiden'] else 'not installed'}.",
+        "base deterministic label propagation.",
         "",
         "| edges | nodes | store | load s | BFS d1 p50/p95 ms | BFS d2 p50/p95 ms | "
         "BFS d3 p50/p95 ms | d3 reached |",
@@ -306,7 +295,7 @@ def to_markdown(report: dict[str, Any]) -> str:
     lines += [
         "",
         "| edges | edge_list ms | PPR p50/p95 ms | algorithm | seconds | communities | "
-        "largest | modularity | order-independent | collapsed |",
+        "largest | order-independent | oversized |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
     for size in report["sizes"]:
@@ -315,7 +304,7 @@ def to_markdown(report: dict[str, Any]) -> str:
         for algorithm, row in size.get("communities", {}).items():
             lines.append(
                 f"| {size['edges']} | {export} | {ppr} | {algorithm} | {row['seconds']} | "
-                f"{row['communities']} | {row['largest']} | {row.get('modularity', '-')} | "
+                f"{row['communities']} | {row['largest']} | "
                 f"{'yes' if row['order_independent'] else 'NO'} | {row['collapsed']} |"
             )
     return "\n".join(lines) + "\n"
@@ -345,7 +334,6 @@ async def run(
         )
     return {
         "python": sys.version.split()[0],
-        "leiden": communities_available(),
         "seed": seed,
         "sizes": results,
     }

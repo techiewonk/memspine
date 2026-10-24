@@ -57,8 +57,8 @@ async def sync_prompt_versions(eng: Any, namespace: str = "default") -> list[Mem
     return fresh
 
 
-def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
-    """O4-01a: the derivation scheduler for ``offline.sleep_v2``. The lease/watermark tables live in
+def build_sleep(eng: Any, config: Any) -> DerivationScheduler:
+    """O4-01a: the derivation scheduler for ``offline.sleep``. The lease/watermark tables live in
     the storage database itself (RM-111 WP5: encrypted with it on SQLite, shared on Postgres), so
     two processes on one database never overlap; in memory for a ``:memory:`` store."""
     off = config.offline
@@ -74,7 +74,7 @@ def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
             shared_sql_engine = sql.sync_lease(resources, "sleep_leases").engine
         else:
             _log.warning(
-                "sleep_v2.leases_in_memory",
+                "sleep.leases_in_memory",
                 detail="selected SQL provider has no durable lease capability",
             )
     policy = TriggerPolicy(
@@ -101,7 +101,7 @@ def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
             await eng._windows.flush(final=not eng._windows.asynchronous)
 
     budget = None
-    if off.budget_v2 and (
+    if off.budget and (
         off.budget_calls_per_cycle is not None or off.budget_tokens_per_cycle is not None
     ):
         budget = DerivationBudget(off.budget_calls_per_cycle, off.budget_tokens_per_cycle)
@@ -114,7 +114,7 @@ def build_sleep_v2(eng: Any, config: Any) -> DerivationScheduler:
         maintenance_stages=lambda: maintenance_stage_order(eng._pipeline_ctx()),
         prepare=_prepare,
         lease_ttl=off.sleep_lease_ttl_seconds,
-        background_priority=bool(config.runtime.scheduler_v2),
+        background_priority=bool(config.runtime.scheduler),
         idle_timers=not off.sleep_manual_only,
         budget=budget,
         covers_snapshot=tracker.snapshot if tracker is not None else None,
@@ -125,7 +125,7 @@ async def sleep(eng: Any) -> Any:
     """Run the maintenance sleep cycle now (M2/E7): consolidate → decay →
     compress → prune. All steps are idempotent; P3 gives them teeth.
 
-    Under ``offline.sleep_v2`` (O4-01a) this does not block: it starts a namespace job and returns
+    Under ``offline.sleep`` (O4-01a) this does not block: it starts a namespace job and returns
     its :class:`~memspine.derive.job.SleepHandle`."""
     eng._require_started()
     if eng._derive_sched is not None:

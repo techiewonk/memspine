@@ -1,6 +1,6 @@
 """The reader's raw reply is kept in a row's ``meta`` only when answer extraction ran.
 
-An extracted answer (``dated3``) drops the reasoning, so a cut-off multi-line list
+An extracted answer (``dated``) drops the reasoning, so a cut-off multi-line list
 cannot be audited from the stored answer alone; ``meta["reader_raw"]`` keeps the
 reply. Every non-extracting prompt's rows must stay byte-identical to before
 (published runs remain reproducible), checked against a fixed fixture.
@@ -79,7 +79,7 @@ def _rows(qa_prompt: str, tmp_path: Path, extract: bool) -> list[dict[str, Any]]
 
 
 def test_extraction_keeps_the_raw_reply_in_meta(tmp_path: Path) -> None:
-    rows = _rows("dated3", tmp_path, extract=True)
+    rows = _rows("dated", tmp_path, extract=True)
     assert rows
     for row in rows:
         assert row["answer"] == "a dog, a cat"
@@ -87,7 +87,7 @@ def test_extraction_keeps_the_raw_reply_in_meta(tmp_path: Path) -> None:
         assert "reader_raw_truncated" not in row["meta"]
 
 
-@pytest.mark.parametrize("qa_prompt", ["dated", "dated2", "dated_infer", "converse"])
+@pytest.mark.parametrize("qa_prompt", ["dated_world", "dated_infer", "converse"])
 def test_no_extraction_rows_are_unchanged(qa_prompt: str, tmp_path: Path) -> None:
     rows = _rows(qa_prompt, tmp_path, extract=False)
     for row in rows:
@@ -119,7 +119,7 @@ def test_openai_compat_reader_sets_raw_text_only_when_extracting(extract: bool) 
         )
 
     reader = OpenAICompatReader(
-        CallBudget(max_calls=3), model="m", prompt=QA_PROMPTS["dated3"], extract_answer=extract
+        CallBudget(max_calls=3), model="m", prompt=QA_PROMPTS["dated"], extract_answer=extract
     )
     reader._openai_compat = SimpleNamespace(acompletion=acompletion)  # type: ignore[assignment]
     out = asyncio.run(reader.answer("Which pets?", "ctx"))

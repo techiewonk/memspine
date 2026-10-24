@@ -8,7 +8,6 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.config.schema import ReadConfig
 from memspine.core.read_filters import DateFilter, as_of_scope, date_filter_scope
 from memspine.read.pipeline import timeview as pv
 from memspine.read.pipeline.timeview import _timeview_allowed
@@ -34,11 +33,6 @@ def _engine(**read: Any) -> Engine:
         },
         read={"hybrid": False, "record_access": False, **read},
     )
-
-
-def test_flags_default_off() -> None:
-    cfg = ReadConfig()
-    assert not (cfg.timeview_v2 or cfg.entity_leg_v2 or cfg.neighbours_v2)
 
 
 # ------------------------------------------------------------------ R3-14
@@ -85,7 +79,7 @@ def test_timeview_both_axes_and_no_bound_falls_back() -> None:
     assert _timeview_allowed([a], DateFilter.build(valid_from_after=T0), None) is None
 
 
-async def test_timeview_flag_off_is_the_legacy_filter() -> None:
+async def test_date_filter_without_snapshot_bound_uses_current_filter() -> None:
     eng = _engine()
     await eng.start()
     try:
@@ -103,7 +97,7 @@ async def test_timeview_flag_off_is_the_legacy_filter() -> None:
 
 
 async def test_entity_leg_v2_scores_named_entity_records_and_caps() -> None:
-    eng = _engine(entity_leg_v2=True)
+    eng = _engine(entity_leg=True)
     await eng.start()
     try:
         a = await eng.write(
@@ -113,7 +107,7 @@ async def test_entity_leg_v2_scores_named_entity_records_and_caps() -> None:
             "Caleb bought a truck", namespace="a", memory_type="episodic", entity="Caleb"
         )
         legs = await eng._metadata_legs("a", "what did Melanie do", 10)
-        named = [leg for leg in legs if getattr(leg, "name", "") == "entity_v2"]
+        named = [leg for leg in legs if getattr(leg, "name", "") == "entity"]
         assert len(named) == 1
         assert [h.record_id for h in named[0]] == [a.record_id]
         assert 0 < named[0][0].score <= 0.5  # R-08: boost 0.5, capped
@@ -157,7 +151,9 @@ async def _session(eng: Engine, monkeypatch: pytest.MonkeyPatch) -> list[MemoryR
 async def test_neighbours_v2_matches_the_window_and_respects_budget(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    eng = _engine(compose_replay=True, neighbours_v2=True)
+    eng = _engine(
+        compose_replay=True,
+    )
     await eng.start()
     try:
         turns = await _session(eng, monkeypatch)
@@ -181,7 +177,9 @@ async def test_neighbours_v2_matches_the_window_and_respects_budget(
 
 
 async def test_neighbours_v2_drops_invisible_neighbours(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = _engine(compose_replay=True, neighbours_v2=True)
+    eng = _engine(
+        compose_replay=True,
+    )
     await eng.start()
     try:
         turns = await _session(eng, monkeypatch)

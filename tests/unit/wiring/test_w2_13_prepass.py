@@ -257,7 +257,7 @@ async def test_stage_flags_unseen_names_and_never_adds_or_drops(
             ],
         )
         stats = await eng.flush_windows()
-        assert stats["envelope_v2"] and stats["prepass"] == "rules"
+        assert stats["envelope"] and stats["prepass"] == "rules"
         facts = await _facts(eng)
         assert len(facts) == 3  # nothing added, nothing dropped
         assert stats["windows_prepass_skipped"] == 0

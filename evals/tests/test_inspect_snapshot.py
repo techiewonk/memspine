@@ -36,7 +36,7 @@ def _engine() -> Engine:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
+        storage={"records": {"provider": "sqlite", "settings": {"path": ":memory:"}}},
         model={"embedding": {"provider": "hash"}},
         write={"lineage_table": True},
         memories={
@@ -223,7 +223,7 @@ async def test_every_marker_kind_becomes_a_sleep_row(seeded: Any, tmp_path: Path
             "entities": [{"entity": "ent:demo:bram", "content_fingerprint": "f"}],
         },
         {"marker": "community_partition", "anchors": {"ent:demo:bram": "ent:demo:bram"}},
-        {"marker": "profile_card_v2", "card": {"entries": []}},
+        {"marker": "profile_card", "card": {"entries": []}},
         {"marker": "session_closed", "session_id": "D2", "windows": 3},
     ]
     for payload in payloads:
@@ -249,7 +249,7 @@ async def test_every_marker_kind_becomes_a_sleep_row(seeded: Any, tmp_path: Path
         rows["session_closed"]["session_key"] == "D2"
         and rows["session_closed"]["stage"] == "session_close"
     )
-    assert rows["profile_card_v2"]["stage"] == "reflect_profile"
+    assert rows["profile_card"]["stage"] == "reflect_profile"
     assert all(
         {
             "stage",

@@ -1,4 +1,4 @@
-"""W2-03: what derivation may use of a raw turn (``write.role_policy_v2``).
+"""W2-03: what derivation may use of a raw turn (``write.role_policy``).
 
 Pure and tag-based, so the window extractor, the session-close builder and the gateway agree without
 importing each other. The tags are written by ``ingest.role_wiring`` when the raw turn lands.

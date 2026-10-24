@@ -25,8 +25,6 @@ from pydantic import (
     ConfigDict,
     Field,
     PrivateAttr,
-    SerializerFunctionWrapHandler,
-    model_serializer,
 )
 
 from memspine.config.constants import REFLECTION_DEPTH_CAP, TRUST_DEFAULT
@@ -142,18 +140,6 @@ class SourceInfo(BaseModel):
     principal: str | None = None
     parents: list[str] = Field(default_factory=list)
 
-    @model_serializer(mode="wrap")
-    def _omit_message(self, handler: SerializerFunctionWrapHandler) -> Any:
-        data = handler(self)
-        if self.message is None:
-            data.pop("message", None)
-        return data
-
-
-#: ScoringState fields added after v0.2, left out of a dump while at their default,
-#: so records that never use them serialize (and fingerprint) exactly as before.
-_SCORING_SPARSE: dict[str, object] = {"likes": 0, "dislikes": 0, "notes": 0, "passive": False}
-
 
 class ScoringState(BaseModel):
     """M1 scoring state; the utility modifier composes with the three base scores.
@@ -175,14 +161,6 @@ class ScoringState(BaseModel):
     notes: int = Field(default=0, ge=0)
     passive: bool = False
 
-    @model_serializer(mode="wrap")
-    def _omit_unused(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        data: dict[str, Any] = handler(self)
-        for key, default in _SCORING_SPARSE.items():
-            if key in data and data[key] == default:
-                del data[key]
-        return data
-
 
 class ArchivedVersion(BaseModel):
     """One superseded version kept in ``history`` (D-42)."""
@@ -202,16 +180,8 @@ class RecordAxes(BaseModel):
     addressee: str | None = None
     asker: str | None = None
     #: W2-02 (W-05, M-08 note): everyone present for the turn, normalised principal ids, speaker
-    #: first. Empty = not stamped (the v1 ``participant:`` tags still carry it). Left out of a dump
-    #: while empty, so a record that never set it serialises as before.
+    #: first. Empty means participants were not recorded.
     participants: list[str] = Field(default_factory=list)
-
-    @model_serializer(mode="wrap")
-    def _omit_empty_participants(self, handler: SerializerFunctionWrapHandler) -> Any:
-        data = handler(self)
-        if isinstance(data, dict) and not data.get("participants"):
-            data.pop("participants", None)
-        return data
 
 
 class RecordFingerprint(BaseModel):
@@ -224,28 +194,15 @@ class RecordFingerprint(BaseModel):
     derivation: str | None = None
     prompt_hash: str | None = None
     model_id: str | None = None
-    #: O4-01b (O-06): the highest source event seq the derivation covered; ``None`` = unknown (a v1
-    #: record, or ``offline.budget_v2`` off). Kept in this envelope blob, so no column is needed.
+    #: The highest source event seq covered by derivation; None means it was not tracked.
     covers_seq: int | None = None
-    #: FU-GAPS (``write.envelope_v2``): the compiled ``AssertionEnvelope`` as JSON (time axes, evidence
+    #: FU-GAPS (``write.envelope``): the compiled ``AssertionEnvelope`` as JSON (time axes, evidence
     #: roles, verdict), kept in this blob like ``covers_seq`` so no column or migration is needed.
     #: ``None`` = the record was not written from an envelope. Read it with ``Engine.get_envelope``.
     envelope: dict[str, Any] | None = None
     #: PA-119: all GLiNER entity spans are kept as unasserted, source-bound annotations here. This
     #: stays in the existing fingerprint/event blob; it is not a fact key or a new SQL column.
     entity_mentions: tuple[EntityMention, ...] = ()
-
-    @model_serializer(mode="wrap")
-    def _omit_unset(self, handler: SerializerFunctionWrapHandler) -> Any:
-        data = handler(self)
-        if isinstance(data, dict):
-            if data.get("covers_seq") is None:
-                data.pop("covers_seq", None)  # a record that never set it dumps as before
-            if data.get("envelope") is None:
-                data.pop("envelope", None)
-            if not data.get("entity_mentions"):
-                data.pop("entity_mentions", None)
-        return data
 
 
 class MemoryRecord(BaseModel):
@@ -335,7 +292,7 @@ class MemoryRecord(BaseModel):
     # record built without them gets the values the mapping in ``store.layers`` gives, so no call
     # site changes. A dump omits a field while it equals its derivation (``_omit_derived``), except
     # ``layer`` (MF-05): that is always written, so a replay never re-derives it.
-    schema_version: int = Field(default=1, ge=1)
+    schema_version: int = Field(default=1, ge=1, le=1)
     layer: Layer = "L0"
     type_tag: str = ""
     provenance_class: ProvenanceClass = "external"
@@ -375,32 +332,6 @@ class MemoryRecord(BaseModel):
                 content=self.content_fingerprint, prompt_hash=self.source.prompt_version
             ),
         }
-
-    @model_serializer(mode="wrap")
-    def _omit_derived(self, handler: SerializerFunctionWrapHandler) -> Any:
-        data = handler(self)
-        if not isinstance(data, dict):
-            return data
-        if self.invalid_at is None:
-            data.pop("invalid_at", None)
-        for key in ("source_at", "source_precision", "event_precision", "event_basis", "source_tz"):
-            if data.get(key) is None:
-                data.pop(key, None)
-        if not data.get("event_approximate"):
-            data.pop("event_approximate", None)
-        # Envelope fields equal to their derivation are redundant: left out, so the payload (and the
-        # event-log fingerprint) of a record that never customised them is what it was before F-02a.
-        if data.get("schema_version") == 1:
-            del data["schema_version"]
-        for key, value in self._derived_envelope().items():
-            if key == "layer":
-                # MF-05: the layer is always written, so a replay never depends on what
-                # ``derive_layer`` returns later.
-                data["layer"] = self.layer
-                continue
-            if getattr(self, key) == value:
-                data.pop(key, None)
-        return data
 
     def model_post_init(self, _context: Any) -> None:
         if not self.content_fingerprint:

@@ -28,15 +28,13 @@ def make_engine() -> EngineFactory:
     embedder. Extra kwargs (template, memories, workers, graph, …) layer on."""
 
     def _factory(template: str | None = None, **overrides: Any) -> Engine:
-        overrides.setdefault(
-            "storage",
-            {
-                "records": {
-                    "provider": "sqlite",
-                    "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
-                }
+        overrides["storage"] = {
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             },
-        )
+            **overrides.get("storage", {}),
+        }
         # ADR-082: a caller's model slots merge over the default hash embedder.
         overrides["model"] = {
             "embedding": {"provider": "hash", "settings": {}},

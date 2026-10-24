@@ -3,7 +3,7 @@
 Three compatibility tiers:
 
 * :class:`DurableModel` -- events, records, outbox rows, erasure manifests. Integer
-  ``schema_version`` per kind, upcasters (see :mod:`memspine.schemas.versioning`), frozen fixtures.
+  ``schema_version`` per kind, current-format validation (see :mod:`memspine.schemas.versioning`), frozen fixtures.
 * :class:`PublicModel` -- Python API, REST/MCP, plug-in protocols, receipts. Semver (``__semver__``).
 * :class:`InternalModel` -- step-to-step types. Typed and validated, may change in any PR.
 
@@ -46,15 +46,15 @@ class DurablePart(TierModel):
 class DurableModel(TierModel):
     """Persisted kinds. Subclasses set ``__kind__`` and may raise the ``schema_version`` default.
 
-    The kind id lives in the dunder ``__kind__`` (a legacy class-level ``kind: ClassVar[str]`` is still
-    honoured) so that a durable model may itself have an instance field called ``kind`` (``MemoryEvent``).
+    The kind id lives in ``__kind__``, leaving an instance field named ``kind`` available
+    for domain data such as the event kind.
     The default of ``schema_version`` is the *latest* version the code writes; it is declared to the
-    upcaster registry when the subclass is created, so ``upcast(kind, payload)`` knows the target.
+    schema registry when the subclass is created, so ``validate_payload(kind, payload)`` knows the target.
     """
 
     __tier__: ClassVar[str] = "durable"
     __kind__: ClassVar[str | None] = None
-    schema_version: int = Field(default=1, ge=1)
+    schema_version: int = Field(default=1, ge=1, le=1)
 
     @classmethod
     def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
@@ -68,12 +68,9 @@ class DurableModel(TierModel):
 
 
 def kind_id(cls: type[BaseModel], *, own: bool = False) -> str | None:
-    """Durable kind id of ``cls`` (``__kind__``, else a legacy ``kind`` class attribute), or ``None``."""
-    for name in ("__kind__", "kind"):
-        value = cls.__dict__.get(name) if own else getattr(cls, name, None)
-        if isinstance(value, str):
-            return value
-    return None
+    """Durable kind id declared by ``__kind__``, or ``None``."""
+    value = cls.__dict__.get("__kind__") if own else getattr(cls, "__kind__", None)
+    return value if isinstance(value, str) else None
 
 
 class PublicModel(TierModel):

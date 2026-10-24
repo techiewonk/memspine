@@ -12,7 +12,7 @@ edges, :class:`~memspine.memories.associative.projector.GraphProjector`:
   orphan entity dropped, a ``mentions`` LINK of weight 0) marks the entity *suspect*:
   the next lookup that would return it re-checks it with one capped one-hop query on
   that entity alone and drops it when no live mention is left;
-* ``reset``/``clear`` and an erasure purge (``trust.pipeline.erasure_v2``, which deletes
+* ``reset``/``clear`` and an erasure purge (``trust.pipeline.erasure``, which deletes
   record nodes directly) drop the store's entries, so the next read rebuilds from one
   scan, exactly as before.
 

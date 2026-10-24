@@ -12,6 +12,7 @@ storage:
 
 graph:
   entity_embeddings: true
+  edge_compiler: true
 
 memories:
   associative:

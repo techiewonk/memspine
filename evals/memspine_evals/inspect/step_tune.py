@@ -28,6 +28,7 @@ __all__ = ["TuneMixin", "flatten", "get_path", "set_path"]
 
 #: first segments whose change needs a rebuilt engine (models, stores, wiring decided at start)
 REBUILD_PREFIXES = (
+    "model",
     "embedding",
     "storage",
     "vector",
@@ -171,9 +172,9 @@ class TuneMixin:
         return self._engine_cfg().model_dump(mode="json")
 
     def _defaults(self) -> dict[str, Any]:
-        from memspine.config.schema import MemspineConfig
+        from memspine.config.loader import load_config
 
-        return MemspineConfig().model_dump(mode="json")
+        return load_config(template="base", env={}).config.model_dump(mode="json")
 
     def _capture_base(self) -> None:
         if self._base_dump is None and self.system is not None:

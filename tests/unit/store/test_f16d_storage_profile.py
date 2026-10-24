@@ -1,17 +1,4 @@
-"""Records-store schema (F-16d, M-04 C; ADR-081): the Alembic trees, their parity, legacy
-adoption and the store contract on SQLite and Postgres.
-
-ADR-081 removed ``storage.profile``: every durable SQL database is migrated with its Alembic
-tree (Postgres under an advisory lock) and ``create_all`` is used only for ``:memory:``. A
-Postgres database built by the pre-ADR-081 ``create_all`` path is adopted by stamping
-``LEGACY_STAMP_REVISION``; a test pins that ``create_all`` equals that revision.
-
-The SQLite cells run everywhere. The Postgres cells run only when a server is requested: set
-``MEMSPINE_TEST_PG_URL`` (or the older ``MEMSPINE_TEST_POSTGRES_URL``) to a DSN of a scratch
-database, or install ``testcontainers`` (with a Docker daemon). Otherwise they skip with the
-reason; a requested server that is unreachable fails instead. The tree-parity test needs no
-server: the Postgres revisions are dialect-neutral DDL, so they are replayed on SQLite.
-"""
+"""Current SQL schema: fresh baselines, dialect parity and storage integrity."""
 
 from __future__ import annotations
 
@@ -28,12 +15,10 @@ from alembic.script import ScriptDirectory
 
 from memspine.clients.postgres.sync import MIGRATION_LOCK_KEY
 from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
-from memspine.observability import tap
 from memspine.runtime.outbox import outbox_metadata
 from memspine.services.storage.postgres import migrations as pg_migrations
 from memspine.services.storage.sqlite import migrations as sqlite_migrations
 from memspine.services.storage.sqlite.engine import SQLiteStorage
-from memspine.services.storage.sqlite.schema import metadata
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.records import MemoryRecord, SourceInfo
 
@@ -46,7 +31,7 @@ POSTGRES_TREE = Path(pg_migrations.__file__).parent / "alembic"
 def test_both_trees_have_a_single_head() -> None:
     assert len(ScriptDirectory(str(SQLITE_TREE)).get_heads()) == 1
     # RM-113 item 18: the asset registry table is the head in both (after the WP5 side tables).
-    assert pg_migrations.heads() == ["pg_rm113_asset_registry"]
+    assert pg_migrations.heads() == ["pg0001"]
 
 
 def test_postgres_tree_mirrors_the_sqlite_revision_count() -> None:
@@ -54,7 +39,7 @@ def test_postgres_tree_mirrors_the_sqlite_revision_count() -> None:
         return len(list(ScriptDirectory(str(tree)).walk_revisions()))
 
     # Provider-contract and projector-binding revisions are mirrored in both trees.
-    assert count(SQLITE_TREE) == count(POSTGRES_TREE) == 16
+    assert count(SQLITE_TREE) == count(POSTGRES_TREE) == 1
 
 
 def test_storage_profile_module_is_gone() -> None:
@@ -133,7 +118,25 @@ def test_every_expected_table_exists(tmp_path: Path) -> None:
         "graph_edges",
         "lineage",
         *outbox_metadata.tables,
+        "provider_deployment_identity",
+        "provider_change_plans",
+        "provider_change_operations",
+        "provider_change_fences",
+        "provider_projection_generations",
+        "provider_projection_switches",
+        "provider_cleanup_fence_recoveries",
+        "provider_projector_bindings",
+        "sleep_lease",
+        "cost_entry",
+        "dead_letters",
+        "asset_registry",
+        "intake_source",
+        "intake_write",
+        "intake_intent",
+        "intake_message_identity",
+        "intake_conversation_identity",
     } <= got
+    assert "side_file_imports" not in got
 
 
 def test_postgres_tree_downgrades_to_empty(tmp_path: Path) -> None:
@@ -142,61 +145,6 @@ def test_postgres_tree_downgrades_to_empty(tmp_path: Path) -> None:
     command.downgrade(pg_migrations.alembic_config(url), "base")
     tables = set(sa.inspect(sa.create_engine(url)).get_table_names())
     assert tables <= {"alembic_version"}
-
-
-#: Tables ``create_all`` makes that the legacy stamp revision does not have yet. Each is
-#: created by a later revision guarded by an existence check, so the upgrade after the stamp
-#: adopts it instead of failing on a duplicate table.
-CREATE_ALL_AFTER_STAMP = {
-    "provider_change_fences",
-    "provider_change_operations",
-    "provider_change_plans",
-    "provider_cleanup_fence_recoveries",
-    "provider_deployment_identity",
-    "provider_projection_generations",
-    "provider_projection_switches",
-    "provider_projector_bindings",
-}
-
-
-def _full_metadata() -> Any:
-    """The shared metadata with every module that registers tables on it imported, as in a
-    started Engine (the provider change, switching and identity tables live there too)."""
-    import memspine.providers.changes
-    import memspine.providers.identity
-    import memspine.providers.switching  # noqa: F401
-
-    return metadata
-
-
-def _assert_same(created: dict[str, Any], stamped: dict[str, Any]) -> None:
-    # The stamp revision also has the outbox tables; ``create_all`` never made them, and the
-    # outbox creates them on first use (``outbox_metadata.create_all(checkfirst=True)``).
-    assert set(stamped) - set(created) <= set(outbox_metadata.tables)
-    assert set(created) - set(stamped) == CREATE_ALL_AFTER_STAMP
-    for table in set(created) & set(stamped):
-        assert created[table]["columns"] == stamped[table]["columns"], table
-        assert created[table]["pk"] == stamped[table]["pk"], table
-        assert created[table]["indexes"] == stamped[table]["indexes"], table
-
-
-def test_create_all_schema_equals_the_legacy_stamp_revision(tmp_path: Path) -> None:
-    """ADR-081 adoption: a pre-ADR-081 ``create_all`` database is stamped at
-    ``LEGACY_STAMP_REVISION``. That is only safe if ``create_all`` builds exactly the schema
-    the tree has at that revision, for every table ``create_all`` makes."""
-    created_engine = sa.create_engine(f"sqlite:///{tmp_path / 'created.db'}")
-    full = _full_metadata()
-    full.create_all(created_engine)
-    tables = set(full.tables)
-    created = _logical(created_engine, tables)
-    stamped = _logical(
-        _pg_tree_on_sqlite(tmp_path / "stamped.db", pg_migrations.LEGACY_STAMP_REVISION)
-    )
-    _assert_same(created, stamped)
-    # The later guarded revision builds the same table create_all does.
-    head = _logical(_pg_tree_on_sqlite(tmp_path / "head.db"))
-    for table in CREATE_ALL_AFTER_STAMP:
-        assert created[table] == head[table], table
 
 
 # ---------------------------------------------------------------------------- store contract
@@ -379,64 +327,6 @@ def test_server_tree_matches_sqlite_tree_on_a_real_postgres(pg_url: str, tmp_pat
         _wipe(pg_url)
 
 
-def test_create_all_equals_legacy_stamp_on_a_real_postgres(pg_url: str) -> None:
-    from memspine.clients.postgres import normalize_pg_url
-
-    url = normalize_pg_url(pg_url)
-    full = _full_metadata()
-    tables = set(full.tables)
-    engine = sa.create_engine(url)
-    try:
-        _wipe(pg_url)
-        full.create_all(engine)
-        created = _logical(engine, tables)
-        _wipe(pg_url)
-        command.upgrade(pg_migrations.alembic_config(url), pg_migrations.LEGACY_STAMP_REVISION)
-        stamped = _logical(engine)
-        _assert_same(created, stamped)
-    finally:
-        engine.dispose()
-        _wipe(pg_url)
-
-
-def test_legacy_create_all_postgres_is_adopted(
-    pg_url: str, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """A pre-ADR-081 database (tables, no ``alembic_version``) is stamped and upgraded."""
-    from memspine.clients.postgres import normalize_pg_url
-
-    seen: list[tuple[str, dict[str, Any]]] = []
-    monkeypatch.setattr(tap, "event", lambda stage, /, **f: seen.append((stage, f)))
-    engine = sa.create_engine(normalize_pg_url(pg_url))
-    try:
-        _wipe(pg_url)
-        metadata.create_all(engine)
-        _ensure(pg_url)
-        with engine.connect() as conn:
-            version = conn.execute(sa.text("SELECT version_num FROM alembic_version")).scalar()
-        assert version == pg_migrations.heads()[0]
-        # Every migration-only table exists except the outbox, which is created on first use.
-        adopted = set(sa.inspect(engine).get_table_names())
-        _wipe(pg_url)
-        pg_migrations.upgrade_to_head(normalize_pg_url(pg_url))
-        fresh = set(sa.inspect(engine).get_table_names())
-        assert fresh - adopted <= set(outbox_metadata.tables)
-        _wipe(pg_url)
-        metadata.create_all(engine)
-        seen.clear()
-        _ensure(pg_url)
-        assert seen[-1] == (
-            "store.profile.migrate",
-            {"tree": "postgres", "action": "stamped_legacy"},
-        )
-        # A second start is a no-op upgrade at head.
-        _ensure(pg_url)
-        assert seen[-1][1]["action"] == "upgraded"
-    finally:
-        engine.dispose()
-        _wipe(pg_url)
-
-
 def test_concurrent_schema_upgrades_finish_at_head_and_release_the_lock(pg_url: str) -> None:
     """Two starts against one empty database both succeed (the second finds the database at
     head) and no advisory lock is left behind. Cross-session blocking is the next test."""
@@ -492,3 +382,16 @@ def test_advisory_lock_blocks_a_migration_held_elsewhere(pg_url: str) -> None:
     finally:
         holder.dispose()
         _wipe(pg_url)
+
+
+def test_unversioned_database_is_not_adopted(tmp_path: Path) -> None:
+    path = tmp_path / "unversioned.db"
+    engine = sa.create_engine(f"sqlite:///{path}")
+    with engine.begin() as connection:
+        connection.exec_driver_sql("CREATE TABLE memory_events (sentinel INTEGER)")
+        connection.exec_driver_sql("INSERT INTO memory_events VALUES (7)")
+    with pytest.raises(sa.exc.OperationalError, match="already exists"):
+        sqlite_migrations.upgrade_to_head(path)
+    with engine.connect() as connection:
+        assert connection.exec_driver_sql("SELECT sentinel FROM memory_events").scalar_one() == 7
+    engine.dispose()

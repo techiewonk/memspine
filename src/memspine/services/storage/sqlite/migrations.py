@@ -16,7 +16,6 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import inspect
 from sqlalchemy.engine import Connection
 
 from memspine.exceptions import StorageError
@@ -54,25 +53,11 @@ def upgrade_to_head(db_path: str | Path) -> None:
 
 
 def ensure_schema(connection: Connection) -> None:
-    """Bring the database behind ``connection`` (lent by the connector) to schema head.
-
-    Handles the pre-Alembic case: a database whose tables exist (created by an
-    older ``create_all`` run) but that has no ``alembic_version`` table is
-    stamped at the baseline revision first, so ``upgrade`` applies only what is
-    actually missing instead of failing on existing tables. Each Alembic command
-    commits its own transaction on the lent connection.
-    """
+    """Initialize an empty database or open the current schema, under the process lock."""
     with _MIGRATION_LOCK:
-        inspector = inspect(connection)
-        has_version = inspector.has_table("alembic_version")
-        has_tables = inspector.has_table("memory_events")
-        if connection.in_transaction():
-            connection.commit()  # end the inspection's implicit transaction
         cfg = Config()
         cfg.set_main_option("script_location", str(_HERE))
         cfg.attributes["connection"] = connection
-        if has_tables and not has_version:
-            command.stamp(cfg, "0001")
         command.upgrade(cfg, "head")
         if connection.in_transaction():
             connection.commit()

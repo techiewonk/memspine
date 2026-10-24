@@ -1,23 +1,14 @@
-"""Strict-tier CI gate (S1-4): durable and public schemas change only with a version bump.
+"""Current durable/public schema contract and committed export checks.
 
-``docs/v2/schemas/{durable,public}/`` is the committed baseline. Each exported schema records its version
-(``x-schema-version`` for durable kinds, ``x-semver`` for public models). Two checks:
-
-1. the working tree: a fresh export must equal the committed baseline; a difference without a version change
-   is reported as a missing bump;
-2. history (skipped without git): the committed baseline in the working tree is compared with the same files
-   at ``$MEMSPINE_SCHEMA_BASE_REF`` (default ``HEAD``); a changed file whose version did not change fails, so
-   re-running the export after an unversioned edit cannot hide it. In CI set the variable to the merge base.
+This first-cycle base establishes a fresh contract; earlier git revisions are
+not supported schema baselines. The committed export must match current model
+schemas, and schema validation continues to reject unknown/future formats.
 """
 
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 from pathlib import Path
-
-import pytest
 
 from memspine.schemas.export import render, schema_version_of, strict_violations
 
@@ -107,40 +98,3 @@ def test_internal_tier_is_not_gated():
     fresh = dict(base)
     fresh["internal/Whatever.json"] = "{}\n"
     assert strict_violations(fresh, base) == []
-
-
-# --- history check (git) -----------------------------------------------------------------------------------
-
-
-def _git_show(ref: str, rel: str) -> str | None:
-    proc = subprocess.run(
-        ["git", "show", f"{ref}:{rel}"], capture_output=True, cwd=REPO, text=False, check=False
-    )
-    return proc.stdout.decode("utf-8").replace("\r\n", "\n") if proc.returncode == 0 else None
-
-
-def test_working_baseline_changes_vs_git_ref_are_versioned():
-    ref = os.environ.get("MEMSPINE_SCHEMA_BASE_REF", "HEAD")
-    try:
-        ok = subprocess.run(
-            ["git", "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"],
-            capture_output=True,
-            cwd=REPO,
-            check=False,
-        ).returncode
-    except FileNotFoundError:
-        pytest.skip("git not available")
-    if ok != 0:
-        pytest.skip(f"git ref {ref!r} not resolvable")
-    working = _committed_strict()
-    base = {}
-    for name in working:
-        old = _git_show(ref, f"docs/v2/schemas/{name}")
-        if old is not None:  # files new since the ref are additions, not changes
-            base[name] = old
-    problems = [
-        p
-        for p in strict_violations({k: v for k, v in working.items() if k in base}, base)
-        if "without a version bump" in p
-    ]
-    assert not problems, "\n".join(problems)

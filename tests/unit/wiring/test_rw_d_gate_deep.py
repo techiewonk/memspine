@@ -1,4 +1,4 @@
-"""RW-D: R3-11 gate_v2, R3-12 deep_v2, R3-16 obligations (model-free: hash embedder, stub model)."""
+"""RW-D: R3-11 gate, R3-12 deep, R3-16 obligations (model-free: hash embedder, stub model)."""
 
 from __future__ import annotations
 
@@ -106,7 +106,7 @@ async def test_gate_v2_off_is_untouched(tmp_path: Any) -> None:
 
 
 async def test_gate_v2_generic_question_pulls_no_memory(tmp_path: Any) -> None:
-    eng = _engine(tmp_path, gate_v2=True)
+    eng = _engine(tmp_path, gate=True)
     await eng.start()
     try:
         await _store(eng)
@@ -119,7 +119,7 @@ async def test_gate_v2_generic_question_pulls_no_memory(tmp_path: Any) -> None:
 
 
 async def test_gate_v2_unknown_name_does_not_bypass(tmp_path: Any) -> None:
-    eng = _engine(tmp_path, gate_v2=True)
+    eng = _engine(tmp_path, gate=True)
     await eng.start()
     try:
         await _store(eng)
@@ -130,7 +130,7 @@ async def test_gate_v2_unknown_name_does_not_bypass(tmp_path: Any) -> None:
 
 
 async def test_gate_v2_weak_abstain_option(tmp_path: Any) -> None:
-    eng = _engine(tmp_path, gate_v2=True, gate_v2_weak="abstain", gate_v2_named="scored")
+    eng = _engine(tmp_path, gate=True, gate_weak="abstain", gate_named="scored")
     await eng.start()
     try:
         await _store(eng)
@@ -204,7 +204,7 @@ def _fake_engine(cfg: Any, search_hits: list[MemoryRecord]) -> Any:
 
 def _cfg(**kw: Any) -> Any:
     base = {
-        "deep_v2": True,
+        "deep": True,
         "obligations": True,
         "agentic_max_new": 4,
         "agentic_top_k": 5,
@@ -278,7 +278,7 @@ async def test_obligations_only_runs_no_deep(monkeypatch: pytest.MonkeyPatch) ->
         raise AssertionError("obligations alone never call a model")
 
     monkeypatch.setattr(pdeep, "structured_call", boom)
-    eng = _fake_engine(_cfg(deep_v2=False), [])
+    eng = _fake_engine(_cfg(deep=False), [])
     raw = MemoryRecord(namespace="n", memory_type="episodic", content="Ilse sees a dentist")
     result = ReadResult("compose", AssembledContext(records=[raw]))
     out = await pdeep._deep_extend(

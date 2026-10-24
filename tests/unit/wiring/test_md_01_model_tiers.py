@@ -56,13 +56,13 @@ BIG = ModelDecl(
 RTX = GpuDecl(name="NVIDIA GeForce RTX 5080", vram_mb=16303)
 
 
-#: The old ``read.rerank_v2`` default chain, now configured in ``model.rerank.chain`` (ADR-082).
+#: The old ``read.rerank`` default chain, now configured in ``model.rerank.chain`` (ADR-082).
 _V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "onnx")]
 
 
 def _models(**kw: Any) -> PlacementConfig:
     """ADR-082: the planning keys live in ``model.placement`` (``resolve_models`` reads it)."""
-    return PlacementConfig(tiers_v2=True, **kw)
+    return PlacementConfig(tiers=True, **kw)
 
 
 def _model(
@@ -156,7 +156,7 @@ async def test_default_is_off_and_config_roles_resolve_as_before(
             "placement": {"catalogue": [NINE]},
         },
     )
-    assert cfg.model.placement.tiers_v2 is False
+    assert cfg.model.placement.tiers is False
     router = await _build(cfg)
     assert router.roles == ["extract"]  # the catalogue is ignored while the flag is off
     assert router.model_plan is None

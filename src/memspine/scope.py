@@ -12,7 +12,7 @@ visibility never broadens access (``memspine.trust.visibility.visible_to`` decid
 Every refusal carries a reason code (:class:`ScopeRefused`) so a tap event can name it.
 
 Pure and dependency-light on purpose (stdlib, ``errors`` and the durable ``OwnerScope`` schema), so
-any layer may import it. Behaviour is gated by ``isolation.scope_keys_v2`` and
+any layer may import it. Behaviour is gated by ``isolation.scope_keys`` and
 ``isolation.viewer_required`` (both default off); this module itself changes nothing.
 """
 

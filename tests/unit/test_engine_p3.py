@@ -142,7 +142,13 @@ async def test_aged_lifecycle_end_to_end_through_the_engine(engine: Engine) -> N
 
     stats = await engine.sleep()
     assert stats["decay_sweep"] == {"status": "ok", "transitions": 1}
-    assert stats["compress"] == {"status": "ok", "compressed": 1}
+    assert stats["compress"] == {
+        "status": "ok",
+        "compressed": 1,
+        "multires_planned": 0,
+        "multires_run": 0,
+        "multires_levels": 0,
+    }
 
     # At rest: compressed. Through every read verb: the original text.
     raw = await engine._require_started().get_record(aged.record_id)

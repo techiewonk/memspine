@@ -1,40 +1,11 @@
-"""RM-111 WP5 (ADR-081 decision 7): sleep leases, the cost ledger and dead letters as tables of the
-authoritative SQL database.
-
-Before WP5 these lived in raw-``sqlite3`` side files next to the store (``<base>.sleep``,
-``<base>.cost``, ``<base>.deadletters.sqlite``), which bypassed SQLCipher and were not shared by
-processes on one Postgres database. Now they are tables of the storage database itself: encrypted
-with it on SQLite (the sync engine opens keyed connections), shared on Postgres.
-
-* :data:`side_metadata` holds the tables. Alembic creates them (revision ``rm111_side_tables`` /
-  ``pg_rm111_side_tables``); :func:`ensure_side_tables` creates any that are missing for a database
-  brought up by ``create_all`` (the embedded Postgres path), under the store's advisory lock.
-* :func:`write_tx` is one write transaction: ``BEGIN IMMEDIATE`` on SQLite (the cross-process writer
-  lock), an advisory transaction lock on Postgres when asked for.
-* :class:`BackgroundWriter` runs writes on one worker thread, in order. The event loop must never
-  wait on SQLite's write lock: the async storage layer can hold it across an await, and only the loop
-  can release it (the same rule as ``runtime.runner.OutboxRunner._io``).
-* :func:`import_side_files` is the one-time import of an existing side file: its rows are copied
-  idempotently (a content digest is recorded in ``side_file_imports`` in the same transaction) and
-  the file is renamed to ``*.imported``. The caller lends the file opener (RM-113: the store never
-  opens a connection; ``memspine.providers.connectors.legacy_sqlite_file``).
-
-``:memory:`` stores keep their private in-memory tables (the stores accept a path there).
-"""
+"""Current authoritative SQL side tables and serialized background writes."""
 
 from __future__ import annotations
 
 import contextlib
-import hashlib
-import json
-import sqlite3
 import threading
-import time
 from collections.abc import Callable, Iterator, Mapping, Sequence
 from concurrent.futures import Future, ThreadPoolExecutor
-from contextlib import AbstractContextManager
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import structlog
@@ -48,22 +19,14 @@ from sqlalchemy import (
     Table,
     Text,
     create_engine,
-    text,
 )
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.pool import StaticPool
 
-#: Opens one legacy side file for reading (lent by the composition layer).
-FileOpener = Callable[[Path], AbstractContextManager[sqlite3.Connection]]
-
 __all__ = [
-    "SIDE_FILES",
     "SIDE_TABLES",
     "BackgroundWriter",
-    "FileOpener",
-    "SideImport",
     "ensure_side_tables",
-    "import_side_files",
     "is_postgres",
     "local_engine",
     "side_metadata",
@@ -171,16 +134,6 @@ dead_letters = Table(
     Column("content", Text, nullable=True),
     Index("dead_letters_ns", "ns", "id"),
 )
-side_file_imports = Table(
-    "side_file_imports",
-    side_metadata,
-    Column("kind", Text, primary_key=True),
-    Column("digest", Text, primary_key=True),
-    Column("source", Text, nullable=False),
-    Column("rows", Integer, nullable=False),
-    Column("imported_at", Float, nullable=False),
-)
-
 #: The tables of each former side file (import order).
 SIDE_TABLES: Mapping[str, tuple[str, ...]] = {
     "sleep": (
@@ -194,14 +147,6 @@ SIDE_TABLES: Mapping[str, tuple[str, ...]] = {
     "cost": ("cost_entry",),
     "deadletters": ("dead_letters",),
 }
-#: The former side file of each kind: ``<base><suffix>``.
-SIDE_FILES: Mapping[str, str] = {
-    "sleep": ".sleep",
-    "cost": ".cost",
-    "deadletters": ".deadletters.sqlite",
-}
-#: Append-only tables: their ``id`` is regenerated on import (rows have no natural key).
-_APPEND_ONLY = frozenset({"sleep_fence_log", "cost_entry", "dead_letters"})
 
 
 def is_postgres(engine: Engine) -> bool:
@@ -287,140 +232,3 @@ class BackgroundWriter:
             pool, self._pool = self._pool, None
         if pool is not None:
             pool.shutdown(wait=True)
-
-
-# ---------------------------------------------------------------------------------- the import
-@dataclass(frozen=True)
-class SideImport:
-    """One former side file found at start: its rows were copied (``rows``; 0 when this content was
-    imported before) and it was renamed to ``renamed_to``."""
-
-    kind: str
-    source: str
-    renamed_to: str
-    rows: int
-    already_imported: bool
-
-
-def _read_legacy(
-    path: Path, tables: Sequence[str], open_file: FileOpener
-) -> dict[str, tuple[list[str], list[tuple[Any, ...]]]]:
-    """Every row of the known tables of one side file, in insertion order, restricted to the
-    columns the authoritative tables have. A table the old file lacks is skipped."""
-    out: dict[str, tuple[list[str], list[tuple[Any, ...]]]] = {}
-    with open_file(path) as con:
-        present = {
-            str(r[0]) for r in con.execute("SELECT name FROM sqlite_master WHERE type='table'")
-        }
-        for name in tables:
-            if name not in present:
-                continue
-            have = {str(r[1]) for r in con.execute(f"PRAGMA table_info({name})")}
-            cols = [
-                c.name
-                for c in side_metadata.tables[name].columns
-                if c.name in have and not (name in _APPEND_ONLY and c.name == "id")
-            ]
-            order = " ORDER BY rowid"
-            rows = con.execute(f"SELECT {', '.join(cols)} FROM {name}{order}").fetchall()
-            out[name] = (cols, [tuple(r) for r in rows])
-    return out
-
-
-def _digest(kind: str, data: Mapping[str, tuple[list[str], list[tuple[Any, ...]]]]) -> str:
-    blob = json.dumps(
-        {"kind": kind, "tables": {t: [c, r] for t, (c, r) in sorted(data.items())}},
-        sort_keys=True,
-        default=str,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
-
-
-def _free_name(path: Path) -> Path:
-    target = path.with_name(path.name + ".imported")
-    n = 1
-    while target.exists():
-        target = path.with_name(f"{path.name}.imported.{n}")
-        n += 1
-    return target
-
-
-def _copy_rows(con: Connection, data: Mapping[str, tuple[list[str], list[tuple[Any, ...]]]]) -> int:
-    copied = 0
-    for name, (cols, rows) in data.items():
-        if not rows:
-            continue
-        values = ", ".join(f":{c}" for c in cols)
-        sql = f"INSERT INTO {name} ({', '.join(cols)}) VALUES ({values})"
-        if name not in _APPEND_ONLY:  # keyed rows: what the database already has wins
-            sql += " ON CONFLICT DO NOTHING"
-        for row in rows:
-            copied += con.execute(text(sql), dict(zip(cols, row, strict=True))).rowcount or 0
-    return copied
-
-
-def import_side_files(
-    engine: Engine,
-    base: str,
-    *,
-    open_file: FileOpener,
-    clock: Callable[[], float] = time.time,
-) -> list[SideImport]:
-    """The one-time import of ``<base>.sleep``, ``<base>.cost`` and ``<base>.deadletters.sqlite``.
-
-    Idempotent: the rows and a digest of the file's content commit in one transaction, and a
-    content already recorded is not copied again (a crash between the commit and the rename only
-    leaves the rename to do). Each imported file is renamed to ``*.imported`` (never overwritten:
-    ``.imported.1`` and so on). A file that cannot be read is logged and left in place."""
-    if base == ":memory:":
-        return []
-    done: list[SideImport] = []
-    for kind, suffix in SIDE_FILES.items():
-        path = Path(f"{base}{suffix}")
-        if not path.is_file():
-            continue
-        try:
-            data = _read_legacy(path, SIDE_TABLES[kind], open_file)
-        except sqlite3.Error as exc:
-            _log.warning(
-                "side_file.import_skipped", kind=kind, path=str(path), error=type(exc).__name__
-            )
-            continue
-        digest = _digest(kind, data)
-        ensure_side_tables(engine, (*SIDE_TABLES[kind], "side_file_imports"))
-        with write_tx(engine, lock=True) as con:
-            seen = con.execute(
-                text("SELECT rows FROM side_file_imports WHERE kind=:k AND digest=:d"),
-                {"k": kind, "d": digest},
-            ).first()
-            rows = 0
-            if seen is None:
-                rows = _copy_rows(con, data)
-                con.execute(
-                    text(
-                        "INSERT INTO side_file_imports (kind, digest, source, rows, imported_at) "
-                        "VALUES (:k, :d, :s, :r, :t)"
-                    ),
-                    {"k": kind, "d": digest, "s": str(path), "r": rows, "t": clock()},
-                )
-        target = _free_name(path)
-        try:
-            path.rename(target)
-        except FileNotFoundError:  # another process renamed it first
-            continue
-        for extra in ("-wal", "-shm", "-journal"):
-            leftover = Path(f"{path}{extra}")
-            if leftover.exists():
-                with contextlib.suppress(OSError):
-                    leftover.rename(Path(f"{target}{extra}"))
-        _log.info(
-            "side_file.imported",
-            kind=kind,
-            path=str(path),
-            renamed_to=str(target),
-            rows=rows,
-            already_imported=seen is not None,
-        )
-        done.append(SideImport(kind, str(path), str(target), rows, seen is not None))
-    return done

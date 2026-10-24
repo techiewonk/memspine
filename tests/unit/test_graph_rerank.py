@@ -102,7 +102,7 @@ async def test_episode_mentions_lift_restated_facts() -> None:
 
 async def test_read_runs_end_to_end_with_the_rerank_on() -> None:
     for mode in ("distance", "ppr"):
-        eng = await _started(graph_rerank=mode, graph_leg=True)
+        eng = await _started(graph_rerank=mode)
         try:
             await seed(eng)
             result = await eng.read(QUERY, namespace="a", mode="retrieve", top_k=4)

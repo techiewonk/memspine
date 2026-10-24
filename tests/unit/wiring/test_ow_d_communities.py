@@ -1,4 +1,4 @@
-"""OW-D / O4-06: entity communities and summaries (``offline.communities_v2``), model-free."""
+"""OW-D / O4-06: entity communities and summaries (``offline.communities``), model-free."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from memspine.derive.pipeline.stages.entity_summaries import summarize_entities
 from memspine.observability import tap
 from memspine.store import lineage as lineage_store
 from memspine.store.records import MemoryRecord, RecordStatus
+from memspine.trust.pipeline.erasure_state import visible_id
 
 CLUSTER_A = [("Alice", "Bob"), ("Bob", "Carol"), ("Alice", "Carol")]
 CLUSTER_B = [("Dave", "Erin"), ("Erin", "Frank"), ("Dave", "Frank")]
@@ -26,7 +27,7 @@ def _tap_reset():
 
 
 def _engine(
-    *, v2: bool, lineage: bool = False, free_chars: int | None = None, **offline: Any
+    *, enabled: bool, lineage: bool = False, free_chars: int | None = None, **offline: Any
 ) -> Engine:
     summaries: Any = {"free_chars": free_chars} if free_chars is not None else True
     return Engine(
@@ -49,7 +50,7 @@ def _engine(
         },
         read={"record_access": False},
         write={"lineage_table": lineage},
-        offline={"communities_v2": v2, **offline},
+        offline={"communities": enabled, **offline},
     )
 
 
@@ -74,7 +75,7 @@ async def _com_summaries(eng: Engine, ns: str = "a", *, live: bool = True) -> li
         r
         for r in await eng._require_started().list_records(ns, "semantic")
         if r.source.channel == "community_summary"
-        and (not live or r.status is RecordStatus.ACTIVATED)
+        and (not live or (r.status is RecordStatus.ACTIVATED and visible_id(eng, r.record_id)))
     ]
 
 
@@ -87,20 +88,20 @@ class _Summarize:
         return f"model summary {self.calls}"
 
 
-async def test_flag_off_runs_the_old_reorganizer() -> None:
-    eng = _engine(v2=False)
+async def test_disabled_communities_skip() -> None:
+    eng = _engine(enabled=False)
     await eng.start()
     try:
         await _seed(eng, CLUSTER_A + CLUSTER_B)
         stats = await reorganize(eng._pipeline_ctx())
-        assert "summary_model_calls" not in stats and "created" not in stats
+        assert stats == {"status": "skipped", "reason": "offline.communities is off"}
         assert await _com_summaries(eng, live=False) == []
     finally:
         await eng.stop()
 
 
 async def test_flag_on_summarises_each_community_once() -> None:
-    eng = _engine(v2=True)
+    eng = _engine(enabled=True)
     await eng.start()
     llm = _Summarize()
     try:
@@ -129,7 +130,7 @@ async def test_flag_on_summarises_each_community_once() -> None:
 
 
 async def test_a_new_fact_reruns_only_its_community() -> None:
-    eng = _engine(v2=True)
+    eng = _engine(enabled=True)
     await eng.start()
     llm = _Summarize()
     try:
@@ -151,7 +152,7 @@ async def test_a_new_fact_reruns_only_its_community() -> None:
 
 
 async def test_budget_defers_the_rest_and_keeps_them_dirty() -> None:
-    eng = _engine(v2=True, community_summary_budget_tokens=400)
+    eng = _engine(enabled=True, community_summary_budget_tokens=400)
     await eng.start()
     try:
         await _seed(eng, CLUSTER_A + CLUSTER_B)
@@ -166,7 +167,7 @@ async def test_budget_defers_the_rest_and_keeps_them_dirty() -> None:
 
 
 async def test_lineage_edges_through_the_door() -> None:
-    eng = _engine(v2=True, lineage=True)
+    eng = _engine(enabled=True, lineage=True)
     await eng.start()
     try:
         await _seed(eng, CLUSTER_A)
@@ -182,7 +183,7 @@ async def test_lineage_edges_through_the_door() -> None:
 
 
 async def test_forgotten_parent_dissolves_the_summary() -> None:
-    eng = _engine(v2=True)
+    eng = _engine(enabled=True)
     await eng.start()
     try:
         ids = await _seed(eng, CLUSTER_A)
@@ -198,7 +199,7 @@ async def test_forgotten_parent_dissolves_the_summary() -> None:
 
 
 async def test_entity_summary_model_call_runs_outside_the_lock() -> None:
-    eng = _engine(v2=True, lineage=True, free_chars=5)
+    eng = _engine(enabled=True, lineage=True, free_chars=5)
     await eng.start()
     seen: list[bool] = []
 
@@ -231,7 +232,7 @@ async def test_entity_summary_model_call_runs_outside_the_lock() -> None:
 
 async def test_tap_event_reports_the_decisions() -> None:
     tap.configure(TapConfig(enabled=True, sink="memory"))
-    eng = _engine(v2=True)
+    eng = _engine(enabled=True)
     await eng.start()
     try:
         await _seed(eng, CLUSTER_A + CLUSTER_B)

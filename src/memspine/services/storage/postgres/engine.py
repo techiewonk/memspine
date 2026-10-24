@@ -1,13 +1,4 @@
-"""PostgreSQL storage adapter (D-36, Phase 6): a thin :class:`SqlStorage`
-subclass over an injected :class:`~memspine.clients.postgres.PostgresClient`.
-
-All event-log + read-model logic (and the dialect-dispatched upsert) is shared
-in :mod:`memspine.services.storage.sql_base`; this adapter supplies only the
-schema bring-up and the ``postgres`` capability name. ADR-081: the schema is always
-built by the Postgres Alembic tree (``postgres/alembic``, kept in parity with the SQLite
-tree by a test) under an advisory lock. A database made by the pre-ADR-081 ``create_all``
-path is adopted by the legacy stamp (``migrations.LEGACY_STAMP_REVISION``).
-"""
+"""Postgres records store initialized through the current Alembic baseline."""
 
 from __future__ import annotations
 

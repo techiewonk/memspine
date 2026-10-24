@@ -25,17 +25,14 @@ COMMUNITY_PARTITION_MARKER = "community_partition"
 #: to the LLM, with each source's content fingerprint at the time. ``sources`` is
 #: a list of ``{"record_id", "content_fingerprint"}`` dicts, the snapshot shape
 #: the M7 erasure walker scrubs, so a hard forget also erases the fingerprint
-#: (logs written before carry a ``{record_id: fingerprint}`` map, still read).
+#: Redacted source entries carry no watermark.
 GRAPH_EXTRACTED_MARKER = "graph_extracted"
 
 
 def _graph_marker_sources(raw: object) -> list[tuple[str, str]]:
-    """``(record_id, fingerprint)`` pairs of a ``graph_extracted`` marker, either
-    shape; a redacted entry (empty fingerprint) is no watermark."""
+    """Current source entries; a redacted fingerprint is no watermark."""
     pairs: list[tuple[str, str]] = []
-    if isinstance(raw, dict):  # pre-erasure-fix shape: {record_id: fingerprint}
-        pairs = [(str(rid), str(fp)) for rid, fp in raw.items()]
-    elif isinstance(raw, list):
+    if isinstance(raw, list):
         for entry in raw:
             if isinstance(entry, dict) and entry.get("record_id"):
                 fp = entry.get("content_fingerprint")
@@ -150,7 +147,7 @@ class SessionIndex:
     #: GP-6 (#17): (namespace, entity node id) -> membership fingerprint the
     #: ``summarize_entities`` stage last summarised (``entity_summarized`` markers).
     entity_summaries: dict[tuple[str, str], str] = field(default_factory=dict)
-    #: O4-07: namespace -> the latest serialised profile card (``profile_card_v2`` markers,
+    #: O4-07: namespace -> the latest serialised profile card (``profile_card`` markers,
     #: latest wins; an empty ``entries`` list is a card with nothing left).
     profile_cards: dict[str, dict[str, Any]] = field(default_factory=dict)
 
@@ -207,11 +204,11 @@ class SessionIndex:
 
     def _fold_resolutions(self, namespace: str, raw: object) -> None:
         aliases = self.entity_aliases.setdefault(namespace, {})
-        # Entries sharing a ``group`` are one decision keyed by several cited
-        # records; an entry without one (pre-fix logs) is its own decision.
+        # A decision groups every cited record so erasing any source removes the alias.
         groups: dict[object, list[dict[str, Any]]] = {}
-        for i, entry in enumerate(_erasable_entries(raw)):
-            groups.setdefault(entry.get("group", ("solo", i)), []).append(entry)
+        for entry in _erasable_entries(raw):
+            if "group" in entry:
+                groups.setdefault(entry["group"], []).append(entry)
         for entries in groups.values():
             # Any erased entry (a forgotten cited record) erases the decision.
             if not all(e.get("entity") and e.get("attribute") for e in entries):

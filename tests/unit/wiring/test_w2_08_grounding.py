@@ -1,6 +1,6 @@
-"""W2-08: grounding stage (``write.grounding_v2``, envelope-stage order 200). Model-free: envelopes are
+"""W2-08: grounding stage (``write.grounding``, envelope-stage order 200). Model-free: envelopes are
 built through the real compiler from hand-written lines (invented names), then one end-to-end window
-runs with ``write.envelope_v2`` + the flag and the stub window LLM."""
+runs with ``write.envelope`` + the flag and the stub window LLM."""
 
 from __future__ import annotations
 
@@ -113,11 +113,11 @@ def test_flag_off_registers_nothing_and_on_registers_one_stage_at_200() -> None:
             }
         }
     )
-    assert off.write.grounding_v2 is False and off.write.ground_action == "drop"
+    assert off.write.grounding is False and off.write.ground_action == "drop"
     assert off.write.ground_adjudicator == "lexical"
     assert _envelope_stages(SimpleNamespace(), off) == ()
     on = MemspineConfig(
-        write={"window_extract": "facts", "envelope_v2": True, "grounding_v2": True},
+        write={"window_extract": "facts", "grounding": True},
         runtime={
             "provider_services": {
                 "health_timeout_s": 1.0,
@@ -294,8 +294,7 @@ def test_build_from_config_wires_the_decider_only_when_asked() -> None:
     cfg = MemspineConfig(
         write={
             "window_extract": "facts",
-            "envelope_v2": True,
-            "grounding_v2": True,
+            "grounding": True,
             "ground_adjudicator": "off",
         },
         runtime={
@@ -327,7 +326,7 @@ async def test_end_to_end_window_drops_the_ungrounded_item_and_keeps_the_rest(
     monkeypatch.setattr(tap, "event", lambda stage, /, **f: seen.append((stage, f)))
     llm = ItemLLM()
     llm.mutations[1] = lambda item: {**item, "text": "Mira said she repotted 99 orchids"}
-    eng = await _engine(monkeypatch, llm, grounding_v2=True)
+    eng = await _engine(monkeypatch, llm, grounding=True)
     try:
         await _send(eng, "a", "s1", _w2_turns())
         stats = await eng.flush_windows()

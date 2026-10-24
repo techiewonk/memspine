@@ -50,7 +50,7 @@ async def test_default_has_no_decider_and_is_unchanged() -> None:
     out = await reader.answer("Where did she hike?", CONTEXT)
     assert out.text == "Denver" and reader.retried == 1
     assert "decisions" not in out.extra_meta
-    assert reader.reader_id == "stub+retry-neutral"
+    assert reader.reader_id == "stub+retry"
     assert "decider" not in reader.describe()
 
 
@@ -74,11 +74,9 @@ async def test_decider_overrides_the_regex_both_ways() -> None:
     # regex says refusal; the decider is sure it is a real answer -> no retry
     dec2 = _Decider("answer", 0.9)
     # (I22: the default whole-answer match already says answer; legacy reproduces the regex hit)
-    reader2 = RefusalRetryReader(
-        _Reader("There is no doubt: Denver."), decider=dec2, refusal_match="legacy"
-    )
+    reader2 = RefusalRetryReader(_Reader("Not mentioned."), decider=dec2)
     out2 = await reader2.answer("Where did she hike?", CONTEXT)
-    assert reader2.retried == 0 and out2.text.startswith("There is no doubt")
+    assert reader2.retried == 0 and out2.text == "Not mentioned."
     assert out2.extra_meta["decisions"][0]["heuristic"] is True
 
 

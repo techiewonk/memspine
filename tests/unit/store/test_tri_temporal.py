@@ -7,9 +7,7 @@ import sqlite3
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-import orjson
 import pytest
-from alembic import command
 from alembic.script import ScriptDirectory
 
 from memspine import Engine
@@ -17,7 +15,7 @@ from memspine.config.schema.root import MemspineConfig
 from memspine.read.pipeline import request as rq
 from memspine.read.pipeline.timeview import _as_envelope
 from memspine.read.timeview import TimeView, apply
-from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
+from memspine.services.storage.sqlite.migrations import alembic_config
 from memspine.store.envelope import from_envelope, to_envelope
 from memspine.store.layer_registry import LayerRegistry, LayerTemplate
 from memspine.store.records import MemoryRecord, SourceInfo
@@ -174,9 +172,10 @@ async def test_derived_records_inherit_and_window_facts_say_inferred() -> None:
     assert reread is not None and reread.source_at == T0 and reread.event_basis == "inferred"
 
 
-def test_dump_omits_unset_fields_and_keeps_set_ones() -> None:
+def test_dump_keeps_current_optional_fields_explicit() -> None:
     plain = MemoryRecord(namespace="n", memory_type="semantic", content="x")
-    assert not _NEW & set(plain.model_dump(mode="json"))
+    assert set(plain.model_dump(mode="json")) >= _NEW
+    assert plain.model_dump(mode="json")["source_at"] is None
     dated = plain.model_copy(update=turn_times(T0))
     assert _NEW - {"event_approximate"} <= set(dated.model_dump(mode="json"))
 
@@ -184,54 +183,9 @@ def test_dump_omits_unset_fields_and_keeps_set_ones() -> None:
 # ---- migration -----------------------------------------------------------------------------------
 
 
-async def test_migration_down_up_and_backfill(tmp_path: Path) -> None:
-    path = tmp_path / "m.db"
-    eng = _engine(path)
-    await eng.start()
-    try:
-        turns = await _seed(eng)
-    finally:
-        await eng.stop()
-    first, second = turns[0].record_id, turns[1].record_id
-    assert _columns(path) >= _NEW
-    assert _times(path)[first] == (T0.isoformat(), "instant", "instant", "explicit")
-    command.downgrade(alembic_config(path), "f04_outbox")
-    assert not _NEW & _columns(path)
-    with sqlite3.connect(path) as db:  # the second turn becomes a window episode of the first
-        source = {"role": "assistant", "channel": "window_episode", "parents": [first]}
-        db.execute(
-            "UPDATE memory_records SET memory_type='semantic', source=? WHERE record_id=?",
-            (orjson.dumps(source), second),
-        )
-        db.execute(
-            "UPDATE memory_records SET tags=? WHERE record_id=?",
-            (orjson.dumps(["ts_defaulted"]), first),
-        )
-    upgrade_to_head(path)
-    got = _times(path)
-    assert got[first] == (None, None, None, None)  # write-clock time: nothing derivable
-    assert got[second] == (
-        None,
-        None,
-        "day",
-        "inferred",
-    )  # parent undated: no source_at, window start
-    upgrade_to_head(path)  # a second upgrade is a no-op
-    command.downgrade(alembic_config(path), "f04_outbox")
-    with sqlite3.connect(path) as db:
-        db.execute("UPDATE memory_records SET tags=NULL WHERE record_id=?", (first,))
-    upgrade_to_head(path)
-    got = _times(path)
-    assert got[first][1:] == ("instant", "instant", "explicit") and got[first][0] is not None
-    assert got[second][0] == got[first][0]  # inherited from the dated parent
-    assert got[second][3] == "inferred"
-
-
 def test_single_alembic_head() -> None:
     script = ScriptDirectory.from_config(alembic_config(Path("unused.db")))
-    assert script.get_heads() == ["rm113_asset_registry"]
-    rev = script.get_revision("f02b_tri_temporal")
-    assert rev is not None and rev.down_revision == "f04_outbox"
+    assert script.get_heads() == ["0001"]
 
 
 # ---- LayerRegistry -------------------------------------------------------------------------------
@@ -248,7 +202,7 @@ def test_template_enables_layers_from_config() -> None:
                 }
             }
         )
-    ).enabled == {"L0"}
+    ).enabled == {"L0", "L2", "L3"}
     with_worker = LayerTemplate.from_config(
         MemspineConfig(
             runtime={
@@ -261,7 +215,7 @@ def test_template_enables_layers_from_config() -> None:
         ),
         worker_model=True,
     )
-    assert with_worker.enabled == {"L0", "L1", "L3"}
+    assert with_worker.enabled == {"L0", "L1", "L2", "L3"}
     cfg = MemspineConfig.model_validate(
         {
             "runtime": {
@@ -275,7 +229,7 @@ def test_template_enables_layers_from_config() -> None:
             "memories": {"reflective": {"enabled": True}, "procedural": {"enabled": True}},
         }
     )
-    assert LayerTemplate.from_config(cfg).enabled == {"L0", "L2", "L4", "L5"}
+    assert LayerTemplate.from_config(cfg).enabled == {"L0", "L2", "L3", "L4", "L5"}
 
 
 def test_registry_enabled_and_populated_are_separate() -> None:
@@ -311,7 +265,7 @@ async def test_registry_counts_by_layer_per_namespace() -> None:
     assert other.populated == {"L1"}
 
 
-async def test_router_layer_state_uses_the_registry_and_falls_back(
+async def test_router_layer_state_uses_the_registry_and_reports_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     eng = _engine(read={"router_rules": True})
@@ -333,8 +287,8 @@ async def test_router_layer_state_uses_the_registry_and_falls_back(
             raise RuntimeError("no registry")
 
         monkeypatch.setattr(LayerRegistry, "load", boom)
-        fallback = await rq.layer_state(eng, "u", read)
-        assert fallback.is_populated("L0") and fallback.is_populated("L2")
+        with pytest.raises(RuntimeError, match="no registry"):
+            await rq.layer_state(eng, "u", read)
     finally:
         await eng.stop()
 

@@ -127,15 +127,9 @@ async def test_verbs_fail_loudly_when_associative_disabled() -> None:
         await eng.stop()
 
 
-async def test_reorganize_reports_skipped_without_the_extra(
-    engine: Engine, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    from memspine.derive.pipeline.stages import communities as pipelines
-
-    monkeypatch.setattr(pipelines, "communities_available", lambda: False)
+async def test_base_reorganizer_runs_without_optional_graph_algorithm_extra(engine: Engine) -> None:
     stats = await engine.sleep()
-    assert stats["reorganize"]["status"] == "skipped"
-    assert "community" in str(stats["reorganize"]["reason"])
+    assert stats["reorganize"]["status"] == "ok"
 
 
 async def test_reorganize_reports_skipped_without_a_graph() -> None:

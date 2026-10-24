@@ -6,7 +6,6 @@ import asyncio
 from datetime import UTC, datetime
 
 from memspine.compose.compression import CompressionPolicy
-from memspine.core.policies.decay import DecayPolicy
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.derive.pipeline.stages.context import (
     PipelineContext,
@@ -75,60 +74,12 @@ async def session_lifecycle(ctx: PipelineContext) -> dict[str, object]:
 
 
 async def decay_sweep(ctx: PipelineContext) -> dict[str, object]:
-    """M3 decay: move idle records down the tier ladder via DECAY_TRANSITION.
+    """Run activation-based decay when configured; no alternate implementation."""
+    if not ctx.config.offline.decay:
+        return {"status": "skipped", "reason": "offline.decay is off"}
+    from memspine.derive.pipeline.stages.decay import decay_sweep as sweep
 
-    Only emits on a tier change (idempotent). Reinforcement needs no code here:
-    RETRIEVE events advance ``last_accessed_at``, and the next sweep computes a
-    hotter tier from it. Quarantined records are frozen in place (E1).
-
-    Transitions are *delta* events ({record_id, set}) — never full snapshots.
-    A snapshot taken before the append would overwrite whatever changed in
-    between (empirically: a concurrent RETRIEVE's access stats were lost and a
-    just-accessed record got demoted); a delta touches only the tier.
-    """
-    if ctx.config.offline.decay_v2:  # O4-09 (LIB-33): activation tiers, hysteresis; off by default
-        from memspine.derive.pipeline.stages.decay_v2 import decay_sweep_v2
-
-        return await decay_sweep_v2(ctx)
-    if ctx.append_event is None:
-        return {"status": "skipped", "reason": "read-only context (no write door)"}
-    now = datetime.now(UTC)
-    transitions = 0
-    errors: list[str] = []
-    for namespace in await sweep_namespaces(ctx):
-        for memory_type in _SWEEP_TYPES:
-            policy = DecayPolicy.bind(_policy_options(ctx, memory_type, "decay"))
-            for record in await ctx.storage.list_records(namespace, memory_type):
-                if record.status in (RecordStatus.DELETED, RecordStatus.QUARANTINED):
-                    continue
-                new_tier = policy.tier_for(record, now).value
-                if new_tier == record.tier:
-                    continue
-                try:
-                    await ctx.append_event(
-                        MemoryEvent(
-                            kind=EventKind.DECAY_TRANSITION,
-                            namespace=namespace,
-                            actor="system",
-                            payload={
-                                "record_id": record.record_id,
-                                "set": {"tier": new_tier},
-                                "transition": f"{record.tier}->{new_tier}",
-                                "reason": "idle",
-                            },
-                        )
-                    )
-                    transitions += 1
-                except Exception as exc:  # one bad record must not kill the sweep
-                    errors.append(f"{record.record_id}: {exc}")
-                    _log.warning(
-                        "decay_sweep.record_failed",
-                        namespace=namespace,
-                        record_id=record.record_id,
-                        error=str(exc),
-                        exc_info=True,
-                    )
-    return _sweep_stats("transitions", transitions, errors)
+    return await sweep(ctx)
 
 
 async def compress(ctx: PipelineContext) -> dict[str, object]:
@@ -185,10 +136,10 @@ async def compress(ctx: PipelineContext) -> dict[str, object]:
                         exc_info=True,
                     )
     stats = _sweep_stats("compressed", compressed, errors)
-    if ctx.config.offline.decay_v2:  # O4-09: multi-resolution jobs for cold groups; off by default
-        from memspine.derive.pipeline.stages.decay_v2 import multires_v2
+    if ctx.config.offline.decay:  # O4-09: multi-resolution jobs for cold groups; off by default
+        from memspine.derive.pipeline.stages.decay import multires
 
-        stats.update(await multires_v2(ctx))
+        stats.update(await multires(ctx))
     return stats
 
 

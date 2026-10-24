@@ -399,6 +399,12 @@
       "tier": "internal"
     },
     {
+      "file": "internal/ExtractionItem.json",
+      "module": "memspine.schemas.steps.shared",
+      "name": "ExtractionItem",
+      "tier": "internal"
+    },
+    {
       "file": "internal/FailureRecord.json",
       "module": "memspine.schemas.steps.shared",
       "name": "FailureRecord",
@@ -708,12 +714,6 @@
       "file": "internal/IntentStatus.json",
       "module": "memspine.schemas.steps.shared",
       "name": "IntentStatus",
-      "tier": "internal"
-    },
-    {
-      "file": "internal/ItemV1.json",
-      "module": "memspine.schemas.steps.shared",
-      "name": "ItemV1",
       "tier": "internal"
     },
     {

@@ -7,7 +7,7 @@ configured threshold marks the layer ``stale``; the read path then reports it an
 ``read.freshness_fallback``, adds the raw turns newer than the layer to the candidate pool.
 
 Pure and deterministic: no I/O, no model call. A record with no ``covers_seq`` (a v1 record, or one
-derived with ``offline.budget_v2`` off) is *unstamped*: it is counted but never enters the minimum,
+derived with ``offline.budget`` off) is *unstamped*: it is counted but never enters the minimum,
 and a layer with only unstamped records has no gap (``None``, never stale), because a missing stamp
 is not evidence of lag.
 

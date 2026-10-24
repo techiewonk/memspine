@@ -48,7 +48,7 @@ async def _engine(**isolation: Any) -> Engine:
 
 @pytest.fixture
 async def on() -> AsyncIterator[Engine]:
-    eng = await _engine(scope_keys_v2=True, viewer_required=True)
+    eng = await _engine(viewer_required=True)
     yield eng
     await eng.stop()
 
@@ -136,7 +136,7 @@ async def test_read_cache_key_scope_v2(on: Engine, off: Engine) -> None:
     }
     assert len(keys) == 3
     scope_off = rq._cache_scope(off, OWNER_1)
-    assert (scope_off.tenant, scope_off.owner) == (OWNER_1, OWNER_1)
+    assert (scope_off.tenant, scope_off.owner) == ("acme", "u1")
     scope_on = rq._cache_scope(on, OWNER_1)
     assert (scope_on.tenant, scope_on.owner) == ("acme", "u1")
 
@@ -147,11 +147,11 @@ def test_graph_edge_key_scoped() -> None:
 
     edge = ExtractedEdge(src_entity="a", rel="knows", dst_entity="b", fact="a knows b")
     plain = eg._edge_key("acme/u1", edge)
-    scoped = eg._edge_key("acme/u1", edge, scoped=True)
-    assert plain != scoped
-    assert scoped == eg._edge_key("acme/u1", edge, scoped=True)
-    assert scoped != eg._edge_key("acme/u2", edge, scoped=True)
-    assert scoped != eg._edge_key("globex/u1", edge, scoped=True)
+    scoped = eg._edge_key("acme/u1", edge)
+    assert plain == scoped
+    assert scoped == eg._edge_key("acme/u1", edge)
+    assert scoped != eg._edge_key("acme/u2", edge)
+    assert scoped != eg._edge_key("globex/u1", edge)
 
 
 # -- isolation probes: engine verbs ----------------------------------------------------------
@@ -295,7 +295,7 @@ async def test_rest_cannot_cross_scopes(monkeypatch: pytest.MonkeyPatch) -> None
     from memspine.api.rest import create_app
     from memspine.config.schema import RestConfig
 
-    eng = await _engine(scope_keys_v2=True, viewer_required=True)
+    eng = await _engine(viewer_required=True)
     try:
         await _seed(eng)
         await _group(eng)
@@ -347,4 +347,4 @@ async def test_flags_off_do_not_refuse_or_filter(off: Engine) -> None:
     from memspine.read.pipeline import request as rq
 
     scope = rq._cache_scope(off, GROUP)
-    assert (scope.tenant, scope.owner) == (GROUP, GROUP)
+    assert (scope.tenant, scope.owner) == ("acme", "family")

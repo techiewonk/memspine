@@ -388,3 +388,5 @@ pydantic · extras: langchain-core, langchain-openai (llm), redis, psycopg2-bina
 | observability (Langfuse+OTel+Prometheus) | langfuse, opentelemetry-*, prometheus-client | honcho, cognee, graphiti, telemem |
 
 *Companion docs:* `DEPENDENCY_ANALYSIS.md` (adoption reasoning + D-26…D-35), `UNIMEM_V2_REWORK_PROPOSAL.md` (architecture), `memspine-structure-plan.md` (blueprint).
+
+Current first-cycle amendment (D-110 / ADR-086, 2026-10-24): graph communities use the owned deterministic label-propagation implementation over the assertion graph. The superseded record-graph Leiden/LPA implementation and its `community` / `graspologic-native` extra are removed. Earlier dependency comparisons below are historical rationale.

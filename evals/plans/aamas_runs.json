@@ -34,14 +34,19 @@
           "utility_weight": 0.0
         }
       },
-      "embedding": {
-        "provider": "openai_compatible",
-        "model": "bedrock/cohere.embed-v4:0",
-        "dim": 1024,
-        "aws_region": "us-east-1",
-        "request_dimensions": true,
-        "query_input_type": "search_query",
-        "document_input_type": "search_document"
+      "model": {
+        "embedding": {
+          "provider": "bedrock",
+          "settings": {
+            "model": "cohere.embed-v4:0",
+            "dim": 1024,
+            "aws_region": "us-east-1",
+            "request_dimensions": true,
+            "query_input_type": "search_query",
+            "document_input_type": "search_document",
+            "request_timeout_s": 60.0
+          }
+        }
       }
     }
   },
@@ -93,7 +98,31 @@
       "systems": [
         "memspine"
       ],
-      "notes": "replay read, relevance-only scoring, record_access off, Cohere v4; every engine role bound to Qwen3 (--memspine-llm bedrock-qwen3)"
+      "notes": "replay read, relevance-only scoring, record_access off, Cohere v4; every engine role bound to Qwen3 (--memspine-llm bedrock-qwen3)",
+      "config_delta": {
+        "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
+        }
+      }
     },
     {
       "id": "memspine-assemble",
@@ -102,7 +131,31 @@
         "memspine"
       ],
       "read_mode": null,
-      "notes": "memspine on the default assemble read path (no replay): the one-change control for H2, which reads via assemble. Pilot 2026-10-03 showed base (replay) and H2 (assemble) differ in read mode."
+      "notes": "memspine on the default assemble read path (no replay): the one-change control for H2, which reads via assemble. Pilot 2026-10-03 showed base (replay) and H2 (assemble) differ in read mode.",
+      "config_delta": {
+        "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
+        }
+      }
     },
     {
       "id": "H1",
@@ -113,7 +166,27 @@
       ],
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       },
       "notes": "default QA prompt, NOT --qa-prompt dated"
@@ -126,7 +199,31 @@
         "memspine"
       ],
       "qa_prompt": "dated",
-      "notes": "prompt only, no config delta; separate from H1"
+      "notes": "prompt only, no config delta; separate from H1",
+      "config_delta": {
+        "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
+        }
+      }
     },
     {
       "id": "H3",
@@ -136,7 +233,31 @@
         "memspine"
       ],
       "read_mode": "auto",
-      "notes": "aggregation questions routed to compose"
+      "notes": "aggregation questions routed to compose",
+      "config_delta": {
+        "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
+        }
+      }
     },
     {
       "id": "H11",
@@ -146,7 +267,27 @@
       ],
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "candidate_pool": 3
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       }
     },
@@ -158,8 +299,28 @@
       ],
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "assembly": {
             "relative_floor": 0.3
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
           }
         }
       }
@@ -173,7 +334,27 @@
       ],
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "render": "dated"
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       }
     },
@@ -186,7 +367,27 @@
       ],
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "order_by_time_for_ordering": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       }
     },
@@ -199,6 +400,28 @@
       "read_mode": null,
       "build_sleep": true,
       "config_delta": {
+        "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
+        },
         "memories": {
           "episodic": {
             "policies": {
@@ -222,6 +445,28 @@
       ],
       "build_sleep": true,
       "config_delta": {
+        "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
+        },
         "memories": {
           "episodic": {
             "policies": {
@@ -246,6 +491,29 @@
       ],
       "build_sleep": true,
       "config_delta": {
+        "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
+          "anticipatory_cues": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
+        },
         "memories": {
           "episodic": {
             "policies": {
@@ -254,9 +522,6 @@
               }
             }
           }
-        },
-        "read": {
-          "anticipatory_cues": true
         }
       },
       "expect_roles": [
@@ -271,6 +536,28 @@
       ],
       "build_sleep": true,
       "config_delta": {
+        "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
+        },
         "memories": {
           "episodic": {
             "policies": {
@@ -297,7 +584,27 @@
       ],
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "relevance_filter": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       },
       "expect_roles": [
@@ -313,7 +620,27 @@
       "read_mode": "auto",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "compose_rewrites": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       },
       "expect_roles": [
@@ -329,7 +656,27 @@
       ],
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "replay_topic_segments": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       }
     },
@@ -341,6 +688,28 @@
         "memspine"
       ],
       "config_delta": {
+        "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
+        },
         "firewall": {
           "skip_injected_recall": true,
           "skip_message_roles": [
@@ -357,6 +726,28 @@
         "memspine"
       ],
       "config_delta": {
+        "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
+        },
         "firewall": {
           "enabled": true
         },
@@ -395,10 +786,30 @@
       "qa_prompt": "dated",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
           }
         }
       },
@@ -414,12 +825,32 @@
       "build_sleep": true,
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
           },
           "anticipatory_cues": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         },
         "memories": {
           "episodic": {
@@ -452,18 +883,38 @@
       "qa_prompt": "dated",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
           },
           "candidate_pool": 3
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       },
       "notes": "isolates the reranker: R-* = combo-A-pool + rerank"
     },
     {
-      "id": "R-bge",
+      "id": "R-msmarco",
       "hypothesis": "combo-A + local cross-encoder",
       "systems": [
         "memspine"
@@ -471,19 +922,47 @@
       "qa_prompt": "dated",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
           },
-          "rerank": "fastembed",
-          "rerank_model": "BAAI/bge-reranker-base",
-          "candidate_pool": 3,
-          "rerank_date_prefix": true,
-          "skip_rerank_for_ordering": true
+          "candidate_pool": 3
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          },
+          "rerank": {
+            "chain": [
+              {
+                "provider": "onnx",
+                "settings": {
+                  "model": "Xenova/ms-marco-MiniLM-L-6-v2"
+                }
+              }
+            ],
+            "date_prefix": true,
+            "skip_for_ordering": true
+          }
         }
       },
-      "notes": "fastembed BAAI/bge-reranker-base (MIT, CPU), pool 3x, [Date:] prefix, skip for ordering questions"
+      "notes": "Own ONNX provider with the pinned MS MARCO MiniLM cross-encoder; pool 3x, date prefix, skip ordering questions."
     },
     {
       "id": "R-cohere",
@@ -494,16 +973,45 @@
       "qa_prompt": "dated",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
           },
-          "rerank": "openai_compatible",
-          "rerank_model": "bedrock/arn:aws:bedrock:us-east-1::foundation-model/cohere.rerank-v3-5:0",
-          "candidate_pool": 3,
-          "rerank_date_prefix": true,
-          "skip_rerank_for_ordering": true
+          "candidate_pool": 3
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          },
+          "rerank": {
+            "chain": [
+              {
+                "provider": "bedrock",
+                "settings": {
+                  "model": "arn:aws:bedrock:us-east-1::foundation-model/cohere.rerank-v3-5:0",
+                  "request_timeout_s": 60.0
+                }
+              }
+            ],
+            "date_prefix": true,
+            "skip_for_ordering": true
+          }
         }
       },
       "notes": "Cohere Rerank 3.5 via Bedrock (needs the full ARN as model id); rerank calls are NOT in the dollar meter (~$2 per 1,000 queries, verify); DISABLED 2026-10-05: reranking is opt-in per requirement; run only when named with --arms",
@@ -519,10 +1027,30 @@
       "build_sleep": true,
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
           }
         },
         "memories": {
@@ -550,12 +1078,32 @@
       "build_sleep": true,
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
           },
           "cards": "header"
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         },
         "memories": {
           "episodic": {
@@ -582,10 +1130,30 @@
       "build_sleep": true,
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
           }
         },
         "memories": {
@@ -616,12 +1184,32 @@
       "build_sleep": true,
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
           },
           "anticipatory_cues": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         },
         "memories": {
           "episodic": {
@@ -648,12 +1236,32 @@
       "build_sleep": true,
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
           },
           "profile_header": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         },
         "memories": {
           "episodic": {
@@ -683,6 +1291,12 @@
       "read_mode": "auto",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
@@ -690,6 +1304,20 @@
           },
           "planner": "llm",
           "compose_replay": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       },
       "expect_roles": [
@@ -707,6 +1335,12 @@
       "read_mode": "auto",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
@@ -715,6 +1349,20 @@
           "planner": "llm",
           "compose_replay": true,
           "aggregate_top_k": 20
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       },
       "expect_roles": [
@@ -732,6 +1380,12 @@
       "read_mode": "auto",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
@@ -740,8 +1394,24 @@
           "planner": "decision",
           "planner_min_confidence": 0.6
         },
-        "decision": {
-          "provider": "gliner2"
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          },
+          "decider": {
+            "route": {
+              "provider": "gliner2"
+            }
+          }
         }
       },
       "notes": "needs the [ner] extra (gliner2) and the ~1 GB model; not rehearsable offline without it"
@@ -755,17 +1425,45 @@
       "qa_prompt": "dated",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
           },
-          "rerank": "fastembed",
-          "rerank_model": "BAAI/bge-reranker-base",
-          "candidate_pool": 3,
-          "rerank_date_prefix": true,
-          "skip_rerank_for_ordering": true,
-          "rerank_keep": 10
+          "candidate_pool": 3
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          },
+          "rerank": {
+            "chain": [
+              {
+                "provider": "onnx",
+                "settings": {
+                  "model": "Xenova/ms-marco-MiniLM-L-6-v2"
+                }
+              }
+            ],
+            "keep": 10,
+            "date_prefix": true,
+            "skip_for_ordering": true
+          }
         }
       },
       "notes": "the 3x pool only feeds the cross-encoder; 10 records go on to assembly (R-bge context was ~2.9K tokens)"
@@ -799,10 +1497,30 @@
       "qa_prompt": "dated",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
           }
         },
         "memories": {
@@ -826,10 +1544,30 @@
       "qa_prompt": "dated_infer",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
           }
         }
       },
@@ -845,12 +1583,32 @@
       "build_sleep": true,
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
           },
           "cards": "header"
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         },
         "memories": {
           "episodic": {
@@ -876,6 +1634,12 @@
       "build_sleep": true,
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
@@ -883,6 +1647,20 @@
           },
           "cards": "header",
           "cards_skip_temporal": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         },
         "memories": {
           "episodic": {
@@ -909,6 +1687,12 @@
       "build_sleep": true,
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
@@ -916,6 +1700,20 @@
           },
           "cards": "header",
           "cards_skip_temporal": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         },
         "memories": {
           "episodic": {
@@ -933,19 +1731,39 @@
       "notes": "+ read.cards_skip_temporal (smoke 2026-10-05: cards cost temporal -13 to -16)"
     },
     {
-      "id": "combo-A-dated2",
-      "hypothesis": "G12: combo-A with the dated2 QA prompt (said vs happened)",
+      "id": "combo-A-dated",
+      "hypothesis": "G12: combo-A with the dated QA prompt (said vs happened)",
       "benchmark": "LoCoMo cat 2",
       "systems": [
         "memspine"
       ],
-      "qa_prompt": "dated2",
+      "qa_prompt": "dated",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
+          }
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
           }
         }
       },
@@ -961,12 +1779,32 @@
       "qa_prompt": "dated",
       "config_delta": {
         "read": {
+          "record_access": false,
+          "scoring": {
+            "recency_weight": 0.0,
+            "importance_weight": 0.0,
+            "utility_weight": 0.0
+          },
           "resolve_relative_dates": true,
           "order_by_time_for_ordering": true,
           "assembly": {
             "relative_floor": 0.3
           },
           "count_timeline": true
+        },
+        "model": {
+          "embedding": {
+            "provider": "bedrock",
+            "settings": {
+              "model": "cohere.embed-v4:0",
+              "dim": 1024,
+              "aws_region": "us-east-1",
+              "request_dimensions": true,
+              "query_input_type": "search_query",
+              "document_input_type": "search_document",
+              "request_timeout_s": 60.0
+            }
+          }
         }
       },
       "notes": "count questions get an Occurrences (dated) block (10% of the budget) of the distinct dated mentions among the retrieved turns"

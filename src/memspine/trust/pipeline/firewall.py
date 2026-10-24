@@ -17,7 +17,7 @@ from memspine.observability.logging import get_logger
 from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
 from memspine.store.records import MemoryRecord, PiiTier, RecordStatus, SourceInfo
 from memspine.store.scope import grant_allows, validate_namespace
-from memspine.trust.pipeline import gates_v2
+from memspine.trust.pipeline import gates
 from memspine.trust.pipeline.state import _CORROBORATION_ROLES, AuthorizeDecision, _fact_value
 from memspine.trust.privacy import inherited_consent, inherited_pii
 
@@ -419,7 +419,7 @@ async def _corroborate(eng: Any, namespace: str, incoming: MemoryRecord) -> None
         principal_bound = integrity.enabled and integrity.principal_bound_corroboration
         if principal_bound and not await eng._independent_principal(held, incoming):
             continue
-        if eng._config().firewall.gates_v2 and not await gates_v2.release_ok(eng, held, incoming):
+        if eng._config().firewall.gates and not await gates.release_ok(eng, held, incoming):
             continue  # W2-04 / S4-4: only an independent person, operator or system family counts
         by_roots = integrity.corroboration_roots
         if by_roots and not await eng._independent_roots(held, incoming):

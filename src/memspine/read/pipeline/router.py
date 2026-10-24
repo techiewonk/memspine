@@ -140,7 +140,7 @@ def _record_reads(
     eng: Any, ns: str, session_id: str | None, results: Sequence[tuple[MemoryRecord, float]]
 ) -> None:
     """B0: remember what this session was shown, with the view trust it saw."""
-    if eng._config().write.role_policy_v2 and results:  # W2-03: the echo guard's last read
+    if eng._config().write.role_policy and results:  # W2-03: the echo guard's last read
         _remember_last_read(eng, ns, session_id, results)
     policy = eng._integrity()
     if not policy.enabled or policy.implicit_parents == "off" or not results:
@@ -193,7 +193,7 @@ async def retrieve(
     ``include_held=True``, the operator's audit view; :meth:`list_quarantined`
     is the review queue.
 
-    ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+    ``purpose`` (#50): the read's purpose, checked under ``consent.enabled``.
     #53: records of PASSIVE sessions are left out unless ``include_passive=True``
     or ``group_id`` names their group."""
     storage = eng._require_started()
@@ -232,78 +232,6 @@ def _coverage_reorder(
         moved = sum(1 for new, old in enumerate(order) if new != old)
         tap.event("read.coverage_select", pool=len(scored), moved=moved)
     return out
-
-
-async def _lexical_guarded(eng: Any, ns: str, query: str, fetch_k: int) -> Any:
-    """The BM25 leg; a broken lexical leg degrades to vector-only, never takes down the search."""
-    assert eng._lexical is not None  # narrowed by use_hybrid
-    try:
-        lexical_query = (
-            await eng._strip_speaker_names(ns, query)
-            if eng._config().read.lexical_strip_names
-            else query
-        )
-        return await eng._lexical_leg(ns, lexical_query, fetch_k)
-    except Exception as exc:
-        # Defense in depth: fusing an empty leg preserves the vector ordering.
-        _log.warning("lexical.search_failed", namespace=ns, error=str(exc))
-        return []
-
-
-async def _gather_base_legs(
-    eng: Any,
-    ns: str,
-    query: str,
-    query_vector: Any,
-    fetch_k: int,
-    use_hybrid: bool,
-    probe_texts: Sequence[str],
-    probe_vectors: Sequence[Any],
-) -> tuple[Any, Any, Any]:
-    """R3-15 ``read.parallel_legs``: the legs that depend only on the query (vector, lexical,
-    metadata, encoder, probes) run together. Results keep the sequential order, so fusion is
-    unchanged. Timings go to the wiretap as ``read.legs.parallel``."""
-    import asyncio
-    import time
-
-    timings: dict[str, float] = {}
-
-    async def timed(name: str, coro: Any) -> Any:
-        t0 = time.perf_counter()
-        try:
-            return await coro
-        finally:
-            timings[name] = round((time.perf_counter() - t0) * 1000, 2)
-
-    names = ["vector"]
-    coros = [timed("vector", eng._vector_leg(ns, query_vector, fetch_k))]
-    if use_hybrid:
-        names.append("lexical")
-        coros.append(timed("lexical", _lexical_guarded(eng, ns, query, fetch_k)))
-    names.append("metadata")
-    coros.append(timed("metadata", eng._metadata_legs(ns, query, fetch_k)))
-    if eng._config().read.query_encoder != "none":
-        names.append("encoder")
-        coros.append(timed("encoder", eng._encoder_legs(ns, query)))
-    for i, (text, vector) in enumerate(zip(probe_texts, probe_vectors, strict=True)):
-        names.append(f"probe{i}")
-        coros.append(timed(f"probe{i}", eng._probe_legs(ns, text, vector, fetch_k, use_hybrid)))
-    t0 = time.perf_counter()
-    out = await asyncio.gather(*coros)  # results come back in argument order
-    by_name = dict(zip(names, out, strict=True))
-    extra_legs = list(by_name["metadata"])
-    if "encoder" in by_name:
-        extra_legs += by_name["encoder"]
-    for name in names:
-        if name.startswith("probe"):
-            extra_legs += by_name[name]
-    tap.event(
-        "read.legs.parallel",
-        legs=names,
-        leg_ms=timings,
-        wall_ms=round((time.perf_counter() - t0) * 1000, 2),
-    )
-    return by_name["vector"], by_name.get("lexical", []), extra_legs
 
 
 async def search(
@@ -360,7 +288,7 @@ async def search(
     through the write door like every other mutation. Both E8 stages are
     off by default: results are bit-identical to the plain pipeline.
 
-    ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+    ``purpose`` (#50): the read's purpose, checked under ``consent.enabled``.
     #53: records of PASSIVE sessions (session lifecycle) are left out unless
     ``include_passive=True``, ``session_id`` names their session, or ``group_id``
     names their group. With the lifecycle off no record is passive.
@@ -474,7 +402,7 @@ async def _search(
     """:meth:`search` with ``keep_k``: how many results the caller finally keeps
     (assembly fetches ``candidate_pool x top_k``); the H18 rerank gate uses it.
 
-    ``probes`` (#35, the LLM planner v2's lookup subqueries): each adds a vector
+    ``probes`` (#35, the LLM planner's lookup subqueries): each adds a vector
     leg (and a lexical leg under hybrid) to the RRF fusion. Empty: unchanged.
 
     ``hide`` (G1b/G3b): records a read header already shows leave with the gates,
@@ -502,10 +430,10 @@ async def _search(
         raise ValueError(f"top_k must be >= 1, got {top_k}")
     ns = validate_namespace(namespace)
     final_k = top_k
-    if search_pool > top_k and (eng._config().model.rerank.chain or eng._config().read.tiers_v2):
+    if search_pool > top_k and (eng._config().model.rerank.chain or eng._config().read.tiers):
         # FU-RRPOOL: the reranker sees a wider pool; the cut back to ``final_k`` follows it.
         top_k = search_pool
-    if eng._config().read.freshness_v2:  # O4-01b (O-06): staleness metadata, optional raw fallback
+    if eng._config().read.freshness:  # O4-01b (O-06): staleness metadata, optional raw fallback
         stale_leg = await read_freshness.apply(eng, ns)
         if stale_leg:
             fused_legs = [*fused_legs, stale_leg]
@@ -540,9 +468,6 @@ async def _search(
         persp_qp = await eng._question_perspective(ns, query)
     off_legs = read_request.legs_off()  # R3-03 (read.router_rules): empty when the flag is off
     no_graph = legs_guarded(read_persp, query)  # GTIME: a "when" question reads without the graph
-    graph_leg: list[LegHit] | None = (
-        None if eng._config().read.graph_leg and "graph" not in off_legs and not no_graph else []
-    )
     # GP-9 (read.graph_communities): community summaries this query may read.
     community_gate: list[str] | None = None
     protected: dict[str, str] = {}  # I75a: record id -> leg whose top-N it belongs to
@@ -550,41 +475,13 @@ async def _search(
     while True:
         protected = {}
         fetch_k = base_fetch * widen
-        if eng._config().read.legs_v2:
-            # R3-04 (read.legs_v2): vector + language-aware BM25 + temporal through the registry
-            vector_hits, lexical_hits, extra_legs = await registry_base_legs(
-                eng, ns, query, query_vector, fetch_k, use_hybrid, probe_texts, probe_vectors
-            )
-        elif eng._config().read.parallel_legs:
-            vector_hits, lexical_hits, extra_legs = await _gather_base_legs(
-                eng, ns, query, query_vector, fetch_k, use_hybrid, probe_texts, probe_vectors
-            )
-        else:
-            vector_hits = await eng._vector_leg(ns, query_vector, fetch_k)
-            # Hybrid (D-25): fuse the lexical BM25 leg via RRF. Off (default),
-            # ``ranked`` is exactly the vector hits in cosine order — bit-identical.
-            if use_hybrid:
-                lexical_hits = await _lexical_guarded(eng, ns, query, fetch_k)
-            else:
-                lexical_hits = []
-            extra_legs = await eng._metadata_legs(ns, query, fetch_k)
-            if eng._config().read.query_encoder != "none":
-                extra_legs += await eng._encoder_legs(ns, query)
-            for text, vector in zip(probe_texts, probe_vectors, strict=True):
-                extra_legs += await eng._probe_legs(ns, text, vector, fetch_k, use_hybrid)
+        vector_hits, lexical_hits, extra_legs = await registry_base_legs(
+            eng, ns, query, query_vector, fetch_k, use_hybrid, probe_texts, probe_vectors
+        )
         if community_gate is None and eng._config().read.graph_communities:
             community_gate = await eng._community_gate(
                 ns, query, vector_hits, lexical_hits, extra_legs, use_hybrid
             )
-        if graph_leg is None:
-            graph_leg = await eng._graph_leg(
-                ns, query, vector_hits, lexical_hits, extra_legs, use_hybrid
-            )
-            if community_gate:
-                in_leg = {hit.record_id for hit in graph_leg}
-                graph_leg += [LegHit(pid, 1.0) for pid in community_gate if pid not in in_leg]
-        if graph_leg:
-            extra_legs = [*extra_legs, graph_leg]
         read_now = eng._config().read
         if (read_now.cohesion_leg or read_now.entity_expand_leg) and "entity" not in off_legs:
             extra_legs += await eng._anchor_legs(ns, vector_hits, lexical_hits, fetch_k)
@@ -759,7 +656,7 @@ async def _search(
             candidates = [
                 pair
                 for pair in candidates
-                if pair[0].source.channel != "reorganize" or pair[0].record_id in admitted
+                if pair[0].source.channel != "community_summary" or pair[0].record_id in admitted
             ]
             _cut_missing(_pre, candidates, "community_gate")
         if allowed is not None:
@@ -1022,8 +919,8 @@ async def _search(
         # FU-RRPOOL: the wide pool was reranked; only the caller's top_k leave.
         _pre = _ids(scored)
         scored = scored[:final_k]
-        _cut_missing(_pre, scored, "rerank_v2_search_pool", keep=final_k)
-        tap.event("read.rerank_v2_search_pool", pool=top_k, kept=final_k)
+        _cut_missing(_pre, scored, "rerank_search_pool", keep=final_k)
+        tap.event("read.rerank_search_pool", pool=top_k, kept=final_k)
     if scored and eng._config().read.record_access:
         # Reinforcement stats via the log (M1): last_accessed_at + access_count.
         await eng._append_and_project(
@@ -1113,7 +1010,7 @@ async def read(
     ``session_id`` keys the B0 read ledger (as in :meth:`assemble`), for the read
     headers and the routed read alike.
 
-    ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+    ``purpose`` (#50): the read's purpose, checked under ``consent.enabled``.
     #53: PASSIVE-session records enter only with ``include_passive=True`` or when
     ``session_id`` names their session (see :meth:`search`).
 
@@ -1132,7 +1029,7 @@ async def read(
     if focal_entity:  # G-11: an extra graph seed for this read
         _FOCAL_ENTITY.set(focal_entity)
     plan_token = None
-    if read_request.v2_flags_on(eng._config().read):  # R3-01/02/03, flag-off: skipped
+    if read_request.request_features_on(eng._config().read):  # R3-01/02/03, flag-off: skipped
         query, plan_state = await read_request.plan_read(
             eng,
             query,
@@ -1205,7 +1102,7 @@ async def _read_planned(
     focal_entity: str | None = None,
     graph_filter: QualifierFilter | None = None,
 ) -> ReadResult:
-    """:meth:`read` after the v2 request stage (R3-01/02/03); the body of the read."""
+    """:meth:`read` after the request stage (R3-01/02/03); the body of the read."""
     if as_of is not None:
         moment = to_utc(as_of) + timedelta(microseconds=1)
         valid_from_before = valid_from_before if valid_from_before is not None else moment
@@ -1254,7 +1151,7 @@ async def _read_planned(
             result = hit
         else:
             result = None
-            if eng._config().read.decompose_v2:  # R14-M-12 / OBS-10: map-reduce, flag-off skipped
+            if eng._config().read.decompose:  # R14-M-12 / OBS-10: map-reduce, flag-off skipped
                 from memspine.read.pipeline.decompose import decomposed_read
 
                 result = await decomposed_read(
@@ -1343,7 +1240,7 @@ async def _read(
         )
     if eng._config().read.event_ledger == "on":  # A02: opt-in, read-time only
         result = await eng._event_ledger_extend(query, ns, result, routed_budget)
-    if eng._config().read.deep_v2 or eng._config().read.obligations:  # R3-12 / R3-16: opt-in
+    if eng._config().read.deep or eng._config().read.obligations:  # R3-12 / R3-16: opt-in
         result = await eng._deep_extend(
             query, ns, result, routed_budget, hide=hide, session_id=session_id
         )
@@ -1424,12 +1321,11 @@ async def _read_routed(
             # G2a: lookup and replay both read by replay; aggregate by compose.
             mode = "compose" if plan.mode == "aggregate" else "replay"
             probes = list(plan.subqueries) if plan.mode == "aggregate" else []
-            if plan.mode != "aggregate" and read_cfg.planner_version in ("v2", "v3"):
+            if plan.mode != "aggregate":
                 # #35: a lookup's subqueries join its search as extra RRF legs.
                 lookup_probes = list(plan.subqueries[: constants.PLAN_LOOKUP_PROBES])
-            if read_cfg.planner_version == "v3":
-                # #36: the plan's persons / time expression become a structured leg.
-                legs = [await eng._person_time_leg(ns, plan)]
+            # The plan's persons/time expression contributes a structured leg.
+            legs = [await eng._person_time_leg(ns, plan)]
     if mode == "compose" or (mode == "auto" and is_aggregation(query)):
         # G11: a routed aggregation read pools more candidates (budget-capped).
         k = read_cfg.aggregate_top_k if routed and read_cfg.aggregate_top_k else top_k
@@ -1470,10 +1366,7 @@ async def _read_routed(
         # A1 (ADR-055): a list or count question read by replay pools more
         # candidates too; replay rendering, no compose. The budget still caps it.
         top_k = read_cfg.aggregate_top_k
-    if read_cfg.list_mode and read_cfg.list_mode_trigger_v2:
-        list_fire = await read_request._list_fires_v2(eng, ns, query)  # R14-M-1
-    else:
-        list_fire = await eng._list_fires(query)
+    list_fire = read_cfg.list_mode and await read_request._list_fires(eng, ns, query)
     list_token = _LIST_MODE.set(list_fire)  # B1: the search widens for a list question
     try:
         base = await eng._assemble_core(

@@ -1,6 +1,6 @@
 """Trust: consent moved out of the engine (F-12); privacy tiers and the consent registry (T5-03).
 
-With ``consent.v2`` off, :func:`_consent_ok` is the #50 purpose gate over ``consent_tags``, untouched.
+With ``consent.enabled`` off, consent policy does not restrict reads; erasure visibility still applies.
 With it on, the LIB-18 library (``trust.consent``) decides: ``may_read`` on every read, ``may_store`` at
 the write door, ``may_derive`` at the derived-write door. The registry is process-local state held on the
 engine and mirrored into the event log as audit-only MARKER events, so :func:`ensure_registry` rebuilds
@@ -33,8 +33,8 @@ from memspine.trust.consent import (
     may_store,
     tier_from_pii,
 )
-from memspine.trust.pipeline.erasure_v2 import visible_id
-from memspine.trust.privacy import PURPOSE_NONE, current_purpose, purpose_allows
+from memspine.trust.pipeline.erasure_state import visible_id
+from memspine.trust.privacy import PURPOSE_NONE, current_purpose
 
 _REGISTRY_KEY = "_consent_registry"
 _LOADED_KEY = "_consent_registry_loaded"
@@ -44,26 +44,26 @@ _MARKER = "consent_registry"
 def _consent_ok(eng: Any, record: MemoryRecord) -> bool:
     """#50: whether the current read's purpose may see ``record``. Also the one gate every read
     leg ends in, so it carries the T5-04 / POL-1 erasure check: an erased or hidden id is never
-    visible (a no-op until ``privacy.erasure_v2`` erased something)."""
+    visible (a no-op until ``privacy.erasure`` erased something)."""
     if not visible_id(eng, record.record_id):
         return False
     cfg = eng._config().consent
-    if cfg.v2:
+    if cfg.enabled:
         return read_decision(eng, record, current_purpose()).allowed
-    return purpose_allows(record, current_purpose(), cfg)
+    return True
 
 
 async def offline_live(eng: Any, records: Sequence[MemoryRecord]) -> list[MemoryRecord]:
     """FU-SAFE (T5-05): the records an offline stage may read. The owner's own view (no read
     purpose): erased/hidden ids and consent-refused ones are dropped (``_consent_ok``), so are
-    quarantined ones and, under ``consent.v2``, subjects marked do-not-derive (``may_derive``)."""
-    if eng._config().consent.v2:
+    quarantined ones and, under ``consent.enabled``, subjects marked do-not-derive (``may_derive``)."""
+    if eng._config().consent.enabled:
         await ensure_registry(eng)
     out: list[MemoryRecord] = []
     for r in records:
         if r.quarantined or not eng._consent_ok(r):
             continue
-        if eng._config().consent.v2 and derive_denial(eng, r) is not None:
+        if eng._config().consent.enabled and derive_denial(eng, r) is not None:
             continue
         out.append(r)
     return out
@@ -77,15 +77,15 @@ def registry(eng: Any) -> ConsentRegistry:
 
 
 def generation(eng: Any) -> int | None:
-    """The registry generation for cache keys (ER-31); None when ``consent.v2`` is off."""
-    if not eng._config().consent.v2:
+    """The registry generation for cache keys (ER-31); None when ``consent.enabled`` is off."""
+    if not eng._config().consent.enabled:
         return None
     return registry(eng).generation
 
 
 async def ensure_registry(eng: Any) -> ConsentRegistry:
-    """Rebuild the registry from the log once per engine (no-op with ``consent.v2`` off)."""
-    if not eng._config().consent.v2 or eng.__dict__.get(_LOADED_KEY):
+    """Rebuild the registry from the log once per engine (no-op with ``consent.enabled`` off)."""
+    if not eng._config().consent.enabled or eng.__dict__.get(_LOADED_KEY):
         return registry(eng)
     reg = ConsentRegistry()
     storage = eng._require_started()

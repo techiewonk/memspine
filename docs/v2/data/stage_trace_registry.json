@@ -145,7 +145,7 @@
    "phase": "Prompt context",
    "events": [
     "prompt.render",
-    "write.prompt.v2"
+    "write.prompt"
    ],
    "gap": false
   },
@@ -491,7 +491,7 @@
   "C5": {
    "phase": "Mode routing, planner, list trigger",
    "events": [
-    "read.list_trigger_v2",
+    "read.list_trigger",
     "read.planner.io"
    ],
    "gap": true,
@@ -501,7 +501,7 @@
   "C6": {
    "phase": "Assemble loop",
    "events": [
-    "read.legs.parallel"
+    "read.legs"
    ],
    "gap": false
   },
@@ -603,7 +603,7 @@
     "read.rerank.scored",
     "read.rerank.components",
     "models.rerank_chain",
-    "read.rerank_v2_search_pool"
+    "read.rerank_search_pool"
    ],
    "gap": false
   },
@@ -655,7 +655,7 @@
    "gap_ref": "F12"
   },
   "C27": {
-   "phase": "Agentic, deep_v2, obligations",
+   "phase": "Agentic, deep, obligations",
    "events": [
     "read.deep.step",
     "read.obligations.report"

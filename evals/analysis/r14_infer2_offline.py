@@ -44,7 +44,7 @@ def main() -> None:
             c = per_cat.setdefault(cat, Counter())
             c["n"] += 1
             c["gated_v1"] += v1
-            c["gated_v2"] += v2
+            c["gated"] += v2
             c["v2_only"] += v2 and not v1
             c["v1_only"] += v1 and not v2
             if v2:
@@ -64,7 +64,7 @@ def main() -> None:
             str(k): {
                 **dict(v),
                 "v1_rate": round(v["gated_v1"] / v["n"], 4),
-                "v2_rate": round(v["gated_v2"] / v["n"], 4),
+                "v2_rate": round(v["gated"] / v["n"], 4),
             }
             for k, v in sorted(per_cat.items())
         },

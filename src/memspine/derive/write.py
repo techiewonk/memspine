@@ -29,7 +29,7 @@ from memspine.store.layers import LAYERS, derive_layer
 from memspine.store.records import MemoryRecord
 from memspine.trust.horizon import deposit_trust
 from memspine.trust.pipeline import consent as trust_consent
-from memspine.trust.pipeline import gates_v2
+from memspine.trust.pipeline import gates
 from memspine.trust.visibility import restrict_to_parents
 
 __all__ = ["DerivedWithoutParents", "write_derived"]
@@ -63,16 +63,16 @@ async def write_derived(
     ``roles`` maps a parent id to its lineage role (default ``support``); ``spans`` maps a parent id
     to the evidence span in that parent. The caller holds the namespace write lock, as before.
 
-    ``firewall.gates_v2`` (W2-04, gate 3) and ``consent.v2`` (T5-03, ``may_derive``): a record the
+    ``firewall.gates`` (W2-04, gate 3) and ``consent.enabled`` (T5-03, ``may_derive``): a record the
     gates refuse is still written, but held in quarantine (inert, never served, never a parent of
     further derivation); the reasons ride the write door as ``GATE_HOLD``.
     """
     record = await _inherit_visibility(eng, storage, ns, record, parents)
     reasons: list[str] = []
-    if gates_v2.gates_on(eng):
+    if gates.gates_on(eng):
         pids = list(parents if parents is not None else record.source.parents)
-        reasons.extend(await gates_v2.derive_hold(eng, storage, record, pids))
-    if eng._config().consent.v2:
+        reasons.extend(await gates.derive_hold(eng, storage, record, pids))
+    if eng._config().consent.enabled:
         await trust_consent.ensure_registry(eng)
         denied = trust_consent.derive_denial(eng, record)
         if denied is not None:
@@ -84,14 +84,14 @@ async def write_derived(
         )  # fmt: skip
     if tap.enabled():
         tap.event("derive.gate.hold", site=site, record=record.record_id, reasons=reasons)
-    token = gates_v2.GATE_HOLD.set((record.record_id, tuple(reasons)))
+    token = gates.GATE_HOLD.set((record.record_id, tuple(reasons)))
     try:
         return await _write_derived(
             eng, storage, ns, record, route, actor,
             parents, roles, spans, layer, trust_cap, site,
         )  # fmt: skip
     finally:
-        gates_v2.GATE_HOLD.reset(token)
+        gates.GATE_HOLD.reset(token)
 
 
 async def _inherit_visibility(
@@ -103,7 +103,7 @@ async def _inherit_visibility(
 ) -> MemoryRecord:
     """F1: under ``isolation.viewer_required`` the record is never more visible than its parents.
 
-    The named ``parents`` (else ``source.parents``) lend their participant and visibility tags, so
+    The named ``parents`` (else ``source.parents``) lend their typed participants and visibility policy, so
     a derived path that names parents the record does not cite in ``source.parents`` is covered
     too (the write door's governance sees only ``source.parents``). Flag off: untouched.
     """
@@ -111,9 +111,8 @@ async def _inherit_visibility(
         return record
     pids = [p for p in dict.fromkeys(parents if parents is not None else record.source.parents)]
     found = [await storage.get_record(p) for p in pids if p != record.record_id]
-    visible = [r.tags for r in found if r is not None and r.namespace == ns]
-    tags = restrict_to_parents(record.tags, visible)
-    return record if tags == record.tags else record.model_copy(update={"tags": tags})
+    visible = [r for r in found if r is not None and r.namespace == ns]
+    return restrict_to_parents(record, visible)
 
 
 async def _write_derived(
@@ -146,7 +145,10 @@ async def _write_derived(
         raise DerivedWithoutParents(
             f"derived record {record.record_id!r} ({site}) has no parent; lineage is enforced"
         )
-    role_of = {p: (roles or {}).get(p, "support") for p in pids}
+    # Unqualified multi-source derivations need every contributor. Independent
+    # alternative support is a claim callers must state explicitly via roles.
+    default_role = "member" if len(pids) > 1 else "support"
+    role_of = {p: (roles or {}).get(p, default_role) for p in pids}
     bad = sorted({r for r in role_of.values() if r not in LINEAGE_ROLES})
     if bad:
         raise ValueError(f"unknown lineage role(s) {bad}")
@@ -193,10 +195,8 @@ def stamp_derived(
     ``stamp_derived(record, "summary", site)`` still work). The memory type is
     ``record.memory_type``.
 
-    NEW-02 compat note: the derivation fingerprint no longer hashes the layer label (only site and
-    channel), so relabelling a layer never changes the fingerprint of identical content. Records
-    written after this change carry a different ``fingerprint.derivation`` than the same content
-    written before it; stored values are not rewritten.
+    The derivation fingerprint hashes the site and channel. Layer changes do not
+    change the identity of an otherwise identical derivation.
     """
     layer_label = _resolve_layer(record, layer)
     fp = fingerprint_payload({"site": site, "channel": record.source.channel})[:16]
@@ -220,7 +220,7 @@ async def link_derived(
         return written
     found = [r for r in [await storage.get_record(p) for p in pids] if r is not None]
     return await add_lineage(
-        storage, ns, written, pids, {p: "support" for p in pids}, None, site, found,
+        storage, ns, written, pids, {p: "member" if len(pids) > 1 else "support" for p in pids}, None, site, found,
         deposit_trust(1.0, [min(r.trust for r in found)]) if found else 1.0, written.layer,
     )  # fmt: skip
 

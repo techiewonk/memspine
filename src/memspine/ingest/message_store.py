@@ -10,7 +10,7 @@ import orjson
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from memspine.ingest.intake_store import (
+from memspine.services.storage.intake_tables import (
     conversation_identity,
     intake_intent,
     message_identity,

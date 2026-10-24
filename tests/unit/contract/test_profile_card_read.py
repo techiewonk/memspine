@@ -28,7 +28,7 @@ def _engine(**read):
         },
         model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
-        offline={"session_close_v2": True, "profile_card_v2": True},
+        offline={"session_close": True, "profile_card": True},
         read={"hybrid": False, "record_access": False, "profile_card_header": True, **read},
     )
 

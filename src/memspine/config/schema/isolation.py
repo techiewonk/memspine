@@ -12,11 +12,6 @@ class IsolationConfig(ConfigModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    #: F-16c / M-05: build the read-cache key and the extracted-graph edge key from the typed
-    #: ``Scope`` (tenant + owner; the session is provenance, never part of a key). Off keeps
-    #: today's keys (the graph key changes, so edges extracted with it on do not merge with
-    #: older ones).
-    scope_keys_v2: bool = False
     #: F-16c / G-12 B: a read of a multi-party namespace (listed below, declared by a
     #: ``Memory(..., multi_party=True)`` handle, or holding records with several participants or a
     #: visibility tag) without a ``viewer`` is refused with reason ``viewer_required``, on every

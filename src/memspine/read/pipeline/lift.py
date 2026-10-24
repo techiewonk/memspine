@@ -346,7 +346,7 @@ async def lift_episode_hits(
     carry: float,
     source: str = "episode",
 ) -> list[LegHit]:
-    """R3-05c (``read.episode_leg_v2``, R-10): episode hits to their member turns, with scores.
+    """R3-05c (``read.episode_leg``, R-10): episode hits to their member turns, with scores.
 
     ``hits`` are the episode leg's ``(record_id, score)`` hits, best first; ``episodes`` maps the
     episode ids to their records. Each episode walks to its source turns through lineage (the

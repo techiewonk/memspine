@@ -205,7 +205,7 @@ def _make_engine(read: Mapping[str, Any]) -> Any:
     return Engine(
         template="core",
         dotenv_path=None,
-        storage={"path": ":memory:"},
+        storage={"records": {"provider": "sqlite", "settings": {"path": ":memory:"}}},
         model={"embedding": {"provider": "hash"}, "rerank": rerank},
         memories={"episodic": {"enabled": True}},
         read={"record_access": False, **read},

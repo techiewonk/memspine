@@ -29,7 +29,7 @@ The evaluator is pluggable: :class:`RunnerEvaluator` runs the harness's own
 retrieval-only protocol (``c0-1 --retrieval-only --max-model-calls 0``: $0, local
 embedder) on a set of conversations; tests pass a synthetic evaluator.
 
-    python -m memspine_evals.spinetune --space arms/spinetune_space.json \\
+    python -m memspine_evals.spinetune --space search_spaces/spinetune.json \\
         --base arms/local-temporal-leg.json --dataset locomo --path data/locomo10.json \\
         --algo coordinate --max-trials 12 --dev-fraction 0.5 --dry-run
 """

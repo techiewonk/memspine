@@ -12,24 +12,12 @@ from __future__ import annotations
 
 import builtins
 from collections.abc import Sequence
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from typing import Protocol, runtime_checkable
 
 from memspine.services.assets.models import AssetEntry
 
-__all__ = ["AssetImportResult", "AssetRegistry", "MemoryAssetRegistry"]
-
-
-@dataclass(frozen=True, slots=True)
-class AssetImportResult:
-    """One import of a legacy asset directory (``registry.sqlite`` plus ``blobs/``)."""
-
-    source: str
-    rows: int
-    skipped: int
-    documents: int
-    already_imported: bool
-    renamed_to: tuple[str, ...] = ()
+__all__ = ["AssetRegistry", "MemoryAssetRegistry"]
 
 
 @runtime_checkable
@@ -67,13 +55,6 @@ class AssetRegistry(Protocol):
 
     async def erase_namespace(self, namespace: str) -> builtins.list[AssetEntry]:
         """Delete every row of ``namespace``; returns them."""
-        ...
-
-    async def import_rows(
-        self, entries: Sequence[AssetEntry], *, digest: str, source: str
-    ) -> int | None:
-        """One-time import: insert ``entries`` (existing rows win) and record ``digest`` in
-        one transaction. None when ``digest`` was imported before (nothing is written)."""
         ...
 
     async def close(self) -> None: ...
@@ -129,20 +110,6 @@ class MemoryAssetRegistry:
         for entry in gone:
             del self._rows[(namespace, entry.asset_id)]
         return gone
-
-    async def import_rows(
-        self, entries: Sequence[AssetEntry], *, digest: str, source: str
-    ) -> int | None:
-        if digest in self._imports:
-            return None
-        rows = 0
-        for entry in entries:
-            key = (entry.namespace, entry.asset_id)
-            if key not in self._rows:
-                self._rows[key] = replace(entry)
-                rows += 1
-        self._imports.add(digest)
-        return rows
 
     async def close(self) -> None:
         return None

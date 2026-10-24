@@ -15,7 +15,7 @@ import pytest
 import test_rm88_rm91_graph_caller as caller_tests
 from test_rm93_graph_filter import NS, QUERY, _build, _engine
 
-from memspine.derive.pipeline.stages.edge_compiler_v2 import compile_graph_edges
+from memspine.derive.pipeline.stages.edge_compiler import compile_graph_edges
 from memspine.read.pipeline import legs as pipeline_legs
 from memspine.services.graph.qualifiers import (
     AssertionModality,

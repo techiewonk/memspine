@@ -334,7 +334,7 @@ class GlinerHints:
         return (
             f"gliner2:{settings.model}@{settings.revision or 'default'}:{settings.device}:"
             f"local={settings.local_files_only}:tasks={','.join(sorted(settings.tasks))}:"
-            f"concurrency={settings.inference_concurrency}:prepass-v2-source-bound"
+            f"concurrency={settings.inference_concurrency}:prepass-source-bound"
         )
 
     @staticmethod

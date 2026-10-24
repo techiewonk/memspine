@@ -10,9 +10,6 @@ connector when the last holder in any Engine releases it.
 
 from __future__ import annotations
 
-import sqlite3
-from contextlib import AbstractContextManager
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, cast
 
 from memspine.providers.shared import own_shared, resource_key
@@ -24,7 +21,7 @@ if TYPE_CHECKING:
     from memspine.providers.contexts import SharedBuildContext
     from memspine.providers.contracts import ResourceRef
 
-__all__ = ["acquire", "http_connector", "legacy_sqlite_file"]
+__all__ = ["acquire", "http_connector"]
 
 
 async def acquire[C: Connector[Any]](
@@ -108,12 +105,3 @@ async def share_model_http(
     http, ref = await acquire(ctx, HttpConnector, spec, resource_id=resource_id, lazy=True)
     connector.borrow_http(http)
     return ref
-
-
-def legacy_sqlite_file(path: str | Path) -> AbstractContextManager[sqlite3.Connection]:
-    """A read connection to a legacy plaintext SQLite side file
-    (:func:`memspine.clients.sqlite.files.legacy_file_connection`), lent to the one-time
-    imports of consumers that may not import ``memspine.clients`` (RM-113)."""
-    from memspine.clients.sqlite.files import legacy_file_connection
-
-    return legacy_file_connection(path)

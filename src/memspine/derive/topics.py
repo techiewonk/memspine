@@ -108,7 +108,7 @@ class GlinerTopicTagger:
     @property
     def tagger_id(self) -> str:
         s = self._settings
-        return f"gliner2:{s.model}@{s.revision or 'default'}:topic-v1:min-{self._min:g}"
+        return f"gliner2:{s.model}@{s.revision or 'default'}:topic:min-{self._min:g}"
 
     def _classify_sync(self, extractor: Any, text: str) -> Any:
         options = list(self._labels)

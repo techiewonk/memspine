@@ -275,6 +275,12 @@ def test_edit_close() -> None:
         ),
         ("Where?", "Paris, Rome", "Jon visited Paris, Rome and Berlin.", "list_superset"),
         ("Pets?", "cats, dogs", "She has two cats, three dogs and a horse.", "list_superset"),
+        (
+            "Which?",
+            "blueberries and coconut milk",
+            "The ingredients (in addition to blueberries, coconut milk) are walnuts.",
+            "list_scoped",
+        ),
     ],
 )
 def test_conventions_credit(question: str, gold: str, answer: str, rule: str) -> None:
@@ -308,11 +314,6 @@ def test_conventions_credit(question: str, gold: str, answer: str, rule: str) ->
             "She got hurt, so she broke.",
         ),
         (
-            "Which?",
-            "blueberries and coconut milk",
-            "The ingredients (in addition to blueberries, coconut milk) are walnuts.",
-        ),
-        (
             "Symbols?",
             "Rainbow flag, transgender symbol",
             "Her symbols: a necklace, a bowl. She mentioned the transgender community and a flag she saw at a very long march in the city centre last year.",
@@ -344,7 +345,7 @@ async def test_guarded_judge_conventions_keep_score_and_add_second_column() -> N
     v = await judge.score("What game?", "Xeonoblade Chronicles", "Xenoblade Chronicles")
     assert v.score == 0.0  # the LLM verdict is untouched
     assert v.meta["score_conventions"] == 1.0 and v.meta["convention"] == "typo"
-    assert judge.spec.params["conventions"] == "conventions/v1"
+    assert judge.spec.params["conventions"] == "conventions"
     wrong = await judge.score("What game?", "Zelda", "Xenoblade Chronicles")
     assert wrong.score == 0.0 and wrong.meta["score_conventions"] == 0.0
     ok = await GuardedJudge(_Inner(1.0), conventions=True).score("q", "anything", "gold")

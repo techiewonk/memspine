@@ -185,8 +185,8 @@ def test_bound_annotation_type_round_trips_as_typed_unasserted_data() -> None:
     assert restored == mention and restored.asserted is False
 
 
-def test_empty_mention_field_is_omitted_for_existing_record_payloads() -> None:
-    assert "entity_mentions" not in RecordFingerprint().model_dump(mode="json")
+def test_current_fingerprint_keeps_empty_mentions_explicit() -> None:
+    assert RecordFingerprint().model_dump(mode="json")["entity_mentions"] == []
 
 
 def test_binding_hashes_current_text_even_when_record_fingerprint_is_stale() -> None:

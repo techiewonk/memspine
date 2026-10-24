@@ -65,7 +65,13 @@ def png(tmp_path: Path) -> Path:
 
 
 async def resources(eng: Engine) -> list[Any]:
-    return await eng._require_started().list_records(NS, "resource")
+    from memspine.trust.pipeline.erasure_state import visible_id
+
+    return [
+        r
+        for r in await eng._require_started().list_records(NS, "resource")
+        if visible_id(eng, r.record_id)
+    ]
 
 
 def descriptions(recs: list[Any]) -> list[Any]:
@@ -225,7 +231,10 @@ async def test_erasing_the_asset_erases_its_description(tmp_path: Path, png: Pat
         await eng.forget(asset.record_id, namespace=NS, hard=True)
         storage = eng._require_started()
         assert await storage.get_record(asset.record_id) is None
-        assert await storage.get_record(d.record_id) is None
+        from memspine.trust.pipeline.erasure_state import visible_id
+
+        assert not visible_id(eng, d.record_id)
+        assert (await eng.verify_forget(asset.record_id, NS))["clean"] is True
         assert descriptions(await resources(eng)) == []
     finally:
         await eng.stop()

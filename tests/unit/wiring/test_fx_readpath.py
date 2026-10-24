@@ -33,7 +33,7 @@ def _lexical_reranker(monkeypatch: pytest.MonkeyPatch) -> list[int]:
     return sizes
 
 
-#: The old ``read.rerank_v2: true`` default chain (ADR-082: one ``model.rerank.chain`` entry each).
+#: The old ``read.rerank: true`` default chain (ADR-082: one ``model.rerank.chain`` entry each).
 _V2_CHAIN = [{"provider": p, "settings": {}} for p in ("jina", "qwen3", "onnx")]
 
 
@@ -101,16 +101,16 @@ async def test_candidate_pool_is_not_widened_twice(_lexical_reranker: list[int])
     assert base == small
 
 
-# ------------------------------------------------------------------ S10 / S36: tiers_v2
+# ------------------------------------------------------------------ S10 / S36: tiers
 
 
 async def test_tier_sets_the_rerank_pool(_lexical_reranker: list[int]) -> None:
     off = await _rerank_sizes(_lexical_reranker, chain=True)
-    fast = await _rerank_sizes(_lexical_reranker, chain=True, tiers_v2=True)
+    fast = await _rerank_sizes(_lexical_reranker, chain=True, tiers=True)
     assert max(off) <= 2
     assert max(fast) == 32  # the fast tier's pool (read/tiers.py DEFAULT_TIER_TABLE)
     standard = await _rerank_sizes(
-        _lexical_reranker, chain=True, tiers_v2=True, tiers_v2_depth="standard"
+        _lexical_reranker, chain=True, tiers=True, tiers_depth="standard"
     )
     assert max(standard) == 48
 
@@ -118,13 +118,13 @@ async def test_tier_sets_the_rerank_pool(_lexical_reranker: list[int]) -> None:
 async def test_tier_without_generative_calls_skips_the_deep_model_step() -> None:
     stops = []
     for tiers in (False, True):
-        eng = _engine(deep_v2=True, obligations=True, tiers_v2=tiers)
+        eng = _engine(deep=True, obligations=True, tiers=tiers)
         await eng.start()
         try:
             await eng.write("Bram likes tea", namespace="a", memory_type="episodic")
             with search_forensics() as fx:
                 await eng.read("where does Noor live", namespace="a", mode="replay", top_k=2)
-            info = fx.get("deep_v2")
+            info = fx.get("deep")
             stops.append(info["stop"] if info else None)
         finally:
             await eng.stop()
@@ -132,7 +132,7 @@ async def test_tier_without_generative_calls_skips_the_deep_model_step() -> None
     assert stops[0] != "tier_no_generative_calls"
 
 
-# ---- S19 / S63: neighbours_v2 in replay
+# ---- S19 / S63: neighbours in replay
 
 _TURNS = [
     "Bram bought a green bicycle on Monday",
@@ -179,8 +179,6 @@ async def _replay_ids(monkeypatch: pytest.MonkeyPatch, **read: Any) -> list[int]
         await eng.stop()
 
 
-async def test_neighbours_v2_replay_window_skips_filler(monkeypatch: pytest.MonkeyPatch) -> None:
-    off = await _replay_ids(monkeypatch)
-    on = await _replay_ids(monkeypatch, neighbours_v2=True)
-    assert off == [3, 4, 5, 6, 7]  # fixed -2/+2, filler included
-    assert on == [1, 3, 5, 7, 8]  # filler 4 and 6 take no slot; the reach stretches over them
+async def test_replay_window_skips_filler(monkeypatch: pytest.MonkeyPatch) -> None:
+    ids = await _replay_ids(monkeypatch)
+    assert ids == [1, 3, 5, 7, 8]

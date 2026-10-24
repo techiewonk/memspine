@@ -82,13 +82,10 @@ from memspine.store.scope import validate_namespace
 from memspine.store.tri_temporal import derived_times, turn_times
 from memspine.trust.firewall import FirewallVerdict
 from memspine.trust.pipeline import consent as trust_consent
-from memspine.trust.pipeline.gates_v2 import GATE_HOLD
+from memspine.trust.pipeline.gates import GATE_HOLD
 from memspine.trust.redaction import find_pii, redact
 from memspine.trust.visibility import (
-    PARTICIPANT_PREFIX,
     VISIBILITY_PREFIX,
-    inherit_tags,
-    participant_tags,
     restrict_to_parents,
     visibility_tag,
 )
@@ -291,7 +288,7 @@ async def write(
 
     ``participants`` / ``visibility`` (I53): the speakers present (the first is the
     speaker of this record) and who may see it (``private`` | ``participants`` |
-    ``owner_shared``), stored as ``participant:<name>`` / ``visibility:<v>`` tags. They
+    ``owner_shared``), stored as typed ``axes.participants`` and ``visibility:<v>`` tags. They
     matter only to a read with ``viewer=``; the namespace stays the isolation boundary.
     """
     if tap.enabled():
@@ -306,8 +303,6 @@ async def write(
     wt = eng._write_timers  # I73: None (the default) costs one attribute read
     t_validation = perf_counter() if wt is not None else 0.0
     session_id = ledger_id if ledger_id is not None else session_id  # I9
-    if participants:
-        tags = [*(tags or []), *participant_tags(participants)]
     if visibility is not None:
         tags = [*(tags or []), visibility_tag(visibility)]
     if extraction_hint:  # G-8: rides as a tag; extract_graph passes it to the prompt
@@ -363,6 +358,14 @@ async def write(
         tags=tags or [],
         consent_tags=list(dict.fromkeys(purposes or [])),
     )
+    if participants:
+        record = record.model_copy(
+            update={
+                "axes": record.axes.model_copy(
+                    update={"participants": list(dict.fromkeys(participants))}
+                )
+            }
+        )
     if memory_type == "episodic" and "spk:assistant" in record.tags:
         state = eng._persp_state.get(ns)
         if state is not None:  # I47: the turn the next user turn may acknowledge
@@ -374,10 +377,10 @@ async def write(
         # I7: the event time is the write clock, not the source's; date renders skip it.
         record = record.model_copy(update={"tags": [*record.tags, constants.UNDATED_TAG]})
     pending_stamp = PENDING_STAMP.get()
-    if pending_stamp is not None and memory_type == "episodic":  # W2-02: write.stamping_v2
+    if pending_stamp is not None and memory_type == "episodic":  # W2-02: write.stamping
         record = apply_stamp(record, pending_stamp)
     pending_role = role_wiring.PENDING_ROLE.get()
-    if pending_role is not None and memory_type == "episodic":  # W2-03: write.role_policy_v2
+    if pending_role is not None and memory_type == "episodic":  # W2-03: write.role_policy
         record = role_wiring.apply_role(record, pending_role)
     trust_cap = await eng._parent_trust_cap(ns, record.source.parents)
     if trust_cap is not None and parent_weights:
@@ -740,7 +743,7 @@ async def _write_locked_ex(
 
 
 def _stamp_covers_seq(record: MemoryRecord) -> MemoryRecord:
-    """O4-01b: a record written inside a derivation (``offline.budget_v2``) says how much of its
+    """O4-01b: a record written inside a derivation (``offline.budget``) says how much of its
     namespace it covers. Fills only unset; outside a derivation nothing changes."""
     marks = COVERS_SEQ.get()
     if marks is None or record.fingerprint.covers_seq is not None:
@@ -841,7 +844,7 @@ async def _screen_write(
     else:
         # N1 ablation arm: trust scoring only — no flags, anomaly or quarantine.
         verdict = FirewallVerdict(trust=eng._firewall.policy.trust_at_write(record.source))
-    if eng._config().consent.v2:
+    if eng._config().consent.enabled:
         # T5-03: may_store. A write the owner has not opted in to (a sensitive or special-category
         # tier with no grant, or a revoked purpose) is held inert, like any other quarantined write.
         await trust_consent.ensure_registry(eng)
@@ -1023,18 +1026,16 @@ async def _govern_write(eng: Any, record: MemoryRecord) -> MemoryRecord:
         storage = eng._require_started()
         got = [await storage.get_record(p) for p in record.source.parents]
         parents = [p for p in got if p is not None and p.namespace == record.namespace]
-    if strict and parents:
-        # F1: under viewer_required a derived record carries its parents' participants and the
-        # strictest of their visibilities (and its own, if stricter), whatever write.participants
-        # says; a parent with no tag adds nothing, but never lets the record widen.
-        tags = restrict_to_parents(tags, [p.tags for p in parents])
-    elif wc.participants != "off" and parents:
-        has_people = any(t.startswith(PARTICIPANT_PREFIX) for t in tags)
-        has_vis = any(t.startswith(VISIBILITY_PREFIX) for t in tags)
-        for tag in inherit_tags([p.tags for p in parents]):
-            is_person = tag.startswith(PARTICIPANT_PREFIX)
-            if tag not in tags and not (has_people if is_person else has_vis):
-                tags.append(tag)
+    if parents and (strict or wc.participants != "off"):
+        inherited = restrict_to_parents(record.model_copy(update={"tags": tags}), parents)
+        if strict:
+            tags = list(inherited.tags)
+            update["axes"] = inherited.axes
+        else:
+            if not record.axes.participants:
+                update["axes"] = inherited.axes
+            if not any(t.startswith(VISIBILITY_PREFIX) for t in tags):
+                tags.extend(t for t in inherited.tags if t.startswith(VISIBILITY_PREFIX))
     if wc.inferred != "off" and INFERRED_TAG not in tags:
         marked = eng._mark_inferred(record, parents, wc)
         if marked is not None:

@@ -32,8 +32,7 @@ from memspine.core.sensitivity import (
 from memspine.services.decider.decider import Decision, HeuristicDecider
 from memspine.store.records import MemoryRecord, SourceInfo
 from memspine.trust.visibility import (
-    inherit_tags,
-    participant_tags,
+    restrict_to_parents,
     visibility_of,
     visibility_tag,
     visible_to,
@@ -156,7 +155,7 @@ def test_tags_round_trip_and_legacy_sensitive_tags_grade() -> None:
     label = grade_text("My doctor said my condition needs surgery and I am a christian")
     assert label_of(label_tags(label)) == label
     legacy = label_of(["sensitive:health"])
-    assert legacy.grade == "high" and legacy.categories == ("health",)
+    assert legacy.grade == "none" and legacy.categories == ()
     assert label_of(["unrelated"]).grade == "none"
     assert grade_rank("high") > grade_rank("medium") > grade_rank("low") > grade_rank("none")
 
@@ -290,31 +289,36 @@ def test_heuristic_decider_has_rules_for_the_new_tasks() -> None:
 # -- I53: participants, viewer, visibility ---------------------------------------------------
 
 
+def _visible_record(names: list[str], visibility: str | None = None) -> MemoryRecord:
+    return MemoryRecord(
+        namespace="a",
+        memory_type="semantic",
+        content="x",
+        axes={"participants": names},
+        tags=[] if visibility is None else [visibility_tag(visibility)],
+    )
+
+
 def test_visibility_rules() -> None:
-    private = [*participant_tags(["Sam", "Pat"]), visibility_tag("private")]
+    private = _visible_record(["Sam", "Pat"], "private")
     assert visible_to(private, "sam") and not visible_to(private, "Pat")
-    group = [*participant_tags(["Sam", "Pat"]), visibility_tag("participants")]
+    group = _visible_record(["Sam", "Pat"], "participants")
     assert visible_to(group, "Pat") and not visible_to(group, "Lee")
-    shared = [*participant_tags(["Sam"]), visibility_tag("owner_shared")]
-    assert visible_to(shared, "Lee")
-    assert visible_to(participant_tags(["Sam", "Pat"]), "Pat")  # participants default
-    assert not visible_to(participant_tags(["Sam"]), "Lee")
-    assert visible_to([], "Lee") and visible_to(["x"], "Lee")  # unmarked: today's behaviour
+    assert visible_to(_visible_record(["Sam"], "owner_shared"), "Lee")
+    assert visible_to(_visible_record(["Sam", "Pat"]), "Pat")
+    assert not visible_to(_visible_record(["Sam"]), "Lee")
+    assert visible_to(_visible_record([]), "Lee")
     with pytest.raises(ValueError, match="visibility"):
         visibility_tag("public")
 
 
 def test_derived_records_inherit_participants_and_the_strictest_visibility() -> None:
-    a = [*participant_tags(["Sam", "Pat"]), visibility_tag("participants")]
-    b = [*participant_tags(["Sam", "Lee"]), visibility_tag("private")]
-    tags = inherit_tags([a, b])
-    assert visibility_of(tags) == "private"
-    assert [t for t in tags if t.startswith("participant:")] == [
-        "participant:Sam",
-        "participant:Pat",
-        "participant:Lee",
-    ]
-    assert inherit_tags([[], ["x"]]) == []
+    a = _visible_record(["Sam", "Pat"], "participants")
+    b = _visible_record(["Sam", "Lee"], "private")
+    child = restrict_to_parents(_visible_record([]), [a, b])
+    assert visibility_of(child.tags) == "private"
+    assert child.axes.participants == ["Sam", "Pat", "Lee"]
+    assert restrict_to_parents(_visible_record([]), []).axes.participants == []
 
 
 async def test_viewer_filters_search_assemble_and_read() -> None:
@@ -387,9 +391,9 @@ async def test_ingest_messages_tags_session_participants() -> None:
             namespace="a",
             session_id="s1",
         )
-        assert [t for t in recs[0].tags if t.startswith("participant:")][:1] == ["participant:Sam"]
-        assert "participant:Pat" in recs[0].tags and "participant:assistant" in recs[0].tags
-        assert next(t for t in recs[1].tags if t.startswith("participant:")) == "participant:Pat"
+        assert recs[0].axes.participants[:1] == ["Sam"]
+        assert "Pat" in recs[0].axes.participants and "assistant" in recs[0].axes.participants
+        assert recs[1].axes.participants[0] == "Pat"
         hits = await eng.search("garden", namespace="a", top_k=10, viewer="Zed")
         assert hits == []
         hits = await eng.search("garden", namespace="a", top_k=10, viewer="Pat")
@@ -417,8 +421,8 @@ async def test_mined_fact_inherits_the_privacy_of_its_source_turn() -> None:
         fact = await eng._deposit_mined_fact(
             "a", "Sam hobby: gardening", "Sam", "hobby", [recs[0].record_id], T0, "s1", kind="state"
         )
-        assert visibility_of(fact.tags) == "private" and "participant:Sam" in fact.tags
-        assert not visible_to(fact.tags, "Pat")
+        assert visibility_of(fact.tags) == "private" and "Sam" in fact.axes.participants
+        assert not visible_to(fact, "Pat")
         hits = await eng.search("Sam gardening", namespace="a", top_k=10, viewer="Pat")
         assert hits == []
     finally:

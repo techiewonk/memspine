@@ -222,7 +222,7 @@ def test_ops_report_aggregates_all_three_ledgers() -> None:
 
 
 async def test_ops_report_merges_the_engine_cost_ledger() -> None:
-    eng = _engine(observability={"ops_ledger": True}, economy={"ledger_v2": True})
+    eng = _engine(observability={"ops_ledger": True}, economy={"ledger": True})
     await eng.start()
     try:
         await eng.write("Ilse lives in Brussels", namespace="noor", entity="Ilse")

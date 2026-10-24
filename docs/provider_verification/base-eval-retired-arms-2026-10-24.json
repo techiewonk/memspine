@@ -1,0 +1,32 @@
+{
+  "retired_arm_files": {
+    "F-01-key": "scr-gc3-graph-jina",
+    "scr-gc3-legs": "scr-gc3-graph-jina",
+    "scr-gc3-graphleg": "scr-gc3-graph-jina",
+    "scr-gc3-edgecomp": "scr-gc3-graph-jina",
+    "scr-gc3-stamping": "scr-gc3-graph-jina",
+    "scr-gc3-rolepolicy": "scr-gc3-graph-jina",
+    "scr-gc3-intake": "scr-gc3-graph-jina",
+    "scr-gc3-envelope": "scr-gc3-windowfacts",
+    "scr-gc3-segmentation": "scr-gc3-windowfacts",
+    "R3-10-neighbours": "scr-pool-protect-jina",
+    "R3-12-deep": "scr-b7-deep",
+    "R3-16-obligations": "scr-b7-obligations",
+    "a7-engine-old": "qs-eq06-roff",
+    "a7-engine-new": "qs-eq06-fix",
+    "R14-INFER2-inference_mode": "R14-INFER-inference_mode"
+  },
+  "removed_generation_only_screen_rows": [
+    "S19",
+    "S28",
+    "S30",
+    "S38",
+    "S39",
+    "S44",
+    "S45",
+    "S48",
+    "S49",
+    "S50",
+    "S74"
+  ]
+}

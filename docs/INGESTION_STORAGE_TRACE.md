@@ -149,7 +149,7 @@ segmentation differs from conversational reply-tree grouping.
 | Window `facts` | Segment, extract many candidate facts, validate/repair, compile, configured stages, deposit semantic children | Requires enabled window path, usable role binding and episodic/semantic layers |
 | Window `facts_graph` | Facts plus separately validated edge section | Co-occurrence is not sufficient evidence for an asserted edge |
 | Window `all` | Facts, edges and an episode section | Episode narrative is distinct from raw text and facts |
-| `prompt_v2` | Selected sections in one structured response | Repair/split/coverage/check stages can add calls; do not promise exactly one maximum call |
+| `prompt` | Selected sections in one structured response | Repair/split/coverage/check stages can add calls; do not promise exactly one maximum call |
 | GLiNER prepass | Exact per-source spans, confidence and unasserted annotations on cited envelope sources | No trust boost; no replacement of claim support evidence |
 | Direct semantic GLiNER | Annotations in `RecordFingerprint.entity_mentions` before dedup | Does not create entity/attribute fact keys; dropped source spans remain in MERGE audit snapshots |
 | Direct semantic LLM | Current adapter uses first extracted fact's entity/attribute to key the input record | Not a many-independent-fact splitter for a long direct semantic input |

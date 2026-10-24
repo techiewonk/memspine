@@ -4,7 +4,7 @@
 # Usage: bash run_waveA.sh ARM [ARM ...]   (each ARM = arms/<ARM>.json, LoCoMo cats 1-4)
 # Local embedder, retrieval-only, --max-model-calls 0: $0.
 cd "D:/mem/memory research/memspine/evals"
-source <(sed -n '/^FROZEN=/,/^}/p' run_v32_chain.sh)
+source <(sed -n '/^FROZEN=/,/^}/p' run_chain.sh)
 FROZEN="D:/mem/memory research/_wt_screens_a/src"
 L="locomo data/locomo10.json"
 for arm in "$@"; do

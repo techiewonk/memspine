@@ -30,7 +30,7 @@ async def main() -> None:
     engine = Engine(
         template="core",
         dotenv_path=None,  # never feed the whole .env into config layering
-        storage={"path": ":memory:"},
+        storage={"records": {"provider": "sqlite", "settings": {"path": ":memory:"}}},
         memories={
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},

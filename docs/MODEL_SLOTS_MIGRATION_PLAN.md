@@ -29,12 +29,12 @@ Every old key is rejected with an error naming its new key (no aliases, ADR-068)
 | `read.decider`, `decider_model`, `decider_device`, `decider_threads`, `decider_backend`, `decider_dtype` | `model.decider.read.provider` / `settings.{model, device, threads, backend, dtype}` | `heuristic` = slot absent |
 | `read.decider_tasks`, `decider_min_confidence`, `decider_workers` | `model.decider.read.tasks`, `min_confidence`, `workers` | |
 | `read.rerank` + `read.rerank_settings` | `model.rerank.chain: [{provider, settings}]` | `off` = `[]` |
-| `read.rerank_v2` + `rerank_v2_chain` | `model.rerank.chain` | mode names become provider entries |
-| `read.rerank_v2_pool`, `rerank_v2_search_pool` | `model.rerank.pool`, `search_pool` | |
+| `read.rerank` + `rerank_chain` | `model.rerank.chain` | mode names become provider entries |
+| `read.rerank_pool`, `rerank_search_pool` | `model.rerank.pool`, `search_pool` | |
 | `read.rerank_{max_top_k, keep, blend, gate, context, date_prefix, balanced, chunk_chars, chunk_overlap, floor}` | `model.rerank.*` without the prefix | |
 | `read.skip_rerank_for_ordering` | `model.rerank.skip_for_ordering` | |
 | `ingest.asset_vision`, `asset_vision_model`, `asset_vision_url`, `asset_vision_timeout_s` | `model.vision.provider`, `settings.model`, `settings.api_base`, `timeout_s` | `none` = null |
-| `models.tiers_v2`, `catalogue`, `gpus`, `detect_gpus`, `ram_mb`, `gpu_headroom_mb`, `role_tier`, `pins`, `allow_hosted`, `required_roles`, `on_missing_model` | `model.placement.*` | |
+| `models.tiers`, `catalogue`, `gpus`, `detect_gpus`, `ram_mb`, `gpu_headroom_mb`, `role_tier`, `pins`, `allow_hosted`, `required_roles`, `on_missing_model` | `model.placement.*` | |
 | `models.default_rerankers` | `model.placement.catalogue_rerankers` | |
 | `models.rerank` (chain/off) | removed | `model.rerank.chain: []` |
 | `models.*`, `llm.*`, `decision.*` roots | removed | rejected naming `model` |

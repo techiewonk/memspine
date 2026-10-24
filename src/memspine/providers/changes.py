@@ -12,7 +12,7 @@ from typing import Annotated, Literal, Protocol
 from uuid import uuid4
 
 from pydantic import Field, TypeAdapter, model_validator
-from sqlalchemy import JSON, Column, Integer, String, Table, select, update
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
@@ -25,6 +25,12 @@ from memspine.providers.recovery import (
     CleanupQuiescenceProof,
 )
 from memspine.providers.settings import StrictSettings
+from memspine.services.storage.provider_tables import (
+    _cleanup_fence_recoveries,
+    _fences,
+    _operations,
+    _plans,
+)
 from memspine.services.storage.sqlite.schema import metadata as _metadata
 
 
@@ -425,43 +431,6 @@ class ChangeStore(Protocol):
     ) -> OperationRecord: ...
 
     async def release(self, operation: OperationRecord) -> None: ...
-
-
-_plans = Table(
-    "provider_change_plans",
-    _metadata,
-    Column("plan_id", String(128), primary_key=True),
-    Column("deployment_id", String(256), nullable=False, index=True),
-    Column("payload", JSON, nullable=False),
-)
-_operations = Table(
-    "provider_change_operations",
-    _metadata,
-    Column("operation_id", String(128), primary_key=True),
-    Column("plan_id", String(128), nullable=False, unique=True),
-    Column("deployment_id", String(256), nullable=False, index=True),
-    Column("status", String(32), nullable=False),
-    Column("operation_revision", Integer, nullable=False),
-    Column("fence_epoch", Integer, nullable=False),
-    Column("payload", JSON, nullable=False),
-)
-_fences = Table(
-    "provider_change_fences",
-    _metadata,
-    Column("deployment_id", String(256), primary_key=True),
-    Column("epoch", Integer, nullable=False),
-    Column("active_operation_id", String(128)),
-)
-_cleanup_fence_recoveries = Table(
-    "provider_cleanup_fence_recoveries",
-    _metadata,
-    Column("recovery_id", String(128), primary_key=True),
-    Column("deployment_id", String(256), nullable=False, index=True),
-    Column("operation_id", String(128), nullable=False, index=True),
-    Column("proof_id", String(128), nullable=False, unique=True),
-    Column("recovered_at", String(64), nullable=False),
-    Column("payload", JSON, nullable=False),
-)
 
 
 def _assert_recovery_proof(

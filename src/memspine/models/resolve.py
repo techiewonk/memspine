@@ -1,5 +1,5 @@
 """MD-01: resolve engine roles through tier, placement and fallback
-(``model.placement.tiers_v2``).
+(``model.placement.tiers``).
 
 Wiring for the LIB-42 library (:mod:`memspine.models.tiers`). It turns ``model.placement`` into a
 :class:`~memspine.models.tiers.ModelPlan` (pure: declared sizes in, plan out, no GPU needed), maps
@@ -176,7 +176,7 @@ class ResolvedModels:
         """Fail fast (P-03 default): raise ``ConfigError`` listing every error."""
         problems = [*self.errors, *self.plan.errors]
         if problems:
-            raise ConfigError("model.placement.tiers_v2: " + "; ".join(dict.fromkeys(problems)))
+            raise ConfigError("model.placement.tiers: " + "; ".join(dict.fromkeys(problems)))
 
 
 def embedder_preference(preset: str | None) -> Literal["auto", "cpu", "gpu"]:

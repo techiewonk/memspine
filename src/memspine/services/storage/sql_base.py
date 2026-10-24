@@ -11,7 +11,7 @@ bound engine's dialect:
   ``greatest(a, b)`` for the advance-only offset high-water mark.
 
 Subclasses supply only ``start()`` (schema bring-up differs: SQLite runs Alembic
-for files / ``create_all`` for ``:memory:``; Postgres runs ``create_all``) and
+for files / ``create_all`` for ``:memory:``; Postgres runs its fresh Alembic baseline) and
 ``manifest`` (the backend name). The event-log modes (D-45), zstd payload
 compression (D-45/D-32), and M7 erasure all live here unchanged.
 """
@@ -47,7 +47,6 @@ from memspine.services.storage.sqlite.schema import (
     projector_offsets,
 )
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
-from memspine.store.layer_classify import classify_stored_layer
 from memspine.store.records import MemoryRecord
 from memspine.trust.erasure import redact_record, scrub_partition_nodes
 
@@ -578,30 +577,19 @@ class SqlStorage(ServiceAdapter):
         return [content for _, content in live[-limit:]] if limit > 0 else []
 
     async def layer_counts(self, namespace: str) -> dict[str, int]:
-        """F-02b: live (activated / resolving, not quarantined) records of ``namespace`` by layer
-        (one grouped query). MF-09: a row with no stored layer (legacy rows) counts on the layer it
-        hydrates to, by the same :func:`classify_stored_layer` that record hydration uses."""
-        live = (
-            memory_records.c.namespace == namespace,
-            memory_records.c.status.in_(("activated", "resolving")),
-            memory_records.c.quarantined.is_(False),
-        )
-        stored = (
+        """Count live current-format records by their persisted layer."""
+        statement = (
             select(memory_records.c.layer, func.count())
-            .where(*live, memory_records.c.layer.is_not(None))
+            .where(
+                memory_records.c.namespace == namespace,
+                memory_records.c.status.in_(("activated", "resolving")),
+                memory_records.c.quarantined.is_(False),
+            )
             .group_by(memory_records.c.layer)
         )
-        legacy = select(memory_records.c.memory_type, memory_records.c.source).where(
-            *live, memory_records.c.layer.is_(None)
-        )
         async with self._client.engine.connect() as conn:
-            rows = (await conn.execute(stored)).all()
-            legacy_rows = (await conn.execute(legacy)).all()
-        counts: dict[str, int] = {str(row[0]): int(row[1]) for row in rows}
-        for memory_type, source in legacy_rows:
-            layer = classify_stored_layer(str(memory_type or ""), source)
-            counts[layer] = counts.get(layer, 0) + 1
-        return counts
+            rows = (await conn.execute(statement)).all()
+        return {str(row[0]): int(row[1]) for row in rows}
 
     async def count_quarantined(self, namespace: str) -> int:
         """How many rows of ``namespace`` carry the quarantine flag (#63: the
@@ -748,7 +736,7 @@ class SqlStorage(ServiceAdapter):
         self, marker: str, scrub: Callable[[dict[str, Any]], bool]
     ) -> list[int]:
         """FU-CLOSE: the same log-redaction pass as :meth:`redact_event_payloads`, for MARKER events
-        named ``marker`` (e.g. the ``profile_card_v2`` card, which carries entry text).
+        named ``marker`` (e.g. the ``profile_card`` card, which carries entry text).
 
         ``scrub`` mutates a decoded payload in place and returns True when it changed anything;
         a changed payload gets the ``redacted`` flag and is rewritten, keeping seq and kind.
@@ -813,8 +801,7 @@ class SqlStorage(ServiceAdapter):
                 "skill_stage": row["skill_stage"],
                 "reflection_depth": row["reflection_depth"],
                 "group_id": row["group_id"],
-                # NULL tags (rows written before D2) read back as an empty list.
-                "tags": orjson.loads(row["tags"]) if row["tags"] is not None else [],
+                "tags": orjson.loads(row["tags"]),
                 "invalid_at": row["invalid_at"],
                 **self._envelope_fields(row),
             }
@@ -822,26 +809,20 @@ class SqlStorage(ServiceAdapter):
 
     @staticmethod
     def _envelope_fields(row: Any) -> dict[str, Any]:
-        """F-02a: the stored envelope columns; a NULL one is left out, so the record derives it."""
-        out: dict[str, Any] = {"schema_version": row["schema_version"] or 1}
-        for key in ("type_tag", "provenance_class"):
-            if row[key] is not None:
-                out[key] = row[key]
-        # MF-09: a NULL layer is classified by the one shared function (``layer_classify``), as
-        # ``layer_counts`` and the Postgres backfill do.
-        out["layer"] = (
-            row["layer"]
-            if row["layer"] is not None
-            else classify_stored_layer(str(row["memory_type"] or ""), row["source"])
-        )
+        """Read explicit current envelope columns without old-row inference."""
+        out: dict[str, Any] = {
+            "schema_version": row["schema_version"],
+            "type_tag": row["type_tag"],
+            "provenance_class": row["provenance_class"],
+            "layer": row["layer"],
+        }
         axes = {"speaker": row["spk"], "addressee": row["addr"], "asker": row["ask"]}
         if row["sub"] is not None or any(v is not None for v in axes.values()):
             axes["subject"] = orjson.loads(row["sub"]) if row["sub"] is not None else []
             if row["participants"] is not None:  # W2-02
                 axes["participants"] = orjson.loads(row["participants"])
             out["axes"] = axes
-        if row["fingerprint"] is not None:
-            out["fingerprint"] = orjson.loads(row["fingerprint"])
+        out["fingerprint"] = orjson.loads(row["fingerprint"])
         for key in ("source_at", "source_precision", "event_precision", "event_basis", "source_tz"):
             if row[key] is not None:
                 out[key] = row[key]

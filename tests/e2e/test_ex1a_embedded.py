@@ -12,7 +12,7 @@ Steps (each its own test; each rebuilds the workload, which takes well under a s
 2. ``test_step2_sleep_and_read``     sleep, cited answers, no cross-owner leak, viewer refusal
 3. ``test_step3_restart_state``      stop, reopen the same store, state identical / rebuilt
 4. ``test_step4_hard_erase``         dependants hidden, purge done, reads (cache, restart) clean
-5. ``test_step5_replay_migrate``     ``migrate_sqlite`` into a fresh store, compare, no resurrection
+5. ``test_step5_replay_fresh_store``     ``replay_sqlite`` into a fresh store, compare, no resurrection
 
 Run: ``pytest tests/e2e/test_ex1a_embedded.py -m milestone -o addopts=""`` (see
 ``docs/v2/MILESTONES.md``). A JSON report lands in ``docs/v2/data/milestones/ex1a_<date>.json``
@@ -41,9 +41,9 @@ from memspine.schemas.durable import OwnerScope
 from memspine.scope import ScopeRefused
 from memspine.services.llm.base import LLMRouter
 from memspine.store import lineage as lineage_store
-from memspine.store.migrate import dump_store, migrate_sqlite
+from memspine.store.rebuild import dump_store, replay_sqlite
 from memspine.trust.pipeline import consent as trust_consent
-from memspine.trust.pipeline import erasure_v2 as trust_erasure
+from memspine.trust.pipeline import erasure_state as trust_erasure
 
 pytestmark = [
     pytest.mark.milestone,
@@ -199,7 +199,7 @@ def _overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[s
             "hybrid": False,
             "record_access": False,
             "cache": {"enabled": True},
-            "legs_v2": True,  # read.legs_v2
+            # read.legs
         },
         "write": {
             "lineage_table": True,  # write.lineage_table
@@ -214,37 +214,30 @@ def _overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[s
         },
         "workers": {"outbox": True, "transport": "inline"},  # workers.outbox (inline transport)
         "isolation": {
-            "scope_keys_v2": True,  # isolation.scope_keys_v2
+            # typed scope is the base identity
             "viewer_required": True,  # isolation.viewer_required
         },
         "privacy": {
-            "erasure_v2": True,
             "erasure_redact_hidden": redact,
             "erasure_rederive": rederive,
-        },  # privacy.erasure_v2
-        "retention": {  # retention.v2 (a class far beyond the workload: plans, expires nothing)
-            "v2": True,
+        },  # privacy.erasure
+        "retention": {  # retention.enabled (a class far beyond the workload: plans, expires nothing)
             "classes": [{"namespace": "*", "ttl_days": 36500}],
         },
-        "audit": {"chain_v2": True, "actions": True, "reads": True},  # audit.chain_v2
-        "consent": {"v2": True},  # consent.v2
-        "graph": {"edge_compiler_v2": True},  # graph.edge_compiler_v2
-        "offline": {"session_close_v2": True},  # offline.session_close_v2
+        "audit": {"actions": True, "reads": True},  # audit.chain
+        "consent": {"enabled": True},  # consent.enabled
+        "graph": {"edge_compiler": True},  # graph.edge_compiler
+        "offline": {"session_close": True},  # offline.session_close
     }
 
 
 FLAGS_ON = (
     "write.lineage_table",
     "workers.outbox",
-    "isolation.scope_keys_v2",
     "isolation.viewer_required",
-    "privacy.erasure_v2",
-    "retention.v2",
-    "audit.chain_v2",
-    "consent.v2",
-    "graph.edge_compiler_v2",
-    "offline.session_close_v2",
-    "read.legs_v2",
+    "consent.enabled",
+    "graph.edge_compiler",
+    "offline.session_close",
 )
 
 
@@ -416,7 +409,7 @@ async def snapshot(w: World) -> dict[str, Any]:
         "bram_marketing": len(await marketing.recall("red tandem chain")),
         "bram_assist": len(await w.bram.recall("red tandem chain")),
     }
-    chain = await w.eng.verify_audit_chain_v2()
+    chain = await w.eng.verify_audit_chain()
     reg = await trust_consent.ensure_registry(w.eng)
     return {
         "probes": probes,
@@ -437,7 +430,7 @@ STEPS = (
     "test_step2_sleep_and_read",
     "test_step3_restart_state",
     "test_step4_hard_erase",
-    "test_step5_replay_migrate",
+    "test_step5_replay_fresh_store",
 )
 
 
@@ -449,13 +442,13 @@ FINDINGS = {
     "isolation.viewer_required a multi-party namespace now behaves as participants=session and "
     "derived records never widen their parents' visibility. The workload no longer sets "
     "write.participants.",
-    "F2": "privacy.erasure_v2 hides dependants for re-derivation but keeps their rows and their "
+    "F2": "privacy.erasure hides dependants for re-derivation but keeps their rows and their "
     "WRITE events, which still carry the erased text on disk (not served by any read). Replay "
     "reproduces exactly that set. privacy.erasure_redact_hidden=on hard-forgets them instead (the "
     "milestone runs both ways; with it on no erased text remains in the sqlite file).",
     "F3": "OPEN BY DESIGN: a kept dependant (another live support parent) still lists the erased "
     "id in source.parents; the lineage table edge is removed. An id, no text.",
-    "F4": "FIXED (FX-EX1A): Engine.verify_forget() is erasure_v2-aware: clean when every dependant "
+    "F4": "FIXED (FX-EX1A): Engine.verify_forget() is erasure-aware: clean when every dependant "
     "is kept or hidden and queued; fields descendants_hidden_pending_rederive / _kept / _leaked.",
     "F5": "Memory.retrieve() with a handle purpose raised TypeError (fixed in src/memspine/api/"
     "handle.py).",
@@ -516,9 +509,9 @@ async def test_step1_workload_written(world: World, report: Report) -> None:
     eng = world.eng
     cfg = eng.config
     assert cfg.write.lineage_table and cfg.workers.outbox and cfg.workers.transport == "inline"
-    assert cfg.isolation.scope_keys_v2 and cfg.isolation.viewer_required
-    assert cfg.privacy.erasure_v2 and cfg.retention.v2 and cfg.audit.chain_v2 and cfg.consent.v2
-    assert cfg.graph.edge_compiler_v2 and cfg.offline.session_close_v2 and cfg.read.legs_v2
+    assert cfg.isolation.viewer_required
+    assert cfg.audit.actions and cfg.audit.reads and cfg.consent.enabled
+    assert cfg.graph.edge_compiler and cfg.offline.session_close
     storage = eng._require_started()
     counts = {ns: len(await storage.list_records(ns)) for ns in (NS_ILSE, NS_BRAM, NS_HOME)}
     turns = {
@@ -676,10 +669,10 @@ async def test_step4_hard_erase(world: World, report: Report) -> None:
 
     await clean("cache-hit")  # the same queries run again: a cache hit must not resurface it
     verdict = await world.eng.verify_forget(secret_id, NS_ILSE)
-    # F4: erasure_v2-aware. A hidden dependant queued for re-derivation (or a kept one with another
+    # F4: erasure-aware. A hidden dependant queued for re-derivation (or a kept one with another
     # live parent) is not a leak; only a dependant that is neither is.
     assert verdict["clean"] is True, verdict
-    assert verdict["erasure_v2"] is True and verdict["descendants_leaked"] == [], verdict
+    assert verdict["descendants_leaked"] == [], verdict
     pending = set(verdict["descendants_hidden_pending_rederive"])  # type: ignore[arg-type]
     kept = set(verdict["descendants_kept"])  # type: ignore[arg-type]
     assert pending <= hidden_kids and not (pending & kept), verdict
@@ -716,7 +709,7 @@ async def test_step4_hard_erase(world: World, report: Report) -> None:
     status2 = world.eng.erasure_status()
     assert status2["erased"] == 1 and status2["hidden"] == status["hidden"]
     assert await world.ilse.recall(OTHER), "an unrelated Ilse record disappeared"
-    assert await world.eng.verify_audit_chain_v2()
+    assert await world.eng.verify_audit_chain()
     if world.redact:
         # F2 on: no erased text anywhere in the sqlite file (nor its WAL) once the engine stops
         await world.eng.stop()
@@ -756,8 +749,8 @@ async def test_step4_hard_erase(world: World, report: Report) -> None:
     )
 
 
-async def test_step5_replay_migrate(world: World, report: Report, tmp_path: Path) -> None:
-    done = report.step("test_step5_replay_migrate")
+async def test_step5_replay_fresh_store(world: World, report: Report, tmp_path: Path) -> None:
+    done = report.step("test_step5_replay_fresh_store")
     await world.sleep()
     secret_id = world.ids["secret_turn"]
     await world.ilse.forget(secret_id, hard=True)
@@ -766,7 +759,7 @@ async def test_step5_replay_migrate(world: World, report: Report, tmp_path: Path
 
     target = tmp_path / "replayed.db"
     t0 = time.perf_counter()
-    rep = await migrate_sqlite(str(world.db), str(target))
+    rep = await replay_sqlite(str(world.db), str(target))
     seconds = time.perf_counter() - t0
     assert rep.events_written == rep.events_read > 0
     assert rep.limited_rebuild and rep.not_rebuilt  # the report names what it did not rebuild
@@ -815,7 +808,7 @@ async def test_step5_replay_migrate(world: World, report: Report, tmp_path: Path
         records_replayed=len(replay_ids),
         hidden_dependants_holding_erased_text=len(live_hold["records"]),
         not_rebuilt=sorted(rep.not_rebuilt),
-        migrate_seconds=round(seconds, 3),
+        replay_seconds=round(seconds, 3),
     )
 
 

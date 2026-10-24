@@ -1,6 +1,6 @@
 """``prompts.PromptIdentity``: the hash of a prompt's stable prefix (W2-07; P-08, W-18).
 
-The stable prefix is the rendered system message of a v2-layout prompt: it holds no
+The stable prefix is the rendered system message of a base-layout prompt: it holds no
 per-call variable, so its hash is the same for every input. That hash is the key for
 prompt-cache reuse (a hosted cache hint, or a local prefix cache) and the provenance stamp
 written next to a derived item (``prompt_hash``, W-18). The identity also records the

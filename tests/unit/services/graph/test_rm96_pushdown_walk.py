@@ -332,7 +332,7 @@ async def _neo4j_backend() -> AsyncIterator[_Backend]:
 
     connector, executor = await live_executor("Rm96")
     try:
-        yield _Neo4j(Neo4jGraphStore(executor, scoped=True), executor)
+        yield _Neo4j(Neo4jGraphStore(executor), executor)
     finally:
         await executor.run("clear", {})
         await connector.close()
@@ -628,10 +628,10 @@ async def test_neo4j_stale_properties_backfilled_and_never_walked_meanwhile(
             f"MATCH (:{label})-[r:{rel}]->(:{label}) SET r.q_v = null, r.q_erasure_state = null"
         )
     qf = QualifierFilter()
-    skipped = Neo4jGraphStore(executor, scoped=True)
+    skipped = Neo4jGraphStore(executor)
     skipped._qualifier_columns_done = True  # as if a concurrent writer left stale edges
     assert await skipped.neighbors("a", namespace="n", qualifier_filter=qf) == []
-    fresh = Neo4jGraphStore(executor, scoped=True)
+    fresh = Neo4jGraphStore(executor)
     got = await fresh.neighbors("a", namespace="n", qualifier_filter=qf)
     assert [n.node_id for n in got] == ["b"]  # backfilled; the erased edge stays untraversed
     stale = await executor.run("qualifier_stale", {"v": QUALIFIER_COLUMNS_VERSION, "limit": 5})
@@ -646,7 +646,7 @@ async def test_neo4j_recorder_keeps_the_shared_walk() -> None:
     from test_f_16e_neo4j_outbox import FakeNeo4j
 
     fake = FakeNeo4j()
-    store = Neo4jGraphStore(fake, scoped=True)
+    store = Neo4jGraphStore(fake)
     await store.upsert_edge("a", "b", "r", {"weight": 1.0}, namespace="n")
     got = await store.neighbors("a", depth=2, namespace="n", qualifier_filter=QualifierFilter())
     assert [n.node_id for n in got] == ["b"]

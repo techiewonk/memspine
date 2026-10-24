@@ -255,7 +255,7 @@ TOOLS: list[tuple[str, str, dict[str, Any], bool]] = [
                 "arm": _S,
                 "slice": _S,
                 "mode": {"type": "string", "enum": ["sample", "focus"]},
-                "screen": {**_S, "description": "queue row id or batch in evals/v2_queue.tsv"},
+                "screen": {**_S, "description": "queue row id or batch in evals/screen_queue.tsv"},
             },
             ["arm"],
         ),

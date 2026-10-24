@@ -1,0 +1,19 @@
+# FU-REQS profile: isolation, erasure, retention, audit, consent, firewall gates and the trust
+# horizon. Question: no leak, erasure clean, MINJA false positives at most 1%. Run it on the
+# behavioural suite plus the N1 set, not on QA. erasure_redact_hidden is on (audit #22): without it
+# hidden dependants keep the erased text on disk. integrity.enabled is the horizon's base switch.
+isolation:
+  viewer_required: true
+  owner_bound_handles: true
+privacy:
+  erasure_redact_hidden: true
+audit:
+  reads: true
+  actions: true
+consent:
+  enabled: true
+firewall:
+  gates: true
+integrity:
+  enabled: true
+  horizon: true

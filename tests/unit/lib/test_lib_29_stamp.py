@@ -267,7 +267,6 @@ def test_multi_party_participants_from_envelope() -> None:
         participants=["Bram", "Noor", "Ilse"],
     )
     assert r.participants == ("bram", "noor", "ilse")
-    assert r.participant_tags == ("participant:bram", "participant:noor", "participant:ilse")
     assert r.spk == "bram"
 
 

@@ -1,6 +1,6 @@
-"""Streaming segmenter for ``write.segmentation_v2`` (W2-05, decision W-11 "E"; reuses LIB-14).
+"""Streaming segmenter for stream segmentation (W2-05, decision W-11 "E"; reuses LIB-14).
 
-The v1 segmenter (:class:`memspine.core.window.WindowSegmenter`) cuts at a topic shift, a turn
+The shared segmenter (:class:`memspine.core.window.WindowSegmenter`) cuts at a topic shift, a turn
 cap, a token cap and a session change. This one adds the two W-11 rules on top and keeps the rest:
 
 * **Time gap.** A window never spans a source-time gap above ``gap_s`` (nor, with
@@ -10,7 +10,7 @@ cap, a token cap and a session change. This one adds the two W-11 rules on top a
   still below ``grow_tokens`` keeps growing (short turns of one session), up to ``max_turns_cap``;
   the token cap ``max_tokens`` always binds.
 
-Pure: no clock reads, no model calls. Same ``add`` / ``close`` / ``discard`` surface as the v1
+Pure: no clock reads, no model calls. Same ``add`` / ``close`` / ``discard`` surface as the shared
 segmenter, so the window pipeline uses either.
 """
 
@@ -30,7 +30,7 @@ _EPSILON = 1e-9
 
 @dataclass(frozen=True)
 class SegmentationSettings:
-    """``write.segmentation_v2`` and its tunables (see ``config/schema/write.py``)."""
+    """stream segmentation and its tunables (see ``config/schema/write.py``)."""
 
     gap_s: float = 1800.0
     calendar_day_cut: bool = True

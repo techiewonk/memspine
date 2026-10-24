@@ -76,13 +76,13 @@ async def store(request: pytest.FixtureRequest) -> AsyncIterator[GraphStore]:
         from test_f_16e_neo4j_outbox import FakeNeo4j, live_executor
 
         if request.param == "neo4j_fake":
-            yield Neo4jGraphStore(FakeNeo4j(), scoped=True)
+            yield Neo4jGraphStore(FakeNeo4j())
             return
         if not LIVE_NEO4J:
             pytest.skip("needs the neo4j driver and MEMSPINE_TEST_NEO4J_URL (a live server)")
         connector, ex = await live_executor("MemQual")
         try:
-            yield Neo4jGraphStore(ex, scoped=True)  # scoped, as the provider builds it
+            yield Neo4jGraphStore(ex)  # scoped, as the provider builds it
         finally:
             await ex.run("clear", {})
             await connector.close()

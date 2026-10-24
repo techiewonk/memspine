@@ -145,9 +145,9 @@ every gap at once.
 | Feature | Why it needs SQL |
 |---|---|
 | `workers.outbox` | the outbox job book (`runtime/outbox.py`) is a SQL table |
-| `offline.sleep_v2` | sleep leases, cycle watermarks and triggers are side tables (RM-111 WP5); the blocking `sleep()` works |
+| `offline.sleep` | sleep leases, cycle watermarks and triggers are side tables (RM-111 WP5); the blocking `sleep()` works |
 | `economy.ledger_persist` | the persisted cost ledger is a side table |
-| `write.envelope_v2` | its dead-letter list is a side table |
+| `write.envelope` | its dead-letter list is a side table |
 | `runtime.service_switches.projections` | controlled projection switches keep their manifests in SQL tables |
 | `storage.vector: pgvector` | the vectors live in the Postgres records database |
 | `storage.graph: sql_adjacency` | the graph lives in the SQL records database; `auto` resolves only to `ladybug` and fails naming `storage.graph` when it is not installed |

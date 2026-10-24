@@ -169,7 +169,11 @@ def _is_live_advisory(record: MemoryRecord, kind: str) -> bool:
 
 async def _append_feedback(eng: Any, ns: str, record_id: str, signal: str, note: str = "") -> None:
     """N28: one FEEDBACK event (caller holds the namespace write lock)."""
-    payload: dict[str, object] = {"record_id": record_id, "signal": signal}
+    payload: dict[str, object] = {
+        "record_id": record_id,
+        "signal": signal,
+        "feedback": {"kind": signal, "channel": "outcome_receipt"},
+    }
     if note:
         payload["content"] = note[: constants.FEEDBACK_NOTE_MAX_CHARS]
     await eng._append_and_project(
@@ -221,7 +225,7 @@ async def record_outcome(
     )
     ns = validate_namespace(namespace)
     storage = eng._require_started()
-    signal = "like" if receipt.outcome == "success" else "dislike"
+    signal = "confirmation" if receipt.outcome == "success" else "rejection"
     auto_verify = bool(eng._procedural_policy().get("auto_verify_on_reward"))
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
         for record_id in dict.fromkeys(used_ids):
@@ -285,7 +289,7 @@ async def _repeat_lesson(
     """N28: the live lesson carrying ``key_tag`` with one more repeat note, or None."""
     for existing in await storage.list_records(ns, "procedural"):
         if key_tag in existing.tags and eng._is_live_advisory(existing, "lesson"):
-            await eng._append_feedback(ns, existing.record_id, "note", note)
+            await eng._append_feedback(ns, existing.record_id, "annotation", note)
             return await storage.get_record(existing.record_id)
     return None
 

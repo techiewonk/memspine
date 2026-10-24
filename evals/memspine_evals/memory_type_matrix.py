@@ -17,7 +17,7 @@ It reads configuration only. It never starts an engine, never calls a model, and
 
 Usage::
 
-    python -m memspine_evals.memory_type_matrix evals/arms/v2-PICK3-j.json [--template core] [--json]
+    python -m memspine_evals.memory_type_matrix evals/arms/PICK3-j.json [--template core] [--json]
 
 ``effective_flags(arm_dict)`` returns the same data as a dict so a runner can embed it in each
 result row.
@@ -55,9 +55,9 @@ LEGS: dict[str, tuple[str, str]] = {
     "vector": ("", "any"),  # always on
     "lexical": ("", "any"),  # always on
     "temporal": ("read.temporal_leg", "any"),
-    "entity": ("read.entity_leg_v2", "L1"),
-    "graph": ("read.graph_leg_v2", "L3"),
-    "episode": ("read.episode_leg_v2", "L2"),
+    "entity": ("read.entity_leg", "L1"),
+    "graph": ("read.graph_leg", "L3"),
+    "episode": ("read.episode_leg", "L2"),
     "recency": ("read.recency_leg", "any"),
     "session": ("read.session_leg", "any"),
     "perspective": ("read.perspective_leg", "any"),
@@ -67,16 +67,16 @@ LEGS: dict[str, tuple[str, str]] = {
 PRODUCERS: dict[str, tuple[str, str, str, tuple[str, ...]]] = {
     "window_facts": ("write.window_extract", "L1", "semantic", ()),
     "window_episodes": ("write.window_extract", "L2", "semantic", ()),
-    "session_close": ("offline.session_close_v2", "L2", "semantic", ()),
+    "session_close": ("offline.session_close", "L2", "semantic", ()),
     "consolidation": ("memories.episodic.policies.consolidation", "L2", "semantic", ()),
     "extract_graph": ("memories.semantic.policies.extract_graph", "L3", "associative", ()),
     "entity_summary": ("memories.associative.policies.entity_summaries", "L3", "associative", ()),
-    "communities": ("offline.communities_v2", "L3", "associative", ()),
-    "observation": ("offline.patterns_v2", "L4", "reflective", ()),
-    "standing": ("offline.standing_v2", "L5", "procedural", ()),
-    "profile_card": ("offline.profile_card_v2", "L5", "procedural", ()),
-    "reconcile": ("offline.reconcile_v2", "L1", "semantic", ()),
-    "histories": ("offline.histories_v2", "L1", "semantic", ()),
+    "communities": ("offline.communities", "L3", "associative", ()),
+    "observation": ("offline.patterns", "L4", "reflective", ()),
+    "standing": ("offline.standing", "L5", "procedural", ()),
+    "profile_card": ("offline.profile_card", "L5", "procedural", ()),
+    "reconcile": ("offline.reconcile", "L1", "semantic", ()),
+    "histories": ("offline.histories", "L1", "semantic", ()),
 }
 
 #: producer -> the value of its switch that means "off" even though the key is present
@@ -108,7 +108,7 @@ def effective_flags(arm: dict[str, Any], *, template: str = "core") -> dict[str,
     cfg = getattr(resolved, "config", resolved)
     roles = resolve_path(cfg, "model.llm") or {}
     worker = bool(roles)
-    graph_store = _on(cfg, "graph.edge_compiler_v2") or _on(cfg, "memories.associative.enabled")
+    graph_store = _on(cfg, "graph.edge_compiler") or _on(cfg, "memories.associative.enabled")
     enabled_layers = LayerTemplate.from_config(cfg, worker_model=worker, graph_store=graph_store)
 
     enabled_types = sorted(cfg.enabled_memories())

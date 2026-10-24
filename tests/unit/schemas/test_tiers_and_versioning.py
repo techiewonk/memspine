@@ -1,4 +1,4 @@
-"""Tier base classes, extra-field round trips, upcaster registry, reserved names."""
+"""Tier base classes, extra-field round trips, current schema validation, reserved names."""
 
 from __future__ import annotations
 
@@ -7,37 +7,34 @@ from typing import ClassVar
 import pytest
 
 from memspine.schemas import (
-    DuplicateUpcasterError,
     DurableModel,
     InternalModel,
     NewerThanKnownError,
     PublicModel,
+    SchemaValidationError,
     UnknownKindError,
-    UpcastError,
-    UpcastGapError,
+    UnsupportedSchemaVersionError,
     reserved_hits,
-    upcast,
-    upcaster,
+    validate_payload,
     versioning,
 )
-from memspine.schemas.steps.shared import ItemV1, Scope
+from memspine.schemas.steps.shared import ExtractionItem, Scope
 
 
 @pytest.fixture()
 def clean_registry():
-    saved = (dict(versioning._UPCASTERS), dict(versioning._DECLARED))
+    saved = dict(versioning._DECLARED)
     versioning.reset_registry()
     yield
     versioning.reset_registry()
-    versioning._UPCASTERS.update(saved[0])
-    versioning._DECLARED.update(saved[1])
+    versioning._DECLARED.update(saved)
 
 
 # --- extra fields round-trip on every tier (S1-3) --------------------------------------------------------
 
 
 class _D(DurableModel):
-    kind: ClassVar[str] = "test_tier_durable"
+    __kind__: ClassVar[str] = "test_tier_durable"
     name: str
 
 
@@ -62,7 +59,7 @@ def test_extra_fields_round_trip(cls):
 
 
 def test_real_internal_model_keeps_extras():
-    item = ItemV1.model_validate(
+    item = ExtractionItem.model_validate(
         {
             "text": "t",
             "kind": "fact",
@@ -78,7 +75,7 @@ def test_real_internal_model_keeps_extras():
 
 
 def test_durable_has_schema_version_and_kind():
-    assert _D.kind == "test_tier_durable"
+    assert _D.__kind__ == "test_tier_durable"
     assert _D(name="a").schema_version == 1
     assert versioning.latest_version("test_tier_durable") == 1
 
@@ -87,100 +84,43 @@ def test_public_has_semver():
     assert _P.__semver__ == "1.2.3"
 
 
-# --- upcasters (S1-2) --------------------------------------------------------------------------------------
+# --- strict current-format validation ---------------------------------------------------------------
 
 
-def test_upcast_chain_applies_in_order_and_passes_unknown_fields(clean_registry):
-    @upcaster("rec", 1)
-    def _v1(p):
-        p["a"] = p.get("a", 0) + 1
-        return p
-
-    @upcaster("rec", 2, consumes=("old",))
-    def _v2(p):
-        p = dict(p)
-        p["new"] = p.pop("old")
-        return p
-
-    src = {"schema_version": 1, "a": 0, "old": "x", "mystery": {"k": [1]}}
-    out = upcast("rec", src)
-    assert out == {"schema_version": 3, "a": 1, "new": "x", "mystery": {"k": [1]}}
-    assert src["schema_version"] == 1 and "old" in src  # input untouched
+def test_current_payload_is_copied_without_transformation(clean_registry):
+    versioning.declare_kind("rec", 1)
+    payload = {"schema_version": 1, "unknown": {"values": [1]}}
+    result = validate_payload("rec", payload)
+    assert result == payload and result is not payload
+    result["unknown"]["values"].append(2)
+    assert payload["unknown"]["values"] == [1]
 
 
-def test_upcast_current_version_is_identity_copy(clean_registry):
-    @upcaster("rec", 1)
-    def _v1(p):
-        return p
-
-    payload = {"schema_version": 2, "x": 1}
-    out = upcast("rec", payload)
-    assert out == payload and out is not payload
-
-
-def test_upcast_gap(clean_registry):
-    @upcaster("rec", 2)
-    def _v2(p):
-        return p
-
-    with pytest.raises(UpcastGapError):
-        upcast("rec", {"schema_version": 1})
-    # starting above the gap still works
-    assert upcast("rec", {"schema_version": 2})["schema_version"] == 3
-
-
-def test_upcast_newer_than_known(clean_registry):
-    @upcaster("rec", 1)
-    def _v1(p):
-        return p
-
+def test_missing_invalid_and_future_schema_versions_are_rejected(clean_registry):
+    versioning.declare_kind("rec", 1)
+    for value in (None, True, "1", 0, -1):
+        with pytest.raises(SchemaValidationError):
+            validate_payload("rec", {"schema_version": value})
+    with pytest.raises(SchemaValidationError):
+        validate_payload("rec", {})
     with pytest.raises(NewerThanKnownError):
-        upcast("rec", {"schema_version": 3})
-
-
-def test_duplicate_registration(clean_registry):
-    @upcaster("rec", 1)
-    def _a(p):
-        return p
-
-    with pytest.raises(DuplicateUpcasterError):
-
-        @upcaster("rec", 1)
-        def _b(p):
-            return p
-
-
-def test_unknown_kind_and_bad_version(clean_registry):
+        validate_payload("rec", {"schema_version": 2})
     with pytest.raises(UnknownKindError):
-        upcast("nothing", {"schema_version": 1})
-
-    @upcaster("rec", 1)
-    def _a(p):
-        return p
-
-    for bad in ({}, {"schema_version": "1"}, {"schema_version": 0}, {"schema_version": True}):
-        with pytest.raises(UpcastError):
-            upcast("rec", bad)
+        validate_payload("unknown", {"schema_version": 1})
 
 
-def test_upcaster_may_not_silently_drop_unknown_fields(clean_registry):
-    @upcaster("rec", 1)
-    def _a(p):
-        return {"schema_version": 1, "kept": p["kept"]}
-
-    with pytest.raises(UpcastError, match="dropped fields"):
-        upcast("rec", {"schema_version": 1, "kept": 1, "extra": 2})
+def test_earlier_payload_is_rejected_without_transformation(clean_registry):
+    versioning.declare_kind("rec", 2)
+    with pytest.raises(UnsupportedSchemaVersionError):
+        validate_payload("rec", {"schema_version": 1})
 
 
-def test_durable_subclass_declares_latest(clean_registry):
+def test_durable_subclass_declares_current_kind(clean_registry):
     class _X(DurableModel):
-        kind: ClassVar[str] = "declared_kind"
-        schema_version: int = 3
+        __kind__: ClassVar[str] = "declared_kind"
 
-    assert versioning.latest_version("declared_kind") == 3
-    with pytest.raises(UpcastGapError):
-        upcast("declared_kind", {"schema_version": 1})
-    assert upcast("declared_kind", {"schema_version": 3, "u": 1}) == {"schema_version": 3, "u": 1}
+    assert versioning.latest_version("declared_kind") == 1
+    assert validate_payload("declared_kind", {"schema_version": 1}) == {"schema_version": 1}
 
 
 # --- reserved names (SESSIONS_01_02 condition 1) -------------------------------------------------------------

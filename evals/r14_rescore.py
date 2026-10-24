@@ -8,19 +8,19 @@ For every row of ``results.jsonl`` it prints, per LoCoMo category and overall, f
 over the same denominator:
 
 * ``raw``       the official judge verdict (``score``), unchanged;
-* ``v3``        raw OR the deterministic ``judge_conventions`` v3 rules (R14-M-17: list with scoped
+* ``conventions``        raw OR the deterministic ``judge_conventions`` conventions rules (R14-M-17: list with scoped
                 negation, containment with extra detail, city for country, "N years ago" met by a
-                year; v1 and v2 rules are inside v3). Only wrong rows can gain;
-* ``strict``    v3 AND, for a list gold, every gold item present in the answer (R14-M-18): a gold
-                list answered with one item is not credited. Rows whose gold is no list keep v3;
+                year; all supported deterministic rules are included). Only wrong rows can gain;
+* ``strict``    conventions AND, for a list gold, every gold item present in the answer (R14-M-18): a gold
+                list answered with one item is not credited. Rows whose gold is no list keep conventions;
 * ``raw-E`` / ``strict-E``  the same two columns with the errata questions (``gold_error``,
                 ``needs_image``) removed from the denominator.
 
-The honest headline band is ``strict`` (low) to ``v3`` (high) with a cluster-bootstrap CI by
+The honest headline band is ``strict`` (low) to ``conventions`` (high) with a cluster-bootstrap CI by
 conversation; ``raw`` sits in or above it. ``--data`` adds the R14-M-16 stratum: questions whose
 every evidence turn is spoken by the other speaker than the one the question names, reported on
 their own so a correct attribution is not mistaken for a miss. ``--labels`` measures precision and
-recall of v3 and of the strict column on the hand labels (``hand_fn`` / ``hand_fp``) of
+recall of conventions and of the strict column on the hand labels (``hand_fn`` / ``hand_fp``) of
 ``analysis/r14_reader_judge_features.csv``.
 
 Files carrying question or answer text (the credit and strict-fail listings) go to ``--out``
@@ -43,11 +43,11 @@ sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != HERE.resolve()
 sys.path.append(str(HERE))
 
 from memspine_evals.judge_conventions import (
-    check_conventions_v3,
+    check_conventions,
     strict_list_ok,
 )
 
-COLUMNS = ("raw", "v3", "strict", "raw-E", "strict-E")
+COLUMNS = ("raw", "conventions", "strict", "raw-E", "strict-E")
 DEFAULT_ERRATA = HERE / "analysis" / "locomo_errata.json"
 ERRATA_TAGS = ("gold_error", "needs_image")
 
@@ -75,25 +75,25 @@ def is_abstention(row: dict[str, Any]) -> bool:
 
 
 def score_row(row: dict[str, Any]) -> dict[str, Any]:
-    """The per-row verdicts. ``v3_rule`` is set only for a wrong row the v3 layer credits;
+    """The per-row verdicts. ``convention_rule`` is set only for a wrong row the conventions layer credits;
     ``list_missing`` only for a list gold with an absent item."""
     ok = float(row.get("score") or 0) >= 1
     question, answer, gold = row.get("question") or "", row.get("answer") or "", row.get("gold")
     binary = row.get("status") == "completed" and row.get("scale", "binary") == "binary"
     rule = None
     if binary and not ok and not is_abstention(row):
-        hit = check_conventions_v3(question, answer, gold)
+        hit = check_conventions(question, answer, gold)
         rule = hit.rule if hit is not None else None
-    v3 = ok or rule is not None
+    conventions = ok or rule is not None
     strict_list = (
         None if (not binary or is_abstention(row)) else strict_list_ok(question, answer, gold)
     )
-    strict = v3 and strict_list is not False
+    strict = conventions and strict_list is not False
     return {
         "raw": ok,
-        "v3": v3,
+        "conventions": conventions,
         "strict": strict,
-        "v3_rule": rule,
+        "convention_rule": rule,
         "list_missing": strict_list is False,
     }
 
@@ -129,7 +129,7 @@ def rescore(
             "n": len(sub),
             "n_errata": len(sub) - len(kept),
             "raw": sum(s["raw"] for s in sub),
-            "v3": sum(s["v3"] for s in sub),
+            "conventions": sum(s["conventions"] for s in sub),
             "strict": sum(s["strict"] for s in sub),
             "n-E": len(kept),
             "raw-E": sum(s["raw"] for s in kept),
@@ -142,7 +142,7 @@ def rescore(
         out["swapped"] = {
             "n": len(sw),
             "raw": sum(s["raw"] for s in sw),
-            "v3": sum(s["v3"] for s in sw),
+            "conventions": sum(s["conventions"] for s in sw),
             "strict": sum(s["strict"] for s in sw),
             "rest_n": len(rest),
             "rest_raw": sum(s["raw"] for s in rest),
@@ -197,10 +197,10 @@ def swapped_keys(data_path: Path | str) -> set[tuple[str, str]]:
 # hand-label precision / recall
 # ---------------------------------------------------------------------------------------------
 def label_metrics(scored: list[dict[str, Any]], labels_path: Path | str) -> dict[str, Any]:
-    """v3 precision/recall against ``hand_fn`` and the strict column against ``hand_fp``."""
+    """conventions precision/recall against ``hand_fn`` and the strict column against ``hand_fp``."""
     with open(labels_path, encoding="utf-8") as fh:
         lab = {(r["item"], r["qid"]): r for r in csv.DictReader(fh)}
-    credited = [s for s in scored if s["v3_rule"] is not None]
+    credited = [s for s in scored if s["convention_rule"] is not None]
     fn_all = {k for k, r in lab.items() if r["hand_fn"]}
     fn_hard = {k for k, r in lab.items() if r["hand_fn"] in ("clear", "likely")}
     hit_all = [s for s in credited if s["key"] in fn_all]
@@ -212,7 +212,7 @@ def label_metrics(scored: list[dict[str, Any]], labels_path: Path | str) -> dict
     f_hard = [s for s in failed if s["key"] in fp_hard]
     return {
         "fn": {
-            "v3_new_credits": len(credited),
+            "convention_new_credits": len(credited),
             "hand_fn_any": len(fn_all),
             "hand_fn_clear_likely": len(fn_hard),
             "credited_hand_fn_any": len(hit_all),
@@ -258,12 +258,12 @@ def format_table(result: dict[str, Any]) -> str:
     t = result["table"]
     order = [c for c in ("cat1", "cat2", "cat3", "cat4", "cat5", "cat1-4", "all") if c in t]
     lines = [
-        f"{'cat':7} {'n':>5} {'raw':>6} {'v3':>6} {'strict':>6} | {'n-E':>5} {'raw-E':>6} {'strict-E':>8}"
+        f"{'cat':7} {'n':>5} {'raw':>6} {'conventions':>6} {'strict':>6} | {'n-E':>5} {'raw-E':>6} {'strict-E':>8}"
     ]
     for c in order:
         r = t[c]
         lines.append(
-            f"{c:7} {r['n']:5d} {_pct(r['raw'], r['n']):>6} {_pct(r['v3'], r['n']):>6} "
+            f"{c:7} {r['n']:5d} {_pct(r['raw'], r['n']):>6} {_pct(r['conventions'], r['n']):>6} "
             f"{_pct(r['strict'], r['n']):>6} | {r['n-E']:5d} {_pct(r['raw-E'], r['n-E']):>6} "
             f"{_pct(r['strict-E'], r['n-E']):>8}"
         )
@@ -298,19 +298,19 @@ def main(argv: list[str] | None = None) -> int:
         qa4 = [s for s in scored if s["cat"] in ("cat1", "cat2", "cat3", "cat4")]
         if qa4:
             lo = band_ci(qa4, "strict")
-            hi = band_ci(qa4, "v3")
+            hi = band_ci(qa4, "conventions")
             t4 = res["table"]["cat1-4"]
             print(
                 f"honest band cat1-4: strict {_pct(t4['strict'], t4['n']).strip()} "
-                f"[{100 * lo[0]:.1f}, {100 * lo[1]:.1f}] .. v3 {_pct(t4['v3'], t4['n']).strip()} "
+                f"[{100 * lo[0]:.1f}, {100 * lo[1]:.1f}] .. conventions {_pct(t4['conventions'], t4['n']).strip()} "
                 f"[{100 * hi[0]:.1f}, {100 * hi[1]:.1f}] (raw {_pct(t4['raw'], t4['n']).strip()})"
             )
         rules: dict[str, int] = defaultdict(int)
         for s in scored:
-            if s["v3_rule"]:
-                rules[s["v3_rule"]] += 1
+            if s["convention_rule"]:
+                rules[s["convention_rule"]] += 1
         print(
-            "v3 credits by rule:",
+            "conventions credits by rule:",
             dict(rules),
             "| strict drops (judge-correct, list item missing):",
             sum(1 for s in scored if s["list_missing"] and s["raw"] and s["cat"] != "cat5"),
@@ -318,10 +318,10 @@ def main(argv: list[str] | None = None) -> int:
         if "swapped" in res:
             w = res["swapped"]
             print(
-                f"speaker-swap stratum (M-16): n={w['n']} raw={w['raw']} v3={w['v3']} strict={w['strict']}; "
+                f"speaker-swap stratum (M-16): n={w['n']} raw={w['raw']} conventions={w['conventions']} strict={w['strict']}; "
                 f"rest cat1-4 n={w['rest_n']} raw={w['rest_raw']}"
             )
-        entry: dict[str, Any] = {"table": res["table"], "v3_rules": dict(rules)}
+        entry: dict[str, Any] = {"table": res["table"], "convention_rules": dict(rules)}
         if "swapped" in res:
             entry["swapped"] = res["swapped"]
         if args.labels:
@@ -334,15 +334,17 @@ def main(argv: list[str] | None = None) -> int:
             out_dir.mkdir(parents=True, exist_ok=True)
             by_key = {(r["item_id"], r["query_id"]): r for r in rows}
             with open(out_dir / f"r14_rescore_{name}.tsv", "w", encoding="utf-8") as fh:
-                fh.write("item\tqid\tcat\traw\tv3_rule\tlist_missing\tstrict\tgold\tanswer\n")
+                fh.write(
+                    "item\tqid\tcat\traw\tconvention_rule\tlist_missing\tstrict\tgold\tanswer\n"
+                )
                 for s in scored:
-                    if s["v3_rule"] or (s["list_missing"] and s["raw"]):
+                    if s["convention_rule"] or (s["list_missing"] and s["raw"]):
                         r = by_key[s["key"]]
                         gold = str(r.get("gold") or "").replace("\t", " ").replace("\n", " ")
                         ans = str(r.get("answer") or "")[:300].replace("\t", " ").replace("\n", " ")
                         fh.write(
                             f"{s['key'][0]}\t{s['key'][1]}\t{s['cat']}\t{int(s['raw'])}\t"
-                            f"{s['v3_rule'] or ''}\t{int(s['list_missing'])}\t{int(s['strict'])}\t{gold}\t{ans}\n"
+                            f"{s['convention_rule'] or ''}\t{int(s['list_missing'])}\t{int(s['strict'])}\t{gold}\t{ans}\n"
                         )
             print(f"listing (text, local only): {out_dir / f'r14_rescore_{name}.tsv'}")
     if args.json:

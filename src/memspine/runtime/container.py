@@ -113,16 +113,15 @@ from memspine.providers.registry import (
     LLM_PROVIDERS as PROVIDER_LLM_PROVIDERS,
 )
 from memspine.providers.registry import (
-    RENAMED_PROVIDERS,
-    ProviderDescriptor,
-    get_registry,
-    validate_settings,
-)
-from memspine.providers.registry import (
     STORAGE_BACKENDS as PROVIDER_STORAGE_BACKENDS,
 )
 from memspine.providers.registry import (
     VECTOR_STORES as PROVIDER_VECTOR_STORES,
+)
+from memspine.providers.registry import (
+    ProviderDescriptor,
+    get_registry,
+    validate_settings,
 )
 from memspine.providers.selection import ProviderSelectionError, select_provider
 from memspine.providers.shared import ResourceRegistry, RetentionPolicy, shared_registry
@@ -1156,8 +1155,7 @@ def _graph_descriptor(config: MemspineConfig, wiring: Wiring) -> ProviderDescrip
 async def resolve_graph_pin(config: MemspineConfig, wiring: Wiring) -> str | None:
     """ADR-081: pin ``graph.provider: auto`` to the provider recorded in the graph projector
     binding of this deployment, or to today's resolution when there is no binding yet (the
-    binding preflight then records it). A binding written before the ``sql_adjacency``
-    rename is adopted under the new name. Returns the pin (None when not ``auto``)."""
+    binding preflight then records it). Returns the pin (None when not ``auto``)."""
     if config.storage.graph.provider != "auto":
         return None
     if wiring.records is None or wiring.owner_id is None:
@@ -1168,7 +1166,7 @@ async def resolve_graph_pin(config: MemspineConfig, wiring: Wiring) -> str | Non
     if bound is None:
         wiring.graph_pin = _graph_auto_descriptor(config, wiring).ref.name
     else:
-        wiring.graph_pin = RENAMED_PROVIDERS["graph_stores"].get(bound, bound)
+        wiring.graph_pin = bound
     return wiring.graph_pin
 
 
@@ -1250,14 +1248,6 @@ async def preflight_projection_bindings(
 
     binding_store = wiring.records.projection_bindings()
     for binding in bindings:
-        if binding.projector_name == "graph" and binding.provider.startswith(
-            "graph:sql_adjacency:"
-        ):
-            # ADR-081: a binding recorded under the old name is the same target (the graph
-            # tables of the records database); adopt it under the new name, once.
-            await binding_store.adopt_renamed_provider(
-                binding, "graph:sqlite_adjacency:" + binding.provider.rsplit(":", 1)[1]
-            )
         await binding_store.ensure(binding)
 
 
@@ -1375,7 +1365,7 @@ async def build_llm_router(config: MemspineConfig, hooks: WiringHooks, wiring: W
         providers[role] = _thinking_capped(role, slot, cast(LLMService, built.service))
     explicit = dict(role_configs)
     resolved = None
-    if config.model.placement.tiers_v2:
+    if config.model.placement.tiers:
         resolved = await _bind_tiered_roles(config, providers, role_configs, wiring)
     consent = config.consent
     gate_remote = consent.remote_llm_max_tier is not None
@@ -1446,7 +1436,7 @@ async def _bind_tiered_roles(
     role_configs: dict[str, Any],
     wiring: Wiring,
 ) -> Any:
-    """MD-01 (``model.placement.tiers_v2``): bind every engine role no ``model.llm.<role>``
+    """MD-01 (``model.placement.tiers``): bind every engine role no ``model.llm.<role>``
     slot covers through the tier plan. A role the plan cannot serve gets no provider, so its
     feature takes the role's fallback (L1/L3/summaries off, rules, calibrated gate) and makes
     zero model calls. Explicit ``model.llm`` slots win and are left exactly as built above."""
@@ -1576,7 +1566,6 @@ def build_prompts(config: MemspineConfig) -> PromptRegistry:
         overrides=config.prompts.overrides,
         partials=config.prompts.partials,
         selection=config.prompts.selection,
-        layout_v2=config.prompts.layout_v2,
         layout_partials=config.prompts.layout_partials,
     )
 
@@ -1776,7 +1765,7 @@ def make_outbox_runner(
         )
     else:
         runner = OutboxRunner(parts.store, commit_lock=commit_lock)
-    if config.runtime.scheduler_v2:  # RT-02: backpressure + SLO ledger + background priority
+    if config.runtime.scheduler:  # RT-02: backpressure + SLO ledger + background priority
         from memspine.observability import bindings as _bindings
         from memspine.runtime import scheduler as _sched
 

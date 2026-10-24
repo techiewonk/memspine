@@ -70,7 +70,12 @@ def _pic_turn() -> Turn:
 
 def test_message_carries_attachments_only_when_ingest_assets_is_on() -> None:
     off = MemspineSystem(config=_HASH)._message(_pic_turn(), "Ana: Look at this.")
-    assert off == {"role": "user", "content": "Ana: Look at this."}
+    assert off == {
+        "role": "user",
+        "content": "Ana: Look at this.",
+        "message_id": "D1:2",
+        "conversation_id": "eval:s1",
+    }
     on = MemspineSystem(config={**_HASH, "ingest": {"assets": "on"}})._message(
         _pic_turn(), "Ana: Look at this."
     )
@@ -78,7 +83,7 @@ def test_message_carries_attachments_only_when_ingest_assets_is_on() -> None:
     plain = Turn(turn_id="D1:1", session_id="s1", speaker="Ana", text="hi")
     assert MemspineSystem(config={**_HASH, "ingest": {"assets": "on"}})._message(
         plain, "Ana: hi"
-    ) == {"role": "user", "content": "Ana: hi"}
+    ) == {"role": "user", "content": "Ana: hi", "message_id": "D1:1", "conversation_id": "eval:s1"}
 
 
 class _Echo:

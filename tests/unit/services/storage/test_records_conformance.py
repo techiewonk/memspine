@@ -640,7 +640,7 @@ async def test_projection_bindings_fail_closed_and_swap_only_when_verified(
         await bindings.ensure(replace(first, generation_id="g2"))
     # a non-zero offset without a binding is ambiguous: refused
     await store.set_offset("vectors", 4)
-    with pytest.raises(ConfigError, match="legacy offset"):
+    with pytest.raises(ConfigError, match="unbound offset"):
         await bindings.ensure(ProjectionTargetBinding("dep-1", "vectors", "vector:x:v1", "c" * 64))
     # a verified change: the source matches and the offset equals the verified checkpoint
     await store.set_offset("graph", 7)
@@ -661,13 +661,6 @@ async def test_projection_bindings_fail_closed_and_swap_only_when_verified(
     assert await bindings.bound_provider("dep-1", "graph") == "neo4j"
     with pytest.raises(ConfigError, match="no longer matches the verified"):
         await bindings.ensure(replace(change, target_fingerprint="e" * 64, generation_id="g3"))
-    # a renamed provider identity is adopted once (compare-and-swap on the old name)
-    old = ProjectionTargetBinding("dep-1", "lexical", "lexical:old_name:v1", "f" * 64)
-    assert await bindings.ensure(old) == "active"
-    renamed = replace(old, provider="lexical:new_name:v1")
-    assert await bindings.adopt_renamed_provider(renamed, "lexical:old_name:v1") is True
-    assert await bindings.adopt_renamed_provider(renamed, "lexical:old_name:v1") is False
-    assert await bindings.ensure(renamed) == "active"
-    if handle.reopen is not None:  # durable and shared by every handle
+    if handle.reopen is not None:  # current binding remains durable across handles
         other = (await handle.reopen()).projection_bindings()
-        assert await other.bound_provider("dep-1", "lexical") == "new_name"
+        assert await other.bound_provider("dep-1", "graph") == "neo4j"

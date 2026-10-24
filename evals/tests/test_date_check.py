@@ -68,4 +68,4 @@ def test_guarded_judge_credits_date_without_llm_call() -> None:
     assert _Inner.calls == before
     asyncio.run(judge.score("When?", "Saturday, 2023-05-20", "The sunday before 25 May 2023"))
     assert _Inner.calls == before + 1  # no match: the LLM judge decides
-    assert judge.spec.params["date_check"] == "date_check/v1"
+    assert judge.spec.params["date_check"] == "date_check"

@@ -83,11 +83,11 @@ async def test_prune_pipeline_respects_mode_and_offsets() -> None:
     runner = make_runner()
     # No projector has applied the event yet -> prune must keep it regardless of age.
     stats = await runner.run("event_log_prune", ctx)
-    assert stats == {"status": "ok", "pruned": 0}
+    assert stats == {"status": "ok", "pruned": 0, "rebuild": "limited"}
 
     await storage.set_offset("records", 1)
     stats = await runner.run("event_log_prune", ctx)
-    assert stats == {"status": "ok", "pruned": 1}
+    assert stats == {"status": "ok", "pruned": 1, "rebuild": "limited"}
 
     full_ctx, _full_storage = await make_ctx(mode="full")
     assert (await runner.run("event_log_prune", full_ctx))["status"] == "skipped"

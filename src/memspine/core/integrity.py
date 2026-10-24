@@ -43,7 +43,7 @@ class IntegrityPolicy:
     claims_only_below: float = 0.0
     live_reevaluation: bool = False
     principal_reputation: bool = False
-    horizon_v2: bool = False
+    horizon: bool = False
     grant_horizon: int | None = None
 
     @classmethod
@@ -58,7 +58,7 @@ class IntegrityPolicy:
         if grantor == grantee:
             return trust
         kappa = self.kappa_for(grantor, grantee)
-        if self.horizon_v2:  # T5-01: one grant edge through the LIB-21 library
+        if self.horizon:  # T5-01: one grant edge through the LIB-21 library
             return _horizon.effective_trust(
                 _horizon.TrustedRecord(owner=grantor, scope="*", trust=_unit(trust)),
                 [self.grant(grantor, grantee)],
@@ -89,7 +89,7 @@ class IntegrityPolicy:
             return base
         capped = (
             _horizon.deposit_trust(_unit(base), [_unit(v) for v in views])
-            if self.horizon_v2
+            if self.horizon
             else min(base, *views)
         )
         derived = capped * self.derivation_decay * self.verification_bonus

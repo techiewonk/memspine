@@ -6,7 +6,7 @@
 
 Inputs (all read-only): the pydantic config schema, ``docs/USAGE.md`` (descriptions),
 ``docs/v2/PIPELINE_STAGE_INVENTORY.md`` (stage ids and file:function), the engine source
-(AST scan for config attribute reads), ``evals/v2_queue.tsv`` + ``docs/v2/SCREENS.md`` (screens),
+(AST scan for config attribute reads), ``evals/screen_queue.tsv`` + ``docs/v2/SCREENS.md`` (screens),
 ``src/memspine/config/presets`` (profile screens), the prompt files, ``evals/memspine_evals/cli.py``
 and ``readers.py`` / ``judge_prompts.py`` (harness flags and prompts), plus the hand-curated
 ``docs/v2/data/stage_params_manual.json`` for what the scan cannot attribute.
@@ -45,7 +45,7 @@ INVENTORY = REPO / "docs" / "v2" / "PIPELINE_STAGE_INVENTORY.md"
 REGISTRY = REPO / "docs" / "v2" / "data" / "stage_trace_registry.json"
 USAGE = REPO / "docs" / "USAGE.md"
 SRC = REPO / "src" / "memspine"
-QUEUE = REPO / "evals" / "v2_queue.tsv"
+QUEUE = REPO / "evals" / "screen_queue.tsv"
 SCREENS_MD = REPO / "docs" / "v2" / "SCREENS.md"
 PRESETS = SRC / "config" / "presets"
 PROMPTS = SRC / "prompts" / "defaults"
@@ -865,7 +865,7 @@ def render_md(data: dict) -> str:
         "[PIPELINE_STAGE_INVENTORY.md](PIPELINE_STAGE_INVENTORY.md)). `rebuild` says what a change forces when data already exists: "
         "`ingest` (re-ingest), `index` (rebuild the vector, lexical or graph index) or `sleep` (re-run the sleep stages); "
         "empty means a read-time switch. `effect` is the first sentence of the key's `docs/USAGE.md` description (the `--help` text for CLI flags). "
-        "Screens are the S-numbers of `evals/v2_queue.tsv` and [SCREENS.md](SCREENS.md) that varied the key (directly or through a profile preset).",
+        "Screens are the S-numbers of `evals/screen_queue.tsv` and [SCREENS.md](SCREENS.md) that varied the key (directly or through a profile preset).",
         "",
         f"Schema keys: {data['schema_key_count']}; not attributed to any stage: {data['unattributed_count']} (listed at the end).",
         "",

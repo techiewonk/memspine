@@ -37,7 +37,6 @@ from typing import Any, Protocol
 from memspine.config import constants
 from memspine.core.window import (
     Window,
-    WindowSegmenter,
     WindowSettings,
     WindowTurn,
     estimate_tokens,
@@ -59,7 +58,6 @@ from memspine.derive.items import (
     ItemsOutcome,
     ItemValidator,
     RepairAsk,
-    parse_reply,
     process_items,
 )
 from memspine.derive.pipeline.stages.context import SessionClosed, WindowEdgeBatch
@@ -78,13 +76,8 @@ from memspine.prompts.layout_language import detect_language
 from memspine.prompts.models import (
     ExtractedEdge,
     WindowEpisode,
-    WindowFact,
-    WindowPayload,
-    fact_guard,
 )
 from memspine.prompts.structured import (
-    STRUCTURED_VERSION,
-    WINDOW_VERSION,
     default_partial,
     extraction_messages,
     window_messages,
@@ -92,10 +85,10 @@ from memspine.prompts.structured import (
 )
 from memspine.schemas.durable import AssertionEnvelope
 from memspine.schemas.durable.common import OwnerScope
+from memspine.scope import Scope
 from memspine.services.concurrency import Priority, priority_scope
 from memspine.services.llm.base import LLMService, lenient_json
 from memspine.services.llm.capabilities import schema_options
-from memspine.services.llm.structured import structured_call
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
 
@@ -107,12 +100,10 @@ __all__ = [
     "WindowExtractor",
     "WindowPipeline",
     "build_transcript",
-    "grounded",
     "split_batch_episodes",
     "split_batch_section",
     "validate_edges",
     "validate_episode",
-    "validate_facts",
 ]
 
 _log = get_logger(__name__)
@@ -132,7 +123,6 @@ _TENANT = "default"
 _LINE_CHARS = 2000
 #: ``stop()`` waits this long for the window call in hand before cancelling it.
 _STOP_GRACE_S = 5.0
-_TOKENS = re.compile(r"\w+", re.UNICODE)
 _NAME_PREFIX = re.compile(r"^\s*([A-Z][\w'-]{1,30}(?: [A-Z][\w'-]{1,30})?):\s+\S")
 
 
@@ -158,28 +148,21 @@ class PromptWindowExtractor:
         prompt: Prompt,
         model: str = "",
         *,
-        items: bool = False,
-        unified: bool = False,
         partial: Callable[[str], str] | None = None,
         use_schema: bool = True,
     ) -> None:
         self._llm = llm
-        #: W2-06b (``write.prompt_v2``): ONE call for every requested section (needs ``items``).
-        self._unified = unified and items
+        #: W2-06b (the base prompt layout): ONE call for every requested section (needs ``items``).
         self._partial = partial or default_partial
         self._use_schema = use_schema
         self._schema_rejected = False
         #: FU-GAPS: whole-reply repair re-asks made by the one-call path.
         self.reparse_calls = 0
         self._prompt = prompt
-        #: W2-06a (``write.envelope_v2``): the ``facts`` section is an ``ItemV1`` list from the
+        #: W2-06a (the base extraction envelope): the ``facts`` section is an ``ExtractionItem`` list from the
         #: ``structured`` prompt, returned raw (each item is validated alone by the pipeline).
-        self._items = items
         self.identity = f"{model}|{prompt.prompt_version}"
-        if items:
-            self.identity += f"|items{STRUCTURED_VERSION}"
-        if self._unified:
-            self.identity += f"|window{WINDOW_VERSION}"
+        self.identity += "|structured-window"
 
     async def __call__(
         self, sections: Sequence[str], variables: Mapping[str, object]
@@ -187,27 +170,7 @@ class PromptWindowExtractor:
         options: dict[str, Any] = {"temperature": 0.0}
         if self._prompt.token_budget:
             options["max_tokens"] = self._prompt.token_budget
-        if self._unified:
-            return await self._unified_call(sections, variables, options)
-        if self._items and "facts" in sections:
-            result: dict[str, Any] = {}
-            items_messages = extraction_messages(
-                str(variables.get("content", "")),
-                str(variables.get("participants", "")),
-                int(variables["turn_count"]) if "turn_count" in variables else None,  # type: ignore[call-overload]
-            )
-            reply = await self._llm.chat(items_messages, **options)
-            if insp.io_active():  # TI-1: what the model saw and said
-                _note_io(items_messages, reply)
-            parsed = parse_reply(reply)
-            if parsed is None:
-                raise LLMError("structured items reply failed validation: not a JSON list")
-            result["facts"] = parsed
-            rest = [name for name in sections if name != "facts"]
-            if rest:
-                result.update(await self._legacy(rest, variables, options))
-            return result
-        return await self._legacy(sections, variables, options)
+        return await self._unified_call(sections, variables, options)
 
     async def _unified_call(
         self, sections: Sequence[str], variables: Mapping[str, object], options: dict[str, Any]
@@ -234,7 +197,7 @@ class PromptWindowExtractor:
                 self._llm, window_schema(sections, batched=batched), "window_extract"
             )
         tap.event(
-            "write.prompt.v2",
+            "write.prompt",
             sections=list(sections),
             known_count=int(variables.get("known_count", 0) or 0),  # type: ignore[call-overload]
             schema_mode=mode,
@@ -247,7 +210,7 @@ class PromptWindowExtractor:
                 raise
             # The backend refused the schema: stop sending it, answer this call without it.
             self._schema_rejected = True
-            tap.event("write.prompt.v2", sections=list(sections), schema_mode="rejected")
+            tap.event("write.prompt", sections=list(sections), schema_mode="rejected")
             reply = await self._llm.chat(messages, **options)
         if insp.io_active():  # TI-1: what the model saw and said
             _note_io(messages, reply)
@@ -256,7 +219,7 @@ class PromptWindowExtractor:
             # FU-GAPS: the whole reply is unusable: ONE repair re-ask (the reply is echoed back,
             # the model resends it as the JSON object) before the window's sections are dropped.
             self.reparse_calls += 1
-            tap.event("write.prompt.v2", sections=list(sections), reparse=True)
+            tap.event("write.prompt", sections=list(sections), reparse=True)
             retry = [
                 *messages,
                 {"role": "assistant", "content": reply[:4000]},
@@ -278,19 +241,6 @@ class PromptWindowExtractor:
         if data is None:
             raise LLMError("structured window reply failed validation: not a JSON object")
         return {name: data[name] for name in sections if name in data}
-
-    async def _legacy(
-        self, sections: Sequence[str], variables: Mapping[str, object], options: dict[str, Any]
-    ) -> Mapping[str, Any]:
-        out = await structured_call(
-            self._llm,
-            self._prompt,
-            {**variables, "sections": list(sections)},
-            WindowPayload,
-            **options,
-        )
-        # A section the reply omitted is absent (not null): the writer fails it closed.
-        return {name: getattr(out, name) for name in sections if name in out.model_fields_set}
 
 
 _SCHEMA_REJECTED = re.compile(r"schema|response_format|grammar|format|unsupported", re.I)
@@ -378,19 +328,6 @@ Embed = Callable[[list[str]], Awaitable[list[list[float]]]]
 # --- pure helpers (transcript, grounding, per-section validation) ---------------------------
 
 
-def _norm(text: str) -> str:
-    return " ".join(_TOKENS.findall(text.casefold()))
-
-
-def grounded(span: str, line_texts: Sequence[str]) -> bool:
-    """True when ``span`` (a model-quoted excerpt) occurs in one of ``line_texts``, compared
-    on lower-cased word tokens (case, punctuation and spacing ignored, word order kept)."""
-    needle = _norm(span)
-    if not needle:
-        return False
-    return any(f" {needle} " in f" {_norm(text)} " for text in line_texts)
-
-
 def _speaker_label(record: MemoryRecord) -> str:
     for tag in record.tags:
         if tag.startswith("spk:") and tag[4:]:
@@ -422,44 +359,6 @@ def build_transcript(records: Sequence[MemoryRecord]) -> tuple[str, list[str], l
 
 def _valid_lines(cited: Sequence[int], count: int) -> list[int]:
     return [n for n in dict.fromkeys(cited) if 1 <= n <= count]
-
-
-@dataclass
-class FactsOutcome:
-    facts: list[tuple[WindowFact, list[int]]] = field(default_factory=list)
-    returned: int = 0
-    invalid: int = 0
-    ungrounded: int = 0
-    uncited: int = 0
-
-
-def validate_facts(raw: object, line_texts: Sequence[str]) -> FactsOutcome | None:
-    """The ``facts`` section: None (section failed closed) unless it is a list; otherwise each
-    item is guarded and validated alone. An item with no valid cited line, or whose ``span``
-    is not in a cited line, is dropped as ungrounded. Returns kept ``(fact, valid lines)``."""
-    if not isinstance(raw, list):
-        return None
-    out = FactsOutcome(returned=len(raw))
-    for item in raw:
-        guarded = fact_guard(item)
-        if guarded is None or not isinstance(guarded, dict):
-            out.invalid += 1
-            continue
-        try:
-            fact = WindowFact.model_validate(guarded)
-        except Exception:
-            out.invalid += 1
-            continue
-        lines = _valid_lines(fact.turns, len(line_texts))
-        if not lines:
-            out.uncited += 1
-            out.ungrounded += 1
-            continue
-        if not grounded(fact.span, [line_texts[n - 1] for n in lines]):
-            out.ungrounded += 1
-            continue
-        out.facts.append((fact, lines))
-    return out
 
 
 @dataclass
@@ -558,7 +457,7 @@ def split_batch_section(
     ``spans[w] = (lines before window w, its line count)``: the batched transcript numbers lines
     on across the windows, so a cited line names exactly one window. Each item of a ``facts`` /
     ``edges`` list goes to the window all its cited lines fall in, with the citations renumbered
-    to that window's own 1..n (so :func:`validate_facts` / :func:`validate_edges` check its span
+    to that window's own 1..n (so the item validator / :func:`validate_edges` check its span
     against that window's lines only). An item citing lines of two windows is dropped and counted
     (second value); one citing no valid line goes to the first window, where validation counts it
     once. A reply that is not a list goes to every window unchanged (each fails closed alone)."""
@@ -644,7 +543,7 @@ class WindowCallFailed(RuntimeError):
 
 @dataclass
 class EnvelopeWrite:
-    """W2-06a (``write.envelope_v2``): what the pipeline needs to validate and compile items."""
+    """W2-06a (the base extraction envelope): what the pipeline needs to validate and compile items."""
 
     compiler: EnvelopeCompiler
     validator: ItemValidator
@@ -652,7 +551,7 @@ class EnvelopeWrite:
     ledger: FailureLedger
     #: W2-06c hook list: ordered post-compile stages (W2-14, W2-08, W2-09, W2-10, W2-13); empty = none
     stages: tuple[EnvelopeStage, ...] = ()
-    #: W2-06c (``write.online_extractor_v2``): report the stage list and notes in the window stats
+    #: W2-06c (``write.online_extractor``): report the stage list and notes in the window stats
     report_stages: bool = False
     #: FU-GAPS (``write.learned_persist``): the learned kind and alias registries, logged and reloaded
     learned: Any = None
@@ -687,7 +586,7 @@ class _Job:
 
 @dataclass
 class _Store:
-    segmenter: WindowSegmenter | StreamSegmenter
+    segmenter: StreamSegmenter
     queue: deque[_Job] = field(default_factory=deque)
     run_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     worker: asyncio.Task[None] | None = None
@@ -722,7 +621,6 @@ class WindowPipeline:
         lock: Callable[[str], AbstractAsyncContextManager[None]] | None = None,
         cache: Any = None,
         use_cache: bool = True,
-        split: str = "auto",
         asynchronous: bool = True,
         on_session_closed: SessionClosedFn | None = None,
         outbox: Any
@@ -735,9 +633,9 @@ class WindowPipeline:
         prepass: Any = None,
         mark_disputed: MarkDisputedFn | None = None,
     ) -> None:
-        #: W2-06b (``write.prompt_v2``): one call per window or batch, NEW / CONTEXT / KNOWN.
+        #: W2-06b (the base prompt layout): one call per window or batch, NEW / CONTEXT / KNOWN.
         self._ctx = context_builder
-        self._role_policy = role_policy  # W2-03: write.role_policy_v2
+        self._role_policy = role_policy  # W2-03: write.role_policy
         #: W2-13 (``write.prepass``): a ``derive.prepass.Prepass``; windows with nothing extractable
         #: skip the extraction call. None = off.
         self._prepass = prepass
@@ -747,12 +645,11 @@ class WindowPipeline:
         self._get = get_record
         self._deposit_fact = deposit_fact
         self._deposit_episode = deposit_episode
-        #: FU-GAPS (``write.integration_v2``): marks the older live peer of a contest ``disputed``.
+        #: FU-GAPS (``write.integration``): marks the older live peer of a contest ``disputed``.
         self._mark_disputed = mark_disputed
         self._embed = embed
         self._lock = lock or (lambda _ns: nullcontext())
         self._cache = cache if use_cache else None
-        self._split = split
         self._async = asynchronous
         self._on_closed = on_session_closed
         self._stores: dict[str, _Store] = {}
@@ -762,25 +659,21 @@ class WindowPipeline:
         self._dropped_by_layer: Counter[str] = Counter()
         self._dead_by_code: Counter[str] = Counter()
         self._stage_notes: Counter[str] = Counter()
-        self._recent: deque[bool] = deque(maxlen=constants.WINDOW_SPLIT_RECENT)
-        self._auto_split = False
         self._keys_by_record: dict[str, set[str]] = {}
         self._stopped = False
         #: F-04 (``workers.outbox``): the durable queue and its runner; None = in-memory deque.
         self._outbox = outbox
         self._recover_task: asyncio.Task[Any] | None = None
-        #: W2-06a: only present with ``write.envelope_v2``.
+        #: W2-06a: only present with the base extraction envelope.
         self._env = envelope if "facts" in self.sections else None
         self._staged: list[tuple[str, dict[str, Any]]] = []
         self._persist_retry: asyncio.Task[None] | None = None  # RT-02 backpressure retry
         self._persist_lock = asyncio.Lock()
         self._recovered = outbox is None
-        #: W2-05 (``write.segmentation_v2``): time-gap/adaptive segmenter and the call batcher.
-        self._seg = segmentation
+        #: W2-05 (stream segmentation): time-gap/adaptive segmenter and the call batcher.
+        self._seg = segmentation or SegmentationSettings()
         self._clock = clock
-        self._batch_sections = tuple(
-            s for s in self.sections if s != "episode" or self._ctx is not None
-        )
+        self._batch_sections = self.sections
         self._batcher: CallBatcher | None = None
         if segmentation is not None and segmentation.batching and self._batch_sections:
             self._batcher = CallBatcher(
@@ -798,7 +691,7 @@ class WindowPipeline:
 
     @property
     def failure_ledger(self) -> FailureLedger | None:
-        """The dead-letter list (``write.envelope_v2``), else None."""
+        """The dead-letter list (the base extraction envelope), else None."""
         return self._env.ledger if self._env is not None else None
 
     @property
@@ -812,10 +705,7 @@ class WindowPipeline:
     def _store(self, namespace: str) -> _Store:
         store = self._stores.get(namespace)
         if store is None:
-            if self._seg is not None:
-                store = _Store(segmenter=StreamSegmenter(self.settings, segmentation=self._seg))
-            else:
-                store = _Store(segmenter=WindowSegmenter(self.settings))
+            store = _Store(segmenter=StreamSegmenter(self.settings, segmentation=self._seg))
             self._stores[namespace] = store
         return store
 
@@ -1695,29 +1585,8 @@ class WindowPipeline:
     # -- one window -------------------------------------------------------------------------
 
     def _groups(self) -> list[tuple[str, ...]]:
-        secs = self.sections
-        if self._ctx is not None:  # W2-06b: one call carries every section
-            return [secs]
-        first = tuple(s for s in secs if s != "episode")
-        second = tuple(s for s in secs if s == "episode")
-        if len(secs) < 2 or not first or not second:
-            return [secs]
-        if self._split == "always" or (self._split == "auto" and self._auto_split):
-            return [first, second]
-        return [secs]
-
-    def _note_outcome(self, failed: bool, group_count: int) -> None:
-        """Auto split: remember whether a joint call failed; split once failures pile up."""
-        if group_count > 1 or self._split != "auto" or self._auto_split:
-            return
-        self._recent.append(failed)
-        if (
-            len(self._recent) >= constants.WINDOW_SPLIT_RECENT
-            and sum(self._recent) / len(self._recent) >= constants.WINDOW_SPLIT_FAIL_RATE
-        ):
-            self._auto_split = True
-            self._counts["split_activated"] += 1
-            _log.warning("window.split_activated", failures=sum(self._recent))
+        """The base extraction prompt requests every selected section together."""
+        return [self.sections]
 
     async def _call(
         self,
@@ -1962,7 +1831,6 @@ class WindowPipeline:
                     reason="some_calls_failed" if merged else "all_calls_failed",
                 )
             if strict and failed and not merged:
-                self._note_outcome(True, len(groups))
                 raise WindowCallFailed(f"all {len(groups)} window call(s) failed")
             await self._compile_items(ns, job, records, merged, window_id)
             if job.cancelled:
@@ -2058,7 +1926,7 @@ class WindowPipeline:
         merged: dict[str, Any],
         window_id: str,
     ) -> None:
-        """``write.envelope_v2``: validate each ``facts`` item alone, repair the invalid with at
+        """the base extraction envelope: validate each ``facts`` item alone, repair the invalid with at
         most one re-ask, dead-letter what is still invalid and compile the rest into envelopes. The
         result replaces the raw list in ``merged``. Lock-free (it makes the repair model call). A
         section that is not a list is left alone: it fails closed like any malformed section."""
@@ -2087,7 +1955,7 @@ class WindowPipeline:
             for n, rec in enumerate(records, 1)
         }
         ctx = env.compiler.context(
-            self._scope(ns),
+            Scope.from_namespace(ns).to_owner_scope(),
             window_id,
             lines,
             session_id=job.window.session if job.window is not None else None,
@@ -2171,7 +2039,7 @@ class WindowPipeline:
     async def _commit_job(self, ns: str, store: _Store, prepared: _Prepared) -> None:
         """The deposit half: each deposit takes the namespace lock itself (``_write_locked``)."""
         with insp.inspect_scope(window_id=prepared.window_id):  # TI-1: keys on every deposit event
-            broken = await self._deposit_sections(
+            await self._deposit_sections(
                 ns,
                 store,
                 prepared.job,
@@ -2180,7 +2048,6 @@ class WindowPipeline:
                 prepared.line_texts,
                 prepared.window_id,
             )
-        self._note_outcome(prepared.failed or broken, prepared.groups)
 
     async def _purge_window_cache(self, member_ids: Sequence[str]) -> None:
         if self._cache is None:
@@ -2235,28 +2102,12 @@ class WindowPipeline:
                     accepted=len(raw.envelopes),
                     invalid=raw.dead,
                     repaired=raw.repaired,
-                    envelope_v2=True,
+                    envelope=True,
                 )
                 await self._store_envelopes(ns, job, records, raw, window_id, member_ids)
             elif section == "facts":
-                outcome = validate_facts(raw, line_texts)
-                if outcome is None:
-                    self._drop(section)
-                    broken = True
-                    continue
-                self._counts["facts_returned"] += outcome.returned
-                self._counts["facts_invalid"] += outcome.invalid
-                self._counts["facts_ungrounded"] += outcome.ungrounded
-                self._counts["facts_uncited"] += outcome.uncited
-                tap.event(
-                    "write.extract.facts",
-                    returned=outcome.returned,
-                    accepted=len(outcome.facts),
-                    invalid=outcome.invalid,
-                    ungrounded=outcome.ungrounded,
-                    uncited=outcome.uncited,
-                )
-                await self._store_facts(ns, job, records, outcome, window_id, member_ids)
+                self._drop(section)
+                broken = True
             elif section == "edges":
                 edge_out = validate_edges(raw, count)
                 if edge_out is None:
@@ -2319,75 +2170,6 @@ class WindowPipeline:
             await self._purge_window_cache(member_ids)
         return broken
 
-    async def _store_facts(
-        self,
-        ns: str,
-        job: _Job,
-        records: list[MemoryRecord],
-        outcome: FactsOutcome,
-        window_id: str,
-        member_ids: list[str],
-    ) -> None:
-        if self._deposit_fact is None:
-            return
-        start, latest = records[0].valid_from, records[-1].valid_from
-        for fact, lines in outcome.facts:
-            if job.cancelled:
-                return
-            parents = [records[n - 1].record_id for n in lines]
-            speakers = {
-                t
-                for n in lines
-                for t in records[n - 1].tags
-                if t.startswith("spk:") and t != "spk:"
-            }
-            tags = ["window_fact", f"window:{window_id}"]
-            if self._role_policy:  # W2-03: a fact no user line backs is marked
-                basis = role_filter.basis_of(records[n - 1].tags for n in lines)
-                if basis in ("evidence", "proposal"):
-                    tags.append(f"{constants.ROLE_USE_TAG_PREFIX}{basis}")
-                    tap.event("write.role.fact_basis", basis=basis, parents=len(lines))
-            if len(speakers) == 1:
-                tags.append(next(iter(speakers)))
-            when = _fact_date(fact.date, latest) or start
-            try:
-                stored = await self._deposit_fact(
-                    ns,
-                    f"{fact.entity} {fact.attribute}: {fact.value}",
-                    fact.entity or None,
-                    fact.attribute or None,
-                    parents,
-                    when,
-                    f"win:{window_id}",
-                    kind=fact.kind,
-                    persons=list(fact.persons),
-                    location=fact.location,
-                    topic=fact.topic,
-                    extra_tags=tags,
-                    require_live=member_ids,
-                )
-            except asyncio.CancelledError:
-                raise
-            except Exception as exc:  # one bad fact must not lose the rest
-                self._counts["facts_deposit_errors"] += 1
-                tap.event(
-                    "write.extract.rejected", reason="fact_deposit_error", error=type(exc).__name__
-                )
-                _log.warning("window.fact_deposit_failed", error=str(exc)[:200])
-                continue
-            if stored is None:
-                self._counts["facts_skipped_parent_gone"] += 1
-                tap.event("write.extract.rejected", reason="parent_gone", layer="facts")
-                job.cancelled = True  # a member vanished: nothing else of this window lands
-                return
-            self._counts["facts_deposited"] += 1
-            tap.event(
-                "write.extract.deposit",
-                id=getattr(stored, "record_id", None),
-                layer="facts",
-                parents=len(parents),
-            )
-
     async def _store_envelopes(
         self,
         ns: str,
@@ -2411,7 +2193,12 @@ class WindowPipeline:
             speakers = {
                 t for p in parents for t in by_id[p].tags if t.startswith("spk:") and t != "spk:"
             }
-            tags = ["window_fact", f"window:{window_id}", "envelope_v2", f"src:{env.src_class}"]
+            tags = ["window_fact", f"window:{window_id}", "envelope", f"src:{env.src_class}"]
+            if self._role_policy:
+                basis = role_filter.basis_of(by_id[p].tags for p in parents)
+                if basis in ("evidence", "proposal"):
+                    tags.append(f"{constants.ROLE_USE_TAG_PREFIX}{basis}")
+                    tap.event("write.role.fact_basis", basis=basis, parents=len(parents))
             tags.extend(t for t in integration_deposit_tags(env) if t not in tags)  # W2-10
             if len(speakers) == 1:
                 tags.append(next(iter(speakers)))
@@ -2482,7 +2269,7 @@ class WindowPipeline:
 
     async def _dispute_peers(self, ns: str, env: AssertionEnvelope, new_id: str | None) -> None:
         """FU-GAPS: a contest keeps both values live, so the older peer carries ``disputed`` too
-        (the new record got the tag at deposit). Only with ``write.integration_v2``."""
+        (the new record got the tag at deposit). Only with ``write.integration``."""
         if self._mark_disputed is None or env.verdict is None or env.verdict.op != "contest":
             return
         peers = env.extras.get("integrate_affected") or []
@@ -2553,8 +2340,6 @@ class WindowPipeline:
             "calls_by_layer": dict(self._calls_by_layer),
             "calls_per_turn": round(c["calls"] / c["turns"], 4) if c["turns"] else None,
             "cache_hits": c["cache_hits"],
-            "split_active": self._auto_split or self._split == "always",
-            "split_calls": c["split_calls"],
             "parse_failures": c["parse_failures"],
             "call_errors": c["call_errors"],
             "sections_dropped": c["sections_dropped"],
@@ -2583,8 +2368,8 @@ class WindowPipeline:
             "sessions_closed": c["sessions_closed"],
             "queued": sum(len(s.queue) for s in self._stores.values()),
         }
-        if self._seg is not None:  # W2-05: only present with write.segmentation_v2
-            out["segmentation_v2"] = True
+        if self._seg is not None:  # W2-05: only present with write.segmentation
+            out["segmentation"] = True
             out["batches"] = c["batches"]
             out["batched_windows"] = c["batched_windows"]
             out["batch_held"] = c["batch_held"]
@@ -2592,8 +2377,8 @@ class WindowPipeline:
             out["windows_per_call"] = (
                 round(c["windows_processed"] / c["calls"], 3) if c["calls"] else None
             )
-        if self._env is not None:  # W2-06a: only present with write.envelope_v2
-            out["envelope_v2"] = True
+        if self._env is not None:  # W2-06a: present for fact extraction
+            out["envelope"] = True
             out["items_valid"] = c["items_valid"]
             out["items_repaired"] = c["items_repaired"]
             out["items_dead"] = c["items_dead"]
@@ -2604,7 +2389,7 @@ class WindowPipeline:
             out["dead_letters"] = self._env.ledger.count()
             out["kinds"] = len(self._env.compiler.kinds)
             out["kinds_capped"] = self._env.compiler.kinds.capped
-            if self._env.report_stages:  # W2-06c: only present with write.online_extractor_v2
+            if self._env.report_stages:  # W2-06c: only present with write.online_extractor
                 out["online_extractor"] = {
                     "stages": [s.name for s in sorted(self._env.stages, key=lambda s: s.order)]
                 }

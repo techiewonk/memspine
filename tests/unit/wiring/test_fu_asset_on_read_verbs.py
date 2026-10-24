@@ -135,7 +135,7 @@ async def test_invisible_asset_is_not_described(
     eng, stub, asset = await with_asset(tmp_path, "inv", asset_describer="on_read")
     try:
         monkeypatch.setattr(
-            scope_guard, "visible_to", lambda tags, viewer: ad.ASSET_TAG not in tags
+            scope_guard, "visible_to", lambda record, viewer: ad.ASSET_TAG not in record.tags
         )
         assert await eng.retrieve(NS, viewer="bram") == []  # the guard filters it out
         assert await eng.list_records(NS, viewer="bram") == []

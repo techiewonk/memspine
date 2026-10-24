@@ -1,4 +1,4 @@
-"""R3-05c: the episode leg (L2) lifted to member turns (read.episode_leg_v2). Model-free."""
+"""R3-05c: the episode leg (L2) lifted to member turns (read.episode_leg). Model-free."""
 
 from __future__ import annotations
 
@@ -46,7 +46,7 @@ def _ctx(records: list[MemoryRecord], query: str, **kw: Any) -> lib.LegContext:
 
 def test_flag_defaults_off() -> None:
     cfg = ReadConfig()
-    assert cfg.episode_leg_v2 is False
+    assert cfg.episode_leg is False
     assert cfg.episode_lift_max_turns == 8 and cfg.episode_lift_carry == 0.9
 
 
@@ -133,7 +133,7 @@ async def _engine(**read: Any) -> tuple[Engine, dict[str, str]]:
         },
         model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}},
-        read={"hybrid": True, "record_access": False, "legs_v2": True, **read},
+        read={"hybrid": True, "record_access": False, **read},
     )
     await eng.start()
     ids: dict[str, str] = {}
@@ -181,7 +181,7 @@ async def test_flag_off_never_runs_the_episode_leg(monkeypatch: pytest.MonkeyPat
 async def test_flag_on_without_l2_gives_an_empty_leg_not_an_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    eng, _ = await _engine(episode_leg_v2=True)
+    eng, _ = await _engine(episode_leg=True)
     events: list[dict[str, Any]] = []
     monkeypatch.setattr(
         legs_core.tap,
@@ -200,7 +200,7 @@ async def test_flag_on_without_l2_gives_an_empty_leg_not_an_error(
 async def test_an_episode_hit_lifts_to_its_member_turns_and_fusion_receives_them(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    eng, ids = await _engine(episode_leg_v2=True, family_fusion=True)
+    eng, ids = await _engine(episode_leg=True, family_fusion=True)
     taps: list[tuple[str, dict[str, Any]]] = []
     monkeypatch.setattr(pipeline_lift.tap, "event", lambda stage, /, **f: taps.append((stage, f)))
     monkeypatch.setattr(pipeline_lift.tap, "enabled", lambda: True)
@@ -233,7 +233,7 @@ async def test_an_episode_hit_lifts_to_its_member_turns_and_fusion_receives_them
 
 
 async def test_lift_function_scores_turns_with_the_carry_rule() -> None:
-    eng, ids = await _engine(episode_leg_v2=True)
+    eng, ids = await _engine(episode_leg=True)
     try:
         ep_id = await _add_episode(eng, ids)
         ep = await eng._require_started().get_record(ep_id)
@@ -251,7 +251,7 @@ async def test_lift_function_scores_turns_with_the_carry_rule() -> None:
 
 
 async def test_lift_skips_forgotten_turns() -> None:
-    eng, ids = await _engine(episode_leg_v2=True)
+    eng, ids = await _engine(episode_leg=True)
     try:
         ep_id = await _add_episode(eng, ids)
         await eng.forget(ids["vet"], namespace="a")
@@ -269,7 +269,7 @@ async def test_lift_skips_forgotten_turns() -> None:
 
 
 async def test_lift_skips_hard_erased_turns() -> None:
-    eng, ids = await _engine(episode_leg_v2=True)
+    eng, ids = await _engine(episode_leg=True)
     try:
         ep_id = await _add_episode(eng, ids)
         await eng.forget(ids["cat"], namespace="a", hard=True, cascade=False)
@@ -285,7 +285,7 @@ async def test_lift_skips_hard_erased_turns() -> None:
 async def test_lift_does_not_serve_an_episode_the_consent_gate_hides(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    eng, ids = await _engine(episode_leg_v2=True)
+    eng, ids = await _engine(episode_leg=True)
     try:
         ep_id = await _add_episode(eng, ids)
         ep = await eng._require_started().get_record(ep_id)
@@ -299,7 +299,7 @@ async def test_lift_does_not_serve_an_episode_the_consent_gate_hides(
 
 
 async def test_lift_tap_reports_dropped_not_live(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng, ids = await _engine(episode_leg_v2=True)
+    eng, ids = await _engine(episode_leg=True)
     taps: list[dict[str, Any]] = []
     monkeypatch.setattr(
         pipeline_lift.tap,

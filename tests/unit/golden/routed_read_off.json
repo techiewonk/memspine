@@ -1,11 +1,11 @@
 {
   "core-defaults": {
     "assemble|How many times did Bram go camping?": [
-      31,
+      32,
       [
         "Bram event: went camping with the kids",
         "Bram event: went camping at the beach",
-        "Bram loves camping and outdoor family trips"
+        "Bram event: took the kids to a pottery class"
       ]
     ],
     "assemble|What activities has Bram done?": [
@@ -17,19 +17,19 @@
       ]
     ],
     "assemble|What did Bram do in May 2023?": [
-      40,
+      39,
       [
         "Bram \u2014 activities: camping (2023-05); book fair (2023-05)",
-        "Bram loves camping and outdoor family trips",
+        "Bram event: went camping with the kids",
         "Bram: we ran a book fair for the school library in May"
       ]
     ],
     "assemble|What does Bram like to do?": [
-      33,
+      32,
       [
-        "Bram event: took the kids to a pottery class",
         "Bram event: went camping with the kids",
-        "Noor is creative and is planning to adopt"
+        "Bram event: went camping at the beach",
+        "Bram event: took the kids to a pottery class"
       ]
     ],
     "assemble|When did Noor join the support group?": [
@@ -628,7 +628,7 @@
     "read|compose|How many times did Bram go camping?": [
       "compose",
       false,
-      70,
+      73,
       [
         [
           "episodic",
@@ -646,6 +646,11 @@
             "said:2023-05-01"
           ],
           "Bram event: went camping with the kids"
+        ],
+        [
+          "episodic",
+          [],
+          "Bram: I went camping at the beach again with the family"
         ],
         [
           "semantic",
@@ -677,18 +682,13 @@
             "person:bram"
           ],
           "Bram event: took the kids to a pottery class"
-        ],
-        [
-          "reflective",
-          [],
-          "Bram loves camping and outdoor family trips"
         ]
       ]
     ],
     "read|compose|What activities has Bram done?": [
       "compose",
       false,
-      71,
+      72,
       [
         [
           "episodic",
@@ -733,16 +733,22 @@
           "Bram: the kids loved the pottery class yesterday"
         ],
         [
-          "reflective",
-          [],
-          "Bram loves camping and outdoor family trips"
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:bram"
+          ],
+          "Bram event: took the kids to a pottery class"
         ]
       ]
     ],
     "read|compose|What did Bram do in May 2023?": [
       "compose",
       false,
-      72,
+      73,
       [
         [
           "episodic",
@@ -787,16 +793,22 @@
           "Bram \u2014 activities: camping (2023-05); book fair (2023-05)"
         ],
         [
-          "reflective",
-          [],
-          "Bram loves camping and outdoor family trips"
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:bram"
+          ],
+          "Bram event: took the kids to a pottery class"
         ]
       ]
     ],
     "read|compose|What does Bram like to do?": [
       "compose",
       false,
-      69,
+      72,
       [
         [
           "episodic",
@@ -836,14 +848,25 @@
           "Bram event: went camping at the beach"
         ],
         [
-          "episodic",
-          [],
-          "Bram: the kids loved the pottery class yesterday"
+          "semantic",
+          [
+            "atomic_fact",
+            "list_card",
+            "person:bram",
+            "topic:activity"
+          ],
+          "Bram \u2014 activities: camping (2023-05); book fair (2023-05)"
         ],
         [
-          "reflective",
-          [],
-          "Bram loves camping and outdoor family trips"
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:bram"
+          ],
+          "Bram event: took the kids to a pottery class"
         ]
       ]
     ],
@@ -894,7 +917,7 @@
     "read|replay|How many times did Bram go camping?": [
       "replay",
       false,
-      57,
+      71,
       [
         [
           "semantic",
@@ -919,9 +942,15 @@
           "Bram event: went camping at the beach"
         ],
         [
-          "reflective",
-          [],
-          "Bram loves camping and outdoor family trips"
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:bram"
+          ],
+          "Bram event: took the kids to a pottery class"
         ],
         [
           "episodic",
@@ -932,6 +961,11 @@
           "episodic",
           [],
           "Bram: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Bram: the kids loved the pottery class yesterday"
         ]
       ]
     ],
@@ -987,7 +1021,7 @@
     "read|replay|What did Bram do in May 2023?": [
       "replay",
       false,
-      40,
+      51,
       [
         [
           "semantic",
@@ -998,34 +1032,6 @@
             "topic:activity"
           ],
           "Bram \u2014 activities: camping (2023-05); book fair (2023-05)"
-        ],
-        [
-          "reflective",
-          [],
-          "Bram loves camping and outdoor family trips"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: we ran a book fair for the school library in May"
-        ]
-      ]
-    ],
-    "read|replay|What does Bram like to do?": [
-      "replay",
-      false,
-      58,
-      [
-        [
-          "semantic",
-          [
-            "atomic_fact",
-            "happened:2023-06-09",
-            "kind:event",
-            "mined:s1",
-            "person:bram"
-          ],
-          "Bram event: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -1040,14 +1046,64 @@
           "Bram event: went camping with the kids"
         ],
         [
-          "reflective",
+          "episodic",
           [],
-          "Noor is creative and is planning to adopt"
+          "Bram: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Bram: we ran a book fair for the school library in May"
+        ]
+      ]
+    ],
+    "read|replay|What does Bram like to do?": [
+      "replay",
+      false,
+      71,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:bram",
+            "said:2023-05-01"
+          ],
+          "Bram event: went camping with the kids"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:bram"
+          ],
+          "Bram event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:bram"
+          ],
+          "Bram event: took the kids to a pottery class"
         ],
         [
           "episodic",
           [],
           "Bram: I went camping with the kids last weekend"
+        ],
+        [
+          "episodic",
+          [],
+          "Bram: I went camping at the beach again with the family"
         ],
         [
           "episodic",
@@ -1088,7 +1144,7 @@
     "read|retrieve|How many times did Bram go camping?": [
       "retrieve",
       false,
-      31,
+      32,
       [
         [
           "semantic",
@@ -1113,9 +1169,15 @@
           "Bram event: went camping at the beach"
         ],
         [
-          "reflective",
-          [],
-          "Bram loves camping and outdoor family trips"
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:bram"
+          ],
+          "Bram event: took the kids to a pottery class"
         ]
       ]
     ],
@@ -1161,7 +1223,7 @@
     "read|retrieve|What did Bram do in May 2023?": [
       "retrieve",
       false,
-      40,
+      39,
       [
         [
           "semantic",
@@ -1172,34 +1234,6 @@
             "topic:activity"
           ],
           "Bram \u2014 activities: camping (2023-05); book fair (2023-05)"
-        ],
-        [
-          "reflective",
-          [],
-          "Bram loves camping and outdoor family trips"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: we ran a book fair for the school library in May"
-        ]
-      ]
-    ],
-    "read|retrieve|What does Bram like to do?": [
-      "retrieve",
-      false,
-      33,
-      [
-        [
-          "semantic",
-          [
-            "atomic_fact",
-            "happened:2023-06-09",
-            "kind:event",
-            "mined:s1",
-            "person:bram"
-          ],
-          "Bram event: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -1214,9 +1248,49 @@
           "Bram event: went camping with the kids"
         ],
         [
-          "reflective",
+          "episodic",
           [],
-          "Noor is creative and is planning to adopt"
+          "Bram: we ran a book fair for the school library in May"
+        ]
+      ]
+    ],
+    "read|retrieve|What does Bram like to do?": [
+      "retrieve",
+      false,
+      32,
+      [
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:bram",
+            "said:2023-05-01"
+          ],
+          "Bram event: went camping with the kids"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "kind:event",
+            "mined:s1",
+            "person:bram"
+          ],
+          "Bram event: went camping at the beach"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-06-09",
+            "kind:event",
+            "mined:s1",
+            "person:bram"
+          ],
+          "Bram event: took the kids to a pottery class"
         ]
       ]
     ],
@@ -1252,60 +1326,56 @@
   },
   "lead-blocks": {
     "assemble|How many times did Bram go camping?": [
-      197,
+      160,
       [
         "Occurrences (dated):\n- [said 2023-05-01] Bram: I went camping with the kids last weekend",
         "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips",
         "Bram: I went camping with the kids last weekend",
         "Bram: I went camping at the beach again with the family",
         "Bram: the kids loved the pottery class yesterday"
       ]
     ],
     "assemble|What activities has Bram done?": [
-      174,
+      137,
       [
         "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips",
         "Bram: I went camping with the kids last weekend",
         "Bram: the kids loved the pottery class yesterday",
         "Bram: I went camping at the beach again with the family"
       ]
     ],
     "assemble|What did Bram do in May 2023?": [
-      174,
+      137,
       [
         "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips",
         "Bram: we ran a book fair for the school library in May",
         "Bram: I went camping with the kids last weekend",
         "Bram: the kids loved the pottery class yesterday"
       ]
     ],
     "assemble|What does Bram like to do?": [
-      171,
+      137,
       [
         "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips",
-        "Noor is creative and is planning to adopt",
         "Bram: I went camping with the kids last weekend",
-        "Bram: the kids loved the pottery class yesterday"
+        "Bram: the kids loved the pottery class yesterday",
+        "Bram: I went camping at the beach again with the family"
       ]
     ],
     "assemble|When did Noor join the support group?": [
-      161,
+      142,
       [
-        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03 \u00b7 happened 2023-05-30] Noor: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class",
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03 \u00b7 happened 2023-05-30] Noor: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class",
         "PROFILE NOTES (reflected from earlier conversations about Noor; inferred, not stated):\n- [<today>] Noor is creative and is planning to adopt",
         "Noor: I joined a support group last Tuesday",
         "Noor: I am researching adoption agencies this month",
-        "Bram: the kids loved the pottery class yesterday"
+        "Noor: I started a new painting of a lake sunset"
       ]
     ],
     "read|auto|How many times did Bram go camping?": [
       "full",
       false,
-      267,
+      241,
       [
         [
           "semantic",
@@ -1324,14 +1394,6 @@
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
-        ],
-        [
           "episodic",
           [],
           "Bram: I went camping with the kids last weekend"
@@ -1377,6 +1439,11 @@
           "episodic",
           [],
           "Noor: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
         ],
         [
           "reflective",
@@ -1388,7 +1455,7 @@
     "read|auto|What activities has Bram done?": [
       "full",
       false,
-      244,
+      218,
       [
         [
           "semantic",
@@ -1397,14 +1464,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -1452,6 +1511,11 @@
           "episodic",
           [],
           "Noor: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
         ],
         [
           "reflective",
@@ -1463,7 +1527,7 @@
     "read|auto|What did Bram do in May 2023?": [
       "full",
       false,
-      244,
+      218,
       [
         [
           "semantic",
@@ -1472,14 +1536,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -1527,6 +1583,11 @@
           "episodic",
           [],
           "Noor: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
         ],
         [
           "reflective",
@@ -1538,7 +1599,7 @@
     "read|auto|What does Bram like to do?": [
       "full",
       false,
-      244,
+      218,
       [
         [
           "semantic",
@@ -1547,14 +1608,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -1606,6 +1659,11 @@
         [
           "reflective",
           [],
+          "Bram loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
           "Noor is creative and is planning to adopt"
         ]
       ]
@@ -1613,7 +1671,7 @@
     "read|auto|When did Noor join the support group?": [
       "full",
       false,
-      249,
+      241,
       [
         [
           "semantic",
@@ -1621,7 +1679,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03 \u00b7 happened 2023-05-30] Noor: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03 \u00b7 happened 2023-05-30] Noor: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -1635,6 +1693,18 @@
           "episodic",
           [],
           "Bram: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:bram",
+            "said:2023-05-01"
+          ],
+          "Bram event: went camping with the kids"
         ],
         [
           "episodic",
@@ -1696,7 +1766,7 @@
     "read|compose|How many times did Bram go camping?": [
       "compose",
       false,
-      197,
+      174,
       [
         [
           "semantic",
@@ -1715,17 +1785,14 @@
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
+          "episodic",
+          [],
+          "Bram: I went camping with the kids last weekend"
         ],
         [
           "episodic",
           [],
-          "Bram: I went camping with the kids last weekend"
+          "Bram: we ran a book fair for the school library in May"
         ],
         [
           "episodic",
@@ -1742,7 +1809,7 @@
     "read|compose|What activities has Bram done?": [
       "compose",
       false,
-      174,
+      151,
       [
         [
           "semantic",
@@ -1753,17 +1820,14 @@
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
+          "episodic",
+          [],
+          "Bram: I went camping with the kids last weekend"
         ],
         [
           "episodic",
           [],
-          "Bram: I went camping with the kids last weekend"
+          "Bram: we ran a book fair for the school library in May"
         ],
         [
           "episodic",
@@ -1780,7 +1844,7 @@
     "read|compose|What did Bram do in May 2023?": [
       "compose",
       false,
-      188,
+      151,
       [
         [
           "semantic",
@@ -1789,14 +1853,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -1823,7 +1879,7 @@
     "read|compose|What does Bram like to do?": [
       "compose",
       false,
-      199,
+      151,
       [
         [
           "semantic",
@@ -1832,14 +1888,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -1860,18 +1908,13 @@
           "episodic",
           [],
           "Bram: the kids loved the pottery class yesterday"
-        ],
-        [
-          "reflective",
-          [],
-          "Noor is creative and is planning to adopt"
         ]
       ]
     ],
     "read|compose|When did Noor join the support group?": [
       "compose",
       false,
-      198,
+      180,
       [
         [
           "semantic",
@@ -1879,7 +1922,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03 \u00b7 happened 2023-05-30] Noor: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03 \u00b7 happened 2023-05-30] Noor: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -1924,7 +1967,7 @@
     "read|replay|How many times did Bram go camping?": [
       "replay",
       false,
-      197,
+      160,
       [
         [
           "semantic",
@@ -1941,14 +1984,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -1970,7 +2005,7 @@
     "read|replay|What activities has Bram done?": [
       "replay",
       false,
-      174,
+      137,
       [
         [
           "semantic",
@@ -1979,14 +2014,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -2008,7 +2035,7 @@
     "read|replay|What did Bram do in May 2023?": [
       "replay",
       false,
-      174,
+      137,
       [
         [
           "semantic",
@@ -2017,14 +2044,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -2046,7 +2065,7 @@
     "read|replay|What does Bram like to do?": [
       "replay",
       false,
-      171,
+      137,
       [
         [
           "semantic",
@@ -2057,22 +2076,14 @@
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
-        ],
-        [
-          "reflective",
+          "episodic",
           [],
-          "Noor is creative and is planning to adopt"
+          "Bram: I went camping with the kids last weekend"
         ],
         [
           "episodic",
           [],
-          "Bram: I went camping with the kids last weekend"
+          "Bram: I went camping at the beach again with the family"
         ],
         [
           "episodic",
@@ -2084,7 +2095,7 @@
     "read|replay|When did Noor join the support group?": [
       "replay",
       false,
-      161,
+      142,
       [
         [
           "semantic",
@@ -2092,7 +2103,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03 \u00b7 happened 2023-05-30] Noor: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03 \u00b7 happened 2023-05-30] Noor: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -2105,12 +2116,12 @@
         [
           "episodic",
           [],
-          "Noor: I joined a support group last Tuesday"
+          "Noor: I started a new painting of a lake sunset"
         ],
         [
           "episodic",
           [],
-          "Bram: the kids loved the pottery class yesterday"
+          "Noor: I joined a support group last Tuesday"
         ],
         [
           "episodic",
@@ -2122,7 +2133,7 @@
     "read|retrieve|How many times did Bram go camping?": [
       "retrieve",
       false,
-      197,
+      160,
       [
         [
           "semantic",
@@ -2139,14 +2150,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -2168,7 +2171,7 @@
     "read|retrieve|What activities has Bram done?": [
       "retrieve",
       false,
-      174,
+      137,
       [
         [
           "semantic",
@@ -2177,14 +2180,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -2206,7 +2201,7 @@
     "read|retrieve|What did Bram do in May 2023?": [
       "retrieve",
       false,
-      174,
+      137,
       [
         [
           "semantic",
@@ -2215,14 +2210,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -2244,7 +2231,7 @@
     "read|retrieve|What does Bram like to do?": [
       "retrieve",
       false,
-      171,
+      137,
       [
         [
           "semantic",
@@ -2255,19 +2242,6 @@
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
-        ],
-        [
-          "reflective",
-          [],
-          "Noor is creative and is planning to adopt"
-        ],
-        [
           "episodic",
           [],
           "Bram: I went camping with the kids last weekend"
@@ -2276,13 +2250,18 @@
           "episodic",
           [],
           "Bram: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Bram: I went camping at the beach again with the family"
         ]
       ]
     ],
     "read|retrieve|When did Noor join the support group?": [
       "retrieve",
       false,
-      161,
+      142,
       [
         [
           "semantic",
@@ -2290,7 +2269,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03 \u00b7 happened 2023-05-30] Noor: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03 \u00b7 happened 2023-05-30] Noor: joined a support group\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -2313,51 +2292,47 @@
         [
           "episodic",
           [],
-          "Bram: the kids loved the pottery class yesterday"
+          "Noor: I started a new painting of a lake sunset"
         ]
       ]
     ]
   },
   "lead-blocks-skip-temporal": {
     "assemble|How many times did Bram go camping?": [
-      197,
+      160,
       [
         "Occurrences (dated):\n- [said 2023-05-01] Bram: I went camping with the kids last weekend",
         "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips",
         "Bram: I went camping with the kids last weekend",
         "Bram: I went camping at the beach again with the family",
         "Bram: the kids loved the pottery class yesterday"
       ]
     ],
     "assemble|What activities has Bram done?": [
-      174,
+      137,
       [
         "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips",
         "Bram: I went camping with the kids last weekend",
         "Bram: the kids loved the pottery class yesterday",
         "Bram: I went camping at the beach again with the family"
       ]
     ],
     "assemble|What did Bram do in May 2023?": [
-      175,
+      138,
       [
         "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips",
         "Bram: we ran a book fair for the school library in May",
         "Bram: I went camping at the beach again with the family",
         "Bram: I went camping with the kids last weekend"
       ]
     ],
     "assemble|What does Bram like to do?": [
-      171,
+      137,
       [
         "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips",
-        "Noor is creative and is planning to adopt",
         "Bram: I went camping with the kids last weekend",
-        "Bram: the kids loved the pottery class yesterday"
+        "Bram: the kids loved the pottery class yesterday",
+        "Bram: I went camping at the beach again with the family"
       ]
     ],
     "assemble|When did Noor join the support group?": [
@@ -2372,7 +2347,7 @@
     "read|auto|How many times did Bram go camping?": [
       "full",
       false,
-      267,
+      241,
       [
         [
           "semantic",
@@ -2391,14 +2366,6 @@
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
-        ],
-        [
           "episodic",
           [],
           "Bram: I went camping with the kids last weekend"
@@ -2444,6 +2411,11 @@
           "episodic",
           [],
           "Noor: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
         ],
         [
           "reflective",
@@ -2455,7 +2427,7 @@
     "read|auto|What activities has Bram done?": [
       "full",
       false,
-      244,
+      218,
       [
         [
           "semantic",
@@ -2464,14 +2436,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -2519,6 +2483,11 @@
           "episodic",
           [],
           "Noor: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
         ],
         [
           "reflective",
@@ -2530,7 +2499,7 @@
     "read|auto|What did Bram do in May 2023?": [
       "full",
       false,
-      244,
+      218,
       [
         [
           "semantic",
@@ -2539,14 +2508,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -2598,6 +2559,11 @@
         [
           "reflective",
           [],
+          "Bram loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
           "Noor is creative and is planning to adopt"
         ]
       ]
@@ -2605,7 +2571,7 @@
     "read|auto|What does Bram like to do?": [
       "full",
       false,
-      244,
+      218,
       [
         [
           "semantic",
@@ -2614,14 +2580,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -2669,6 +2627,11 @@
           "episodic",
           [],
           "Noor: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
         ],
         [
           "reflective",
@@ -2800,7 +2763,7 @@
     "read|compose|How many times did Bram go camping?": [
       "compose",
       false,
-      197,
+      174,
       [
         [
           "semantic",
@@ -2819,17 +2782,14 @@
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
+          "episodic",
+          [],
+          "Bram: I went camping with the kids last weekend"
         ],
         [
           "episodic",
           [],
-          "Bram: I went camping with the kids last weekend"
+          "Bram: we ran a book fair for the school library in May"
         ],
         [
           "episodic",
@@ -2846,7 +2806,7 @@
     "read|compose|What activities has Bram done?": [
       "compose",
       false,
-      174,
+      151,
       [
         [
           "semantic",
@@ -2857,17 +2817,14 @@
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
+          "episodic",
+          [],
+          "Bram: I went camping with the kids last weekend"
         ],
         [
           "episodic",
           [],
-          "Bram: I went camping with the kids last weekend"
+          "Bram: we ran a book fair for the school library in May"
         ],
         [
           "episodic",
@@ -2884,7 +2841,7 @@
     "read|compose|What did Bram do in May 2023?": [
       "compose",
       false,
-      187,
+      150,
       [
         [
           "semantic",
@@ -2893,14 +2850,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -2927,7 +2876,7 @@
     "read|compose|What does Bram like to do?": [
       "compose",
       false,
-      199,
+      151,
       [
         [
           "semantic",
@@ -2936,14 +2885,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -2964,11 +2905,6 @@
           "episodic",
           [],
           "Bram: the kids loved the pottery class yesterday"
-        ],
-        [
-          "reflective",
-          [],
-          "Noor is creative and is planning to adopt"
         ]
       ]
     ],
@@ -3027,7 +2963,7 @@
     "read|replay|How many times did Bram go camping?": [
       "replay",
       false,
-      197,
+      160,
       [
         [
           "semantic",
@@ -3044,14 +2980,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -3073,7 +3001,7 @@
     "read|replay|What activities has Bram done?": [
       "replay",
       false,
-      174,
+      137,
       [
         [
           "semantic",
@@ -3082,14 +3010,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -3111,7 +3031,7 @@
     "read|replay|What did Bram do in May 2023?": [
       "replay",
       false,
-      175,
+      138,
       [
         [
           "semantic",
@@ -3120,14 +3040,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -3149,7 +3061,7 @@
     "read|replay|What does Bram like to do?": [
       "replay",
       false,
-      171,
+      137,
       [
         [
           "semantic",
@@ -3160,22 +3072,14 @@
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
-        ],
-        [
-          "reflective",
+          "episodic",
           [],
-          "Noor is creative and is planning to adopt"
+          "Bram: I went camping with the kids last weekend"
         ],
         [
           "episodic",
           [],
-          "Bram: I went camping with the kids last weekend"
+          "Bram: I went camping at the beach again with the family"
         ],
         [
           "episodic",
@@ -3224,7 +3128,7 @@
     "read|retrieve|How many times did Bram go camping?": [
       "retrieve",
       false,
-      197,
+      160,
       [
         [
           "semantic",
@@ -3241,14 +3145,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -3270,7 +3166,7 @@
     "read|retrieve|What activities has Bram done?": [
       "retrieve",
       false,
-      174,
+      137,
       [
         [
           "semantic",
@@ -3279,14 +3175,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -3308,7 +3196,7 @@
     "read|retrieve|What did Bram do in May 2023?": [
       "retrieve",
       false,
-      175,
+      138,
       [
         [
           "semantic",
@@ -3317,14 +3205,6 @@
             "lead_section"
           ],
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -3346,7 +3226,7 @@
     "read|retrieve|What does Bram like to do?": [
       "retrieve",
       false,
-      171,
+      137,
       [
         [
           "semantic",
@@ -3357,19 +3237,6 @@
           "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01 \u00b7 happened 2023-04-29] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10 \u00b7 happened 2023-06-09] Bram: took the kids to a pottery class"
         ],
         [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations about Bram; inferred, not stated):\n- [<today>] Bram loves camping and outdoor family trips"
-        ],
-        [
-          "reflective",
-          [],
-          "Noor is creative and is planning to adopt"
-        ],
-        [
           "episodic",
           [],
           "Bram: I went camping with the kids last weekend"
@@ -3378,6 +3245,11 @@
           "episodic",
           [],
           "Bram: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Bram: I went camping at the beach again with the family"
         ]
       ]
     ],
@@ -3421,57 +3293,58 @@
   },
   "packed-profile": {
     "assemble|How many times did Bram go camping?": [
-      219,
+      227,
       [
-        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family",
-        "Bram: the kids loved the pottery class yesterday",
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday",
+        "Bram loves camping and outdoor family trips",
         "Bram: we ran a book fair for the school library in May",
         "Noor: I am researching adoption agencies this month"
       ]
     ],
     "assemble|What activities has Bram done?": [
-      217,
+      213,
       [
         "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-06-10] Bram: the kids loved the pottery class yesterday",
-        "Bram: I went camping at the beach again with the family",
+        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday",
+        "Noor is creative and is planning to adopt",
         "Bram: we ran a book fair for the school library in May",
         "Noor: I joined a support group last Tuesday"
       ]
     ],
     "assemble|What did Bram do in May 2023?": [
-      217,
+      213,
       [
         "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May",
+        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May\n- [2023-06-10] Bram: the kids loved the pottery class yesterday",
         "Noor is creative and is planning to adopt",
-        "Bram: the kids loved the pottery class yesterday",
+        "Bram loves camping and outdoor family trips",
         "Bram: I went camping at the beach again with the family"
       ]
     ],
     "assemble|What does Bram like to do?": [
-      220,
+      217,
       [
         "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-06-10] Bram: the kids loved the pottery class yesterday",
-        "Bram: I went camping at the beach again with the family",
-        "Bram: we ran a book fair for the school library in May"
+        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday",
+        "Noor is creative and is planning to adopt",
+        "Bram loves camping and outdoor family trips"
       ]
     ],
     "assemble|When did Noor join the support group?": [
-      220,
+      221,
       [
-        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class",
-        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-03] Noor: I joined a support group last Tuesday\n- [2023-06-10] Bram: the kids loved the pottery class yesterday\n- [2023-07-02] Noor: I am researching adoption agencies this month",
-        "Noor: I started a new painting of a lake sunset",
+        "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class",
+        "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-04] Noor: I started a new painting of a lake sunset\n- [2023-06-03] Noor: I joined a support group last Tuesday\n- [2023-06-10] Bram: the kids loved the pottery class yesterday\n- [2023-07-02] Noor: I am researching adoption agencies this month",
+        "Bram: I went camping at the beach again with the family",
+        "Bram: we ran a book fair for the school library in May",
         "Bram: I went camping with the kids last weekend"
       ]
     ],
     "read|auto|How many times did Bram go camping?": [
       "full",
       false,
-      262,
+      261,
       [
         [
           "semantic",
@@ -3479,7 +3352,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -3487,7 +3360,7 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
         ],
         [
           "episodic",
@@ -3505,26 +3378,14 @@
           "Noor: I joined a support group last Tuesday"
         ],
         [
-          "semantic",
-          [
-            "atomic_fact",
-            "happened:2023-05-30",
-            "kind:event",
-            "mined:s1",
-            "person:noor",
-            "said:2023-06-03"
-          ],
-          "Noor event: joined a support group"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: the kids loved the pottery class yesterday"
-        ],
-        [
           "episodic",
           [],
           "Noor: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
         ],
         [
           "reflective",
@@ -3536,7 +3397,7 @@
     "read|auto|What activities has Bram done?": [
       "full",
       false,
-      262,
+      258,
       [
         [
           "semantic",
@@ -3552,7 +3413,7 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
         ],
         [
           "episodic",
@@ -3563,11 +3424,6 @@
           "episodic",
           [],
           "Bram: we ran a book fair for the school library in May"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: I went camping at the beach again with the family"
         ],
         [
           "episodic",
@@ -3590,6 +3446,11 @@
           "episodic",
           [],
           "Noor: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
         ],
         [
           "reflective",
@@ -3601,6 +3462,71 @@
     "read|auto|What did Bram do in May 2023?": [
       "full",
       false,
+      258,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+        ],
+        [
+          "episodic",
+          [],
+          "Noor: I started a new painting of a lake sunset"
+        ],
+        [
+          "episodic",
+          [],
+          "Bram: I went camping at the beach again with the family"
+        ],
+        [
+          "episodic",
+          [],
+          "Noor: I joined a support group last Tuesday"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-05-30",
+            "kind:event",
+            "mined:s1",
+            "person:noor",
+            "said:2023-06-03"
+          ],
+          "Noor event: joined a support group"
+        ],
+        [
+          "episodic",
+          [],
+          "Noor: I am researching adoption agencies this month"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
+          "Noor is creative and is planning to adopt"
+        ]
+      ]
+    ],
+    "read|auto|What does Bram like to do?": [
+      "full",
+      false,
       262,
       [
         [
@@ -3617,17 +3543,12 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
         ],
         [
           "episodic",
           [],
           "Noor: I started a new painting of a lake sunset"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: I went camping at the beach again with the family"
         ],
         [
           "episodic",
@@ -3645,11 +3566,6 @@
             "said:2023-06-03"
           ],
           "Noor event: joined a support group"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: the kids loved the pottery class yesterday"
         ],
         [
           "episodic",
@@ -3659,14 +3575,19 @@
         [
           "reflective",
           [],
+          "Bram loves camping and outdoor family trips"
+        ],
+        [
+          "reflective",
+          [],
           "Noor is creative and is planning to adopt"
         ]
       ]
     ],
-    "read|auto|What does Bram like to do?": [
+    "read|auto|When did Noor join the support group?": [
       "full",
       false,
-      265,
+      267,
       [
         [
           "semantic",
@@ -3674,7 +3595,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -3682,12 +3603,24 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-04] Noor: I started a new painting of a lake sunset\n- [2023-06-03] Noor: I joined a support group last Tuesday\n- [2023-06-10] Bram: the kids loved the pottery class yesterday\n- [2023-07-02] Noor: I am researching adoption agencies this month"
         ],
         [
           "episodic",
           [],
-          "Noor: I started a new painting of a lake sunset"
+          "Bram: I went camping with the kids last weekend"
+        ],
+        [
+          "semantic",
+          [
+            "atomic_fact",
+            "happened:2023-04-29",
+            "kind:event",
+            "mined:s1",
+            "person:bram",
+            "said:2023-05-01"
+          ],
+          "Bram event: went camping with the kids"
         ],
         [
           "episodic",
@@ -3698,66 +3631,6 @@
           "episodic",
           [],
           "Bram: I went camping at the beach again with the family"
-        ],
-        [
-          "episodic",
-          [],
-          "Noor: I joined a support group last Tuesday"
-        ],
-        [
-          "semantic",
-          [
-            "atomic_fact",
-            "happened:2023-05-30",
-            "kind:event",
-            "mined:s1",
-            "person:noor",
-            "said:2023-06-03"
-          ],
-          "Noor event: joined a support group"
-        ],
-        [
-          "episodic",
-          [],
-          "Noor: I am researching adoption agencies this month"
-        ]
-      ]
-    ],
-    "read|auto|When did Noor join the support group?": [
-      "full",
-      false,
-      270,
-      [
-        [
-          "semantic",
-          [
-            "cards_header",
-            "lead_section"
-          ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-03] Noor: I joined a support group last Tuesday\n- [2023-06-10] Bram: the kids loved the pottery class yesterday\n- [2023-07-02] Noor: I am researching adoption agencies this month"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: I went camping with the kids last weekend"
-        ],
-        [
-          "episodic",
-          [],
-          "Noor: I started a new painting of a lake sunset"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: we ran a book fair for the school library in May"
         ],
         [
           "semantic",
@@ -3789,7 +3662,7 @@
     "read|compose|How many times did Bram go camping?": [
       "compose",
       false,
-      192,
+      203,
       [
         [
           "semantic",
@@ -3797,7 +3670,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -3805,19 +3678,19 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
         ],
         [
           "episodic",
           [],
-          "Bram: the kids loved the pottery class yesterday"
+          "Bram: we ran a book fair for the school library in May"
         ]
       ]
     ],
     "read|compose|What activities has Bram done?": [
       "compose",
       false,
-      192,
+      191,
       [
         [
           "semantic",
@@ -3833,19 +3706,19 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
         ],
         [
           "episodic",
           [],
-          "Bram: I went camping at the beach again with the family"
+          "Bram: we ran a book fair for the school library in May"
         ]
       ]
     ],
     "read|compose|What did Bram do in May 2023?": [
       "compose",
       false,
-      206,
+      191,
       [
         [
           "semantic",
@@ -3861,24 +3734,19 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
         ],
         [
           "episodic",
           [],
           "Bram: I went camping at the beach again with the family"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: the kids loved the pottery class yesterday"
         ]
       ]
     ],
     "read|compose|What does Bram like to do?": [
       "compose",
       false,
-      220,
+      195,
       [
         [
           "semantic",
@@ -3894,24 +3762,14 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: we ran a book fair for the school library in May"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: I went camping at the beach again with the family"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
         ]
       ]
     ],
     "read|compose|When did Noor join the support group?": [
       "compose",
       false,
-      231,
+      218,
       [
         [
           "semantic",
@@ -3919,7 +3777,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -3927,7 +3785,7 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-03] Noor: I joined a support group last Tuesday\n- [2023-06-10] Bram: the kids loved the pottery class yesterday\n- [2023-07-02] Noor: I am researching adoption agencies this month"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-04] Noor: I started a new painting of a lake sunset\n- [2023-06-03] Noor: I joined a support group last Tuesday\n- [2023-06-10] Bram: the kids loved the pottery class yesterday\n- [2023-07-02] Noor: I am researching adoption agencies this month"
         ],
         [
           "episodic",
@@ -3937,7 +3795,7 @@
         [
           "episodic",
           [],
-          "Noor: I started a new painting of a lake sunset"
+          "Bram: I went camping at the beach again with the family"
         ],
         [
           "reflective",
@@ -3949,7 +3807,7 @@
     "read|replay|How many times did Bram go camping?": [
       "replay",
       false,
-      219,
+      227,
       [
         [
           "semantic",
@@ -3957,7 +3815,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -3965,17 +3823,17 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
           [],
           "Bram: we ran a book fair for the school library in May"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: the kids loved the pottery class yesterday"
         ],
         [
           "episodic",
@@ -3987,7 +3845,7 @@
     "read|replay|What activities has Bram done?": [
       "replay",
       false,
-      217,
+      213,
       [
         [
           "semantic",
@@ -4003,17 +3861,17 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+        ],
+        [
+          "reflective",
+          [],
+          "Noor is creative and is planning to adopt"
         ],
         [
           "episodic",
           [],
           "Bram: we ran a book fair for the school library in May"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: I went camping at the beach again with the family"
         ],
         [
           "episodic",
@@ -4025,6 +3883,44 @@
     "read|replay|What did Bram do in May 2023?": [
       "replay",
       false,
+      213,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+        ],
+        [
+          "reflective",
+          [],
+          "Noor is creative and is planning to adopt"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Bram: I went camping at the beach again with the family"
+        ]
+      ]
+    ],
+    "read|replay|What does Bram like to do?": [
+      "retrieve",
+      false,
       217,
       [
         [
@@ -4041,7 +3937,7 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
         ],
         [
           "reflective",
@@ -4049,21 +3945,16 @@
           "Noor is creative and is planning to adopt"
         ],
         [
-          "episodic",
+          "reflective",
           [],
-          "Bram: I went camping at the beach again with the family"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: the kids loved the pottery class yesterday"
+          "Bram loves camping and outdoor family trips"
         ]
       ]
     ],
-    "read|replay|What does Bram like to do?": [
+    "read|replay|When did Noor join the support group?": [
       "replay",
       false,
-      220,
+      221,
       [
         [
           "semantic",
@@ -4071,7 +3962,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -4079,7 +3970,12 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-04] Noor: I started a new painting of a lake sunset\n- [2023-06-03] Noor: I joined a support group last Tuesday\n- [2023-06-10] Bram: the kids loved the pottery class yesterday\n- [2023-07-02] Noor: I am researching adoption agencies this month"
+        ],
+        [
+          "episodic",
+          [],
+          "Bram: I went camping with the kids last weekend"
         ],
         [
           "episodic",
@@ -4093,43 +3989,10 @@
         ]
       ]
     ],
-    "read|replay|When did Noor join the support group?": [
-      "replay",
-      false,
-      220,
-      [
-        [
-          "semantic",
-          [
-            "cards_header",
-            "lead_section"
-          ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-03] Noor: I joined a support group last Tuesday\n- [2023-06-10] Bram: the kids loved the pottery class yesterday\n- [2023-07-02] Noor: I am researching adoption agencies this month"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: I went camping with the kids last weekend"
-        ],
-        [
-          "episodic",
-          [],
-          "Noor: I started a new painting of a lake sunset"
-        ]
-      ]
-    ],
     "read|retrieve|How many times did Bram go camping?": [
       "retrieve",
       false,
-      219,
+      227,
       [
         [
           "semantic",
@@ -4137,7 +4000,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -4145,12 +4008,12 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
         ],
         [
-          "episodic",
+          "reflective",
           [],
-          "Bram: the kids loved the pottery class yesterday"
+          "Bram loves camping and outdoor family trips"
         ],
         [
           "episodic",
@@ -4167,7 +4030,7 @@
     "read|retrieve|What activities has Bram done?": [
       "retrieve",
       false,
-      217,
+      213,
       [
         [
           "semantic",
@@ -4183,12 +4046,12 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
         ],
         [
-          "episodic",
+          "reflective",
           [],
-          "Bram: I went camping at the beach again with the family"
+          "Noor is creative and is planning to adopt"
         ],
         [
           "episodic",
@@ -4205,6 +4068,44 @@
     "read|retrieve|What did Bram do in May 2023?": [
       "retrieve",
       false,
+      213,
+      [
+        [
+          "semantic",
+          [
+            "cards_header",
+            "lead_section"
+          ],
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class"
+        ],
+        [
+          "semantic",
+          [
+            "lead_section",
+            "profile_header"
+          ],
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+        ],
+        [
+          "reflective",
+          [],
+          "Noor is creative and is planning to adopt"
+        ],
+        [
+          "reflective",
+          [],
+          "Bram loves camping and outdoor family trips"
+        ],
+        [
+          "episodic",
+          [],
+          "Bram: I went camping at the beach again with the family"
+        ]
+      ]
+    ],
+    "read|retrieve|What does Bram like to do?": [
+      "retrieve",
+      false,
       217,
       [
         [
@@ -4221,7 +4122,7 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-05-10] Bram: we ran a book fair for the school library in May\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
         ],
         [
           "reflective",
@@ -4229,21 +4130,16 @@
           "Noor is creative and is planning to adopt"
         ],
         [
-          "episodic",
+          "reflective",
           [],
-          "Bram: the kids loved the pottery class yesterday"
-        ],
-        [
-          "episodic",
-          [],
-          "Bram: I went camping at the beach again with the family"
+          "Bram loves camping and outdoor family trips"
         ]
       ]
     ],
-    "read|retrieve|What does Bram like to do?": [
+    "read|retrieve|When did Noor join the support group?": [
       "retrieve",
       false,
-      220,
+      221,
       [
         [
           "semantic",
@@ -4251,7 +4147,7 @@
             "cards_header",
             "lead_section"
           ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\nBram \u2014 activities: camping (2023-05); book fair (2023-05)\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-05-21] Bram: went camping at the beach\n[said 2023-06-10] Bram: took the kids to a pottery class"
+          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
         ],
         [
           "semantic",
@@ -4259,7 +4155,7 @@
             "lead_section",
             "profile_header"
           ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Bram loves camping and outdoor family trips\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-01] Bram: I went camping with the kids last weekend\n- [2023-06-10] Bram: the kids loved the pottery class yesterday"
+          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-04] Noor: I started a new painting of a lake sunset\n- [2023-06-03] Noor: I joined a support group last Tuesday\n- [2023-06-10] Bram: the kids loved the pottery class yesterday\n- [2023-07-02] Noor: I am researching adoption agencies this month"
         ],
         [
           "episodic",
@@ -4270,34 +4166,6 @@
           "episodic",
           [],
           "Bram: we ran a book fair for the school library in May"
-        ]
-      ]
-    ],
-    "read|retrieve|When did Noor join the support group?": [
-      "retrieve",
-      false,
-      220,
-      [
-        [
-          "semantic",
-          [
-            "cards_header",
-            "lead_section"
-          ],
-          "FACTS (mined from earlier conversations; date = when it was said):\n[said 2023-05-01] Bram: went camping with the kids\n[said 2023-05-10] Bram: ran a book fair for the school library\n[said 2023-06-03] Noor: joined a support group\n[said 2023-06-10] Bram: took the kids to a pottery class"
-        ],
-        [
-          "semantic",
-          [
-            "lead_section",
-            "profile_header"
-          ],
-          "PROFILE NOTES (reflected from earlier conversations; user profile packed as summaries, then observations, then related memories; inferred, not stated):\nObservations:\n- [<today>] Noor is creative and is planning to adopt\nRelated:\n- [2023-05-21] Bram: I went camping at the beach again with the family\n- [2023-06-03] Noor: I joined a support group last Tuesday\n- [2023-06-10] Bram: the kids loved the pottery class yesterday\n- [2023-07-02] Noor: I am researching adoption agencies this month"
-        ],
-        [
-          "episodic",
-          [],
-          "Noor: I started a new painting of a lake sunset"
         ],
         [
           "episodic",

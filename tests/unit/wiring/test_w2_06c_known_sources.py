@@ -12,7 +12,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from test_w2_06a_envelope import _engine
-from test_w2_06b_prompt_v2 import WindowLLM
+from test_w2_06b_prompt import WindowLLM
 from test_window_write import _send
 
 from memspine.derive.entity_registry import EntityRegistry
@@ -77,7 +77,7 @@ async def test_end_to_end_prompt_carries_prepass_names_and_resolver_aliases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = WindowLLM()
-    eng = await _engine(monkeypatch, llm, prompt_v2=True, prepass="rules", resolver_v2=True)
+    eng = await _engine(monkeypatch, llm, prepass="rules", resolver=True)
     try:
         reg = eng._entity_resolve_stage.registry
         reg.create(("a",), "e1", "Ilse Verhoeven")
@@ -106,7 +106,10 @@ async def test_end_to_end_prompt_carries_prepass_names_and_resolver_aliases(
 
 
 async def test_flags_off_leave_the_builder_hooks_empty(monkeypatch: pytest.MonkeyPatch) -> None:
-    eng = await _engine(monkeypatch, WindowLLM(), prompt_v2=True)
+    eng = await _engine(
+        monkeypatch,
+        WindowLLM(),
+    )
     try:
         builder = eng._windows._ctx
         assert builder.prepass is None and builder.resolver is None

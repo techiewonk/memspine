@@ -4,7 +4,7 @@
 
 Category 5 is the set of questions about things that never happened; the right answer is a refusal (gold is
 ``ABSTENTION_GOLD``, judged by ``ABSTENTION_BINARY_PROMPT``, never the file's ``adversarial_answer``). The category 1-4
-sample slices never contain it (their source run has no cat 5), so a relevance gate (S20 ``read.gate_v2``) or any
+sample slices never contain it (their source run has no cat 5), so a relevance gate (S20 ``read.gate``) or any
 abstention-related screen has never been measured on it.
 
 Source: ``data/locomo10.json`` (read for the sample order and each question's category only; no question, answer or
@@ -20,7 +20,7 @@ Outputs under ``analysis/`` (same keys as the other sample slices plus ``categor
                                              ``sample_slice_loc_60_s20261013_c3`` (engine-LLM rows are ingest-bound)
 
 Running a slice needs ``--categories 5`` (the dataset filters by category BEFORE ``--query-ids``); the queue passes it
-from column 6 (``categories=5``) of ``v2_slice_map.tsv``.
+from column 6 (``categories=5``) of ``screen_slice_map.tsv``.
 """
 
 from __future__ import annotations

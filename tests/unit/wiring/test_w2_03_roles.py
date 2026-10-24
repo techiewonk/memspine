@@ -1,4 +1,4 @@
-"""W2-03: role policy, echo guard and routing (LIB-13 wired). ``write.role_policy_v2``, default OFF.
+"""W2-03: role policy, echo guard and routing (LIB-13 wired). ``write.role_policy``, default OFF.
 
 Model-free: the fake window LLM of ``test_window_write`` and the hash embedder. All text is invented
 (Ilse, Bram, Noor, Tomasz). Covers: flag off is unchanged; system turns are excluded from derivation but
@@ -79,7 +79,7 @@ def test_flag_is_off_by_default() -> None:
             }
         }
     ).write
-    assert w.role_policy_v2 is False
+    assert w.role_policy is False
     assert w.echo_threshold == 0.6
 
 
@@ -108,7 +108,7 @@ async def test_system_is_raw_but_never_derived(monkeypatch: pytest.MonkeyPatch) 
     eng = await _engine(
         monkeypatch,
         llm,
-        role_policy_v2=True,
+        role_policy=True,
         firewall={"skip_message_roles": ["system"]},
     )
     try:
@@ -128,7 +128,7 @@ async def test_system_is_raw_but_never_derived(monkeypatch: pytest.MonkeyPatch) 
 
 async def test_assistant_is_proposed_and_never_above_user(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, role_policy_v2=True, stamping_v2=True)
+    eng = await _engine(monkeypatch, llm, role_policy=True, stamping=True)
     try:
         await eng.ingest_messages(convo(), namespace=NS, session_id="s1")
         rows = await raw(eng)
@@ -146,7 +146,7 @@ async def test_tool_is_evidence_and_a_fact_only_it_backs_is_marked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, role_policy_v2=True)
+    eng = await _engine(monkeypatch, llm, role_policy=True)
     try:
         await eng.ingest_messages(convo(), namespace=NS, session_id="s1")
         rows = await raw(eng)
@@ -170,7 +170,7 @@ async def test_tool_is_evidence_and_a_fact_only_it_backs_is_marked(
 
 async def test_live_members_filters_for_session_stages(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, role_policy_v2=True)
+    eng = await _engine(monkeypatch, llm, role_policy=True)
     try:
         await eng.ingest_messages(convo(), namespace=NS, session_id="s1")
         rows = await raw(eng)
@@ -200,7 +200,7 @@ async def test_live_members_filters_for_session_stages(monkeypatch: pytest.Monke
 # ------------------------------------------------------------------------------------------- echo
 async def test_marked_echo_is_raw_only(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, role_policy_v2=True)
+    eng = await _engine(monkeypatch, llm, role_policy=True)
     try:
         echo = "Noor: " + wrap_recall("rec-1", "the orchid was repotted twice last spring")
         await eng.ingest_messages(
@@ -224,7 +224,7 @@ async def test_marked_echo_is_raw_only(monkeypatch: pytest.MonkeyPatch) -> None:
 
 async def test_engine_own_wrapper_counts_as_a_marker(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, role_policy_v2=True)
+    eng = await _engine(monkeypatch, llm, role_policy=True)
     try:
         text = f"Noor: {T.CURRENT_STATE_MARKER} Ilse lives in Oslo"
         await eng.ingest_messages(
@@ -237,7 +237,7 @@ async def test_engine_own_wrapper_counts_as_a_marker(monkeypatch: pytest.MonkeyP
 
 async def test_last_read_overlap_is_blocked_marker_free(monkeypatch: pytest.MonkeyPatch) -> None:
     llm = FakeWindowLLM()
-    eng = await _engine(monkeypatch, llm, role_policy_v2=True)
+    eng = await _engine(monkeypatch, llm, role_policy=True)
     try:
         await eng.write(MEMORY, namespace=NS, memory_type="episodic")
         await eng.search("hives of bees", namespace=NS, session_id="s1")
@@ -352,7 +352,7 @@ MIXED = [
 
 
 async def test_routing_keyed_vs_unkeyed(tmp_path: Path) -> None:
-    eng = await build_gateway(tmp_path, role_policy_v2=True)
+    eng = await build_gateway(tmp_path, role_policy=True)
     try:
         await eng.ingest_messages(MIXED, namespace=NS, session_id="s1")
         storage = eng._require_started()
@@ -393,7 +393,7 @@ async def test_routing_off_without_the_flag(tmp_path: Path) -> None:
 
 
 async def test_an_echo_turn_is_not_routed(tmp_path: Path) -> None:
-    eng = await build_gateway(tmp_path, role_policy_v2=True)
+    eng = await build_gateway(tmp_path, role_policy=True)
     try:
         echoed = {
             "role": "assistant",

@@ -31,6 +31,8 @@ _SNAPSHOT_SCRUB: dict[str, object] = {
     "content": "",
     "content_zstd": None,
     "content_fingerprint": "",
+    "fingerprint": {},
+    "axes": {},
     "entity": None,
     "attribute": None,
     "tags": [],

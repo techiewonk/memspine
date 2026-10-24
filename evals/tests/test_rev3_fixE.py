@@ -347,7 +347,7 @@ def test_rehearsing_r_cohere_stubs_the_rerank(tmp_path: Path) -> None:
     assert report.ok, report.problems
     assert report.stub_calls.get("rerank", 0) >= 1
     (measure,) = report.systems
-    assert measure.rerank["mode"] == "openai_compatible" and measure.rerank["calls"] >= 1
+    assert measure.rerank["mode"] == "bedrock" and measure.rerank["calls"] >= 1
     assert measure.rerank["rerank_unavailable"] is False
     _, rows, _ = read_run(tmp_path / "rehearsal-R-cohere--memspine" / "results.jsonl")
     assert any(r["meta"].get("reranked") for r in rows)

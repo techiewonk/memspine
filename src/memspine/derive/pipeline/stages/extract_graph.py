@@ -253,9 +253,7 @@ def _edge_contexts(sources: list[MemoryRecord], known: list[MemoryRecord]) -> li
     return contexts
 
 
-def _edge_key(
-    namespace: str, edge: ExtractedEdge, *, dated: bool = False, scoped: bool = False
-) -> str:
+def _edge_key(namespace: str, edge: ExtractedEdge, *, dated: bool = False) -> str:
     """Idempotency key for an extracted edge: same (src, rel, dst) in a
     namespace fingerprints to the same record, so a re-run never duplicates.
 
@@ -263,9 +261,12 @@ def _edge_key(
     on its event day and the numbers its fact states, so "visited Paris in 2022" and
     "visited Paris in 2023" (or "ran 5 km" / "ran 10 km") stay two events instead of
     one. State edges keep (src, rel, dst): a newer state supersedes, it does not add."""
-    parts: list[object] = [namespace, edge.src_entity, edge.rel, edge.dst_entity]
-    if scoped:  # F-16c / M-05 ``isolation.scope_keys_v2``: tenant + owner, never the session
-        parts[0] = list(Scope.from_namespace(namespace).identity)
+    parts: list[object] = [
+        list(Scope.from_namespace(namespace).identity),
+        edge.src_entity,
+        edge.rel,
+        edge.dst_entity,
+    ]
     if dated and edge.kind == "event":
         day = (edge.valid_from or "")[:10]
         numbers = sorted(set(_NUMERAL.findall(edge.fact)))
@@ -406,9 +407,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
         str(r).strip().lower() for r in (declared if isinstance(declared, list | tuple) else ())
     }
     # G-2: a new STATE fact is checked against the subject's facts on OTHER keys.
-    # F-01: graph key v2 (kind + occurrence; old keys stay aliases). Off: the v1 key.
-    key_v2 = bool(ctx.config.graph.key_v2)
-    scoped_keys = bool(ctx.config.isolation.scope_keys_v2)
+    # Current keys include kind and occurrence; no historical-key aliases.
     contradictions = bool(opts.get("contradictions", False)) and ctx.adjudicate_edge is not None
     invalidated = 0
     raw_conf = opts.get("min_confidence", 0.0)
@@ -467,21 +466,18 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         sources.append(record)
             kidx = graph_keys.EdgeKeyIndex()
             handles: dict[str, MemoryRecord] = {}
-            if key_v2:
-                for ekey, rec in existing.items():
-                    handles[rec.record_id] = rec
-                    ebase = next(
-                        (
-                            t[len(graph_keys.BASE_TAG_PREFIX) :]
-                            for t in rec.tags
-                            if t.startswith(graph_keys.BASE_TAG_PREFIX)
-                        ),
-                        None,
-                    )
-                    if ebase:
-                        kidx.add(rec.record_id, _live(rec), key=ekey, base=ebase)
-                    else:
-                        kidx.add(rec.record_id, _live(rec), alias=ekey)
+            for ekey, rec in existing.items():
+                handles[rec.record_id] = rec
+                ebase = next(
+                    (
+                        t[len(graph_keys.BASE_TAG_PREFIX) :]
+                        for t in rec.tags
+                        if t.startswith(graph_keys.BASE_TAG_PREFIX)
+                    ),
+                    None,
+                )
+                if ebase:
+                    kidx.add(rec.record_id, _live(rec), key=ekey, base=ebase)
             done: dict[str, str] = {}
             # Extraction first, writes after (GP-7 resolves every name in one pass).
             # Each entry: (owner, edges, parents). The owner is the record the
@@ -618,49 +614,38 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                 if allowed_rels and edge.rel.strip().lower() not in allowed_rels:
                     skipped += 1  # G-6: outside the declared ontology
                     return
-                key = _edge_key(namespace, edge, dated=dated_events, scoped=scoped_keys)
+                key = _edge_key(namespace, edge, dated=dated_events)
                 dup: MemoryRecord | None = existing.get(key)
                 ebase = ""
-                if key_v2:
-                    extras: list[object] = []
-                    if dated_events and edge.kind == "event":
-                        extras = [
-                            (edge.valid_from or "")[:10],
-                            sorted(set(_NUMERAL.findall(edge.fact))),
-                        ]
-                    ebase = graph_keys.base_key(
-                        namespace, edge.kind, edge.src_entity, edge.rel, edge.dst_entity, extras
-                    )
-                    occ = graph_keys.occurrence_of(
-                        f"{p.content_fingerprint}@{p.valid_from.isoformat()}" for p in parents
-                    )
-                    decision = kidx.decide(ebase, occ, alias_keys=(key,))
-                    dup = handles.get(decision.existing_id) if decision.existing_id else None
-                    outcome = decision.outcome
-                    if outcome == "duplicate" and decision.via != "key" and dup is not None:
-                        fresh = await ctx.storage.get_record(dup.record_id)
-                        if fresh is None or not _live(fresh):
-                            outcome = "new_occurrence"  # the index is stale: it was closed since
-                            dup = None
-                    tap.event(
-                        "derive.graph.key",
-                        key_v=graph_keys.KEY_V,
-                        outcome=outcome,
-                        via=decision.via,
-                        kind=edge.kind,
-                        key=decision.key,
-                        base=ebase,
-                        legacy_key=key,
-                    )
-                    key = decision.key
-                else:
-                    tap.event(
-                        "derive.graph.key",
-                        key_v=1,
-                        outcome="duplicate" if dup is not None else "new",
-                        kind=edge.kind,
-                        key=key,
-                    )
+                extras: list[object] = []
+                if dated_events and edge.kind == "event":
+                    extras = [
+                        (edge.valid_from or "")[:10],
+                        sorted(set(_NUMERAL.findall(edge.fact))),
+                    ]
+                ebase = graph_keys.base_key(
+                    namespace, edge.kind, edge.src_entity, edge.rel, edge.dst_entity, extras
+                )
+                occ = graph_keys.occurrence_of(
+                    f"{p.content_fingerprint}@{p.valid_from.isoformat()}" for p in parents
+                )
+                decision = kidx.decide(ebase, occ)
+                dup = handles.get(decision.existing_id) if decision.existing_id else None
+                outcome = decision.outcome
+                if outcome == "duplicate" and decision.via != "key" and dup is not None:
+                    fresh = await ctx.storage.get_record(dup.record_id)
+                    if fresh is None or not _live(fresh):
+                        outcome = "new_occurrence"  # the index is stale: it was closed since
+                        dup = None
+                tap.event(
+                    "derive.graph.key",
+                    outcome=outcome,
+                    via=decision.via,
+                    kind=edge.kind,
+                    key=decision.key,
+                    base=ebase,
+                )
+                key = decision.key
                 if dup is not None:
                     skipped += 1
                     # GR-9: a verbatim duplicate (same src, rel, dst and kind) adds
@@ -676,8 +661,7 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                 # I55: the edge is about what its source turn(s) are about (tags exist
                 # only when the perspective layer is on)
                 tags = [*tags, *(t for t in inherit_perspective_tags(parents) if t not in tags)]
-                if key_v2:
-                    tags.append(graph_keys.base_tag(ebase))
+                tags.append(graph_keys.base_tag(ebase))
                 fact = MemoryRecord(
                     namespace=namespace,
                     memory_type="semantic",
@@ -700,9 +684,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                     # older value; event edges carry no attribute and are ADDed.
                     stored = await ctx.write_fact(fact, trusts)
                     existing[key] = stored
-                    if key_v2:
-                        handles[stored.record_id] = stored
-                        kidx.add(stored.record_id, _live(stored), key=key, base=ebase)
+                    handles[stored.record_id] = stored
+                    kidx.add(stored.record_id, _live(stored), key=key, base=ebase)
                     if stored.quarantined:
                         quarantined += 1  # held content gains no graph reach (E1)
                         return
@@ -729,9 +712,8 @@ async def extract_graph(ctx: PipelineContext) -> dict[str, object]:
                         )
                     )
                     existing[key] = fact
-                    if key_v2:
-                        handles[fact.record_id] = fact
-                        kidx.add(fact.record_id, _live(fact), key=key, base=ebase)
+                    handles[fact.record_id] = fact
+                    kidx.add(fact.record_id, _live(fact), key=key, base=ebase)
                     if reasons:
                         quarantined += 1  # held content gains no graph reach (E1)
                         _log.warning(

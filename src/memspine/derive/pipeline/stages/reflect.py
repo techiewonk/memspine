@@ -5,16 +5,16 @@ from __future__ import annotations
 from memspine.core.policies.consolidation import ConsolidationPolicy
 from memspine.derive.pipeline.stages.context import PipelineContext, _policy_options
 from memspine.derive.pipeline.stages.profile_card import profile_sleep
-from memspine.derive.pipeline.stages.session_stage import _legacy_tag_check, _run_session_stage
+from memspine.derive.pipeline.stages.session_stage import _run_session_stage
 from memspine.store.records import MemoryRecord
 
 
 async def reflect_profile(ctx: PipelineContext) -> dict[str, object]:
     """H14: profile insights per consolidated session, once (done marker).
 
-    O4-07 (``offline.profile_card_v2``): the card upkeep (invalidation of forgotten support and the
+    O4-07 (``offline.profile_card``): the card upkeep (invalidation of forgotten support and the
     reflection plan) runs first and its counts ride along under ``profile_card``."""
-    card = await profile_sleep(ctx) if ctx.config.offline.profile_card_v2 else None
+    card = await profile_sleep(ctx) if ctx.config.offline.profile_card else None
     stats = await _reflect_insights(ctx)
     if card is not None:
         stats = {**stats, "profile_card": card}
@@ -47,7 +47,4 @@ async def _reflect_insights(ctx: PipelineContext) -> dict[str, object]:
             written += 1
         return written, errors
 
-    legacy = _legacy_tag_check(
-        ctx, "reflective", lambda r, key: r.source.message_id == f"reflected:{key}"
-    )
-    return await _run_session_stage(ctx, "reflect_profile", "insights", legacy, work)
+    return await _run_session_stage(ctx, "reflect_profile", "insights", work)

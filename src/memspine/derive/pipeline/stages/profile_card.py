@@ -1,6 +1,6 @@
 """Derive: the profile card (O4-07; LIB-39 ``derive/profile.py``), opt-in.
 
-``offline.profile_card_v2`` off (default): nothing here runs. On:
+``offline.profile_card`` off (default): nothing here runs. On:
 
 * :func:`apply_session_ops` takes the profile ops call 2 proposed at session close
   (``ProposedProfileOp``), maps them to the library's ``ProfileOp`` and applies them through the
@@ -8,7 +8,7 @@
   EMA drift). The cited turns are the evidence: each becomes an ``AssertionEnvelope`` through
   :func:`turn_assertion` (the engine stores no assertion envelopes yet, so a live turn record is
   the evidence unit).
-* The card lives in the event log: one ``profile_card_v2`` MARKER per change, the latest wins
+* The card lives in the event log: one ``profile_card`` MARKER per change, the latest wins
   (folded by ``SessionIndex``). Read-modify-write runs under the namespace lock.
 * :func:`profile_sleep` (called from the ``reflect_profile`` sleep stage) invalidates entries whose
   supporting turns were forgotten, quarantined or archived, then reports the reflection plan.
@@ -17,7 +17,7 @@ Free text (entry values) is only in the marker payload, never in a tap event.
 
 Three profile representations, three consumers (MF-13); do not confuse them:
 
-* **profile card** (this module): ``profile_card_v2`` event-log MARKERs, no layered record. Its one
+* **profile card** (this module): ``profile_card`` event-log MARKERs, no layered record. Its one
   read consumer is the ``read.profile_card_header`` block (:func:`read_latest_card` here,
   :func:`render_card_header` for the text, ``compose/pipeline/sections._profile_card_section``);
 * **reflective insights** (L4 records from ``reflect_profile``): the legacy ``read.profile_header``
@@ -419,7 +419,7 @@ _READ_INDEXES: weakref.WeakKeyDictionary[object, SessionIndex] = weakref.WeakKey
 
 
 async def read_latest_card(storage: Any, namespace: str) -> ProfileCard | None:
-    """The latest ``profile_card_v2`` card of ``namespace`` (read only; None when there is none).
+    """The latest ``profile_card`` card of ``namespace`` (read only; None when there is none).
 
     Latest wins per attribute: each marker carries the whole card, so the newest marker is the
     current value of every ``(section, key)``. A forget appends a scrubbed card marker (see

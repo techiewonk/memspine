@@ -166,8 +166,6 @@ def with_conventions(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict
     sys.path.insert(0, str(Path(__file__).parent))
     from memspine_evals.judge_conventions import (
         check_conventions,
-        check_conventions_v2,
-        check_conventions_v3,
     )
 
     rows = [r for r in rows if r["id"] in judged and "answer" in r]
@@ -192,59 +190,7 @@ def with_conventions(rows: list[dict[str, Any]], judged: dict[str, str]) -> dict
                 layered[r["id"]] = "CORRECT"
                 credited[r["id"]] = hit.rule
     new = [c for c in credits if c["new"]]
-    # I77: the v2 layer, as a separate block (v1 above is unchanged)
-    layered2 = dict(judged)
-    credits2 = []
-    for r in rows:
-        hit = check_conventions_v2(r["question"], r["answer"], r["gold"])
-        if hit is not None and judged[r["id"]] != "CORRECT":
-            layered2[r["id"]] = "CORRECT"
-            credits2.append(
-                {
-                    "id": r["id"],
-                    "rule": hit.rule,
-                    "human": r["human_verdict"],
-                    "judge": judged[r["id"]],
-                    "in_v1": r["id"] in credited,
-                }
-            )
-    added = [c for c in credits2 if not c["in_v1"]]
-    # R14-M-17: the v3 layer, as a further separate block (v1 / v2 above are unchanged)
-    in_v2 = {c["id"] for c in credits2}
-    layered3 = dict(judged)
-    credits3 = []
-    for r in rows:
-        hit = check_conventions_v3(r["question"], r["answer"], r["gold"])
-        if hit is not None and judged[r["id"]] != "CORRECT":
-            layered3[r["id"]] = "CORRECT"
-            credits3.append(
-                {
-                    "id": r["id"],
-                    "rule": hit.rule,
-                    "human": r["human_verdict"],
-                    "judge": judged[r["id"]],
-                    "in_v2": r["id"] in in_v2,
-                }
-            )
-    added3 = [c for c in credits3 if not c["in_v2"]]
     return {
-        "v3": {
-            "judge_or_conventions_v3": score(rows, layered3),
-            "new_credits": len(credits3),
-            "credits_beyond_v2": added3,
-            "false_positives": sum(c["human"] != "CORRECT" for c in credits3),
-            "false_positives_beyond_v2": sum(c["human"] != "CORRECT" for c in added3),
-        },
-        "v2": {
-            "judge_or_conventions_v2": score(rows, layered2),
-            "new_credits": len(credits2),
-            "credits_beyond_v1": added,
-            "false_positives": sum(c["human"] != "CORRECT" for c in credits2),
-            "false_positives_beyond_v1": sum(c["human"] != "CORRECT" for c in added),
-            "note": "the calibration set holds few gold dates / quantities / aliases, so zero "
-            "false positives here bounds nothing; read the credits of real runs with "
-            "evals/rescore_conventions.py",
-        },
         "judge_alone": score(rows, judged),
         "judge_or_conventions": score(rows, layered),
         "conventions_alone": score(rows, alone),
@@ -337,25 +283,7 @@ def main(argv: list[str] | None = None) -> int:
                     f"FN={b['false_negatives']} FP={b['false_positives']} "
                     f"partial credited={b['partial_credit_rate']} (n={b['n_partial']})"
                 )
-        v2 = c["v2"]
-        for sub in ("all", "without_borderline"):
-            b = v2["judge_or_conventions_v2"][sub]
-            agree = "n/a" if b["agreement"] is None else f"{b['agreement']:.1%}"
-            kappa = "n/a" if b["kappa"] is None else f"{b['kappa']:.3f}"
-            print(
-                f"[judge_or_conventions_v2 / {sub}] binary n={b['n_binary']} agreement={agree} "
-                f"kappa={kappa} FN={b['false_negatives']} FP={b['false_positives']}"
-            )
-        print(
-            f"conventions v2: {v2['new_credits']} credits over the judge, "
-            f"{len(v2['credits_beyond_v1'])} beyond v1, false positives "
-            f"{v2['false_positives']} ({v2['false_positives_beyond_v1']} beyond v1)"
-        )
-        print(
-            f"conventions: {c['new_credits']} new credits over the judge "
-            f"({c['new_true_positives']} human CORRECT, {c['new_false_positives']} not); "
-            f"all credits: {c['credits']}"
-        )
+
     kappa_all = res["all"]["kappa"]
     if args.fail_below is not None and (kappa_all is None or kappa_all < args.fail_below):
         return 1

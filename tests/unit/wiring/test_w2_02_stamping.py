@@ -1,4 +1,4 @@
-"""W2-02: stamping (LIB-29 wired). ``write.stamping_v2``, default OFF.
+"""W2-02: stamping (LIB-29 wired). ``write.stamping``, default OFF.
 
 Model-free: the hash embedder. All text is invented (Ilse, Bram, Noor, Tomasz). Covers: flag off is
 unchanged; three clocks stamped and the zone kept; speaker / addressee / participants on multi-party
@@ -87,21 +87,21 @@ GROUP = [
 async def test_flag_off_is_unchanged(tmp_path: Path) -> None:
     eng = await build(tmp_path / "off.db")
     try:
-        assert eng._config().write.stamping_v2 is False
+        assert eng._config().write.stamping is False
         await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         for r in await rows(eng):
             assert r.source_tz is None
             assert r.axes.participants == []
             assert not any(t.startswith(("participant:", "assent_of:")) for t in r.tags)
-            assert "source_tz" not in r.model_dump(mode="json")
-            assert "participants" not in r.model_dump(mode="json").get("axes", {})
+            assert r.model_dump(mode="json")["source_tz"] is None
+            assert r.model_dump(mode="json")["axes"]["participants"] == []
     finally:
         await eng.stop()
 
 
 # ------------------------------------------------------------------------------- clocks and zone
 async def test_three_clocks_and_zone(tmp_path: Path) -> None:
-    eng = await build(tmp_path / "on.db", stamping_v2=True)
+    eng = await build(tmp_path / "on.db", stamping=True)
     before = datetime.now(UTC)
     try:
         await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
@@ -124,7 +124,7 @@ async def test_three_clocks_and_zone(tmp_path: Path) -> None:
 
 
 async def test_undated_turn_gets_generated_source_time(tmp_path: Path) -> None:
-    eng = await build(tmp_path / "u.db", stamping_v2=True)
+    eng = await build(tmp_path / "u.db", stamping=True)
     try:
         before = datetime.now(UTC)
         await eng.ingest_messages(
@@ -159,7 +159,7 @@ def test_clock_stamper_flags() -> None:
 
 # ----------------------------------------------------------------- speaker / addressee / participants
 async def test_multiparty_axes(tmp_path: Path) -> None:
-    eng = await build(tmp_path / "m.db", stamping_v2=True)
+    eng = await build(tmp_path / "m.db", stamping=True)
     try:
         await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         by = {r.content: r for r in await rows(eng)}
@@ -169,12 +169,7 @@ async def test_multiparty_axes(tmp_path: Path) -> None:
         assert set(a.axes.participants) == {"ilse", "bram", "assistant"}
         b = by["Noor told me about it"]
         assert (b.axes.speaker, b.axes.addressee) == ("bram", "ilse")
-        # the v1 tag is still written alongside the typed column
-        assert {t for t in a.tags if t.startswith("participant:")} == {
-            "participant:ilse",
-            "participant:bram",
-            "participant:assistant",
-        }
+        assert not any(t.startswith("participant:") for t in a.tags)
         # an unnamed assistant turn has no speaker axis but is a participant
         assistant = by["Shall I note the Oslo address?"]
         assert assistant.axes.speaker is None and "assistant" in assistant.axes.participants
@@ -182,8 +177,8 @@ async def test_multiparty_axes(tmp_path: Path) -> None:
         await eng.stop()
 
 
-async def test_participant_tags_can_be_off(tmp_path: Path) -> None:
-    eng = await build(tmp_path / "t.db", stamping_v2=True, stamp_participant_tags="none")
+async def test_participants_use_only_typed_axes(tmp_path: Path) -> None:
+    eng = await build(tmp_path / "t.db", stamping=True)
     try:
         await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         for r in await rows(eng):
@@ -210,14 +205,14 @@ def test_role_stamper_and_helper() -> None:
 
 async def test_axes_round_trip_through_storage(tmp_path: Path) -> None:
     db = tmp_path / "rt.db"
-    eng = await build(db, stamping_v2=True)
+    eng = await build(db, stamping=True)
     try:
         await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         got = await rows(eng)
         ids = [r.record_id for r in got]
     finally:
         await eng.stop()
-    eng2 = await build(db, stamping_v2=True)
+    eng2 = await build(db, stamping=True)
     try:
         again = {r.record_id: r for r in await rows(eng2)}
         for r in got:
@@ -234,14 +229,14 @@ async def test_axes_round_trip_through_storage(tmp_path: Path) -> None:
     assert {"source_tz", "participants", "spk", "addr"} <= cols
 
 
-def test_record_axes_dump_omits_empty_participants() -> None:
-    assert "participants" not in RecordAxes(speaker="ilse").model_dump(mode="json")
+def test_record_axes_dump_keeps_current_explicit_participants() -> None:
+    assert RecordAxes(speaker="ilse").model_dump(mode="json")["participants"] == []
     assert RecordAxes(participants=["ilse"]).model_dump(mode="json")["participants"] == ["ilse"]
 
 
 # ---------------------------------------------------------------------- provenance class and assent
 async def test_provenance_class_from_roles(tmp_path: Path) -> None:
-    eng = await build(tmp_path / "p.db", stamping_v2=True)
+    eng = await build(tmp_path / "p.db", stamping=True)
     try:
         await eng.ingest_messages(
             [
@@ -261,7 +256,7 @@ async def test_provenance_class_from_roles(tmp_path: Path) -> None:
 
 
 async def test_assent_tag_only_for_real_assent(tmp_path: Path) -> None:
-    eng = await build(tmp_path / "a.db", stamping_v2=True)
+    eng = await build(tmp_path / "a.db", stamping=True)
     try:
         await eng.ingest_messages(
             [
@@ -425,7 +420,7 @@ def test_asserter_subject_mismatch_flagged() -> None:
 
 # ------------------------------------------------------------------------------------ gateway path
 async def test_stamps_inside_the_gateway(tmp_path: Path) -> None:
-    eng = await build(tmp_path / "g.db", stamping_v2=True)
+    eng = await build(tmp_path / "g.db", stamping=True)
     try:
         await eng.ingest_messages(GROUP, namespace=NS, session_id="s1")
         by = {r.content: r for r in await rows(eng)}
@@ -450,12 +445,9 @@ def test_migration_head_and_columns(tmp_path: Path) -> None:
     from memspine.services.storage.sqlite.migrations import alembic_config, upgrade_to_head
 
     script = ScriptDirectory.from_config(alembic_config(tmp_path / "x.db"))
-    assert script.get_heads() == ["rm113_asset_registry"]
-    bindings = script.get_revision("projector_bindings")
-    assert bindings is not None and bindings.down_revision == "provider_changes"
-    rev = script.get_revision("w202_stamping")
-    assert rev is not None and rev.down_revision == "f02b_tri_temporal"
-    db = tmp_path / "old.db"
+    assert script.get_heads() == ["0001"]
+    assert script.get_revision("0001").down_revision is None
+    db = tmp_path / "fresh.db"
     upgrade_to_head(db)
     con = sqlite3.connect(db)
     try:

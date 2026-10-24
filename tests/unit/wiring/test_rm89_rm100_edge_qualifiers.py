@@ -12,7 +12,7 @@ import yaml
 from typer.testing import CliRunner
 
 from memspine import Engine
-from memspine.derive.pipeline.stages.edge_compiler_v2 import (
+from memspine.derive.pipeline.stages.edge_compiler import (
     COMPILED,
     EdgeCompiler,
     compile_graph_edges,
@@ -44,7 +44,7 @@ def _engine(path: str = ":memory:") -> Engine:
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
         read={"record_access": False},
-        graph={"edge_compiler_v2": True},
+        graph={"edge_compiler": True},
     )
 
 
@@ -322,7 +322,7 @@ async def test_requalify_refuses_without_the_compiled_layer() -> None:
     )
     await eng.start()
     try:
-        with pytest.raises(ValueError, match="edge_compiler_v2 is off"):
+        with pytest.raises(ValueError, match="edge_compiler is off"):
             await requalify_namespace(eng._pipeline_ctx(), NS, dry_run=True)
     finally:
         await eng.stop()
@@ -356,7 +356,7 @@ def test_cli_graph_requalify(tmp_path: Path) -> None:
                     "episodic": {"enabled": True},
                     "associative": {"enabled": True, "policies": {"entity_nodes": True}},
                 },
-                "graph": {"edge_compiler_v2": True},
+                "graph": {"edge_compiler": True},
             }
         ),
         encoding="utf-8",
@@ -383,4 +383,4 @@ def test_cli_graph_requalify_reports_a_missing_layer(tmp_path: Path) -> None:
         ["graph", "requalify", "--namespace", NS, "--db", str(tmp_path / "x.db"), "-t", "core"],
     )
     assert result.exit_code == 1
-    assert "edge_compiler_v2 is off" in result.output
+    assert "edge_compiler is off" in result.output

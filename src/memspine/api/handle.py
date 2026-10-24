@@ -325,11 +325,11 @@ class Memory:
 
     async def sleep(self) -> Any:
         """Run the maintenance cycle (``Engine.sleep``; engine-wide, not scope-wide). A
-        ``SleepHandle`` under ``offline.sleep_v2``."""
+        ``SleepHandle`` under ``offline.sleep``."""
         return await self._engine.sleep()
 
     def cost_report(self) -> dict[str, Any]:
-        """Cost ledger of this scope's writes (``Engine.cost_report``; ``economy.ledger_v2``)."""
+        """Cost ledger of this scope's writes (``Engine.cost_report``; ``economy.ledger``)."""
         return self._engine.cost_report(self.namespace)
 
     async def resume_deferred(self) -> int:

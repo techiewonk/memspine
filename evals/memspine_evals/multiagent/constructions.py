@@ -44,7 +44,7 @@ def _engine(**overrides: Any) -> Any:  # memspine is imported lazily
     config: dict[str, Any] = {
         "template": "base",
         "dotenv_path": None,
-        "storage": {"path": ":memory:"},
+        "storage": {"records": {"provider": "sqlite", "settings": {"path": ":memory:"}}},
         "model": {"embedding": {"provider": "hash"}},
         "memories": {
             "episodic": {"enabled": True},

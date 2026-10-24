@@ -31,7 +31,7 @@ _ROOTS: dict[str, tuple[type[TierModel], ...]] = {
 _README = {
     "durable": (
         "strict tier. Each persisted kind carries x-kind and x-schema-version; a change to a schema needs\n"
-        "a schema_version bump (and an upcaster). Value types embedded in kinds (no x-schema-version) are\n"
+        "a schema_version bump. Value types embedded in kinds (no x-schema-version) are\n"
         "checked through the kinds that embed them.\n"
     ),
     "public": "strict tier. Each model carries x-semver; a change to a schema needs a semver bump.\n",
@@ -172,8 +172,7 @@ def strict_violations(fresh: dict[str, str], baseline: dict[str, str]) -> list[s
             elif schema_version_of(tier, new) == schema_version_of(tier, old):
                 problems.append(
                     f"{name}: schema changed without a version bump "
-                    f"({schema_version_of(tier, old)!r}); bump schema_version (durable, with an "
-                    f"upcaster) or __semver__ (public)"
+                    f"({schema_version_of(tier, old)!r}); bump schema_version (durable, with current-format validation) or __semver__ (public)"
                 )
             else:
                 problems.append(

@@ -149,7 +149,7 @@ class Neo4jBuilder:
         executor = connector_executor(
             client, node_label=f"MemNode_{scope}", rel_type=f"MemRel_{scope}"
         )
-        service = Neo4jGraphStore(executor, scoped=True)
+        service = Neo4jGraphStore(executor)
 
         async def probe() -> bool:
             await service.node_count()

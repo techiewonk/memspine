@@ -17,7 +17,7 @@ from memspine.core.event_date import (
 from memspine.core.fact_chain import fact_projection_on, validate_assertions
 from memspine.core.policies.consolidation import ConsolidationPolicy
 from memspine.derive.pipeline.stages.context import DateFacts, PipelineContext, _policy_options
-from memspine.derive.pipeline.stages.session_stage import _legacy_tag_check, _run_session_stage
+from memspine.derive.pipeline.stages.session_stage import _run_session_stage
 from memspine.memories.episodic.sessions import topic_segments
 from memspine.models.encoders.query.temporal_resolve import WeekMode
 from memspine.observability.logging import get_logger
@@ -214,8 +214,7 @@ async def mine_facts(ctx: PipelineContext) -> dict[str, object]:
                 written += 1
         return written, errors
 
-    legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"mined:{key}" in r.tags)
-    stats = await _run_session_stage(ctx, "mine_facts", "facts", legacy, work)
+    stats = await _run_session_stage(ctx, "mine_facts", "facts", work)
     if getattr(options, "list_cards", False) and stats.get("status") != "skipped":
         # #30: the list cards follow the facts, every cycle (a forgotten fact
         # re-derives its card even when no new session was mined).
@@ -278,5 +277,4 @@ async def project_facts(ctx: PipelineContext) -> dict[str, object]:
                 written += 1
         return written, errors
 
-    legacy = _legacy_tag_check(ctx, "semantic", lambda r, key: f"projected:{key}" in r.tags)
-    return await _run_session_stage(ctx, "project_facts", "projected", legacy, work)
+    return await _run_session_stage(ctx, "project_facts", "projected", work)

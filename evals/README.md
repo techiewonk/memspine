@@ -1019,4 +1019,4 @@ default `--all-extras`).
 
 ## v2 screens: sample-first (RUNBOOK2)
 
-`MODE=sample|focus|final bash run_v2_queue.sh` (default sample): small seeded stratified slices (`make_sample_slice.py`, `analysis/sample_slice_*.json`), descriptive scoring (`eval_sample.py`, no verdict), append-only ledger `runs/_logs/v2_results.tsv` (`v2_ledger.py summary|history|mark`), and a final full + sealed-blind run only for screens marked `promote_candidate`. Workflow and GPU-time estimates: `docs/v2/SCREENS.md`.
+`MODE=sample|focus|final bash run_screen_queue.sh` (default sample): small seeded stratified slices (`make_sample_slice.py`, `analysis/sample_slice_*.json`), descriptive scoring (`eval_sample.py`, no verdict), append-only ledger `runs/_logs/screen_results.tsv` (`screen_ledger.py summary|history|mark`), and a final full + sealed-blind run only for screens marked `promote_candidate`. Workflow and GPU-time estimates: `docs/v2/SCREENS.md`.

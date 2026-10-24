@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any, Literal
+from typing import Literal
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field
 
 from memspine.config.schema.base import ConfigModel
-from memspine.exceptions import ConfigError
 
 
 class WriteConfig(ConfigModel):
@@ -56,7 +54,6 @@ class WriteConfig(ConfigModel):
     window_idle_s: float = Field(default=120.0, ge=0.0)
     #: ``auto``: split a window's call into facts+edges / episode after repeated parse failures;
     #: ``always`` / ``never``. Only matters when more than one section is enabled.
-    window_split: Literal["auto", "always", "never"] = "auto"
     #: True (live): window calls run in a background task after the write returns (idle
     #: debounced). False (batch / eval): they run only at ``Engine.flush_windows()``,
     #: ``close_session`` or ``sleep``. The result is identical; only the timing differs.
@@ -65,63 +62,35 @@ class WriteConfig(ConfigModel):
     #: the same history is free (needs the engine cache; in memory unless a durable one is set).
     window_cache: bool = True
 
-    #: W2-05 (LIB-14, W-11 "E + B"; needs ``window_extract``). ``True``: the window segmenter cuts
-    #: at a source-time gap (``segment_gap_s``) and a calendar-day change, and grows adaptively (a
-    #: window past ``window_max_turns`` keeps taking short turns until ``segment_grow_tokens`` or
-    #: ``segment_max_turns``; ``window_max_tokens`` always binds); closed windows of one namespace
-    #: wait until ``batch_max_tokens`` / ``batch_max_windows`` / ``batch_max_age_s`` and then share
-    #: ONE extraction call, each window a separately numbered block (grounding stays per window; an
-    #: item citing two windows is dropped). Episode sections still run per window. A crash loses
-    #: nothing (with ``workers.outbox`` the windows are durable rows, the batch is rebuilt).
-    #: Taps ``write.segment.*`` / ``write.batch.*``. ``False`` (default): the old segmenter and one
-    #: call per window, unchanged.
-    segmentation_v2: bool = False
-    #: Seconds of source-time silence that cut a window (0: no gap cut). Needs ``segmentation_v2``.
+    #: Seconds of source-time silence that cut a window (0: no gap cut). Needs ``segmentation``.
     segment_gap_s: float = Field(default=1800.0, ge=0.0)
-    #: Also cut when the source date changes (calendar day). Needs ``segmentation_v2``.
+    #: Also cut when the source date changes (calendar day). Needs ``segmentation``.
     segment_calendar_day_cut: bool = False
     #: A window past ``window_max_turns`` keeps growing until it holds this many tokens.
     segment_grow_tokens: int = Field(default=400, ge=1)
     #: Hard turn cap of a growing window (never below ``window_max_turns``).
     segment_max_turns: int = Field(default=24, ge=1, le=256)
-    #: Token budget of one batched call (estimated tokens). Needs ``segmentation_v2``.
+    #: Token budget of one batched call (estimated tokens). Needs ``segmentation``.
     batch_max_tokens: int = Field(default=3000, ge=64)
     #: Most windows in one call; 1 turns batching off.
     batch_max_windows: int = Field(default=8, ge=1, le=64)
     #: Longest a closed window waits for company before its batch goes out (seconds).
     batch_max_age_s: float = Field(default=30.0, ge=0.0)
 
-    #: W2-06a (LIB-05; W-14, W-15, P-05, P-06; needs ``window_extract`` with ``facts``). ``True``:
-    #: the ``facts`` section is extracted as ``ItemV1`` items (compact keys, each citing the
-    #: numbered lines it came from, content only) and every item is validated on its own and
-    #: compiled into a stored ``AssertionEnvelope`` (time axes from the turn stamping, provenance
-    #: class and trust from the cited line's role, evidence roles support / binding / context). An
-    #: invalid item (no citation, a line out of range, only CONTEXT lines cited, a reserved system
-    #: name such as ``trust`` or ``user_id``) is dropped and its siblings kept. At most ONE repair
-    #: re-ask per extraction call carries only the invalid items and their typed errors; an item
-    #: still invalid goes to the persisted dead-letter list (reason code, attempts, item hash; no
-    #: content unless the tap content opt-in is on). A new kind is accepted with a safe default
-    #: (stored as ``event``, never superseding) until 64 kinds exist, then it becomes ``other``.
-    #: Unknown fields are kept in the envelope extras. Taps ``write.item.valid`` /
-    #: ``write.item.repaired`` / ``write.item.dead``. The repair call goes through the LLM router,
-    #: so ``economy.ledger_v2`` counts it. ``edges`` / ``episode`` sections keep their own prompt.
-    #: ``False`` (default): the old fact section.
-    envelope_v2: bool = False
-
-    #: W2-14 (LIB-01; W-04, M-10, R-07; needs ``envelope_v2``): temporal anchoring as an envelope stage
+    #: W2-14 (LIB-01; W-04, M-10, R-07; needs ``envelope``): temporal anchoring as an envelope stage
     #: (order 100). For each envelope it fills the event interval with its precision and basis by the
     #: anchor ladder: (1) an explicit date in the model's time text, the cited span or the assertion
     #: text, (2) a relative phrase ("last Tuesday", "letzte Woche", "il y a trois jours", "hace dos
-    #: semanas") resolved against the cited turn's ``source_at`` (``stamping_v2``), else the window's
-    #: nearest stamped turn, (3) with ``stamping_v2`` off only, the window ``valid_from`` as an
+    #: semanas") resolved against the cited turn's ``source_at`` (``stamping``), else the window's
+    #: nearest stamped turn, (3) with ``stamping`` off only, the window ``valid_from`` as an
     #: approximate, ``inferred`` session anchor, (4) else unknown (never "now"). Precision is never
     #: finer than the evidence ("in 2019" is year precision, never a made-up day). ``before`` /
     #: ``after`` / ``during`` / ``since`` / ``until`` between two assertions of the window ("the week
     #: before her trip") are written as a typed relation with no date. The deposited ``happened:`` label
     #: carries the written precision. ``False`` (default): the model's time text is kept as text only.
-    temporal_v2: bool = False
+    temporal: bool = False
 
-    #: W2-10 (LIB-02; W-21, W-22, M-12). ``True`` (needs ``write.envelope_v2``): an envelope stage at
+    #: W2-10 (LIB-02; W-21, W-22, M-12). ``True`` (needs ``write.envelope``): an envelope stage at
     #: order 400 finds the live assertions on each state envelope's (subject, attribute) key (W2-09's
     #: resolved entity id when present, else the normalised name) and decides the integration operator
     #: through the conflict ladder: cardinality, then trust tier (the default is above low and an equal
@@ -130,20 +99,20 @@ class WriteConfig(ConfigModel):
     #: rung and hint) rides the envelope and the deposit applies it: supersede retires the old value as
     #: history, coexist and contest keep both (a contest is tagged ``disputed``). An undeclared
     #: attribute with a conflicting live value and no hint that the value changed is deferred to K_C
-    #: (``offline.reconcile_v2``) and counted (``integrate_defer_kc``). Events and unkeyed facts coexist.
+    #: (``offline.reconcile``) and counted (``integrate_defer_kc``). Events and unkeyed facts coexist.
     #: Taps ``write.integrate.*``. ``False`` (default): the old write door decides alone, unchanged.
-    integration_v2: bool = False
+    integration: bool = False
 
-    #: W2-10: operator-declared attribute cardinality for ``write.integration_v2``, attribute name ->
+    #: W2-10: operator-declared attribute cardinality for ``write.integration``, attribute name ->
     #: ``one`` (single-valued: a newer value supersedes) or ``many`` (values coexist). An attribute
     #: not listed is undeclared (M-12 / W-22: coexist, or deferred to K_C when nothing says it changed).
     integration_cardinality: dict[str, Literal["one", "many"]] = Field(default_factory=dict)
 
-    #: W2-10: with ``write.integration_v2``, an undeclared key's unhinted conflict is deferred to K_C
+    #: W2-10: with ``write.integration``, an undeclared key's unhinted conflict is deferred to K_C
     #: (``False``, default); ``True`` lets the ladder decide it at once (undeclared means many: coexist).
     integration_decide_unhinted: bool = False
 
-    #: W2-08 (W-17, W-08; LIB-03): grounding stage over the compiled envelopes (needs ``envelope_v2``;
+    #: W2-08 (W-17, W-08; LIB-03): grounding stage over the compiled envelopes (needs ``envelope``;
     #: envelope-stage order 200). Per assertion it locates the supporting span in the cited lines and
     #: writes the offsets onto the evidence, runs the rule checks (cited turns exist; number, unit,
     #: date and name appear in the span; negation and modality preserved; the speaker matches the
@@ -152,7 +121,7 @@ class WriteConfig(ConfigModel):
     #: assertion is dropped or marked tentative (``ground_action``) with a reason code counted in the
     #: window stats (``ground.dropped.<code>``). Taps ``write.ground.*``. ``False`` (default): the
     #: compiled envelopes are deposited as they are.
-    grounding_v2: bool = False
+    grounding: bool = False
     #: W2-08: what happens to an assertion the checks find unsupported or only partly supported:
     #: ``drop`` it, or keep it ``tentative`` (never promoted, never superseding).
     ground_action: Literal["drop", "tentative"] = "drop"
@@ -162,7 +131,7 @@ class WriteConfig(ConfigModel):
     #: when it is unsure or unavailable. ``off``: stays ``uncertain`` (kept).
     ground_adjudicator: Literal["lexical", "decider", "off"] = "lexical"
 
-    #: W2-15 (W-17, W-15; LIB-17): coverage check and ONE targeted re-extraction (needs ``envelope_v2``;
+    #: W2-15 (W-17, W-15; LIB-17): coverage check and ONE targeted re-extraction (needs ``envelope``;
     #: envelope-stage order 250, after grounding). Coverage is the share of the window's informative
     #: lines (greetings / filler, and system / echo turns per the W2-03 tags, excluded) cited as
     #: support by at least one kept assertion. Below ``coverage_threshold`` with an uncited
@@ -171,33 +140,21 @@ class WriteConfig(ConfigModel):
     #: through the earlier stages again, and an item is added only if it comes out grounded. The call
     #: is counted in the cost ledger (stage ``coverage_reextract``) and in the window notes
     #: (``coverage.*``). ``False`` (default): unchanged.
-    coverage_v2: bool = False
-    #: W2-15: re-extract when coverage is below this share (0..1). Needs ``coverage_v2``.
+    coverage: bool = False
+    #: W2-15: re-extract when coverage is below this share (0..1). Needs ``coverage``.
     coverage_threshold: float = Field(default=0.8, ge=0.0, le=1.0)
-    #: W2-15: most uncited lines sent in the one targeted call. Needs ``coverage_v2``.
+    #: W2-15: most uncited lines sent in the one targeted call. Needs ``coverage``.
     coverage_max_targets: int = Field(default=6, ge=1)
-    #: W2-15: neighbouring lines shown as CONTEXT on each side of the targets. Needs ``coverage_v2``.
+    #: W2-15: neighbouring lines shown as CONTEXT on each side of the targets. Needs ``coverage``.
     coverage_context_lines: int = Field(default=2, ge=0)
 
-    #: W2-06b (LIB-05; W-16, P-04, P-09, P-11, G-W49; needs ``envelope_v2``). ``True``: ONE model call
-    #: per window (or per batch of windows) fills every requested section (facts, edges, episode)
-    #: under one schema, instead of the facts call plus a second call for edges / episode. The prompt
-    #: has three parts: NEW (the numbered lines to extract from), CONTEXT (the last turns of the
-    #: previous window, to resolve pronouns; never cited) and KNOWN (entities already in the store
-    #: with their aliases, rendered compactly, capped and deduplicated; hooks for the P-23 pre-pass
-    #: and the online resolver). The JSON schema is passed as ``response_format`` to providers that
-    #: declare support (OpenAI-compatible, Ollama, llama.cpp), per provider, never required; any
-    #: other provider is answered by the W2-06a validator plus its one repair. The same-language and
-    #: coarse-date partials still apply. Taps ``write.prompt.v2`` (sections, known_count,
-    #: schema_mode). ``False`` (default): unchanged.
-    prompt_v2: bool = False
     #: W2-06b: most KNOWN entities listed in one prompt (after dedup; entities named in the NEW lines
-    #: first). Needs ``prompt_v2``.
+    #: first). Needs ``prompt``.
     prompt_known_cap: int = Field(default=40, ge=0)
-    #: W2-06b: turns of the previous window shown as CONTEXT. Needs ``prompt_v2``. ``0``: no CONTEXT.
+    #: W2-06b: turns of the previous window shown as CONTEXT. Needs ``prompt``. ``0``: no CONTEXT.
     prompt_context_turns: int = Field(default=3, ge=0)
     #: W2-06b: ``auto`` passes the JSON schema to providers that support it; ``off`` never does.
-    #: Needs ``prompt_v2``.
+    #: Needs ``prompt``.
     prompt_schema: Literal["auto", "off"] = "auto"
 
     #: W2-06c (W-12): ``derive.OnlineExtractor`` is the single named entry for online extraction
@@ -206,7 +163,7 @@ class WriteConfig(ConfigModel):
     #: (``envelope_stages``), and a window mode with no LLM role configured (the no-model ``core``
     #: template) skips extraction with a warning instead of failing at start, so ingestion makes zero
     #: model calls. ``False`` (default): the stats are unchanged and that start fails (D-10).
-    online_extractor_v2: bool = False
+    online_extractor: bool = False
 
     #: W2-13 (P-23; needs ``window_extract``). A small local pre-pass over each window's raw turns,
     #: as hints, before the extraction call. ``rules``: a regex baseline (capitalised names, dates,
@@ -215,12 +172,12 @@ class WriteConfig(ConfigModel):
     #: lines for the KNOWN / NEW prompt context (``derive.prepass.prepass_hints``), (2) a window whose
     #: every turn is greeting / thanks / acknowledgement filler and in which nothing was seen skips
     #: the extraction call (not when the ``episode`` section is on; counted as
-    #: ``windows_prepass_skipped``), (3) with ``envelope_v2`` an order-500 stage flags envelopes whose
+    #: ``windows_prepass_skipped``), (3) with ``envelope`` an order-500 stage flags envelopes whose
     #: proper-name entity the pre-pass never saw (``extras.prepass_unseen``); it never adds or drops
     #: a fact. Tap ``write.prepass.*``. ``off`` (default): unchanged.
     prepass: Literal["off", "rules", "gliner"] = "off"
 
-    #: FU-GAPS (needs ``write.envelope_v2``): persist the in-memory learned registries as MARKER
+    #: FU-GAPS (needs ``write.envelope``): persist the in-memory learned registries as MARKER
     #: events and reload them at start, so a restart does not forget them: the W2-06a open kind set
     #: (kinds the model coined, up to the cap) and, with ``write.prepass``, the W2-13 learned
     #: aliases. Markers ``learned.kind`` and ``learned.alias``. ``False`` (default): the registries
@@ -259,12 +216,11 @@ class WriteConfig(ConfigModel):
     #: through the canonical intake gateway. The event interval and its precision
     #: are filled at derivation, not here. Taps ``write.stamp.*``. ``False`` (default):
     #: turns are stamped as before.
-    stamping_v2: bool = False
-    #: W2-02 (W-05): with ``stamping_v2``, also write the v1 ``participant:<name>`` tags
+    stamping: bool = False
+    #: W2-02 (W-05): with ``stamping``, also write the v1 ``participant:<name>`` tags
     #: (``v1``, kept for the dual-read period; ``none`` writes only the typed column). They
     #: feed the ``viewer`` read filter, so a deployment that reads with ``viewer=`` may set
     #: ``none`` and rely on the typed column.
-    stamp_participant_tags: Literal["v1", "none"] = "v1"
     #: W2-02 (W-04): the zone a naive source time with no declared zone is read in (as wall
     #: clock; the record is still flagged ``unknown``). ``None``: ``read.naive_timezone``.
     stamp_default_tz: str | None = None
@@ -281,8 +237,8 @@ class WriteConfig(ConfigModel):
     #: skill / plan) is also written as a typed record with the raw turn as its parent; unkeyed
     #: turns stay raw. Taps ``write.role.*``, ``write.echo.*``, ``write.route.*``. ``False``
     #: (default): unchanged.
-    role_policy_v2: bool = False
-    #: W2-03: with ``role_policy_v2``, the shingle overlap (max of Jaccard and containment of the
+    role_policy: bool = False
+    #: W2-03: with ``role_policy``, the shingle overlap (max of Jaccard and containment of the
     #: memory in the turn) at or above which a turn counts as an echo of a memory the last read
     #: returned.
     echo_threshold: float = Field(default=0.6, gt=0.0, le=1.0)
@@ -314,21 +270,11 @@ class WriteConfig(ConfigModel):
     #: kept for comparability with screen S69.
     index_view_carry: Literal["anaphoric", "elliptical"] = "anaphoric"
 
-    #: O4-11 (LIB-44, O-25): explicit feedback only. ``True``: ``Engine.feedback`` refuses any
-    #: channel that is not a deliberate one (``user_message``, ``ui_control``, ``operator_edit``,
-    #: ``api``; silence, dwell, regeneration and classifier signals are refused), checks who may
-    #: give it (the memory owner, or a name in ``feedback_operators`` for corrections,
-    #: rejections and ratings; an agent never), and adds the kinds ``correction`` /
-    #: ``rejection`` / ``confirmation`` (each becomes a bound assertion that goes through the
-    #: write door and the conflict ladder, never an edit of the record) and ``rating`` (logged,
-    #: no assertion). Also enables ``Engine.correction_latency``. ``False`` (default): the
-    #: like / dislike / note verb exactly as before.
-    feedback_v2: bool = False
-    #: O4-11: principals allowed to give operator feedback under ``feedback_v2`` (never a
+    #: O4-11: principals allowed to give operator feedback under ``feedback`` (never a
     #: confirmation).
     feedback_operators: list[str] = Field(default_factory=list)
 
-    #: W2-09 (LIB-04; W-19, M-15; needs ``write.envelope_v2``): online entity resolution, an envelope
+    #: W2-09 (LIB-04; W-19, M-15; needs ``write.envelope``): online entity resolution, an envelope
     #: stage (order 300). ``True``: the subject and object of every compiled assertion are resolved
     #: against the entities of their own scope (tenant + owner), with no model call: exact name, alias,
     #: nickname and spelling rules first, then name-embedding similarity. At or above
@@ -339,9 +285,9 @@ class WriteConfig(ConfigModel):
     #: apart. Entities, merges and splits are logged as ``memory.marker`` events (``entity.*``), so a
     #: replay through migrate rebuilds them and a merge is undone by one SPLIT. The resolved ids are
     #: on ``subject.entity_id`` / ``object.entity_id`` and ``extras["resolve"]`` for W2-10. Keys are
-    #: tenant + owner with ``isolation.scope_keys_v2``, the namespace otherwise. Taps
+    #: tenant + owner with ``isolation.scope_keys``, the namespace otherwise. Taps
     #: ``write.resolve.*``. ``False`` (default): no resolution, mentions keep ``entity_id=None``.
-    resolver_v2: bool = False
+    resolver: bool = False
     #: W2-09: embedding cosine at or above which a mention is the same entity (calibrated on the
     #: synthetic homonym/alias set in ``derive/resolve_calibration.py``).
     resolve_high: float = Field(default=0.9, gt=0.0, le=1.0)
@@ -369,23 +315,6 @@ class IngestConfig(ConfigModel):
         default_factory=lambda: ["image/jpeg", "image/png", "image/gif", "image/webp"]
     )
     #: The vision model that describes an asset is ``model.vision`` (ADR-082).
-
-    @model_validator(mode="before")
-    @classmethod
-    def _reject_moved(cls, value: Any) -> Any:
-        """ADR-082: ``asset_vision*`` moved to ``model.vision``. RM-113 item 18 (ADR-081):
-        ``asset_dir`` is gone (no alias, ADR-068)."""
-        from memspine.config.schema.model import MOVED_INGEST_KEYS, reject_model_moved_keys
-
-        reject_model_moved_keys(value, "ingest", MOVED_INGEST_KEYS)
-        if isinstance(value, Mapping) and "asset_dir" in value:
-            raise ConfigError(
-                "config key 'ingest.asset_dir' was removed (ADR-081, RM-113 item 18): the asset "
-                "registry is a table of storage.records and downloaded bytes go to "
-                "storage.documents; import an existing directory once with "
-                "Engine.import_asset_dir(path)"
-            )
-        return value
 
 
 class DataShapeConfig(ConfigModel):

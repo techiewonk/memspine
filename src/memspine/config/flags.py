@@ -53,6 +53,8 @@ PRE_G22_UNKNOWN: frozenset[str] = frozenset(
 )
 
 FLAG_EVIDENCE: dict[str, dict[str, str]] = {
+    "OfflineConfig.decay": {"evidence": "Owner 2026-10-24; ADR-086 latest base decay"},
+    "OfflineConfig.communities": {"evidence": "Owner 2026-10-24; ADR-086 latest base communities"},
     # --- read ---
     "ReadConfig.hybrid": {
         "evidence": "commit 011ef4a (v0.2 A3 default-on flip); ADR-019",

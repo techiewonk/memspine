@@ -1,14 +1,4 @@
-"""The asset registry as tables of the records database (RM-113 item 18, ADR-081).
-
-Before item 18 the registry was a raw-``sqlite3`` sidecar (``registry.sqlite`` under
-``ingest.asset_dir``) that bypassed SQLCipher and was private to one host. Now its rows are the
-``asset_registry`` table of the storage database itself, reached through the storage's async
-engine: encrypted with it on SQLite/SQLCipher, shared on Postgres. Alembic creates the table
-(revision ``rm113_asset_registry`` / ``pg_rm113_asset_registry``); :meth:`SqlAssetRegistry.ensure`
-creates it when missing for a database brought up by ``create_all`` (``:memory:``), under an
-advisory lock on Postgres. The one-time import digest goes to ``side_file_imports`` (kind
-``assets``), the WP5 import table.
-"""
+"""Asset registry stored in the authoritative records database."""
 
 from __future__ import annotations
 
@@ -37,14 +27,11 @@ from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 from memspine.services.assets.models import AssetEntry
 
 __all__ = [
-    "ASSET_IMPORT_KIND",
     "SqlAssetRegistry",
     "asset_metadata",
     "asset_registry_table",
 ]
 
-#: ``side_file_imports.kind`` of a legacy asset directory import.
-ASSET_IMPORT_KIND = "assets"
 #: Advisory-lock key of the table creation on Postgres (the side-table key, RM-111 WP5).
 _ADVISORY_KEY = 0x4D535053
 _LOCK_SQL = f"SELECT pg_advisory_xact_lock({_ADVISORY_KEY})"
@@ -74,18 +61,6 @@ asset_registry_table = Table(
     Index("asset_registry_hash", "namespace", "content_hash"),
     Index("asset_registry_record", "namespace", "record_id"),
 )
-#: The WP5 import record (same columns as ``memspine.store.side_tables.side_file_imports``);
-#: declared here so a ``create_all`` database gets it too.
-_imports = Table(
-    "side_file_imports",
-    asset_metadata,
-    Column("kind", Text, primary_key=True),
-    Column("digest", Text, primary_key=True),
-    Column("source", Text, nullable=False),
-    Column("rows", Integer, nullable=False),
-    Column("imported_at", Float, nullable=False),
-)
-
 _FIELDS = (
     "asset_id",
     "source_turn_id",
@@ -264,38 +239,6 @@ class SqlAssetRegistry:
             if gone:
                 await con.execute(delete(asset_registry_table).where(t.namespace == namespace))
         return gone
-
-    async def import_rows(
-        self, entries: Sequence[AssetEntry], *, digest: str, source: str
-    ) -> int | None:
-        await self.ensure()
-        i = _imports.c
-        async with self._engine.begin() as con:
-            if self._pg:  # one importer at a time (the BEGIN IMMEDIATE counterpart)
-                await con.exec_driver_sql(_LOCK_SQL)
-            seen = (
-                await con.execute(
-                    select(i.rows).where(i.kind == ASSET_IMPORT_KIND, i.digest == digest)
-                )
-            ).first()
-            if seen is not None:
-                return None
-            rows = 0
-            for entry in entries:  # existing rows win (what the database has is newer)
-                result = await con.execute(
-                    self._insert(self._row(entry)).on_conflict_do_nothing(index_elements=list(_PK))
-                )
-                rows += int(result.rowcount or 0)
-            await con.execute(
-                _imports.insert().values(
-                    kind=ASSET_IMPORT_KIND,
-                    digest=digest,
-                    source=source,
-                    rows=rows,
-                    imported_at=float(self._clock()),
-                )
-            )
-        return rows
 
     async def close(self) -> None:
         return None  # the engine is borrowed: the storage owns it

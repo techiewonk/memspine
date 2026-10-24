@@ -1,31 +1,12 @@
-"""Ingest speed-ups must not change what ``ingest_messages`` produces.
+"""Current base ingest contract across templates and memory/file stores.
 
-The same 60 LoCoMo-like turns (3 sessions x 20, one ``ingest_messages`` call per
-session) are ingested on the ``base`` and ``core`` templates, on an in-memory
-and on a file-backed store. The records (content, status, trust and the rest),
-the event log, and the results of five searches are compared against a fixture
-generated from the code before the ingest optimisations.
+The same 60 source-identified turns are ingested across three sessions on the
+base/core templates and memory/file stores. Complete canonical records, event
+payloads, source identities and search results are checked against the current
+first-cycle snapshot. Random UUIDs and wall-clock times are normalized; equal
+lexical scores use a stable indexing-order tie break.
 
-Record and event ids are random, so they are replaced by ordinals in order of
-first appearance in the log; wall-clock timestamps (anything not in 2023, the
-turns' own year) are replaced by a placeholder. Floats are compared with a
-relative tolerance of 1e-9, except search scores (see ``_clusters``).
-
-Tantivy breaks BM25 ties by segment order, which varies from run to run even
-on unchanged code (its segments merge in the background), so the hybrid
-search would not repeat itself. ``_stable_lexical_ties`` makes the lexical leg
-break ties by indexing order for the whole observation, in the reference run
-as in the checked one.
-
-The fixture was regenerated on 2026-10-16 from the 2.0 code (restructure + layer contract): the
-diff to the 2026-10-05 fixture was only five added record fields (source_at, source_precision,
-event_basis, event_precision from stamping v2; layer from MF-05) and lower-rank order moves in
-two searches with the same result sets and the same top six. The current test supplies stable
-message/conversation IDs and checks those identities separately; its legacy projection drops only
-the new identity envelope and operational identity tags before comparing the unchanged golden.
-
-Regenerate the fixture (only from code whose behaviour is the reference) with
-``python tests/integration/test_ingest_equivalence.py --regen``.
+Regenerate with ``python tests/integration/test_ingest_equivalence.py --regen``.
 """
 
 from __future__ import annotations
@@ -94,6 +75,7 @@ QUERIES = (
 )
 
 _UUID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+_WRITE_ID = re.compile(r"\bw_[0-9a-f]{32}\b")
 _ISO = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
 _VOLATILE_EVENT_KEYS = ("event_id", "ts", "fingerprint")
 
@@ -139,7 +121,8 @@ class _Normaliser:
         if isinstance(value, str):
             if _ISO.match(value) and not value.startswith("2023-"):
                 return "<now>"
-            return _UUID.sub(lambda m: self.id(m.group(0)), value)
+            value = _UUID.sub(lambda m: self.id(m.group(0)), value)
+            return _WRITE_ID.sub(lambda m: self.id(m.group(0)), value)
         return value
 
 
@@ -293,28 +276,6 @@ def _assert_same(got: Any, want: Any, path: str = "$") -> None:
         assert got == want, f"{path}: {got!r} != {want!r}"
 
 
-def _legacy_observation(value: Any) -> Any:
-    """Drop only the intentionally new public identity envelope/tags for the old golden."""
-    if isinstance(value, dict):
-        out = {}
-        for key, item in value.items():
-            if key == "message" and isinstance(item, dict) and "message_id" in item:
-                continue
-            if key == "tags" and isinstance(item, list):
-                item = [
-                    tag
-                    for tag in item
-                    if not tag.startswith(
-                        ("message_id:", "session_id:", "conversation_id:", "idem:")
-                    )
-                ]
-            out[key] = _legacy_observation(item)
-        return out
-    if isinstance(value, list | tuple):
-        return [_legacy_observation(item) for item in value]
-    return value
-
-
 def _expected_identities() -> list[dict[str, str]]:
     return sorted(
         (
@@ -331,15 +292,14 @@ def _expected_identities() -> list[dict[str, str]]:
 
 
 @pytest.mark.parametrize("variant", ["base:memory", "base:file", "core:memory", "core:file"])
-def test_ingest_messages_matches_pre_optimisation_fixture(variant: str, tmp_path: Path) -> None:
+def test_ingest_messages_matches_current_base_snapshot(variant: str, tmp_path: Path) -> None:
     template, store = variant.split(":")
     path = ":memory:" if store == "memory" else str(tmp_path / f"{template}.db")
     got = asyncio.run(_observe(template, path))
-    identities = got.pop("identities")
-    assert identities == _expected_identities()
+    assert got["identities"] == _expected_identities()
     want = json.loads(FIXTURE.read_text(encoding="utf-8"))[variant]
     assert len(got["records"]) == 60
-    _assert_same(_legacy_observation(got), want)
+    _assert_same(got, want)
 
 
 if __name__ == "__main__":  # pragma: no cover - fixture regeneration
@@ -349,12 +309,7 @@ if __name__ == "__main__":  # pragma: no cover - fixture regeneration
         raise SystemExit("usage: python test_ingest_equivalence.py --regen")
     with tempfile.TemporaryDirectory() as tmp:
         observations = _observe_all(Path(tmp))
-    data = {
-        variant: _legacy_observation(
-            {key: value for key, value in observation.items() if key != "identities"}
-        )
-        for variant, observation in observations.items()
-    }
+    data = observations
     FIXTURE.parent.mkdir(parents=True, exist_ok=True)
     FIXTURE.write_text(json.dumps(data, indent=1, sort_keys=True) + "\n", encoding="utf-8")
     print(f"wrote {FIXTURE}")

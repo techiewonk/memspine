@@ -137,7 +137,7 @@ class StudioAPI:
         self.logs_dir = (
             Path(logs_dir)
             if logs_dir
-            else Path(os.environ.get("V2_LEDGER_DIR") or EVALS / "runs" / "_logs")
+            else Path(os.environ.get("SCREEN_LEDGER_DIR") or EVALS / "runs" / "_logs")
         )
         self.launcher = launcher
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -1893,19 +1893,19 @@ class StudioAPI:
             return refuse(f"arm {arm!r} not exported: call studio_export_arm first ({arm_file})")
         if not screen:
             return refuse(
-                "screen (a queue row id or batch in evals/v2_queue.tsv, e.g. S01 or B1) is required: the queue runs screens, not bare arms; "
+                "screen (a queue row id or batch in evals/screen_queue.tsv, e.g. S01 or B1) is required: the queue runs screens, not bare arms; "
                 f"add a row for {arm_file.stem} and pass its id"
             )
         if not re.fullmatch(r"[A-Za-z0-9_,.-]+", screen):
             return refuse("screen has unexpected characters")
         est = None
-        q = EVALS / "v2_queue.tsv"
+        q = EVALS / "screen_queue.tsv"
         if q.is_file():
             for line in q.read_text(encoding="utf-8").splitlines():
                 cols = line.split("\t")
                 if cols and cols[0] == screen and len(cols) > 9 and cols[9].isdigit():
                     est = int(cols[9])
-        cmd = ["bash", str(EVALS / "run_v2_batch.sh"), screen, mode]
+        cmd = ["bash", str(EVALS / "run_screen_batch.sh"), screen, mode]
         if self.launcher is not None:
             self.launcher(cmd)
         else:
@@ -1945,7 +1945,7 @@ class StudioAPI:
         if logs:
             tail = logs[-1].read_text(encoding="utf-8", errors="replace").splitlines()[-40:]
         rows: list[dict[str, Any]] = []
-        res = self.logs_dir / "v2_results.tsv"
+        res = self.logs_dir / "screen_results.tsv"
         if res.is_file():
             with res.open(encoding="utf-8", newline="") as fh:
                 rows = list(csv.DictReader(fh, delimiter="\t"))[-10:]

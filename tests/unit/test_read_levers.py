@@ -162,25 +162,12 @@ async def _read(eng: Engine) -> list[str]:
     return [r.content for r in out.context.records]
 
 
-async def test_planner_v1_ignores_lookup_subqueries(monkeypatch: pytest.MonkeyPatch) -> None:
-    stub = _Plan(LOOKUP)
-    eng = _planned(monkeypatch, stub)
-    await eng.start()
-    try:
-        await _seed_pets(eng)
-        contents = await _read(eng)
-        assert not any("kitten" in c for c in contents)
-        assert "evidence itself would likely use" not in stub.systems[0]
-    finally:
-        await eng.stop()
-
-
 @pytest.mark.parametrize("hybrid", [False, True])
-async def test_planner_v2_fuses_lookup_subqueries(
+async def test_base_planner_fuses_lookup_subqueries(
     monkeypatch: pytest.MonkeyPatch, hybrid: bool
 ) -> None:
     stub = _Plan(LOOKUP)
-    eng = _planned(monkeypatch, stub, planner_version="v2", hybrid=hybrid)
+    eng = _planned(monkeypatch, stub, hybrid=hybrid)
     await eng.start()
     try:
         await _seed_pets(eng)
@@ -192,28 +179,14 @@ async def test_planner_v2_fuses_lookup_subqueries(
         await eng.stop()
 
 
-async def test_planner_v2_without_subqueries_matches_v1(monkeypatch: pytest.MonkeyPatch) -> None:
-    reply = "mode: lookup\ntemporal: false\nentities: [Ana]\nsubqueries: []"
-    outputs = []
-    for version in ("v1", "v2"):
-        eng = _planned(monkeypatch, _Plan(reply), planner_version=version)
-        await eng.start()
-        try:
-            await _seed_pets(eng)
-            outputs.append(await _read(eng))
-        finally:
-            await eng.stop()
-    assert outputs[0] == outputs[1]
-
-
-def test_plan_v2_prompt_is_a_variant() -> None:
+def test_base_plan_prompt_includes_latest_structured_fields() -> None:
     from memspine.prompts.registry import PromptRegistry
 
     registry = PromptRegistry()
     assert registry.select("plan").id == "plan"
-    v2 = registry.select("plan", condition="v2")
-    assert (v2.id, v2.version) == ("plan@v2", 3)
-    system = v2.render({"query": "Is Ilse sporty?"})[0]["content"]
+    prompt = registry.select("plan")
+    assert prompt.id == "plan"
+    system = prompt.render({"query": "Is Ilse sporty?"})[0]["content"]
     assert "For lookup and replay, write one or two short subqueries" in system
     assert "Ben fencing" in system
 

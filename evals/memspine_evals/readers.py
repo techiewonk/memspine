@@ -21,11 +21,6 @@ from memspine.core.language import english_only
 
 from . import trace_full
 from .contracts import ReaderAnswer
-from .legacy_prompts import (
-    GROUNDED_DETAIL_LEGACY_QA_PROMPT,
-    GROUNDED_LEGACY_QA_PROMPT,
-    without_example_dates,
-)
 from .timing import extract_server_timing
 from .tokens import HeuristicTokenCounter, TokenCounter
 from .vendor_judges import EVERMEMOS_COT_QA_PROMPT
@@ -38,7 +33,7 @@ DEFAULT_QA_PROMPT = (
 
 #: H12: date-aware QA prompt. Context lines carry their dates; the reader is told
 #: to compute relative times from the line's own date and to answer briefly.
-DATED_QA_PROMPT = (
+_DATED_TEMPLATE = (
     "Answer the question using only the context below. Each line starts with the date it "
     'was said, and phrases like "last Friday [= Fri 2021-03-12]" show the absolute date. '
     "When a question asks when something happened, give the date it happened, computed from "
@@ -51,7 +46,7 @@ DATED_QA_PROMPT = (
 #: extra call: use world knowledge to interpret what the context states (open-domain
 #: questions), the latest statement of a changed fact wins, and keep people's names apart.
 #: Prompt arms lost before (L4), so this is measured only in a paid QA screen (U6).
-DATED_WORLD_QA_PROMPT = DATED_QA_PROMPT.replace(
+DATED_WORLD_QA_PROMPT = _DATED_TEMPLATE.replace(
     "Answer in one short sentence.",
     "Use general world knowledge to interpret what the context states (for example, a "
     "named park tells you the state it is in), but do not invent facts about the people. "
@@ -62,7 +57,7 @@ DATED_WORLD_QA_PROMPT = DATED_QA_PROMPT.replace(
 
 #: H7: abstention-aware variant for adversarial questions (LoCoMo cat 5): answer only
 #: what the context states about the person asked about.
-ABSTAIN_QA_PROMPT = DATED_QA_PROMPT.replace(
+ABSTAIN_QA_PROMPT = _DATED_TEMPLATE.replace(
     "If the context does not contain the answer, say you do not know.",
     "Answer only what the context states about the person the question names; if the "
     'context attributes it to someone else, or does not state it, reply "Not mentioned".',
@@ -89,7 +84,7 @@ MAB_FC_QA_PROMPT = (
 #: R3-6: the dated prompt plus the date the question is asked. LongMemEval questions carry a
 #: ``question_date`` and are relative to it ("how many weeks ago..."); without it the reader
 #: has no anchor. The runner passes the date; "unknown" when the dataset has none.
-QUESTION_DATED_QA_PROMPT = DATED_QA_PROMPT.replace(
+QUESTION_DATED_QA_PROMPT = _DATED_TEMPLATE.replace(
     "Context:\n{context}\n\nQuestion: {question}\nAnswer:",
     "Context:\n{context}\n\nThe question is asked on {question_date}.\n"
     "Question: {question}\nAnswer:",
@@ -104,29 +99,21 @@ INFER_RULE = (
     "because ...'); say you do not know only when nothing in the context bears on it. "
     "Otherwise, if the context does not contain the answer, say you do not know."
 )
-DATED_INFER_QA_PROMPT = DATED_QA_PROMPT.replace(
+DATED_INFER_QA_PROMPT = _DATED_TEMPLATE.replace(
     "If the context does not contain the answer, say you do not know.", INFER_RULE
 )
 
 #: G12: the dated prompt plus a said-vs-happened rule. In 10 of combo-A's 29 wrong
 #: absolute dates the reader answered with the date the event was mentioned (the line's
 #: session date), not the date it happened.
-SAID_HAPPENED_RULE = (
-    "A line's leading [YYYY-MM-DD] is when it was said; a bracketed [= ...] after a "
-    'relative phrase is the resolved date the event happened. For "when did X happen", '
-    "answer with the happened date (the [= ...] value when present), not the date it was "
-    "said."
-)
-DATED2_QA_PROMPT = DATED_QA_PROMPT.replace(
-    "Answer in one short sentence.", f"{SAID_HAPPENED_RULE} Answer in one short sentence."
-)
+
 
 #: #34 (SM-13): brief reasoning, then a final "Answer:" line the reader keeps
-#: (:func:`final_answer`). Mirrors the engine's ``chat@dated3``: quote the specific detail
+#: (:func:`final_answer`). Mirrors the engine's ``chat@dated``: quote the specific detail
 #: (48 of combo-A's cat-4 wrong answers paraphrased a gold phrase), dates in the granularity
 #: asked, said vs happened (#29), merge repeated mentions before counting (#60), and no
 #: blanket refusal clause ("Not mentioned" only when nothing bears on the question).
-DATED3_QA_PROMPT = (
+DATED_QA_PROMPT = (
     "Answer the question using only the context below. Each line starts with the date it "
     'was said, and phrases like "last Friday [= Fri 2021-03-12]" show the absolute date. '
     "A date in brackets is when it was said; the event may be earlier. A bracketed [= ...] "
@@ -149,9 +136,9 @@ DATED3_QA_PROMPT = (
 #: the ``[= date]`` annotations, asks for the best-supported short answer, and keeps "not
 #: mentioned" for questions nothing in the memories bears on (the default prompt's blanket
 #: "say you do not know" drew 92 of 182 refusals with the gold evidence in context).
-#: Clean grounded prompt: the legacy text with placeholders where the example dates were (the
-#: legacy prompt quoted a LoCoMo gold answer; see ``legacy_prompts.py`` and the CHANGELOG).
-GROUNDED_QA_PROMPT = without_example_dates(GROUNDED_LEGACY_QA_PROMPT)
+#: Clean grounded templates use symbolic dates. Historical contaminated examples are excluded
+#: from the active prompt registry.
+_GROUNDED_TEMPLATE = 'Answer the question from the memories below. Each memory is one line: [YYYY-MM-DD] is the date it was said, and a bracket like "last Saturday [= <resolved date>]" gives the absolute date of that relative phrase. Resolve other relative times (yesterday, last week, two days ago) against the date of the line they appear in, not today\'s date. Give a short, direct answer. Give the best-supported answer from the memories, even if it is indirect; say it is not mentioned only when nothing in the memories bears on the question. When a date is asked, answer in the wording the memories use (for example "the week before <the line\'s date>", or only the year when a year is asked), at the precision asked.\n\nMemories:\n{context}\n\nQuestion: {question}\nAnswer:'
 
 
 #: I3: a prompt for any memory benchmark (no dataset wording). Answers from the memories, treats
@@ -230,7 +217,7 @@ assert PREFERENCE_CLAUSE in GROUNDED_GENERIC_PREFS_QA_PROMPT
 #: "we did it yesterday"), photo captions as evidence, and yes/no inference questions answered
 #: with general knowledge. Keeps the short answer (``grounded_detail``'s longer answers broke
 #: single-hop questions).
-GROUNDED_V2_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
+_GROUNDED_ORDERED_TEMPLATE = _GROUNDED_TEMPLATE.replace(
     "Give a short, direct answer. ",
     'A memory may refer back to something said earlier ("that book you recommended", "we '
     'did it yesterday", a photo): find the earlier line it refers to and use its details. '
@@ -239,12 +226,12 @@ GROUNDED_V2_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
     "memories show together with general knowledge, then give the reason in a few words. "
     "Give a short, direct answer. ",
 )
-assert GROUNDED_V2_QA_PROMPT != GROUNDED_QA_PROMPT
+assert _GROUNDED_ORDERED_TEMPLATE != _GROUNDED_TEMPLATE
 
-#: ``grounded_v2`` minus its yes/no rule, which made the reader open "when"/"what" answers with
+#: ``grounded`` minus its yes/no rule, which made the reader open "when"/"what" answers with
 #: "No, ..." (dev screen 2026-10-10: 81.5% vs 86.7%, 5 gained / 17 lost). Keeps the
 #: earlier-line reference rule and captions as evidence.
-GROUNDED_V3_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
+GROUNDED_QA_PROMPT = _GROUNDED_TEMPLATE.replace(
     "Give a short, direct answer. ",
     'A memory may refer back to something said earlier ("that book you recommended", "we '
     'did it yesterday", a photo): find the earlier line it refers to and use its details. '
@@ -254,23 +241,22 @@ GROUNDED_V3_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
 
 #: R2-4: ``grounded`` plus one sentence for ``--memspine-context-order hits_first|hit_blocks``
 #: (the first lines are the most relevant memories).
-GROUNDED_ORDERED_QA_PROMPT = GROUNDED_QA_PROMPT.replace(
+GROUNDED_ORDERED_QA_PROMPT = _GROUNDED_TEMPLATE.replace(
     "Give a short, direct answer. ",
     "The first lines are the memories retrieved as most relevant to the question, most "
     "relevant first. Give a short, direct answer. ",
 )
-assert GROUNDED_ORDERED_QA_PROMPT != GROUNDED_QA_PROMPT
+assert GROUNDED_ORDERED_QA_PROMPT != _GROUNDED_TEMPLATE
 
 #: C2: ``grounded`` plus the hit-marker legend (``--memspine-mark-hits``), a one-sentence
 #: answer that keeps the specific detail, and exhaustive lists for multi-item questions.
-GROUNDED_DETAIL_QA_PROMPT = without_example_dates(GROUNDED_DETAIL_LEGACY_QA_PROMPT)
+GROUNDED_DETAIL_QA_PROMPT = 'Answer the question from the memories below. Each memory is one line: [YYYY-MM-DD] is the date it was said, and a bracket like "last Saturday [= <resolved date>]" gives the absolute date of that relative phrase. Resolve other relative times (yesterday, last week, two days ago) against the date of the line they appear in, not today\'s date. If lines start with * or [hit k], those are the memories retrieved as most relevant (k = rank); unmarked lines are surrounding conversation. Answer in one sentence that includes the specific detail from the memory (names, objects, places, numbers). When the question asks for several items or "how many", list every matching item found across the memories, then count them. Give the best-supported answer from the memories, even if it is indirect; say it is not mentioned only when nothing in the memories bears on the question. When a date is asked, answer in the wording the memories use (for example "the week before <the line\'s date>", or only the year when a year is asked), at the precision asked.\n\nMemories:\n{context}\n\nQuestion: {question}\nAnswer:'
 
-GROUNDED_NODATE_QA_PROMPT = GROUNDED_QA_PROMPT  # alias: kept so earlier --qa-prompt names resolve
-GROUNDED_DETAIL_NODATE_QA_PROMPT = GROUNDED_DETAIL_QA_PROMPT  # alias, as above
+GROUNDED_NODATE_QA_PROMPT = _GROUNDED_TEMPLATE  # Explicit variant without a question-date hint.
 
 #: N46 (MemMachine answer clause, our wording): ``dated`` plus "a plan the context
 #: states counts as done unless the context says it did not happen". QA only (paid).
-DATED_PLANNED_QA_PROMPT = DATED_QA_PROMPT.replace(
+DATED_PLANNED_QA_PROMPT = _DATED_TEMPLATE.replace(
     "Answer in one short sentence.",
     "When the context says someone planned or intended to do something and never says it "
     "did not happen, treat it as done. Answer in one short sentence.",
@@ -278,7 +264,7 @@ DATED_PLANNED_QA_PROMPT = DATED_QA_PROMPT.replace(
 
 #: N56 (Mem0 answer prompt, our wording): ``dated`` without the refusal clause; the
 #: reader always gives its best answer from the context. QA only (paid).
-DATED_NOABSTAIN_QA_PROMPT = DATED_QA_PROMPT.replace(
+DATED_NOABSTAIN_QA_PROMPT = _DATED_TEMPLATE.replace(
     "If the context does not contain the answer, say you do not know.",
     "Always give your best answer from the context; never reply that you do not know.",
 )
@@ -306,18 +292,11 @@ QA_PROMPTS = {
     "default": DEFAULT_QA_PROMPT,
     "dated": DATED_QA_PROMPT,
     "dated_world": DATED_WORLD_QA_PROMPT,
-    "dated2": DATED2_QA_PROMPT,
     "dated_infer": DATED_INFER_QA_PROMPT,
-    "dated3": DATED3_QA_PROMPT,
     "grounded": GROUNDED_QA_PROMPT,
     "grounded_detail": GROUNDED_DETAIL_QA_PROMPT,
-    "grounded_legacy": GROUNDED_LEGACY_QA_PROMPT,
-    "grounded_detail_legacy": GROUNDED_DETAIL_LEGACY_QA_PROMPT,
     "grounded_nodate": GROUNDED_NODATE_QA_PROMPT,
-    "grounded_detail_nodate": GROUNDED_DETAIL_NODATE_QA_PROMPT,
     "grounded_ordered": GROUNDED_ORDERED_QA_PROMPT,
-    "grounded_v2": GROUNDED_V2_QA_PROMPT,
-    "grounded_v3": GROUNDED_V3_QA_PROMPT,
     "grounded_generic": GROUNDED_GENERIC_QA_PROMPT,
     "grounded_generic_infer": GROUNDED_GENERIC_INFER_QA_PROMPT,
     "grounded_generic_list": GROUNDED_GENERIC_LIST_QA_PROMPT,
@@ -331,7 +310,7 @@ QA_PROMPTS = {
 
 #: C1 / H11: the ``routed`` QA prompt picks one of three variants per question by its
 #: shape (``memspine.models.encoders.query.shape``). The infer arm gained only on temporal questions
-#: (+1.3, others -0.3) and dated3's terse answers and conditional refusal cost -3.3, so:
+#: (+1.3, others -0.3); the terse reasoning variant cost -3.3 in that comparison, so:
 #: every variant keeps ``dated``'s one-sentence answer, the temporal one adds the
 #: relative-date inference and a date format, the inference one drops the refusal.
 _DATED_REFUSAL = "If the context does not contain the answer, say you do not know."
@@ -345,12 +324,12 @@ ROUTED_INFERENCE_RULE = (
     "If the context does not state it, give the most plausible answer and say 'likely'."
 )
 ROUTED_QA_VARIANTS: Mapping[str, str] = {
-    "plain": DATED_QA_PROMPT,
-    "temporal": DATED_QA_PROMPT.replace(_DATED_REFUSAL, ROUTED_TEMPORAL_RULE),
-    "inference": DATED_QA_PROMPT.replace(_DATED_REFUSAL, ROUTED_INFERENCE_RULE),
+    "plain": _DATED_TEMPLATE,
+    "temporal": _DATED_TEMPLATE.replace(_DATED_REFUSAL, ROUTED_TEMPORAL_RULE),
+    "inference": _DATED_TEMPLATE.replace(_DATED_REFUSAL, ROUTED_INFERENCE_RULE),
 }
 #: Bump whenever the routing decision (the shape rules or their order) changes.
-QA_ROUTER_VERSION = "shape-v1"
+QA_ROUTER_VERSION = "shape"
 
 
 def qa_shape(question: str) -> str:
@@ -434,7 +413,7 @@ ROUTED_GENERIC_VARIANTS: Mapping[str, str] = {
     "infer": GROUNDED_GENERIC_INFER_QA_PROMPT,
     "list": GROUNDED_GENERIC_LIST_QA_PROMPT,
 }
-ROUTED_GENERIC_ROUTER_VERSION = "generic-shape-v1"
+ROUTED_GENERIC_ROUTER_VERSION = "generic-shape"
 
 ROUTED_QA_PROMPTS: Mapping[str, RoutedQAPrompt] = {
     "routed": RoutedQAPrompt(),
@@ -449,10 +428,10 @@ ROUTED_QA_PROMPTS: Mapping[str, RoutedQAPrompt] = {
 
 #: R14-M-9 / OBS-06 (``read.inference_mode = gated``): the typed commit route. The clause goes
 #: ONLY into the prompt of a question the rules contract types as inference / judgement; every
-#: other question gets the base prompt byte for byte (the blanket ``grounded_v2`` clause cost
+#: other question gets the base prompt byte for byte (the blanket ``grounded`` clause cost
 #: dev 86.7 -> 81.5). Generic wording, no dataset names. The last sentence keeps abstention
 #: open for an unanswerable (category 5 / irrelevance) question. Bump the version on any edit.
-INFERENCE_GATE_VERSION = "infer-gate-v1"
+INFERENCE_GATE_VERSION = "infer-gate"
 INFERENCE_COMMIT_CLAUSE = (
     "This question asks for a judgement (what would, might or is likely to be true or happen), "
     "so answer it rather than declining: commit to the most likely answer (yes or no, or a "
@@ -470,7 +449,7 @@ INFERENCE_RETRY_INSTRUCTION = (
 )
 
 
-def is_inference_question(question: str) -> bool:
+def _contract_inference(question: str) -> bool:
     """The gate: the rules contract (``memspine.read.contract.build_contract``) types the
     question as ``inference`` (would / likely / might / hypothetical). Pure, no model."""
     from memspine.read.contract import build_contract
@@ -478,9 +457,9 @@ def is_inference_question(question: str) -> bool:
     return build_contract(question).request == "inference"
 
 
-#: R14-INFER2 (``read.inference_mode = gated_v2``): the widened, generic judgement shape. English
+#: R14-INFER2 (``read.inference_mode = gated``): the widened, generic judgement shape. English
 #: rules (``english_only``), no dataset terms. ``gated`` keeps the contract check alone.
-INFERENCE_GATE_VERSION_V2 = "infer-gate-v2"
+
 #: A factual opener: the answer is a stated date / place / person / count / quote. These
 #: suppress the weak modal signals ("what did X say would help"), never the explicit phrases.
 _FACTUAL_OPEN = re.compile(
@@ -525,7 +504,7 @@ def inference_shape(question: str) -> tuple[bool, str]:
         return True, "phrase"
     if factual:  # the negative list also vetoes the contract ("in May", "what did X say would ...")
         return False, ""
-    if is_inference_question(question):
+    if _contract_inference(question):
         return True, "contract"
     if _COUNTERFACTUAL.search(question):
         return True, "counterfactual"
@@ -540,8 +519,8 @@ def inference_shape(question: str) -> tuple[bool, str]:
     return False, ""
 
 
-def is_inference_question_v2(question: str) -> bool:
-    """The ``gated_v2`` gate (and retry gate): :func:`inference_shape` fires."""
+def is_inference_question(question: str) -> bool:
+    """The ``gated`` gate (and retry gate): :func:`inference_shape` fires."""
     return inference_shape(question)[0]
 
 
@@ -555,16 +534,16 @@ def with_inference_clause(prompt: str, clause: str = INFERENCE_COMMIT_CLAUSE) ->
     return prompt[:cut] + "\n\n" + clause + prompt[cut:]
 
 
-def gated_inference_prompt(base: str, name: str = "", *, v2: bool = False) -> RoutedQAPrompt:
-    """``read.inference_mode = gated`` (``v2``: ``gated_v2``): ``base`` for every question, ``base``
-    plus the commit clause for an inference question (v2: the widened :func:`inference_shape`).
+def gated_inference_prompt(base: str, name: str = "") -> RoutedQAPrompt:
+    """``read.inference_mode = gated`` : ``base`` for every question, ``base``
+    plus the commit clause for an inference question (:func:`inference_shape`).
     Routed, so ``describe()`` hashes both variants and rows record the variant."""
-    gate = is_inference_question_v2 if v2 else is_inference_question
+    gate = is_inference_question
     return RoutedQAPrompt(
         {"plain": base, "inference": with_inference_clause(base)},
         shape_fn=lambda q: "inference" if gate(q) else "plain",
-        router_version=INFERENCE_GATE_VERSION_V2 if v2 else INFERENCE_GATE_VERSION,
-        name=(name or "prompt") + ("+infer_gate_v2" if v2 else "+infer_gate"),
+        router_version=INFERENCE_GATE_VERSION,
+        name=(name or "prompt") + "+infer_gate",
     )
 
 
@@ -640,7 +619,7 @@ def prompt_variant(prompt: str | RoutedQAPrompt, question: str) -> str | None:
 
 #: #34: prompts whose reply reasons first; the reader keeps only the final answer and
 #: gets :data:`REASONING_MAX_TOKENS` so the reasoning cannot truncate the answer.
-REASONING_QA_PROMPTS = frozenset({"dated3", "evermemos_cot"})
+REASONING_QA_PROMPTS = frozenset({"dated", "evermemos_cot"})
 REASONING_MAX_TOKENS = 512
 #: N65: a prompt whose reasoning needs more room than :data:`REASONING_MAX_TOKENS`.
 REASONING_MAX_TOKENS_BY_PROMPT = {"evermemos_cot": 1536}
@@ -652,10 +631,8 @@ def reasoning_max_tokens(prompt_name: str) -> int:
 
 
 _THINK = re.compile(r"<think>.*?</think>", re.S | re.I)
-#: Version of :func:`final_answer` recorded in ``describe()`` when ``extract_answer`` is
-#: set. "v2" is the Wave 1 rewrite (``<think>`` handling, dangling markers, first line
-#: after the last marker); bump it whenever ``final_answer``'s output can change.
-ANSWER_EXTRACTOR_VERSION = "v3"
+#: Current :func:`final_answer` identity recorded when answer extraction is enabled.
+ANSWER_EXTRACTOR_VERSION = "base"
 
 #: Cap on the raw reply kept in a row's ``meta["reader_raw"]`` (extraction only).
 READER_RAW_MAX_CHARS = 4000
@@ -674,7 +651,7 @@ def reader_raw_meta(raw_text: str | None) -> dict[str, Any]:
 
 _MARKER = re.compile(
     r"(?:^|(?<=[\s*>#_(\[]))\**\s*(?:final\s+|short\s+)?answer\s*\**\s*[:\uff1a]\s*\**"
-    # v3 (N65): EverMemOS's "## STEP 7: FINAL ANSWER" section heading (no colon after it).
+    # N65: EverMemOS's "## STEP 7: FINAL ANSWER" section heading (no colon after it).
     r"|(?:^|(?<=\n))[ \t]*#*[ \t]*STEP[ \t]*7[ \t]*[:.][ \t]*FINAL[ \t]+ANSWER\b[^\n]*",
     re.I,
 )

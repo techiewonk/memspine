@@ -157,7 +157,7 @@ SessionCloseHandler = Callable[[SessionClosed], Awaitable[dict[str, object]]]
 
 
 #: O4-02: the call-2 model call: chat messages (stable prefix, data body) -> the raw reply.
-#: None => ``offline.session_close_v2`` has no LLM role to call and the stage reports ``skipped``.
+#: None => ``offline.session_close`` has no LLM role to call and the stage reports ``skipped``.
 CloseCall = Callable[[list[dict[str, str]]], Awaitable[str]]
 
 
@@ -311,12 +311,12 @@ class PipelineContext:
     window_edges: WindowEdges | None = None
     #: W1 (call 2 interface): the session-closed handler. None => the stub.
     close_session: SessionCloseHandler | None = None
-    #: O4-02 (``offline.session_close_v2``): the call-2 model call and the record deposit. Either
-    #: None => the v2 close reports ``skipped`` and the stub runs as before.
+    #: O4-02 (``offline.session_close``): the call-2 model call and the record deposit. Either
+    #: None => session close reports ``skipped`` without a model call.
     close_call: CloseCall | None = None
     deposit_session_record: DepositSessionRecord | None = None
     #: O4-06 / O4-09: the derived-write door for community, entity and multi-resolution summaries
-    #: (``offline.communities_v2`` / ``offline.decay_v2``). None (bare contexts) => screened and
+    #: (``offline.communities`` / ``offline.decay``). None (bare contexts) => screened and
     #: appended raw.
     write_summary: WriteSummary | None = None
     #: FU-SLEEP (``offline.sleep_scoped``): the one namespace a sleep job sweeps. None (default) =>
@@ -325,7 +325,7 @@ class PipelineContext:
     #: FU-ERASE (``privacy.erasure_rederive``): the engine whose erasure queue the
     #: ``erasure_rederive`` stage consumes. None (bare contexts) => the stage self-skips.
     erasure_engine: Any | None = None
-    #: FU-SAFE (T5-05; ``consent.v2`` / ``privacy.erasure_v2``): keeps the records an offline stage
+    #: FU-SAFE (T5-05; ``consent.enabled`` / ``privacy.erasure``): keeps the records an offline stage
     #: may read: not quarantined, erasure-visible, consent-allowed, derivable. None (flags off, bare
     #: contexts) => every record is kept, as before. Stages go through :func:`live_records`.
     live_gate: Callable[[list[MemoryRecord]], Awaitable[list[MemoryRecord]]] | None = None
@@ -353,7 +353,7 @@ async def live_records(
     ctx: PipelineContext, namespace: str, memory_type: str | None = None
 ) -> list[MemoryRecord]:
     """FU-SAFE: the one way an offline/sleep stage lists raw records to read their content. With
-    ``consent.v2`` or ``privacy.erasure_v2`` on, an erased or hidden record, a consent-refused or
+    ``consent.enabled`` or ``privacy.erasure`` on, an erased or hidden record, a consent-refused or
     do-not-derive one and a quarantined one are dropped; with both off it is ``list_records``.
     Stages that must see every row (erasure re-derivation, retention, idempotency checks) call
     ``ctx.storage.list_records`` directly."""

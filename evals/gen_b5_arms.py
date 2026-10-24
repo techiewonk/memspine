@@ -14,54 +14,132 @@ from pathlib import Path
 ARMS = Path(__file__).resolve().parent / "arms"
 BASE = "scr-gc3-graph-jina"
 ROLE = {
-    "model": "ollama/qwen3.5:9b",
-    "api_base": "http://127.0.0.1:11434",
-    "timeout_seconds": 180.0,
-    "no_think": True,
+    "provider": "ollama",
+    "timeout_s": 180.0,
+    "settings": {"model": "qwen3.5:9b", "base_url": "http://127.0.0.1:11434", "no_think": True},
 }
-SC = {"llm": {"roles": {"session_close": ROLE}}}
+SC = {
+    "model": {
+        "llm": {
+            "session_close": {
+                "provider": "ollama",
+                "timeout_s": 180.0,
+                "settings": {
+                    "model": "qwen3.5:9b",
+                    "base_url": "http://127.0.0.1:11434",
+                    "no_think": True,
+                },
+            }
+        }
+    }
+}
 WX = {
     "write": {"window_extract": "facts", "window_async": False},
-    "llm": {"roles": {"window_extract": ROLE}},
+    "model": {
+        "llm": {
+            "window_extract": {
+                "provider": "ollama",
+                "timeout_s": 180.0,
+                "settings": {
+                    "model": "qwen3.5:9b",
+                    "base_url": "http://127.0.0.1:11434",
+                    "no_think": True,
+                },
+            }
+        }
+    },
 }
 
 #: arm name suffix -> overlay on the gc3 base
-OVERLAYS: dict[str, dict] = {
-    "legs": {"read": {"legs_v2": True}},
-    "graphleg": {
-        "read": {"legs_v2": True, "graph_leg_v2": True},
-        "graph": {"edge_compiler_v2": True},
-    },
-    "edgecomp": {"graph": {"edge_compiler_v2": True}},
+OVERLAYS = {
     "episodeleg": {
-        "read": {"legs_v2": True, "episode_leg_v2": True},
-        "offline": {"session_close_v2": True},
-        **SC,
+        "read": {"episode_leg": True},
+        "offline": {"session_close": True},
+        "model": {
+            "llm": {
+                "session_close": {
+                    "provider": "ollama",
+                    "timeout_s": 180.0,
+                    "settings": {
+                        "model": "qwen3.5:9b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "no_think": True,
+                    },
+                }
+            }
+        },
     },
-    "entityleg": {"read": {"entity_leg_v2": True}},
-    "sessionclose": {"offline": {"session_close_v2": True}, **SC},
-    "standing": {"read": {"standing_v2": True}, "offline": {"standing_v2": True}},
-    "patterns": {"offline": {"patterns_v2": True}},
-    "tiers": {"read": {"tiers_v2": True}},
+    "entityleg": {"read": {"entity_leg": True}},
+    "sessionclose": {
+        "offline": {"session_close": True},
+        "model": {
+            "llm": {
+                "session_close": {
+                    "provider": "ollama",
+                    "timeout_s": 180.0,
+                    "settings": {
+                        "model": "qwen3.5:9b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "no_think": True,
+                    },
+                }
+            }
+        },
+    },
+    "standing": {"read": {"standing": True}, "offline": {"standing": True}},
+    "patterns": {"offline": {"patterns": True}},
+    "tiers": {"read": {"tiers": True}},
     "router": {"read": {"router_rules": True}},
-    # FX-EVAL: the summarize role is what communities_v2 calls for 3+ member communities (else extractive)
-    "communities": {"offline": {"communities_v2": True}, "llm": {"roles": {"summarize": ROLE}}},
-    "reconcile": {"offline": {"reconcile_v2": True}},
-    "histories": {"offline": {"histories_v2": True}},
-    "profilecard": {"offline": {"session_close_v2": True, "profile_card_v2": True}, **SC},
-    "decay": {"offline": {"decay_v2": True}},
-    "stamping": {"write": {"stamping_v2": True}},
-    "rolepolicy": {"write": {"role_policy_v2": True}},
-    "intake": {"write": {}},
-    # window-facts reference and its two flag arms (the flags need write.window_extract = facts)
-    "windowfacts": WX,
-    "envelope": {
-        "write": {"window_extract": "facts", "window_async": False, "envelope_v2": True},
-        "llm": {"roles": {"window_extract": ROLE}},
+    "communities": {
+        "offline": {"communities": True},
+        "model": {
+            "llm": {
+                "summarize": {
+                    "provider": "ollama",
+                    "timeout_s": 180.0,
+                    "settings": {
+                        "model": "qwen3.5:9b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "no_think": True,
+                    },
+                }
+            }
+        },
     },
-    "segmentation": {
-        "write": {"window_extract": "facts", "window_async": False, "segmentation_v2": True},
-        "llm": {"roles": {"window_extract": ROLE}},
+    "reconcile": {"offline": {"reconcile": True}},
+    "histories": {"offline": {"histories": True}},
+    "profilecard": {
+        "offline": {"session_close": True, "profile_card": True},
+        "model": {
+            "llm": {
+                "session_close": {
+                    "provider": "ollama",
+                    "timeout_s": 180.0,
+                    "settings": {
+                        "model": "qwen3.5:9b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "no_think": True,
+                    },
+                }
+            }
+        },
+    },
+    "decay": {"offline": {"decay": True}},
+    "windowfacts": {
+        "write": {"window_extract": "facts", "window_async": False},
+        "model": {
+            "llm": {
+                "window_extract": {
+                    "provider": "ollama",
+                    "timeout_s": 180.0,
+                    "settings": {
+                        "model": "qwen3.5:9b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "no_think": True,
+                    },
+                }
+            }
+        },
     },
 }
 

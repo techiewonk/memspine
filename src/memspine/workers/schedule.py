@@ -92,7 +92,7 @@ RULE_EDGES_STAGE = "rule_edges"
 PROJECT_FACTS_STAGE = "project_facts"
 
 
-#: O4-05 (``offline.patterns_v2``) and O4-08 (``offline.standing_v2``): run in that order after the graph
+#: O4-05 (``offline.patterns``) and O4-08 (``offline.standing``): run in that order after the graph
 #: stages (``extract_graph`` and its opt-in followers, FX-EVAL: they read the fresh facts), and only when
 #: their flag is on (default cycle unchanged).
 PATTERN_OBSERVATIONS_STAGE = "pattern_observations"
@@ -100,22 +100,22 @@ STANDING_ANSWERS_STAGE = "standing_answers"
 
 
 #: O4-03: runs after ``extract_graph``/``rule_edges`` (the fresh facts are folded before summaries
-#: read them), only when ``offline.reconcile_v2`` is on, so the default cycle is unchanged.
+#: read them), only when ``offline.reconcile`` is on, so the default cycle is unchanged.
 RECONCILE_STAGE = "reconcile"
 
 
 #: O4-04: runs right after ``reconcile`` (a superseded value is never merged into a live one), only
-#: when ``offline.histories_v2`` is on, so the default cycle is unchanged.
+#: when ``offline.histories`` is on, so the default cycle is unchanged.
 HISTORIES_STAGE = "histories"
 
 
-#: F-02c: runs right before ``summarize_entities``, only when ``graph.edge_compiler_v2`` is on.
+#: F-02c: runs right before ``summarize_entities``, only when ``graph.edge_compiler`` is on.
 COMPILE_EDGES_STAGE = "compile_edges"
 
 
 #: FU-ERASE: runs right after ``retention_expire`` and before ``consolidate`` (a re-derived summary
 #: carries its membership key, so consolidation skips it), only when ``privacy.erasure_rederive``
-#: and ``privacy.erasure_v2`` are on, so the default cycle is unchanged.
+#: is enabled, so the default cycle is unchanged.
 ERASURE_REDERIVE_STAGE = "erasure_rederive"
 
 
@@ -137,18 +137,18 @@ def sleep_stage_order(ctx: PipelineContext) -> tuple[str, ...]:
     if rule_edges_options(ctx.config) is not None:
         at = order.index("extract_graph") + 1
         order = (*order[:at], RULE_EDGES_STAGE, *order[at:])
-    if ctx.config.offline.reconcile_v2 or ctx.config.offline.histories_v2:
+    if ctx.config.offline.reconcile or ctx.config.offline.histories:
         at = order.index(RULE_EDGES_STAGE if RULE_EDGES_STAGE in order else "extract_graph") + 1
         extra = tuple(
             name
             for name, on in (
-                (RECONCILE_STAGE, ctx.config.offline.reconcile_v2),
-                (HISTORIES_STAGE, ctx.config.offline.histories_v2),
+                (RECONCILE_STAGE, ctx.config.offline.reconcile),
+                (HISTORIES_STAGE, ctx.config.offline.histories),
             )
             if on
         )
         order = (*order[:at], *extra, *order[at:])
-    if ctx.config.offline.patterns_v2 or ctx.config.offline.standing_v2:
+    if ctx.config.offline.patterns or ctx.config.offline.standing:
         # FX-EVAL: both read the stored facts as assertions, so they run once the graph facts
         # (extract_graph, rule_edges, reconcile, histories) exist; before this the first sleep saw none.
         # With both flags off the order is SLEEP_CYCLE_ORDER unchanged.
@@ -160,18 +160,18 @@ def sleep_stage_order(ctx: PipelineContext) -> tuple[str, ...]:
         extra = tuple(
             name
             for name, on in (
-                (PATTERN_OBSERVATIONS_STAGE, ctx.config.offline.patterns_v2),
-                (STANDING_ANSWERS_STAGE, ctx.config.offline.standing_v2),
+                (PATTERN_OBSERVATIONS_STAGE, ctx.config.offline.patterns),
+                (STANDING_ANSWERS_STAGE, ctx.config.offline.standing),
             )
             if on
         )
         order = (*order[: after + 1], *extra, *order[after + 1 :])
-    if ctx.config.graph.edge_compiler_v2:  # F-02c: once the facts settled
+    if ctx.config.graph.edge_compiler:  # F-02c: once the facts settled
         at = order.index("summarize_entities")
         order = (*order[:at], COMPILE_EDGES_STAGE, *order[at:])
-    if ctx.config.privacy.erasure_v2 and ctx.config.privacy.erasure_rederive:
+    if ctx.config.privacy.erasure_rederive:
         order = (ERASURE_REDERIVE_STAGE, *order)
-    if ctx.config.retention.classes:
+    if ctx.config.retention.classes or ctx.config.retention.profile:
         order = (RETENTION_STAGE, *order)
     return order
 
@@ -209,7 +209,7 @@ async def _run_sleep_stage(
 ) -> dict[str, object]:
     """Run one named stage (one line per stage, so a silent stall names its stage; WT-02 trace)."""
     _log.info("sleep.stage", stage=name)
-    ledger = _costs.installed()  # W2-12 (economy.ledger_v2); None = the original path
+    ledger = _costs.installed()  # W2-12 (economy.ledger); None = the original path
     pool = ctx.scope_namespace or _costs.SLEEP_POOL  # FU-SLEEP: a scoped job has its own pool
     if ledger is not None and ledger.budget_exhausted(pool):
         # W-26 D / O-05: the sleep budget is spent. The stage is not run; its work stays

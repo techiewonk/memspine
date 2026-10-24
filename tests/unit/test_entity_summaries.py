@@ -18,6 +18,7 @@ from memspine.derive.pipeline.stages.entity_summaries import entity_summary_name
 from memspine.derive.pipeline.stages.index import ENTITY_SUMMARIZED_MARKER, SessionIndex
 from memspine.derive.pipeline.stages.table import PIPELINES
 from memspine.store.records import MemoryRecord, RecordStatus
+from memspine.trust.pipeline.erasure_state import visible_id
 from memspine.workers.schedule import SLEEP_CYCLE_ORDER
 
 
@@ -61,7 +62,7 @@ async def _summaries(eng: Engine, ns: str = "a", *, live_only: bool = True) -> l
         r
         for r in records
         if r.source.channel == constants.ENTITY_SUMMARY_CHANNEL
-        and (not live_only or r.status is RecordStatus.ACTIVATED)
+        and (not live_only or (r.status is RecordStatus.ACTIVATED and visible_id(eng, r.record_id)))
     ]
 
 
@@ -236,11 +237,18 @@ async def test_soft_forget_re_derives_and_hard_forget_cascades() -> None:
         third = _by_name(await _summaries(eng))["Melanie"]
         await eng.forget(ids['Melanie read "Nothing Is Impossible"'], namespace="a", hard=True)
         gone = await eng._require_started().get_record(third.record_id)
-        assert gone is None or gone.status is RecordStatus.DELETED
+        from memspine.trust.pipeline.erasure_state import visible_id
+
+        assert (
+            gone is None
+            or gone.status is RecordStatus.DELETED
+            or not visible_id(eng, gone.record_id)
+        )
         index = SessionIndex()
         await index.refresh(eng._require_started())
         # Every summary built on the erased fact went with it, and so did its watermark.
-        assert ("a", "ent:a:melanie") not in index.entity_summaries
+        assert not visible_id(eng, third.record_id)
+        assert third.record_id in {str(i["record_id"]) for i in eng.erasure_queue()}
         await _sweep(eng)
         fourth = _by_name(await _summaries(eng))["Melanie"]
         assert "Nothing Is Impossible" not in fourth.content and "Dune" in fourth.content

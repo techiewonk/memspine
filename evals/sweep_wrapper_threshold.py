@@ -182,7 +182,11 @@ async def _probe(fixture: Fixture, threshold: float) -> tuple[str, float | None]
     from memspine import Engine
     from memspine.store.records import SourceInfo
 
-    engine = Engine(template="base", storage={"path": ":memory:"}, **_engine_config(threshold))
+    engine = Engine(
+        template="base",
+        storage={"records": {"provider": "sqlite", "settings": {"path": ":memory:"}}},
+        **_engine_config(threshold),
+    )
     await engine.start()
     try:
         ns = "g8a"

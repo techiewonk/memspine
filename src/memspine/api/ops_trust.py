@@ -13,9 +13,9 @@ from memspine.core.fact_chain import fact_projection_on
 from memspine.derive import feedback as fb
 from memspine.derive.pipeline.stages.index import DERIVED_STAGES, stage_marker
 from memspine.exceptions import ConflictError, MemspineError
-from memspine.ingest.write import _NEIGHBOUR_BATCH, _message_sender, _screen_text
+from memspine.ingest.write import _NEIGHBOUR_BATCH, _message_sender
 from memspine.observability import tap
-from memspine.observability.logging import EVENT_FEEDBACK, get_logger
+from memspine.observability.logging import get_logger
 from memspine.schemas.durable.evidence import TurnRef
 from memspine.services.vector.base import VectorHit
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent, fingerprint_payload
@@ -24,7 +24,7 @@ from memspine.store.scope import grant_allows, validate_namespace
 from memspine.trust import horizon as _horizon
 from memspine.trust.firewall import FirewallVerdict
 from memspine.trust.horizon import Grant
-from memspine.trust.pipeline import gates_v2
+from memspine.trust.pipeline import gates
 from memspine.trust.pipeline.quarantine import _taint_archive_delta
 from memspine.trust.pipeline.state import _REPLACED_CONTENTS, _as_options_dict
 from memspine.trust.privacy import pii_rank
@@ -55,7 +55,7 @@ async def effective_trust(eng: Any, record_id: str) -> float:
     grants_cache: dict[str, Mapping[str, frozenset[str] | None]] = {}
     policy = eng._integrity()
     check_grants = policy.enabled and policy.live_reevaluation
-    chained = policy.enabled and policy.horizon_v2
+    chained = policy.enabled and policy.horizon
 
     async def walk(rid: str) -> float:
         if rid in memo:
@@ -130,7 +130,7 @@ def _consent_context(eng: Any, context: AssembledContext) -> AssembledContext:
 
     The gates already keep them out of every search leg; this catches the
     records assembly adds from elsewhere (persona, full-mode listing)."""
-    if not (eng._config().consent.enforce or eng._config().consent.v2):
+    if not eng._config().consent.enabled:
         return context
     kept: list[MemoryRecord] = []
     boundary = context.boundary_index
@@ -174,8 +174,7 @@ async def _withheld_texts(eng: Any) -> list[str]:
     return list(dict.fromkeys(t for t in texts if t))
 
 
-_V2_KINDS = ("correction", "rejection", "confirmation", "rating")
-_LEGACY_SIGNALS = ("like", "dislike", "note")
+_FEEDBACK_KINDS = ("correction", "rejection", "confirmation", "rating")
 #: Names that stand for software acting on its own: never allowed to give feedback (O-25).
 _AGENT_ACTORS = frozenset({"assistant", "agent", "system", "tool"})
 
@@ -196,34 +195,13 @@ async def feedback(
     turn: int | None = None,
     source_id: str | None = None,
 ) -> MemoryRecord:
-    """#54 + O4-11: record explicit feedback on one record.
+    """Record explicit correction, rejection, confirmation or rating feedback.
 
-    ``write.feedback_v2`` off (default): the ``like`` / ``dislike`` / ``note`` verb exactly as
-    before (see :func:`_legacy_feedback`); the v2 keywords are refused.
-
-    On: ``channel`` (default ``api``) must be a deliberate one (``user_message``, ``ui_control``,
-    ``operator_edit``, ``api``); silence, dwell, regeneration, classifier and other inferred signals
-    are refused. The actor must be the memory owner (``"user"`` or the namespace), or a name in
-    ``write.feedback_operators`` (never for a confirmation); an agent never may. The signals are
-    the three above plus ``correction`` (needs ``new_value``, optional ``new_text``),
-    ``rejection``, ``confirmation`` and ``rating`` (needs ``rating`` 1..5, logged only). A
-    correction, rejection or confirmation never edits the record: it becomes a bound assertion
-    (the owner's new value, a negation of the recalled one, a restatement) written through the
-    write door and the conflict ladder; the first written record is returned. ``source_id`` names
-    the turn carrying the feedback (default: this call); ``turn`` the read-turn index (default: the
-    number of reads of the namespace so far, which ``Engine.correction_latency`` uses).
+    Only deliberate channels and authorized human actors may give feedback. Corrections,
+    rejections and confirmations enter through the write door as bound assertions; ratings
+    are logged. Inferred signals and retired like/dislike/note verbs are rejected.
     """
-    cfg = eng._config().write
-    extra = any(
-        v is not None for v in (channel, new_value, new_text, rating, quote, turn, source_id)
-    )
-    if not cfg.feedback_v2:
-        if extra:
-            raise MemspineError("feedback keywords need write.feedback_v2: true")
-        return await _legacy_feedback(
-            eng, record_id, signal, note=note, actor=actor, namespace=namespace
-        )
-    return await _feedback_v2(
+    return await _feedback(
         eng,
         record_id,
         signal,
@@ -278,7 +256,7 @@ async def _read_turn(eng: Any, ns: str) -> int | None:
     return len(await _events_of(eng, ns, (EventKind.RETRIEVE,)))
 
 
-async def _feedback_v2(
+async def _feedback(
     eng: Any,
     record_id: str,
     signal: str,
@@ -303,9 +281,9 @@ async def _feedback_v2(
         raise _feedback_refused(
             signal, channel, "unknown_channel", f"{channel!r} is not a feedback channel"
         )
-    if signal not in (*_LEGACY_SIGNALS, *_V2_KINDS):
+    if signal not in _FEEDBACK_KINDS:
         raise MemspineError(
-            f"feedback signal must be one of {[*_LEGACY_SIGNALS, *_V2_KINDS]}, got {signal!r}"
+            f"feedback signal must be one of {list(_FEEDBACK_KINDS)}, got {signal!r}"
         )
     operators = tuple(eng._config().write.feedback_operators)
     if actor in operators:
@@ -318,7 +296,7 @@ async def _feedback_v2(
     target = await storage.get_record(record_id)
     if target is None or target.namespace != ns or target.status is RecordStatus.DELETED:
         raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
-    kind = signal if signal in _V2_KINDS else "rating"
+    kind = signal
     eid = (
         "fb_"
         + fingerprint_payload(
@@ -352,30 +330,13 @@ async def _feedback_v2(
             quote=quote,
             new_value=new_value,
             new_text=new_text,
-            # a like / dislike / note only probes the permission check below
-            rating=rating if signal in _V2_KINDS else 3,
+            rating=rating,
         )
         fb.check_feedback(event, operators=operators)
     except fb.FeedbackError as exc:
         raise _feedback_refused(signal, channel, "not_permitted", str(exc)) from exc
     except ValueError as exc:  # pydantic validation of the event shape
         raise _feedback_refused(signal, channel, "invalid", str(exc).splitlines()[0]) from exc
-
-    if signal in _LEGACY_SIGNALS:
-        updated = await _legacy_feedback(
-            eng, record_id, signal, note=note, actor=actor, namespace=ns
-        )
-        if tap.enabled():
-            tap.event(
-                "api.feedback",
-                kind=signal,
-                channel=channel,
-                accepted=True,
-                reason="ok",
-                assertions=0,
-                target=record_id,
-            )
-        return updated
 
     written: list[MemoryRecord] = []
     if kind != "rating":
@@ -443,11 +404,9 @@ async def _feedback_v2(
 
 
 async def correction_latency(eng: Any, namespace: str = "default") -> fb.LatencyStats:
-    """O4-11 (``write.feedback_v2``): turns between a wrong memory first being surfaced (a search
+    """O4-11 (``write.feedback``): turns between a wrong memory first being surfaced (a search
     that returned it) and the explicit correction or rejection of it, from the log. A turn is one
     search of the namespace. Corrections given with an explicit ``turn`` use the caller's index."""
-    if not eng._config().write.feedback_v2:
-        raise MemspineError("correction_latency needs write.feedback_v2: true")
     if eng._config().event_log.mode is EventLogMode.EPHEMERAL:
         raise ConflictError("event_log.mode=ephemeral keeps no events to measure from")
     ns = validate_namespace(namespace)
@@ -479,57 +438,6 @@ async def correction_latency(eng: Any, namespace: str = "default") -> fb.Latency
             p90=stats.p90,
         )
     return stats
-
-
-async def _legacy_feedback(
-    eng: Any,
-    record_id: str,
-    signal: str,
-    *,
-    note: str | None = None,
-    actor: str = "user",
-    namespace: str = "default",
-) -> MemoryRecord:
-    """#54: record a user's ``like`` / ``dislike`` / ``note`` on one record.
-
-    Appends one FEEDBACK event through the door; the record projector keeps the
-    per-record counts (``scoring.likes`` / ``dislikes`` / ``notes``). With
-    ``read.scoring.utility_weight > 0`` the ranking's utility term then includes
-    ``tanh((likes - dislikes) / FEEDBACK_UTILITY_SCALE)``, bounded in (-1, 1), so
-    a repeated like cannot dominate relevance. A record with no feedback scores
-    exactly as before.
-
-    ``note`` is optional with a like or dislike and required for ``"note"``. It
-    is screened like message content (``firewall.redact_secrets`` / ``pii``),
-    cut to ``FEEDBACK_NOTE_MAX_CHARS`` and stored in the event only, under
-    ``content``, so a hard forget of the record erases it too. Namespace-scoped
-    like :meth:`quarantine`: a missing, foreign or forgotten id raises the same
-    ``ConflictError``. Returns the record with its updated counts.
-    """
-    if signal not in ("like", "dislike", "note"):
-        raise MemspineError(f"feedback signal must be like, dislike or note, got {signal!r}")
-    text = (note or "").strip()
-    if signal == "note" and not text:
-        raise MemspineError("feedback signal 'note' needs a non-empty note")
-    storage = eng._require_started()
-    ns = validate_namespace(namespace)
-    payload: dict[str, object] = {"record_id": record_id, "signal": signal}
-    if text:
-        screened = _screen_text(text, eng._config().firewall)[0]
-        payload["content"] = screened[: constants.FEEDBACK_NOTE_MAX_CHARS]
-    async with eng._write_locks.setdefault(ns, asyncio.Lock()):
-        record = await storage.get_record(record_id)
-        if record is None or record.namespace != ns or record.status is RecordStatus.DELETED:
-            raise ConflictError(f"no such record {record_id!r} in namespace {ns!r}")
-        await eng._append_and_project(
-            MemoryEvent(kind=EventKind.FEEDBACK, namespace=ns, actor=actor, payload=payload)
-        )
-        updated = await storage.get_record(record_id)
-    assert updated is not None
-    _log.info(EVENT_FEEDBACK, namespace=ns, record_id=record_id, signal=signal)
-    # #49: the signal only; the note stays in the erasable FEEDBACK event.
-    await eng._audit_action("feedback", ns, [record_id], actor=actor, reason=None, signal=signal)
-    return updated  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
 async def _assess_write(eng: Any, record: MemoryRecord) -> FirewallVerdict:
@@ -586,8 +494,8 @@ async def _assess_write(eng: Any, record: MemoryRecord) -> FirewallVerdict:
     replaced = _REPLACED_CONTENTS.get()
     if replaced:
         recent_contents = [c for c in recent_contents if c not in replaced]
-    if gates_v2.gates_on(eng):  # W2-04: gate 1 through the LIB-38 library
-        return gates_v2.assess_insert(
+    if gates.gates_on(eng):  # W2-04: gate 1 through the LIB-38 library
+        return gates.assess_insert(
             eng._firewall,
             record,
             neighbour_similarities=neighbour_sims,

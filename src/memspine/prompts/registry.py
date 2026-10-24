@@ -23,7 +23,7 @@ from memspine.prompts.env import (
     partials_fingerprint,
     referenced_partial_sources,
 )
-from memspine.prompts.loader import load_default_pack, load_v2_pack
+from memspine.prompts.loader import load_default_pack
 from memspine.prompts.models import OUTPUT_MODELS
 
 __all__ = [
@@ -41,7 +41,7 @@ __all__ = [
 PROMPT_SETS: Registry[Callable[[], list[Prompt]]] = Registry("prompt_sets")
 PROMPT_SETS.register("default", load_default_pack)
 
-#: W2-07: the layout-v2 partials, each switchable on its own (``prompts.layout_partials``).
+#: W2-07: the base layout partials, each switchable on its own (``prompts.layout_partials``).
 LAYOUT_PARTIALS = ("same_language", "coarse_date")
 
 #: C2: ``prompts.selection.<role>_by_shape`` maps a question shape to the ``condition``
@@ -71,19 +71,16 @@ class PromptRegistry:
         partials: dict[str, str] | None = None,
         selection: dict[str, dict[str, str]] | None = None,
         extra_prompts: Iterable[Prompt] | None = None,
-        layout_v2: bool = False,
         layout_partials: Iterable[str] = LAYOUT_PARTIALS,
     ) -> None:
-        # W2-07 (``prompts.layout_v2``): the v2 write prompts replace their v1 ids and a
+        # W2-07 (``prompts.layout``): the base write prompts use shared partials; a
         # partial left out of ``layout_partials`` renders empty (screened one by one).
-        self._layout_v2 = layout_v2
         keep = set(layout_partials)
         self._layout_on: tuple[str, ...] = tuple(n for n in LAYOUT_PARTIALS if n in keep)
         partials = dict(partials or {})
-        if layout_v2:
-            for name in LAYOUT_PARTIALS:
-                if name not in keep:
-                    partials.setdefault(f"{name}.j2", "")
+        for name in LAYOUT_PARTIALS:
+            if name not in keep:
+                partials.setdefault(f"{name}.j2", "")
         # One environment per registry (B1): its loader consults the config
         # ``prompts.partials`` overrides before the shipped ``_partials/`` dir.
         self._env: Environment = build_environment(partials)
@@ -112,10 +109,7 @@ class PromptRegistry:
                 )
         self._prompts: dict[str, Prompt] = {}
         for prompt in PROMPT_SETS.get("default")():
-            self._prompts[prompt.id] = self._bind(prompt)
-        if layout_v2:
-            for prompt in load_v2_pack():
-                self._prompts[prompt.id] = self._bind(prompt, layout=True)
+            self._prompts[prompt.id] = self._bind(prompt, layout=True)
         for prompt in extra_prompts or ():  # programmatic/test-only variants
             self._prompts[prompt.id] = self._bind(prompt)
         self._overridden: set[str] = set()
@@ -140,7 +134,7 @@ class PromptRegistry:
         fp = partials_fingerprint(self._env, prompt.system, prompt.body)
         prompt._env = self._env
         prompt._version_suffix = f"+{fp}" if fp else ""
-        if layout is None:  # an override of a v2 prompt stays v2
+        if layout is None:  # an override retains its layout metadata
             old = self._prompts.get(prompt.id)
             layout = old is not None and old._layout_partials is not None
         if layout:

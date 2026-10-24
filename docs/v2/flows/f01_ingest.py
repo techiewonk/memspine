@@ -19,7 +19,7 @@ from flows._common import Ctx, Step
 NAME = "ingest"
 TITLE = "Ingest: record build, stamping, roles, firewall, routing, projectors, ladder, window extraction"
 
-#: The write path with every v2 stage on, extraction through the offline stub (``stub/window``).
+#: The write path with the base extraction stages enabled, extraction through the offline stub (``stub/window``).
 CONFIG: dict[str, Any] = {
     "read": {"record_access": False},
     "memories": {
@@ -30,14 +30,11 @@ CONFIG: dict[str, Any] = {
     "write": {
         "window_extract": "facts",
         "window_async": False,
-        "segmentation_v2": True,
-        "envelope_v2": True,
-        "prompt_v2": True,
-        "stamping_v2": True,
-        "role_policy_v2": True,
-        "temporal_v2": True,
-        "grounding_v2": True,
-        "integration_v2": True,
+        "stamping": True,
+        "role_policy": True,
+        "temporal": True,
+        "grounding": True,
+        "integration": True,
         "lineage_table": True,
     },
     "model": {
@@ -51,8 +48,8 @@ CONFIG: dict[str, Any] = {
         },
     },
     "deployment": {"id": "offline-flow-check"},
-    "offline": {"session_close_v2": True, "patterns_v2": True, "standing_v2": True},
-    "graph": {"edge_compiler_v2": True},
+    "offline": {"session_close": True, "patterns": True, "standing": True},
+    "graph": {"edge_compiler": True},
 }
 
 _STACK = contextlib.ExitStack()  # keeps the stub transport installed for the life of the process

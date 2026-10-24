@@ -12,7 +12,7 @@ from memspine.observability import inspect as insp
 from memspine.observability import tap
 from memspine.store.events import EventLogMode
 from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
-from memspine.trust.pipeline import gates_v2
+from memspine.trust.pipeline import gates
 
 
 async def _live_members(ctx: PipelineContext, member_ids: list[str]) -> list[MemoryRecord]:
@@ -24,7 +24,7 @@ async def _live_members(ctx: PipelineContext, member_ids: list[str]) -> list[Mem
     """
     inflate = CompressionPolicy.bind()
     members: list[MemoryRecord] = []
-    role_on = ctx.config.write.role_policy_v2
+    role_on = ctx.config.write.role_policy
     for record_id in member_ids:
         record = await live_record(ctx, record_id)
         if record is None or record.status is not RecordStatus.ACTIVATED or record.quarantined:
@@ -36,8 +36,8 @@ async def _live_members(ctx: PipelineContext, member_ids: list[str]) -> list[Mem
                 continue
         members.append(inflate.inflate(record))
     members.sort(key=chrono_key)
-    if gates_v2.config_gates_on(ctx.config):  # W2-04 gate 2: the extraction input filter
-        members = gates_v2.filter_input(members)
+    if gates.config_gates_on(ctx.config):  # W2-04 gate 2: the extraction input filter
+        members = gates.filter_input(members)
     return members
 
 
@@ -46,15 +46,10 @@ async def _live_members(ctx: PipelineContext, member_ids: list[str]) -> list[Mem
 _StageWork = Callable[[str, str, list[MemoryRecord]], Awaitable[tuple[int, list[str]]]]
 
 
-#: legacy_done(namespace, session_key): done-ness for logs written before markers.
-_LegacyDone = Callable[[str, str], Awaitable[bool]]
-
-
 async def _run_session_stage(
     ctx: PipelineContext,
     stage: str,
     counter: str,
-    legacy_done: _LegacyDone,
     work: _StageWork,
 ) -> dict[str, object]:
     """Shared loop of the derived stages: each consolidated session once.
@@ -84,8 +79,6 @@ async def _run_session_stage(
         state = index.state(stage, namespace, key)
         if state is True:
             continue
-        if state is None and await legacy_done(namespace, key):
-            continue
         members = await _live_members(ctx, member_ids)
         fp = _members_fp([m.record_id for m in members])
         if members and index.membership_done(stage, namespace, fp):
@@ -108,20 +101,3 @@ async def _run_session_stage(
         counter: produced,
         "errors": errors,
     }
-
-
-def _legacy_tag_check(
-    ctx: PipelineContext, memory_type: str, matches: Callable[[MemoryRecord, str], bool]
-) -> _LegacyDone:
-    """Pre-marker idempotence: a derived record already names the session.
-
-    Lists each namespace once per stage run, not once per session (R5-2).
-    """
-    cache: dict[str, list[MemoryRecord]] = {}
-
-    async def done(namespace: str, key: str) -> bool:
-        if namespace not in cache:
-            cache[namespace] = await ctx.storage.list_records(namespace, memory_type)
-        return any(matches(record, key) for record in cache[namespace])
-
-    return done

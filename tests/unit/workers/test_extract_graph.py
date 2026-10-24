@@ -395,7 +395,7 @@ async def test_watermark_marker_is_erasable_and_forget_drops_it() -> None:
     assert index.graph_sources == {}
 
 
-async def test_legacy_dict_marker_is_still_read() -> None:
+async def test_old_dict_marker_is_not_adopted() -> None:
     from memspine.derive.pipeline.stages.index import GRAPH_EXTRACTED_MARKER, SessionIndex
 
     index = SessionIndex()
@@ -406,4 +406,4 @@ async def test_legacy_dict_marker_is_still_read() -> None:
             payload={"marker": GRAPH_EXTRACTED_MARKER, "sources": {"r1": "fp1"}},
         )
     )
-    assert index.graph_sources == {("agent/a", "r1"): "fp1"}
+    assert index.graph_sources == {}

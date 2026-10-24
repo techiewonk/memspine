@@ -1,69 +1,6 @@
 {
   "$defs": {
-    "FailureRecord": {
-      "additionalProperties": true,
-      "description": "Internal step type.",
-      "properties": {
-        "attempts": {
-          "default": 0,
-          "title": "Attempts",
-          "type": "integer"
-        },
-        "batch_id": {
-          "title": "Batch Id",
-          "type": "string"
-        },
-        "failure_class": {
-          "enum": [
-            "raised",
-            "malformed",
-            "valid_empty",
-            "truncated",
-            "size_skip",
-            "partial_commit",
-            "invented_alias"
-          ],
-          "title": "Failure Class",
-          "type": "string"
-        },
-        "item_index": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Item Index"
-        },
-        "retry_allowed": {
-          "default": false,
-          "title": "Retry Allowed",
-          "type": "boolean"
-        },
-        "row_id": {
-          "title": "Row Id",
-          "type": "string"
-        },
-        "validator_errors": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Validator Errors",
-          "type": "array"
-        }
-      },
-      "required": [
-        "row_id",
-        "batch_id",
-        "failure_class"
-      ],
-      "title": "FailureRecord",
-      "type": "object"
-    },
-    "ItemV1": {
+    "ExtractionItem": {
       "additionalProperties": true,
       "description": "Model-output wire schema, compact keys (W-15 B, P-06).\n\nSession 2 fixed the split (the model authors content only, with citations); the compact keys below are\nnot frozen. The compiler maps ``mode`` and ``neg`` onto the session-5 ``modality`` (asserted, negated,\nhypothetical, planned, reported, question). The kind set is open (S2-3), so\n``kind`` is a plain string here and the closed ``state|event|fact`` check belongs to the compiler.\nReserved system names (``reserved.py``) in model output are rejected by the compiler, not here.",
       "properties": {
@@ -212,12 +149,75 @@
         "lines",
         "span"
       ],
-      "title": "ItemV1",
+      "title": "ExtractionItem",
+      "type": "object"
+    },
+    "FailureRecord": {
+      "additionalProperties": true,
+      "description": "Internal step type.",
+      "properties": {
+        "attempts": {
+          "default": 0,
+          "title": "Attempts",
+          "type": "integer"
+        },
+        "batch_id": {
+          "title": "Batch Id",
+          "type": "string"
+        },
+        "failure_class": {
+          "enum": [
+            "raised",
+            "malformed",
+            "valid_empty",
+            "truncated",
+            "size_skip",
+            "partial_commit",
+            "invented_alias"
+          ],
+          "title": "Failure Class",
+          "type": "string"
+        },
+        "item_index": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Item Index"
+        },
+        "retry_allowed": {
+          "default": false,
+          "title": "Retry Allowed",
+          "type": "boolean"
+        },
+        "row_id": {
+          "title": "Row Id",
+          "type": "string"
+        },
+        "validator_errors": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Validator Errors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "row_id",
+        "batch_id",
+        "failure_class"
+      ],
+      "title": "FailureRecord",
       "type": "object"
     },
     "ValidItem": {
       "additionalProperties": true,
-      "description": "A valid ItemV1 with its batch block (step 15 output).",
+      "description": "A valid ExtractionItem with its batch block (step 15 output).",
       "properties": {
         "block": {
           "anyOf": [
@@ -232,7 +232,7 @@
           "title": "Block"
         },
         "item": {
-          "$ref": "#/$defs/ItemV1"
+          "$ref": "#/$defs/ExtractionItem"
         }
       },
       "required": [

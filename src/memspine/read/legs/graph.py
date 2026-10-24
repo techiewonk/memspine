@@ -1,7 +1,7 @@
 """R3-05b (R-09): the graph one-hop leg, ``OneHopConvergent``, over L3.
 
 Seeds are entity nodes: the entities the query names, and the entities of the best base hits. The
-leg looks at every edge the edge compiler projected (``graph.edge_compiler_v2``, F-02c), drops the
+leg looks at every edge the edge compiler projected (``graph.edge_compiler``, F-02c), drops the
 *tentative* ones (S5-3: hypothetical, planned, reported, question, partly bound), and walks exactly
 one hop from each seed. A node reached from at least ``min_seeds`` distinct seeds is *convergent*:
 it bridges the seeds (two people who know the same third person, an assertion that names two of

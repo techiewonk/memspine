@@ -352,7 +352,7 @@ class Scheduler:
                 max_total_items=cfg.backlog_max_total_items,
                 retry_after_s=cfg.backlog_retry_after_s,
             )
-            if cfg.scheduler_v2
+            if cfg.scheduler
             else None
         )
         self._embedders: list[BatchedEmbedding] = []
@@ -360,8 +360,8 @@ class Scheduler:
 
     @property
     def slo_ledger(self) -> SloLedger | None:
-        """The ledger the read seam records into (only with ``runtime.scheduler_v2``)."""
-        return self.ledger if self.cfg.scheduler_v2 else None
+        """The ledger the read seam records into (only with ``runtime.scheduler``)."""
+        return self.ledger if self.cfg.scheduler else None
 
     def open(self) -> None:
         if self._opened:
@@ -370,7 +370,7 @@ class Scheduler:
         tap.event(
             "runtime.sched.install",
             slots=self.cfg.model_concurrency,
-            scheduler_v2=self.cfg.scheduler_v2,
+            scheduler=self.cfg.scheduler,
         )
 
     async def close(self) -> None:
@@ -383,8 +383,8 @@ class Scheduler:
         tap.event("runtime.sched.uninstall")
 
     def wrap_embedder(self, embedder: Any) -> Any:
-        """Micro-batched executors around an embedder (only with ``runtime.scheduler_v2``)."""
-        if not self.cfg.scheduler_v2 or self.cfg.encoder_batch_max <= 1:
+        """Micro-batched executors around an embedder (only with ``runtime.scheduler``)."""
+        if not self.cfg.scheduler or self.cfg.encoder_batch_max <= 1:
             return embedder
         wrapped = BatchedEmbedding(
             embedder,
@@ -405,7 +405,7 @@ class Scheduler:
 #: The RuntimeConfig fields a Scheduler is built from (its sharing key).
 _SCHED_FIELDS = frozenset(
     {
-        "scheduler_v2",
+        "scheduler",
         "model_concurrency",
         "background_reserve",
         "encoder_batch_max",
@@ -432,7 +432,7 @@ async def acquire(
 ) -> Lease[Scheduler] | None:
     """Engine start: a lease on the Scheduler for these settings, or None when both flags are off.
     Engines with identical settings on one loop share ONE Scheduler (one gate); others do not."""
-    if not (cfg.scheduler_v2 or cfg.model_concurrency > 0):
+    if not (cfg.scheduler or cfg.model_concurrency > 0):
         return None
 
     async def build() -> Scheduler:

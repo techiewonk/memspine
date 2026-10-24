@@ -54,9 +54,9 @@ def test_a_plain_mongodb_config_has_no_gaps() -> None:
 def test_every_sql_only_feature_is_listed_at_once() -> None:
     config = _config(storage={"vector": {"provider": "pgvector"}})
     config = _with(config, "workers", outbox=True)
-    config = _with(config, "offline", sleep_v2=True)
-    config = _with(config, "economy", ledger_v2=True, ledger_persist=True)
-    config = _with(config, "write", envelope_v2=True)
+    config = _with(config, "offline", sleep=True)
+    config = _with(config, "economy", ledger=True, ledger_persist=True)
+    config = _with(config, "write", window_extract="facts")
     storage = config.storage.model_copy(
         update={
             "graph": config.storage.graph.model_copy(update={"provider": "sql_adjacency"}),
@@ -69,9 +69,9 @@ def test_every_sql_only_feature_is_listed_at_once() -> None:
     assert "storage.records.provider 'mongodb' has no SQL access" in message
     for key in (
         "workers.outbox",
-        "offline.sleep_v2",
+        "offline.sleep",
         "economy.ledger_persist",
-        "write.envelope_v2",
+        "write.window_extract",
         "pgvector",
         "sql_adjacency",
     ):

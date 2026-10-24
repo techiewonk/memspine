@@ -21,7 +21,7 @@ from memspine_evals.experiments import C01Config, build_reader_and_judge
 from memspine_evals.judge import ContainsJudge
 from memspine_evals.provenance import RunProtocol
 from memspine_evals.readers import (
-    DATED_QA_PROMPT,
+    _DATED_TEMPLATE,
     QA_PROMPTS,
     QA_ROUTER_VERSION,
     ROUTED_INFERENCE_RULE,
@@ -63,9 +63,9 @@ def test_routing_decision(question: str, shape: str) -> None:
 
 
 def test_plain_branch_is_dated_verbatim() -> None:
-    assert ROUTED_QA_VARIANTS["plain"] == QA_PROMPTS["dated"]
+    assert ROUTED_QA_VARIANTS["plain"] == _DATED_TEMPLATE
     rendered = ROUTED_QA_PROMPTS["routed"].format(question=PLAIN, **_FMT)
-    assert rendered == QA_PROMPTS["dated"].format(question=PLAIN, **_FMT)
+    assert rendered == _DATED_TEMPLATE.format(question=PLAIN, **_FMT)
 
 
 def test_variant_wording_h11() -> None:
@@ -74,8 +74,8 @@ def test_variant_wording_h11() -> None:
     terse-answer instruction and no blanket refusal (dated3 lost -3.3 to both)."""
     refusal = "If the context does not contain the answer, say you do not know."
     temporal, inference = ROUTED_QA_VARIANTS["temporal"], ROUTED_QA_VARIANTS["inference"]
-    assert temporal == DATED_QA_PROMPT.replace(refusal, ROUTED_TEMPORAL_RULE)
-    assert inference == DATED_QA_PROMPT.replace(refusal, ROUTED_INFERENCE_RULE)
+    assert temporal == _DATED_TEMPLATE.replace(refusal, ROUTED_TEMPORAL_RULE)
+    assert inference == _DATED_TEMPLATE.replace(refusal, ROUTED_INFERENCE_RULE)
     assert "DD Month YYYY" in temporal and "relative phrase" in temporal
     assert "say 'likely'" in inference and "do not know" not in inference
     for text in (temporal, inference):
@@ -92,9 +92,7 @@ def test_existing_prompt_table_is_unchanged() -> None:
         "question_dated",
         "default",
         "dated",
-        "dated2",
         "dated_infer",
-        "dated3",
         "dated_world",
         "abstain",
         "converse",
@@ -103,13 +101,8 @@ def test_existing_prompt_table_is_unchanged() -> None:
         "evermemos_cot",  # N65
         "grounded",  # reader-gap fix
         "grounded_detail",  # C2
-        "grounded_legacy",  # I80: the pre-2026-10-11 text, byte-identical
-        "grounded_detail_legacy",  # I80
         "grounded_nodate",  # I79
-        "grounded_detail_nodate",  # I79
         "grounded_ordered",  # R2-4
-        "grounded_v2",  # dev reasoning 2026-10-10
-        "grounded_v3",
         "grounded_generic",  # I3
         "grounded_generic_infer",  # B3 / C4 / R2-6 (+ C9 detail clause)
         "grounded_generic_list",  # C6
@@ -136,7 +129,7 @@ def _old_describe(reader: Any, bedrock: bool) -> dict[str, Any]:
             "sampler": reader.sampler.describe(),  # A8: explicit sampler
             "prompt_sha256": sha,
         }
-    extra = {"extract_answer": True, "answer_extractor": "v3"} if reader.extract_answer else {}
+    extra = {"extract_answer": True, "answer_extractor": "base"} if reader.extract_answer else {}
     return {**head, **body, **extra}
 
 
@@ -174,7 +167,7 @@ def test_routed_describe(monkeypatch: pytest.MonkeyPatch, bedrock: bool) -> None
     assert variants == {
         k: hashlib.sha256(v.encode()).hexdigest() for k, v in ROUTED_QA_VARIANTS.items()
     }
-    assert variants["plain"] == hashlib.sha256(QA_PROMPTS["dated"].encode()).hexdigest()
+    assert variants["plain"] == hashlib.sha256(_DATED_TEMPLATE.encode()).hexdigest()
     assert len(set(variants.values())) == 3
     assert described["prompt_sha256"] not in variants.values()
 

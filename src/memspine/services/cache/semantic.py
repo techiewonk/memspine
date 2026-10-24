@@ -112,7 +112,7 @@ class CachedEmbedding:
             async with model_slot("embed"):  # RT-02: no-op unless the model gate is on
                 t0 = time.perf_counter()
                 fresh = await producer([miss_texts[key] for key in keys])
-            _costs.record_call(  # W2-12: no-op unless economy.ledger_v2 installed a ledger
+            _costs.record_call(  # W2-12: no-op unless economy.ledger installed a ledger
                 "embedding",
                 model=type(self._inner).__name__,
                 tokens_in=sum(len(miss_texts[key]) for key in keys) // 4,

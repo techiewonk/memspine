@@ -89,17 +89,21 @@ async def test_out_of_order_arrival_ends_in_the_correct_state(order: tuple[str, 
     }
 
 
-async def test_off_keeps_the_plain_backfill_and_no_invalid_at() -> None:
+async def test_disabled_interval_order_keeps_plain_temporal_insertions() -> None:
     memory, log = await _semantic(interval_order=False)
     for label in ("a", "c", "b"):
         await memory.write(_fact(label))
-    # Today's R4 backfill: b closes at the current fact, a keeps its UPDATE end.
+    # Backdated insertion: b closes at the current fact; a keeps its UPDATE end.
     assert await _intervals(memory) == {
         "a": (T1, T3, None),
         "b": (T2, T3, None),
         "c": (T3, None, None),
     }
-    assert all("invalid_at" not in str(event.payload) for event in log)
+    assert all(
+        event.payload.get("record", {}).get("invalid_at") is None
+        and event.payload.get("set", {}).get("invalid_at") is None
+        for event in log
+    )
 
 
 async def test_in_order_update_is_unchanged_except_invalid_at() -> None:
@@ -110,7 +114,11 @@ async def test_in_order_update_is_unchanged_except_invalid_at() -> None:
             await memory.write(_fact(label))
     assert await _intervals(off) == {"a": (T1, T2, None), "b": (T2, None, None)}
     assert await _intervals(on) == {"a": (T1, T2, T2), "b": (T2, None, None)}
-    assert all("invalid_at" not in str(event.payload) for event in off_log)
+    assert all(
+        event.payload.get("record", {}).get("invalid_at") is None
+        and event.payload.get("set", {}).get("invalid_at") is None
+        for event in off_log
+    )
 
 
 async def test_same_endpoints_are_a_duplicate_not_a_contradiction() -> None:

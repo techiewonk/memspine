@@ -16,13 +16,11 @@ from test_graph_leg_off_golden import T0, _engine, seed
 from memspine import Engine
 from memspine.config import constants
 from memspine.exceptions import ConfigError
-from memspine.models.encoders.query.temporal_query import LegHit
-from memspine.services.lexical.base import LexicalHit
-from memspine.services.vector.base import VectorHit
 from memspine.store.records import SourceInfo
 
 
 async def _started(**read: Any) -> Engine:
+    read.pop("graph_leg", None)
     eng = _engine(**read)
     await eng.start()
     return eng
@@ -55,74 +53,6 @@ async def test_seedless_query_falls_back_to_the_entities_of_the_top_hits() -> No
         assert seeds == ["ent:a:caroline", "ent:a:denver"]
     finally:
         await eng.stop()
-
-
-async def test_leg_returns_facts_then_their_source_turns() -> None:
-    eng = await _started(graph_leg=True, graph_depth=1)
-    try:
-        ids = await seed(eng)
-        leg = await eng._graph_leg("a", "what books has Melanie read", [], [], [], False)
-        got = [hit.record_id for hit in leg]
-        facts = {
-            ids['Melanie read "Charlotte\'s Web"'],
-            ids['Melanie read "Nothing Is Impossible"'],
-        }
-        assert set(got[0::2]) == facts  # each fact is followed by its source turn
-        assert set(got[1::2]) == {ids["turn0"], ids["turn2"]}
-        assert all(isinstance(hit, LegHit) for hit in leg)
-    finally:
-        await eng.stop()
-
-
-async def test_leg_k_caps_the_leg_and_depth_widens_it() -> None:
-    eng = await _started(graph_leg=True, graph_leg_k=1)
-    try:
-        await seed(eng)
-        assert len(await eng._graph_leg("a", "Melanie", [], [], [], False)) == 1
-    finally:
-        await eng.stop()
-    eng = await _started(graph_leg=True, graph_depth=1)
-    try:
-        ids = await seed(eng)
-        # A record naming both Melanie and Caroline bridges the two entities.
-        await eng.write(
-            "Melanie visited Caroline",
-            namespace="a",
-            entity="Melanie",
-            tags=["kind:event", "rel:visited", "dst:Caroline"],
-        )
-        near = {r.record_id for r, _ in await eng._graph_walk("a", "Melanie")}
-        assert ids["Caroline lives in Denver"] not in near
-    finally:
-        await eng.stop()
-
-    eng = await _started(graph_leg=True, graph_depth=2)
-    try:
-        ids = await seed(eng)
-        await eng.write(
-            "Melanie visited Caroline",
-            namespace="a",
-            entity="Melanie",
-            tags=["kind:event", "rel:visited", "dst:Caroline"],
-        )
-        far = {r.record_id for r, _ in await eng._graph_walk("a", "Melanie")}
-        assert ids["Caroline lives in Denver"] in far
-    finally:
-        await eng.stop()
-
-
-async def test_leg_fuses_into_search_and_lifts_graph_facts() -> None:
-    """A query naming Melanie gets both of her edge facts as its top two hits."""
-    eng = await _started(graph_leg=True)
-    try:
-        await seed(eng)
-        hits = await eng.search("which titles for Melanie", namespace="a", top_k=2)
-    finally:
-        await eng.stop()
-    assert set(_contents(hits)) == {
-        'Melanie read "Charlotte\'s Web"',
-        'Melanie read "Nothing Is Impossible"',
-    }
 
 
 def test_graph_depth_is_bounded_in_config() -> None:
@@ -178,8 +108,6 @@ async def test_a_poisoned_source_reaches_nothing_via_the_graph() -> None:
         # Never entered: the quarantined node, the low-trust node, and what lies
         # only behind the quarantined one.
         assert not {ids["poison"], ids["low"], ids["behind"]} & reached
-        leg = {h.record_id for h in await eng._graph_leg("a", "Melanie", [], [], [], False)}
-        assert not {ids["poison"], ids["low"], ids["behind"]} & leg
         # Seeding from the poison's own entity reaches nothing through it either.
         assert ids["poison"] not in {
             r.record_id for r, _ in await eng._graph_walk("a", "Evil Corp")
@@ -229,13 +157,13 @@ async def test_graph_hits_still_pass_integrity_admission() -> None:
             "episodic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
-        read={"record_access": False, "graph_leg": True, "graph_min_trust": 0.0},
+        read={"record_access": False, "graph_min_trust": 0.0},
         integrity={"enabled": True, "admission_threshold": 0.45},
     )
     await eng.start()
     try:
         ids = await _poisoned(eng)
-        leg = {h.record_id for h in await eng._graph_leg("a", "Melanie", [], [], [], False)}
+        leg = {r.record_id for r, _ in await eng._graph_walk("a", "Melanie")}
         assert ids["low"] not in leg
         hits = {r.record_id for r, _ in await eng.search("Melanie", namespace="a", top_k=10)}
         assert ids["low"] not in hits
@@ -330,20 +258,6 @@ def test_header_share_check_counts_the_facts_block() -> None:
 
     with pytest.raises(ConfigError, match="header shares"):
         ReadConfig(cards_include_edges=True, cards_budget_share=0.9, profile_header=True)
-
-
-async def test_leg_signature_accepts_the_search_legs() -> None:
-    """The leg's fallback ranks the other legs' hits like search does."""
-    eng = await _started(graph_leg=True)
-    try:
-        ids = await seed(eng)
-        fact = ids["Caroline lives in Denver"]
-        leg = await eng._graph_leg(
-            "a", "where does she live", [VectorHit(fact, 0.9)], [LexicalHit(fact, 1.0)], [], True
-        )
-        assert fact in {h.record_id for h in leg}
-    finally:
-        await eng.stop()
 
 
 # ── related() is unchanged by the entity layer ────────────────────────────────

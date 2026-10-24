@@ -307,7 +307,7 @@ def route_constant(query: Query) -> str:
     return "default"
 
 
-def route_locomo_plus_v2(query: Query) -> str:
+def route_locomo_plus(query: Query) -> str:
     """LoCoMo questions by category name; LoCoMo-Plus triggers are ``Cognitive``."""
     if query.meta.get("benchmark") == "locomo_plus":
         return "Cognitive"
@@ -370,7 +370,7 @@ JUDGE_SUITES: dict[str, JudgeSuite] = {
         "locomo-plus-v2",
         JudgeScale.GRADED_01,
         {name: f"locomo_plus/{name}" for name in LOCOMO_PLUS_TEMPLATES},
-        route_locomo_plus_v2,
+        route_locomo_plus,
         handles_abstention=True,
         notes="official LoCoMo-Plus judge; correct=1, partial=0.5, wrong=0",
         needs_evidence=True,

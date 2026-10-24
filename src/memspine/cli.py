@@ -79,7 +79,6 @@ def _registry(template: str | None, config_file: Path | None) -> PromptRegistry:
         overrides=resolved.config.prompts.overrides,
         partials=resolved.config.prompts.partials,
         selection=resolved.config.prompts.selection,
-        layout_v2=resolved.config.prompts.layout_v2,
         layout_partials=resolved.config.prompts.layout_partials,
     )
 
@@ -183,28 +182,6 @@ def audit_taint(
     """
     report = _run_engine_op(db, "taint", record_id=record_id, namespace=namespace)
     typer.echo(yaml.safe_dump(report, sort_keys=False).strip())
-
-
-@app.command("migrate")
-def migrate_cmd(
-    source: Annotated[Path, typer.Argument(help="Existing (v1) SQLite database; never written")],
-    target: Annotated[Path, typer.Argument(help="Fresh database to build by replay of the log")],
-) -> None:
-    """Migrate by replay (G-23): upcast the retained event log into a fresh store.
-
-    Limited rebuild is advertised: the report lists the derived layers replay does not rebuild.
-    """
-    import asyncio
-
-    from memspine.exceptions import RebuildUnavailableError
-    from memspine.store.migrate import migrate_sqlite
-
-    try:
-        report = asyncio.run(migrate_sqlite(str(source), str(target)))
-    except RebuildUnavailableError as exc:
-        typer.secho(f"cannot migrate: {exc}", fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
-    typer.echo(yaml.safe_dump(report.as_dict(), sort_keys=False).strip())
 
 
 @app.command("forget")
@@ -351,11 +328,11 @@ def graph_requalify_cmd(
     """Re-project one namespace's compiled edges so each carries current qualifiers (RM-100).
 
     Idempotent: only edges whose stored form differs are rewritten. Needs
-    ``graph.edge_compiler_v2`` on in the effective configuration."""
+    ``graph.edge_compiler`` on in the effective configuration."""
     import asyncio
 
     from memspine import Engine
-    from memspine.derive.pipeline.stages.edge_compiler_v2 import requalify_namespace
+    from memspine.derive.pipeline.stages.edge_compiler import requalify_namespace
 
     async def _inner() -> dict[str, object]:
         overrides: dict[str, Any] = {"model": {"embedding": {"provider": "hash"}}}

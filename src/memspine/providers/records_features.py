@@ -56,15 +56,15 @@ def sql_feature_gaps(config: MemspineConfig, *, enabled: Collection[str]) -> lis
     gaps: list[str] = []
     if config.workers.outbox:
         gaps.append("workers.outbox: the outbox job book is a SQL table of the records database")
-    if config.offline.sleep_v2:
+    if config.offline.sleep:
         gaps.append(
-            "offline.sleep_v2: the sleep leases, cycle watermarks and triggers are SQL side "
+            "offline.sleep: the sleep leases, cycle watermarks and triggers are SQL side "
             "tables (RM-111 WP5); the blocking sleep() works on any records store"
         )
-    if config.economy.ledger_v2 and config.economy.ledger_persist:
+    if config.economy.ledger and config.economy.ledger_persist:
         gaps.append("economy.ledger_persist: the cost ledger is a SQL side table (RM-111 WP5)")
-    if config.write.envelope_v2:
-        gaps.append("write.envelope_v2: its dead-letter list is a SQL side table (RM-111 WP5)")
+    if config.write.window_extract in ("facts", "facts_graph", "all"):
+        gaps.append("write.window_extract: its dead-letter list is a SQL side table (RM-111 WP5)")
     if config.runtime.service_switches.projections.cleanup_interval_s is not None:
         gaps.append(
             "runtime.service_switches.projections: controlled projection switches keep their "

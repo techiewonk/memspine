@@ -28,7 +28,7 @@ def test_planned_clause_and_no_abstain_clause() -> None:
 def test_evermemos_is_a_reasoning_prompt_with_room_for_seven_steps() -> None:
     assert "evermemos_cot" in REASONING_QA_PROMPTS
     assert reasoning_max_tokens("evermemos_cot") > REASONING_MAX_TOKENS
-    assert reasoning_max_tokens("dated3") == REASONING_MAX_TOKENS
+    assert reasoning_max_tokens("dated") == REASONING_MAX_TOKENS
     assert "STEP 7: FINAL ANSWER" in QA_PROMPTS["evermemos_cot"]
 
 
@@ -46,4 +46,4 @@ def test_final_answer_reads_the_step_7_section(reply: str, answer: str | None) -
 
 
 def test_extractor_version_bumped_for_the_new_marker() -> None:
-    assert ANSWER_EXTRACTOR_VERSION == "v3"
+    assert ANSWER_EXTRACTOR_VERSION == "base"

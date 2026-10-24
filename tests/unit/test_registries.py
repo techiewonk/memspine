@@ -118,7 +118,7 @@ def test_llm_provider_is_declared_separately_from_model_id() -> None:
     from memspine.models.resolve import resolve_models
 
     models = PlacementConfig(
-        tiers_v2=True,
+        tiers=True,
         catalogue=[
             ModelDecl(
                 id="ollama/model",

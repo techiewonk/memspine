@@ -271,33 +271,6 @@ class MongoProjectionBindingStore:
         doc = await self._bindings.find_one(self._key(deployment_id, projector_name))
         return None if doc is None else binding_source_name(str(doc["provider"]))
 
-    async def adopt_renamed_provider(
-        self, target: ProjectionTargetBinding, old_provider: str
-    ) -> bool:
-        result = await self._bindings.update_one(
-            {
-                **self._key(target.deployment_id, target.projector_name),
-                "provider": old_provider,
-                "generation_id": target.generation_id,
-            },
-            {
-                "$set": {
-                    "provider": target.provider,
-                    "target_fingerprint": target.target_fingerprint,
-                    "updated_at": _iso(datetime.now(UTC)),
-                }
-            },
-        )
-        adopted = result.modified_count == 1
-        if adopted:
-            _log.info(
-                "provider.binding_renamed",
-                projector=target.projector_name,
-                old=old_provider,
-                new=target.provider,
-            )
-        return adopted
-
     async def ensure(self, target: ProjectionTargetBinding) -> str:
         """As :meth:`SqlProjectionBindingStore.ensure` (same refusals, same messages)."""
         key = self._key(target.deployment_id, target.projector_name)
@@ -358,7 +331,7 @@ class MongoProjectionBindingStore:
 
         if await self._offset(target.projector_name) > 0:
             raise ConfigError(
-                f"projector {target.projector_name!r} has a non-zero legacy offset "
+                f"projector {target.projector_name!r} has a non-zero unbound offset "
                 "without a provider target binding; a verified projection rebuild or "
                 "switch is required before startup"
             )

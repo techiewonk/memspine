@@ -12,7 +12,7 @@ from typing import Any
 import pytest
 
 from memspine import Engine
-from memspine.derive.pipeline.stages.edge_compiler_v2 import compile_graph_edges
+from memspine.derive.pipeline.stages.edge_compiler import compile_graph_edges
 from memspine.observability import tap
 from memspine.read.pipeline import legs as pipeline_legs
 from memspine.read.pipeline import request as read_request
@@ -58,12 +58,11 @@ async def _engine(**read: Any) -> Engine:
             "episodic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
-        graph={"edge_compiler_v2": True},
+        graph={"edge_compiler": True},
         read={
             "hybrid": True,
             "record_access": False,
-            "legs_v2": True,
-            "graph_leg_v2": True,
+            "graph_leg": True,
             "graph_leg_seed_hits": 0,
             **read,
         },
@@ -120,7 +119,7 @@ async def _compiled(eng: Engine) -> list[Any]:
     return [
         e
         for e in await eng._graph.edge_list(NS)
-        if e.properties.get("compiled") == "edge_compiler_v2" and e.weight > 0
+        if e.properties.get("compiled") == "edge_compiler" and e.weight > 0
     ]
 
 
@@ -233,7 +232,7 @@ async def test_unqualified_graph_paths_are_skipped_under_a_filter() -> None:
         with graph_filter_scope(QualifierFilter(known_as_of=datetime.now(UTC))):
             assert active_graph_filter() is not None
             blocked = await pipeline_legs._graph_walk(eng, NS, QUERY)
-            entity = await pipeline_legs._entity_leg_v2(eng, NS, QUERY, [], 10)
+            entity = await pipeline_legs._entity_leg(eng, NS, QUERY, [], 10)
     finally:
         await eng.stop()
     assert free  # the association walk reaches records without a filter

@@ -8,7 +8,7 @@ schema here because the extraction pool and the decider factories read them dire
 
 There are no named profiles and no aliases (ADR-068): every old key (``embedding``, ``llm``,
 ``models``, ``decision``, ``read.rerank*``, ``read.decider*``, ``ingest.asset_vision*``) is
-rejected naming its new key (:data:`MOVED_KEYS`).
+rejected by the strict current schema.
 
 Accessors for consumers: :func:`llm_slot`, :func:`llm_slots`, :func:`extraction_slot`,
 :func:`decider_slot`, :func:`gliner_settings` and :func:`weights_settings`.
@@ -30,7 +30,6 @@ if TYPE_CHECKING:
 
 __all__ = [
     "CONSUMER_FIELDS",
-    "MOVED_KEYS",
     "DeciderConsumer",
     "DeciderReadSlot",
     "DeciderSlot",
@@ -60,122 +59,8 @@ __all__ = [
     "gliner_settings",
     "llm_slot",
     "llm_slots",
-    "reject_model_moved_keys",
     "weights_settings",
 ]
-
-
-# ----------------------------------------------------------------------------- moved keys
-
-#: ADR-082 / RM-117: removed keys and their new location. No aliases (ADR-068).
-MOVED_KEYS: dict[str, str] = {
-    # roots
-    "embedding": "model.embedding",
-    "llm": "model.llm.<role>",
-    "models": "model.placement (LLM roles: model.llm.<role>; GLiNER: model.extraction.<consumer>)",
-    "decision": "model.decider.route",
-    # embedding.*
-    "embedding.provider": "model.embedding.provider",
-    "embedding.settings": "model.embedding.settings",
-    "embedding.batch_size": "model.embedding.batch_size",
-    "embedding.versioned_spaces": "model.embedding.versioned_spaces",
-    "embedding.profile": "model.embedding.preset",
-    "embedding.pin_profile": "model.embedding.pin_preset",
-    "embedding.migrate_profile": "model.embedding.migrate_preset",
-    # llm.*
-    "llm.roles": "model.llm.<role>",
-    "llm.structured": "model.llm.<role>.structured (set it in every role)",
-    # models.*
-    "models.profiles": "inline slots: model.llm.<role>, model.extraction.<consumer> or "
-    "model.decider.<consumer> (named profiles are removed)",
-    "models.bindings": "inline slots: model.llm.<role>, model.extraction.<consumer> or "
-    "model.decider.route (gliner_decision)",
-    "models.gliner_max_models": "model.placement.max_loaded_models",
-    "models.escalation": "model.llm.<role>.escalation (targets are inline LLM slots)",
-    "models.thinking": "model.placement.thinking.<role> (a role with an explicit slot: "
-    "model.llm.<role>.thinking; judge / reflect only)",
-    "models.topic": "model.extraction.topic (labels, min_confidence)",
-    "models.embedder_profile": "model.embedding.preset (auto = unset)",
-    "models.rerank": "removed: model.rerank.chain: [] is off",
-    "models.default_rerankers": "model.placement.catalogue_rerankers",
-    "models.tiers_v2": "model.placement.tiers_v2",
-    "models.catalogue": "model.placement.catalogue",
-    "models.gpus": "model.placement.gpus",
-    "models.detect_gpus": "model.placement.detect_gpus",
-    "models.ram_mb": "model.placement.ram_mb",
-    "models.gpu_headroom_mb": "model.placement.gpu_headroom_mb",
-    "models.role_tier": "model.placement.role_tier",
-    "models.pins": "model.placement.pins",
-    "models.allow_hosted": "model.placement.allow_hosted",
-    "models.required_roles": "model.placement.required_roles",
-    "models.on_missing_model": "model.placement.on_missing_model",
-    # decision.*
-    "decision.provider": "model.decider.route ('off' = no slot)",
-    # read.* rerank
-    "read.rerank": "model.rerank.chain: [{provider, settings}] ('off' = [])",
-    "read.rerank_settings": "model.rerank.chain[].settings",
-    "read.rerank_v2": "model.rerank.chain (a non-empty chain is on)",
-    "read.rerank_v2_chain": "model.rerank.chain (one {provider, settings} entry per mode)",
-    "read.rerank_v2_pool": "model.rerank.pool",
-    "read.rerank_v2_search_pool": "model.rerank.search_pool",
-    "read.rerank_max_top_k": "model.rerank.max_top_k",
-    "read.rerank_keep": "model.rerank.keep",
-    "read.rerank_blend": "model.rerank.blend",
-    "read.rerank_gate": "model.rerank.gate",
-    "read.rerank_context": "model.rerank.context",
-    "read.rerank_date_prefix": "model.rerank.date_prefix",
-    "read.rerank_balanced": "model.rerank.balanced",
-    "read.rerank_chunk_chars": "model.rerank.chunk_chars",
-    "read.rerank_chunk_overlap": "model.rerank.chunk_overlap",
-    "read.rerank_floor": "model.rerank.floor",
-    "read.skip_rerank_for_ordering": "model.rerank.skip_for_ordering",
-    # read.* decider
-    "read.decider": "model.decider.read.provider ('heuristic' = no slot)",
-    "read.decider_model": "model.decider.read.settings.model",
-    "read.decider_device": "model.decider.read.settings.device",
-    "read.decider_threads": "model.decider.read.settings.threads",
-    "read.decider_backend": "model.decider.read.settings.backend",
-    "read.decider_dtype": "model.decider.read.settings.dtype",
-    "read.decider_tasks": "model.decider.read.tasks",
-    "read.decider_min_confidence": "model.decider.read.min_confidence",
-    "read.decider_workers": "model.decider.read.workers",
-    # ingest.* vision
-    "ingest.asset_vision": "model.vision.provider ('none' = model.vision: null)",
-    "ingest.asset_vision_model": "model.vision.settings.model",
-    "ingest.asset_vision_url": "model.vision.settings.api_base",
-    "ingest.asset_vision_timeout_s": "model.vision.timeout_s",
-}
-
-#: Old keys rejected inside each area (the roots are rejected by the root config).
-MOVED_READ_KEYS: tuple[str, ...] = tuple(
-    k.removeprefix("read.") for k in MOVED_KEYS if k.startswith("read.")
-)
-MOVED_INGEST_KEYS: tuple[str, ...] = tuple(
-    k.removeprefix("ingest.") for k in MOVED_KEYS if k.startswith("ingest.")
-)
-MOVED_ROOTS: tuple[str, ...] = ("embedding", "llm", "models", "decision")
-
-
-def reject_model_moved_keys(value: Any, area: str, keys: tuple[str, ...]) -> None:
-    """Raise a ``ConfigError`` naming the new location of a key removed by ADR-082.
-
-    For a removed root (``embedding``, ``llm``, ``models``, ``decision``) the first known
-    sub-key is named, so ``embedding: {profile: gpu}`` points at ``model.embedding.preset``."""
-    if not isinstance(value, Mapping):
-        return
-    for key in keys:
-        if key not in value:
-            continue
-        dotted = f"{area}.{key}" if area else key
-        child = value[key]
-        if not area and isinstance(child, Mapping):
-            for sub in child:
-                if f"{dotted}.{sub}" in MOVED_KEYS:
-                    dotted = f"{dotted}.{sub}"
-                    break
-        target = MOVED_KEYS[dotted]
-        hint = target if target.startswith("removed") else f"use {target}"
-        raise ConfigError(f"config key {dotted!r} was removed by ADR-082; {hint}")
 
 
 # ----------------------------------------------------------------------------- base slot
@@ -409,10 +294,10 @@ class RerankConfig(ConfigModel):
     model_config = ConfigDict(extra="forbid")
 
     chain: list[RerankStage] = Field(default_factory=list)
-    #: R3-07: the pool the chain reranks is capped at this size (was ``rerank_v2_pool``).
+    #: R3-07: the pool the chain reranks is capped at this size (was ``rerank_pool``).
     pool: int = Field(default=64, ge=1, le=256)
     #: FU-RRPOOL: ``search`` fetches ``max(top_k, search_pool)``, reranks, cuts to ``top_k``;
-    #: 0 = off (was ``rerank_v2_search_pool``).
+    #: 0 = off (was ``rerank_search_pool``).
     search_pool: int = Field(default=0, ge=0, le=256)
     #: H18: rerank only when ``top_k`` is at most this; None = always.
     max_top_k: int | None = Field(default=None, ge=1)
@@ -648,13 +533,13 @@ class GpuDecl(ConfigModel):
 
 class PlacementConfig(ConfigModel):
     """``model.placement`` (MD-01; P-01, P-02, P-03, P-19): device planning over declared
-    models. ``tiers_v2`` off (default) = roles resolve from ``model.llm`` only."""
+    models. ``tiers`` off (default) = roles resolve from ``model.llm`` only."""
 
     model_config = ConfigDict(extra="forbid")
 
     #: Roles resolve through tier, placement and fallback (``memspine.models.resolve``); an
     #: explicit ``model.llm.<role>`` slot wins.
-    tiers_v2: bool = False
+    tiers: bool = False
     catalogue: list[ModelDecl] = Field(default_factory=list)
     #: ``shipped``: add the shipped reranker chain to the catalogue when none is declared.
     catalogue_rerankers: Literal["shipped", "none"] = "shipped"
@@ -670,7 +555,7 @@ class PlacementConfig(ConfigModel):
     #: Upper bound on simultaneously loaded GLiNER checkpoints (was ``gliner_max_models``).
     max_loaded_models: int = Field(default=1, ge=1)
     #: RM-118 (P-15; was ``models.thinking``): role -> capped thinking token budget for a role the
-    #: tier plan picks (``tiers_v2``). judge / reflect only; 0 = off. A role with an explicit
+    #: tier plan picks (``tiers``). judge / reflect only; 0 = off. A role with an explicit
     #: ``model.llm.<role>`` slot sets ``model.llm.<role>.thinking`` instead (one place per role).
     #: Honoured only on a model that declares ``supports_thinking``.
     thinking: dict[str, int] = Field(default_factory=dict)

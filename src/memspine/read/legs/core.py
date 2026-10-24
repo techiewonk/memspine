@@ -82,7 +82,7 @@ class LegContext:
     #: (``read.temporal_precision_aware``)
     precision_aware: bool = False
     #: FU-TEMPORAL: the old ``read.temporal_*`` rules, honoured by the temporal leg under
-    #: ``legs_v2``. ``temporal_rank`` is ``midpoint`` | ``overlap`` (``read.temporal_rank``);
+    #: ``legs``. ``temporal_rank`` is ``midpoint`` | ``overlap`` (``read.temporal_rank``);
     #: ``temporal_soft`` fills a short leg with the nearest records outside the window
     #: (``read.temporal_soft``); ``temporal_mentions`` lets a turn that names a date enter by
     #: that date (``read.temporal_leg_mentions``); ``temporal_event_dates`` lets a mined fact

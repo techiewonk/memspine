@@ -1,0 +1,10 @@
+{
+  "reason": "The current pinned ONNX catalogue supports MS MARCO MiniLM, not the historical BGE export. These are new future-run configurations, not rewritten past results.",
+  "arm_renames": {
+    "qs-ebge-rbge": "qs-ebge-rmsmarco",
+    "qs-ebgeb-rbge": "qs-ebgeb-rmsmarco",
+    "qs-ejina-rbge": "qs-ejina-rmsmarco",
+    "qs-eq06-rbge": "qs-eq06-rmsmarco"
+  },
+  "reranker_model": "Xenova/ms-marco-MiniLM-L-6-v2"
+}

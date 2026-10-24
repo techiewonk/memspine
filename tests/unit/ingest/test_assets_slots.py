@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import hashlib
 import os
-import sqlite3
 import uuid
 from pathlib import Path
 from typing import Any
@@ -240,101 +239,6 @@ async def test_postgres_registry_rows_and_erasure(tmp_path: Path) -> None:
 # ---------------------------------------------------------------------------- the import
 
 
-def _legacy_dir(root: Path, record_id: str | None) -> Path:
-    """A pre-item-18 ``ingest.asset_dir``: ``registry.sqlite`` (table ``assets``) + ``blobs/``."""
-    root.mkdir(parents=True)
-    cols = (
-        "asset_id, source_turn_id, uri, kind, caption, search_hint, record_id, availability, "
-        "content_hash, mime, size, evidence_status, evidence, evidence_backend, error"
-    )
-    db = sqlite3.connect(root / "registry.sqlite")
-    db.execute(
-        "CREATE TABLE assets (asset_id TEXT PRIMARY KEY, source_turn_id TEXT, uri TEXT, kind TEXT,"
-        " caption TEXT, search_hint TEXT, record_id TEXT, availability TEXT, content_hash TEXT,"
-        " mime TEXT, size INTEGER, evidence_status TEXT, evidence TEXT, evidence_backend TEXT,"
-        " error TEXT)"
-    )
-    db.execute(
-        f"INSERT INTO assets ({cols}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        (
-            asset_id_for("D1:2", URL),
-            "D1:2",
-            URL,
-            "image",
-            "a photo of a book",
-            None,
-            record_id,
-            "cached",
-            DIGEST,
-            "image/jpeg",
-            len(JPEG),
-            "ok",
-            "A hardcover titled 'Charlotte's Web'.",
-            "fake",
-            None,
-        ),
-    )
-    db.execute(
-        f"INSERT INTO assets ({cols}) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-        ("orphan", "X:1", "https://img.test/x.jpg", "image", None, None, None, "unfetched")
-        + (None,) * 3
-        + ("none", None, None, None),
-    )
-    db.commit()
-    db.close()
-    blob = root / "blobs" / DIGEST[:2] / DIGEST
-    blob.parent.mkdir(parents=True)
-    blob.write_bytes(JPEG)
-    return root
-
-
-async def test_legacy_asset_dir_is_imported_once(tmp_path: Path) -> None:
-    calls: list[str] = []
-    eng, vision = await _engine(tmp_path, "cached", path=str(tmp_path / "records.db"), calls=calls)
-    try:
-        await eng.ingest_messages(TURNS, namespace="a", session_id="s1")
-        (row,) = await eng._asset_registry().all("a")
-        await eng._asset_registry().erase_namespace("a")  # as if registered before item 18
-        legacy = _legacy_dir(tmp_path / "old_assets", row.record_id)
-        result = await eng.import_asset_dir(legacy)
-        assert (result.rows, result.skipped, result.documents) == (1, 1, 1)
-        assert not result.already_imported
-        assert not (legacy / "registry.sqlite").exists() and not (legacy / "blobs").exists()
-        assert (legacy / "registry.sqlite.imported").is_file()
-        assert (legacy / "blobs.imported").is_dir()
-        (imported,) = await eng._asset_registry().all("a")
-        assert imported.evidence_status == "ok" and imported.record_id == row.record_id
-        head = await eng.documents.head("a", DIGEST)
-        assert head is not None and head.record_ids == (row.record_id,)
-        out = await eng.read(QUESTION, namespace="a", mode="retrieve", top_k=4)
-        assert "Charlotte's Web" in _evidence(out)[0] and calls == [] and vision.calls == 0
-        # nothing left to import; the same content restored is recognised by its digest
-        assert await eng.import_asset_dir(legacy) is None
-        (legacy / "registry.sqlite.imported").rename(legacy / "registry.sqlite")
-        again = await eng.import_asset_dir(legacy, namespace="z")
-        assert again.already_imported and again.rows == 0
-        assert (legacy / "registry.sqlite.imported").is_file()
-        assert not (legacy / "registry.sqlite").exists()
-        assert await eng._asset_registry().all("z") == []
-    finally:
-        await eng.stop()
-
-
-async def test_import_takes_the_given_namespace_for_rows_without_a_record(tmp_path: Path) -> None:
-    eng, _ = await _engine(tmp_path, "cached", path=":memory:")
-    try:
-        legacy = _legacy_dir(tmp_path / "old", None)
-        result = await eng.import_asset_dir(legacy, namespace="eval")
-        assert (result.rows, result.skipped) == (2, 0)
-        assert {r.asset_id for r in await eng._asset_registry().all("eval")} == {
-            asset_id_for("D1:2", URL),
-            "orphan",
-        }
-        assert await eng.documents.get("eval", DIGEST) == JPEG
-    finally:
-        await eng.stop()
-
-
 # ---------------------------------------------------------------------------- config
 
 
@@ -349,14 +253,6 @@ def _cfg(**kwargs: Any) -> MemspineConfig:
         },
         **kwargs,
     )
-
-
-def test_asset_dir_is_rejected_naming_the_slots() -> None:
-    with pytest.raises(ConfigError) as err:
-        _cfg(ingest={"assets": "on", "asset_dir": "/tmp/assets"})
-    message = str(err.value)
-    assert "ingest.asset_dir" in message and "storage.documents" in message
-    assert "storage.records" in message and "import_asset_dir" in message
 
 
 def test_fetch_needs_the_documents_slot() -> None:

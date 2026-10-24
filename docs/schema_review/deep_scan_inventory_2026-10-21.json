@@ -1369,7 +1369,7 @@
           "kind": "AsyncFunctionDef"
         },
         {
-          "name": "verify_audit_chain_v2",
+          "name": "verify_audit_chain",
           "line": 3835,
           "kind": "AsyncFunctionDef"
         },
@@ -2353,7 +2353,7 @@
         "memspine.derive.feedback",
         "memspine.derive.pipeline",
         "memspine.derive.pipeline.stages.context",
-        "memspine.derive.pipeline.stages.edge_compiler_v2",
+        "memspine.derive.pipeline.stages.edge_compiler",
         "memspine.derive.pipeline.stages.profile_card",
         "memspine.derive.pipeline.stages.profile_erasure",
         "memspine.derive.pipeline.stages.table",
@@ -2962,7 +2962,7 @@
           "kind": "AsyncFunctionDef"
         },
         {
-          "name": "_feedback_v2",
+          "name": "_feedback",
           "line": 281,
           "kind": "AsyncFunctionDef"
         },
@@ -5640,7 +5640,7 @@
           "kind": "ClassDef"
         },
         {
-          "name": "_expand_neighbours_v2",
+          "name": "_expand_neighbours",
           "line": 723,
           "kind": "AsyncFunctionDef"
         },
@@ -8142,7 +8142,7 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "integration_v2",
+          "name": "integration",
           "line": 109,
           "kind": "FunctionDef"
         },
@@ -12975,12 +12975,12 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "prospective_v2_on",
+          "name": "prospective_on",
           "line": 97,
           "kind": "FunctionDef"
         },
         {
-          "name": "procedural_v2_on",
+          "name": "procedural_on",
           "line": 102,
           "kind": "FunctionDef"
         },
@@ -13456,7 +13456,7 @@
           "kind": "AsyncFunctionDef"
         },
         {
-          "name": "build_sleep_v2",
+          "name": "build_sleep",
           "line": 61,
           "kind": "FunctionDef"
         },
@@ -13549,13 +13549,13 @@
       ],
       "imports": [
         "__future__",
-        "memspine.derive.pipeline.stages.close_v2",
+        "memspine.derive.pipeline.stages.close",
         "memspine.derive.pipeline.stages.context",
         "memspine.store.events"
       ]
     },
     {
-      "path": "src/memspine/derive/pipeline/stages/close_v2.py",
+      "path": "src/memspine/derive/pipeline/stages/close.py",
       "lines": 268,
       "sha256": "9f88320b9fa6ef28dceae6e1c580d9d6309d6e8c5186ae3cb5ec31a905cf46cf",
       "symbols": [
@@ -13600,7 +13600,7 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "run_close_v2",
+          "name": "run_close",
           "line": 152,
           "kind": "AsyncFunctionDef"
         }
@@ -13729,7 +13729,7 @@
         "memspine.config",
         "memspine.core.policies.community",
         "memspine.core.policies.consolidation",
-        "memspine.derive.pipeline.stages.communities_v2",
+        "memspine.derive.pipeline.stages.communities",
         "memspine.derive.pipeline.stages.context",
         "memspine.derive.pipeline.stages.index",
         "memspine.derive.pipeline.stages.offline_door",
@@ -13743,7 +13743,7 @@
       ]
     },
     {
-      "path": "src/memspine/derive/pipeline/stages/communities_v2.py",
+      "path": "src/memspine/derive/pipeline/stages/communities.py",
       "lines": 335,
       "sha256": "b832c5151ef859c525ee914aea8ecb254646b6028cf25bf734823690f385781b",
       "symbols": [
@@ -13768,7 +13768,7 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "reorganize_v2",
+          "name": "reorganize",
           "line": 160,
           "kind": "AsyncFunctionDef"
         },
@@ -14015,7 +14015,7 @@
       ]
     },
     {
-      "path": "src/memspine/derive/pipeline/stages/decay_v2.py",
+      "path": "src/memspine/derive/pipeline/stages/decay.py",
       "lines": 475,
       "sha256": "a6f6b2e37bf02041aee102659feab5421b583db2218cb62d0afd4d198a5a2394",
       "symbols": [
@@ -14045,7 +14045,7 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "decay_sweep_v2",
+          "name": "decay_sweep",
           "line": 165,
           "kind": "AsyncFunctionDef"
         },
@@ -14070,7 +14070,7 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "multires_v2",
+          "name": "multires",
           "line": 288,
           "kind": "AsyncFunctionDef"
         },
@@ -14108,7 +14108,7 @@
       ]
     },
     {
-      "path": "src/memspine/derive/pipeline/stages/edge_compiler_v2.py",
+      "path": "src/memspine/derive/pipeline/stages/edge_compiler.py",
       "lines": 489,
       "sha256": "2cb85e0e54144776516443f64a522b151291126857822c7c581ca7f8fc165bca",
       "symbols": [
@@ -14321,7 +14321,7 @@
         "memspine.compose.compression",
         "memspine.config",
         "memspine.derive.pipeline.stages.context",
-        "memspine.derive.pipeline.stages.entity_summaries_v2",
+        "memspine.derive.pipeline.stages.entity_summaries",
         "memspine.derive.pipeline.stages.extract_graph",
         "memspine.derive.pipeline.stages.index",
         "memspine.derive.pipeline.stages.offline_door",
@@ -14334,12 +14334,12 @@
       ]
     },
     {
-      "path": "src/memspine/derive/pipeline/stages/entity_summaries_v2.py",
+      "path": "src/memspine/derive/pipeline/stages/entity_summaries.py",
       "lines": 265,
       "sha256": "dfc77b897fd6f2b680057c56c8e67dee5b3e8c634e1cd710006208d61b2aa020",
       "symbols": [
         {
-          "name": "summarize_entities_v2",
+          "name": "summarize_entities",
           "line": 45,
           "kind": "AsyncFunctionDef"
         },
@@ -14787,7 +14787,7 @@
         "memspine.core.policies.decay",
         "memspine.core.policies.retention",
         "memspine.derive.pipeline.stages.context",
-        "memspine.derive.pipeline.stages.decay_v2",
+        "memspine.derive.pipeline.stages.decay",
         "memspine.memories.episodic.lifecycle",
         "memspine.observability.logging",
         "memspine.store.events",
@@ -15492,7 +15492,7 @@
         "memspine.derive.pipeline.stages.communities",
         "memspine.derive.pipeline.stages.consolidate",
         "memspine.derive.pipeline.stages.context",
-        "memspine.derive.pipeline.stages.edge_compiler_v2",
+        "memspine.derive.pipeline.stages.edge_compiler",
         "memspine.derive.pipeline.stages.entity_summaries",
         "memspine.derive.pipeline.stages.erasure_rederive",
         "memspine.derive.pipeline.stages.extract_graph",
@@ -15520,7 +15520,7 @@
           "kind": "AsyncFunctionDef"
         },
         {
-          "name": "_advisory_v2",
+          "name": "_advisory",
           "line": 91,
           "kind": "AsyncFunctionDef"
         },
@@ -20681,7 +20681,7 @@
         "memspine.store.tri_temporal",
         "memspine.trust.firewall",
         "memspine.trust.pipeline",
-        "memspine.trust.pipeline.gates_v2",
+        "memspine.trust.pipeline.gates",
         "memspine.trust.redaction",
         "memspine.trust.visibility",
         "numpy",
@@ -28551,7 +28551,7 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "load_v2_pack",
+          "name": "load_pack",
           "line": 28,
           "kind": "FunctionDef"
         }
@@ -35306,27 +35306,27 @@
           "kind": "FunctionDef"
         },
         {
-          "name": "_gate_v2_leg",
+          "name": "_gate_leg",
           "line": 376,
           "kind": "AsyncFunctionDef"
         },
         {
-          "name": "_gate_v2_calibration",
+          "name": "_gate_calibration",
           "line": 385,
           "kind": "AsyncFunctionDef"
         },
         {
-          "name": "_gate_v2_scores",
+          "name": "_gate_scores",
           "line": 406,
           "kind": "AsyncFunctionDef"
         },
         {
-          "name": "_gate_v2_item",
+          "name": "_gate_item",
           "line": 421,
           "kind": "FunctionDef"
         },
         {
-          "name": "_gate_v2",
+          "name": "_gate",
           "line": 434,
           "kind": "AsyncFunctionDef"
         }
@@ -35394,7 +35394,7 @@
           "kind": "AsyncFunctionDef"
         },
         {
-          "name": "_entity_leg_v2",
+          "name": "_entity_leg",
           "line": 476,
           "kind": "AsyncFunctionDef"
         },
@@ -35449,7 +35449,7 @@
           "kind": "ClassDef"
         },
         {
-          "name": "_external_overlay_v2",
+          "name": "_external_overlay",
           "line": 913,
           "kind": "AsyncFunctionDef"
         },
@@ -35741,7 +35741,7 @@
           "kind": "AsyncFunctionDef"
         },
         {
-          "name": "_list_fires_v2",
+          "name": "_list_fires",
           "line": 115,
           "kind": "AsyncFunctionDef"
         },
@@ -40826,7 +40826,7 @@
           "kind": "ClassDef"
         },
         {
-          "name": "ItemV1",
+          "name": "ExtractionItem",
           "line": 112,
           "kind": "ClassDef"
         },
@@ -47391,7 +47391,7 @@
       ]
     },
     {
-      "path": "src/memspine/trust/pipeline/audit_v2.py",
+      "path": "src/memspine/trust/pipeline/audit.py",
       "lines": 190,
       "sha256": "276ce1ffb1997174531408b6998ad3a18c32f220ec43630c348861f55c6b1b9e",
       "symbols": [
@@ -47563,7 +47563,7 @@
         "memspine.store.events",
         "memspine.store.records",
         "memspine.trust.consent",
-        "memspine.trust.pipeline.erasure_v2",
+        "memspine.trust.pipeline.erasure",
         "memspine.trust.privacy",
         "typing"
       ]
@@ -47679,7 +47679,7 @@
       ]
     },
     {
-      "path": "src/memspine/trust/pipeline/erasure_v2.py",
+      "path": "src/memspine/trust/pipeline/erasure.py",
       "lines": 593,
       "sha256": "36e1b99db012184f803ccd45358d8fe03e3bf0210f58ca54fd26a5a358999406",
       "symbols": [
@@ -47899,7 +47899,7 @@
       ]
     },
     {
-      "path": "src/memspine/trust/pipeline/gates_v2.py",
+      "path": "src/memspine/trust/pipeline/gates.py",
       "lines": 396,
       "sha256": "5dda364297d537b3b21c6b0eb94c9beb5726fc3f38febe077e6583c56e189a4b",
       "symbols": [
@@ -48141,7 +48141,7 @@
       ]
     },
     {
-      "path": "src/memspine/trust/pipeline/retention_v2.py",
+      "path": "src/memspine/trust/pipeline/retention.py",
       "lines": 193,
       "sha256": "9fe31de1759d7ba41469189a250acf12ef923ab80fca1b67ddbd85f6a48edef0",
       "symbols": [

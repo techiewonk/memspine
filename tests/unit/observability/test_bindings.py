@@ -43,7 +43,7 @@ def _engine(path: Path, **overrides: Any) -> Engine:
 
 
 def _runtime(**kw: Any) -> dict[str, Any]:
-    return {"scheduler_v2": True, **kw}
+    return {"scheduler": True, **kw}
 
 
 async def test_different_runtime_settings_keep_their_own_scheduler(tmp_path: Path) -> None:
@@ -52,16 +52,16 @@ async def test_different_runtime_settings_keep_their_own_scheduler(tmp_path: Pat
     await a.start()
     await b.start()
     try:
-        assert a._sched_v2 is not None and b._sched_v2 is not None
-        assert a._sched_v2 is not b._sched_v2
-        ga, gb = a._sched_v2.gate, b._sched_v2.gate
+        assert a._sched is not None and b._sched is not None
+        assert a._sched is not b._sched
+        ga, gb = a._sched.gate, b._sched.gate
         assert ga is not None and gb is not None and (ga.slots, gb.slots) == (1, 2)
         with bindings.bound(a._binding):
-            assert installed_gate() is ga and installed_ledger() is a._sched_v2.ledger
+            assert installed_gate() is ga and installed_ledger() is a._sched.ledger
             async with model_slot("llm"):
                 assert ga.active == 1 and gb.active == 0
         with bindings.bound(b._binding):
-            assert installed_gate() is gb and installed_ledger() is b._sched_v2.ledger
+            assert installed_gate() is gb and installed_ledger() is b._sched.ledger
         # with two live Engines, unbound code gets neither Engine's gate
         assert installed_gate() is None
         await a.stop()
@@ -82,8 +82,8 @@ async def test_identical_runtime_settings_share_one_scheduler(tmp_path: Path) ->
     await a.start()
     await b.start()
     try:
-        shared = a._sched_v2
-        assert shared is not None and b._sched_v2 is shared
+        shared = a._sched
+        assert shared is not None and b._sched is shared
         await a.stop()
         assert shared.gate is not None and shared._opened  # b still holds it
         with bindings.bound(b._binding):
@@ -95,8 +95,8 @@ async def test_identical_runtime_settings_share_one_scheduler(tmp_path: Path) ->
 
 
 async def test_cost_ledgers_follow_their_engine(tmp_path: Path) -> None:
-    budget_a = {"ledger_v2": True}
-    budget_b = {"ledger_v2": True, "ledger_persist": True}
+    budget_a = {"ledger": True}
+    budget_b = {"ledger": True, "ledger_persist": True}
     a = _engine(tmp_path / "a.db", economy=budget_a)
     b = _engine(tmp_path / "b.db", economy=budget_b)
     same = _engine(tmp_path / "a.db", economy=budget_a)  # same store and settings as a
@@ -174,13 +174,13 @@ async def test_one_engine_behaves_as_before(tmp_path: Path) -> None:
     eng = _engine(
         tmp_path / "a.db",
         runtime=_runtime(model_concurrency=2),
-        economy={"ledger_v2": True},
+        economy={"ledger": True},
         observability={"ops_ledger": True, "tap": {"enabled": True, "sink": "memory"}},
     )
     await eng.start()
     try:
         # code outside any Engine call (a thread, a direct pipeline call) sees the only Engine
-        assert eng._sched_v2 is not None and installed_gate() is eng._sched_v2.gate
+        assert eng._sched is not None and installed_gate() is eng._sched.gate
         assert costs.installed() is eng._cost_ledger and ops.installed() is eng._ops_ledger
         assert tap.enabled()
         tap.event("probe.outside", n=1)

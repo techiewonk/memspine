@@ -24,9 +24,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-import sys
 import tempfile
-import types
 from collections import Counter
 from collections.abc import Awaitable, Callable
 from datetime import UTC, date, datetime, timedelta
@@ -166,7 +164,7 @@ def _engine_kw(**kw: Any) -> Any:
     config: dict[str, Any] = {
         "template": "base",
         "dotenv_path": None,
-        "storage": {"path": ":memory:"},
+        "storage": {"records": {"provider": "sqlite", "settings": {"path": ":memory:"}}},
         "model": {"embedding": {"provider": "hash"}},
     }
     config.update(kw)
@@ -202,9 +200,14 @@ async def _stubbed(stubs: dict[str, _Stub], **kw: Any) -> Any:
     """An engine whose LLM router is a real ``LLMRouter`` over stub providers."""
     from memspine.services.llm.base import LLMRouter
 
-    engine = _engine_kw(**kw)
+    model = dict(kw.pop("model", {}))
+    model.setdefault("embedding", {"provider": "hash"})
+    roles = model.setdefault("llm", {})
+    for role in stubs:
+        roles[role] = {"provider": "ollama", "timeout_s": 30.0, "settings": {"model": "audit-stub"}}
+    engine = _engine_kw(model=model, **kw)
 
-    async def router(config: Any, hooks: Any = None) -> Any:
+    async def router(config: Any, hooks: Any, wiring: Any) -> Any:
         return LLMRouter(dict(stubs))
 
     # F-08: the LLM router is built by the runtime container; swap its builder for the start.
@@ -239,7 +242,9 @@ def _src(role: str, channel: str | None = None, principal: str | None = None) ->
 
 
 class _FakeReranker:
-    """Duck-typed reranker: records its inputs and scores later documents higher."""
+    """Current reranker port: records inputs and scores later documents higher."""
+
+    reranker_id = "audit_reranker"
 
     def __init__(self) -> None:
         self.inputs: list[list[str]] = []
@@ -247,6 +252,29 @@ class _FakeReranker:
     async def rerank(self, query: str, documents: list[str]) -> list[float]:
         self.inputs.append(list(documents))
         return [float(i) for i in range(len(documents))]
+
+
+def _register_audit_reranker(fake: _FakeReranker) -> None:
+    from memspine.providers.contracts import BuildResult, ProviderRef
+    from memspine.providers.registry import ProviderDescriptor
+    from memspine.providers.rerank import register_reranker
+    from memspine.providers.settings import EmptySettings
+
+    class Builder:
+        async def build(self, settings: EmptySettings, ctx: Any) -> BuildResult[Any]:
+            return BuildResult(
+                fake, ProviderRef("rerank", "audit_reranker"), (), frozenset({"rerank"})
+            )
+
+    register_reranker(
+        ProviderDescriptor(
+            ProviderRef("rerank", "audit_reranker"),
+            EmptySettings,
+            frozenset({"rerank"}),
+            (),
+            Builder(),
+        )
+    )
 
 
 # -- integrity (B*) ---------------------------------------------------------------------
@@ -544,24 +572,19 @@ async def check_c2_query_input_type() -> bool:
 
     async def aembedding(**kwargs: Any) -> Any:
         calls.append(kwargs)
-        return SimpleNamespace(data=[{"embedding": [0.0] * 4} for _ in kwargs["input"]])
+        return {"data": [{"embedding": [0.0] * 4} for _ in kwargs["input"]]}
 
-    saved = sys.modules.get("openai_compatible")
-    sys.modules["openai_compatible"] = types.SimpleNamespace(aembedding=aembedding)  # type: ignore[assignment]
-    try:
-        emb = OpenAICompatEmbedding(
-            "bedrock/cohere.embed-v4:0",
-            4,
-            query_input_type="search_query",
-            document_input_type="search_document",
-        )
-        await emb.embed(["doc"])
-        await embed_queries(emb, ["q"])
-    finally:
-        if saved is None:
-            sys.modules.pop("openai_compatible", None)
-        else:
-            sys.modules["openai_compatible"] = saved
+    emb = OpenAICompatEmbedding(
+        "cohere.embed-v4:0",
+        4,
+        request_timeout_s=1.0,
+        query_input_type="search_query",
+        document_input_type="search_document",
+        connector=SimpleNamespace(aembedding=aembedding),
+        provider="bedrock",
+    )
+    await emb.embed(["doc"])
+    await embed_queries(emb, ["q"])
     return [c.get("input_type") for c in calls] == ["search_document", "search_query"]
 
 
@@ -1220,6 +1243,8 @@ async def check_h16_time_order() -> bool:
 async def _reranked(rerank: dict[str, Any], queries: list[tuple[str, int]]) -> _FakeReranker:
     """``rerank`` holds ``model.rerank`` behaviour keys (ADR-082)."""
     fake = _FakeReranker()
+    _register_audit_reranker(fake)
+    rerank = {"chain": [{"provider": "audit_reranker", "settings": {}}], **rerank}
     eng = _engine_kw(
         memories={"semantic": {"enabled": True}},
         read={"hybrid": False, "record_access": False},
@@ -1227,7 +1252,6 @@ async def _reranked(rerank: dict[str, Any], queries: list[tuple[str, int]]) -> _
     )
     await eng.start()
     try:
-        eng._rerank_provider = lambda: fake
         for i in range(6):
             await eng.write(
                 f"note {i} about hiking",
@@ -1242,17 +1266,23 @@ async def _reranked(rerank: dict[str, Any], queries: list[tuple[str, int]]) -> _
 
 
 async def check_rr_rerank() -> bool:
-    """The reranker's scores, not the vector order, decide what comes first."""
+    """The current reranker scores determine order while preserving the candidate set."""
     fake = _FakeReranker()
+    _register_audit_reranker(fake)
     tops = []
     for use in (True, False):
         eng = _engine_kw(
-            memories={"semantic": {"enabled": True}}, read={"hybrid": False, "record_access": False}
+            memories={"semantic": {"enabled": True}},
+            read={"hybrid": False, "record_access": False},
+            model={
+                "embedding": {"provider": "hash"},
+                "rerank": {
+                    "chain": [{"provider": "audit_reranker", "settings": {}}] if use else []
+                },
+            },
         )
         await eng.start()
         try:
-            if use:
-                eng._rerank_provider = lambda: fake
             for i in range(6):
                 await eng.write(f"note {i} about hiking", namespace="a")
             hits = await eng.search("hiking", namespace="a", top_k=6)
@@ -1428,14 +1458,33 @@ class _FakeDecision:
 
 
 async def check_h24_decision_planner() -> bool:
+    from unittest.mock import patch
+
     modes = []
     for use in (True, False):
         fake = _FakeDecision("count or list")  # G24: a planner option label
         eng = _engine_kw(
             memories={"episodic": {"enabled": True}},
-            read={"hybrid": False, "record_access": False, "planner": "decision"},
+            read={
+                "hybrid": False,
+                "record_access": False,
+                "planner": "decision" if use else "rules",
+            },
         )
-        await eng.start()
+        if use:
+            eng = _engine_kw(
+                memories={"episodic": {"enabled": True}},
+                read={"hybrid": False, "record_access": False, "planner": "decision"},
+                model={
+                    "embedding": {"provider": "hash"},
+                    "decider": {"route": {"provider": "gliner2", "settings": {}}},
+                },
+            )
+        eng._decision_provider = (lambda fake=fake: fake) if use else (lambda: None)
+        # The current startup guard still validates the selected route slot. Supply
+        # only the SDK import boundary; the injected chooser never loads a model.
+        with patch("memspine.services.decider.gliner2.auto_extractor_class", return_value=object):
+            await eng.start()
         try:
             # a stub decision provider (no gliner2 download); unbound -> the rules decide
             eng._decision_provider = (lambda fake=fake: fake) if use else (lambda: None)

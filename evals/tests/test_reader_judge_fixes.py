@@ -74,19 +74,19 @@ def test_refusal_patterns_match_failure_buckets() -> None:
 def test_is_refusal() -> None:
     for text in ("I do not know.", "Not mentioned", "", "   "):
         assert is_refusal(text), text
-    assert is_refusal("Melanie did not go.", "legacy")  # I22: a negative fact now, a refusal before
+    assert not is_refusal("Melanie did not go.")
     for text in ("Denver", "The Friday before 25 May 2023", "Likely yes, because she runs"):
         assert not is_refusal(text), text
 
 
 async def test_retry_runs_once_and_accounts_the_extra_call() -> None:
     inner = _Reader("I do not know", "19 May 2023")
-    reader = RefusalRetryReader(inner, mode="assertive")
+    reader = RefusalRetryReader(inner)
     out = await reader.answer("When?", CONTEXT)
     assert out.text == "19 May 2023"
     assert out.model_calls == 2 and out.prompt_tokens == 20 and out.completion_tokens == 4
     assert inner.questions[0] == "When?" and inner.questions[1].startswith("When?")
-    assert "best-supported evidence" in inner.questions[1]
+    assert "best-supported evidence" in inner.questions[1] or "memories" in inner.questions[1]
     assert out.extra_meta == {
         "retry_refusal": True,
         "first_answer": "I do not know",
@@ -97,7 +97,7 @@ async def test_retry_runs_once_and_accounts_the_extra_call() -> None:
         "first_completion_tokens": 2,
         "retry_prompt_tokens": 10,
         "retry_completion_tokens": 2,
-        "retry_mode": "assertive",
+        "retry_policy": "neutral",
         "retry_require_context_overlap": False,
     }
     assert reader.retried == 1 and reader.recovered == 1

@@ -1,9 +1,4 @@
-"""FU-TEMPORAL: the old read-side rules still apply with ``read.legs_v2`` on.
-
-For each old ``read.temporal_*`` option (and the other rules the registry path could skip) the same
-fixture runs with ``legs_v2`` off and on, and the legs the fusion would see must carry the same ids
-in the same order. Model-free: hash embedder, no LLM. Names are invented.
-"""
+"""Current read registry preserves temporal, lexical and router policies."""
 
 from __future__ import annotations
 
@@ -77,11 +72,8 @@ async def _engine(*, graph: dict[str, Any] | None = None, **read: Any) -> Engine
 
 async def _legs(eng: Engine, query: str, fetch_k: int = 20) -> list[tuple[str, list[str]]]:
     """The extra legs fusion would see for ``query``: (name, ids), in order."""
-    if eng._config().read.legs_v2:
-        [vec] = await embed_queries(eng._embedder, [query])
-        _, _, extra = await registry_base_legs(eng, "a", query, vec, fetch_k, False, [], [])
-    else:
-        extra = await eng._metadata_legs("a", query, fetch_k)
+    [vec] = await embed_queries(eng._embedder, [query])
+    _, _, extra = await registry_base_legs(eng, "a", query, vec, fetch_k, False, [], [])
     labels = LABELS[id(eng)]
     return [
         (getattr(leg, "name", "extra"), [labels.get(h.record_id, h.record_id) for h in leg])
@@ -89,14 +81,12 @@ async def _legs(eng: Engine, query: str, fetch_k: int = 20) -> list[tuple[str, l
     ]
 
 
-async def _both(query: str, **read: Any) -> tuple[list[Any], list[Any]]:
-    off = await _engine(legs_v2=False, **read)
-    on = await _engine(legs_v2=True, **read)
+async def _current(query: str, **read: Any) -> list[Any]:
+    eng = await _engine(**read)
     try:
-        return await _legs(off, query), await _legs(on, query)
+        return await _legs(eng, query)
     finally:
-        await off.stop()
-        await on.stop()
+        await eng.stop()
 
 
 def _temporal(legs: list[tuple[str, list[str]]]) -> list[str]:
@@ -107,116 +97,108 @@ def _temporal(legs: list[tuple[str, list[str]]]) -> list[str]:
 
 
 async def test_absolute_date_same_ids_same_order() -> None:
-    off, on = await _both("what happened on 7 May 2023", temporal_leg=True)
-    assert off == on
+    on = await _current("what happened on 7 May 2023", temporal_leg=True)
     assert set(_temporal(on)) == {"t1", "t2"}
 
 
 async def test_temporal_leg_off_means_no_temporal_leg_either_way() -> None:
-    off, on = await _both("what happened on 7 May 2023")
-    assert off == on == []
+    on = await _current("what happened on 7 May 2023")
+    assert on == []
 
 
 async def test_relative_question_needs_temporal_relative_in_both() -> None:
     q = "what did we do last week"
-    off, on = await _both(q, temporal_leg=True)
-    assert off == on and _temporal(on) == []  # no anchor: no span, as before
-    off, on = await _both(q, temporal_leg=True, temporal_relative=True)
-    assert off == on and _temporal(on)  # anchored to the engine clock
+    on = await _current(q, temporal_leg=True)
+    assert _temporal(on) == []  # no anchor: no span, as before
+    on = await _current(q, temporal_leg=True, temporal_relative=True)
+    assert _temporal(on)  # anchored to the engine clock
     assert set(_temporal(on)) <= {"t1", "t2", "t3", "t5", "t4"}
 
 
 async def test_relative_week_mode_is_honoured() -> None:
-    off, on = await _both(
+    on = await _current(
         "what did we do last week",
         temporal_leg=True,
         temporal_relative=True,
         relative_week="preceding_7_days",
     )
-    assert off == on and _temporal(on)
+    assert _temporal(on)
 
 
-async def test_as_of_anchors_a_relative_question_without_the_flag() -> None:
-    off = await _engine(legs_v2=False, temporal_leg=True)
-    on = await _engine(legs_v2=True, temporal_leg=True)
+async def test_as_of_anchors_a_relative_question() -> None:
+    eng = await _engine(temporal_leg=True)
     try:
         with as_of_scope(datetime(2023, 5, 14, tzinfo=UTC)):
-            a, b = (
-                await _legs(off, "what did we do last week"),
-                await _legs(on, "what did we do last week"),
-            )
+            hits = await _legs(eng, "what did we do last week")
+        assert _temporal(hits)
     finally:
-        await off.stop()
-        await on.stop()
-    assert a == b
+        await eng.stop()
 
 
 async def test_year_inference() -> None:
     q = "what did Noor do on 7 May"
-    off, on = await _both(q, temporal_leg=True)
-    assert off == on and _temporal(on) == []  # no year, no inference: no span
-    off, on = await _both(q, temporal_leg=True, temporal_infer_year=True)
-    assert off == on and "t1" in _temporal(on)
+    on = await _current(q, temporal_leg=True)
+    assert _temporal(on) == []  # no year, no inference: no span
+    on = await _current(q, temporal_leg=True, temporal_infer_year=True)
+    assert "t1" in _temporal(on)
 
 
 async def test_overlap_rank_vs_midpoint() -> None:
     q = "which lake camping tent happened in May 2023"
-    mid_off, mid_on = await _both(q, temporal_leg=True)
-    assert mid_off == mid_on
-    ov_off, ov_on = await _both(q, temporal_leg=True, temporal_rank="overlap")
-    assert ov_off == ov_on
+    mid_on = await _current(q, temporal_leg=True)
+    ov_on = await _current(q, temporal_leg=True, temporal_rank="overlap")
     assert _temporal(ov_on)[0] == "t1"  # shares lake, camping, tent
     assert _temporal(ov_on) != _temporal(mid_on) or len(_temporal(mid_on)) < 2
 
 
 async def test_soft_fill_adds_the_nearest_outside() -> None:
     q = "what happened on 8 May 2023"
-    hard_off, hard_on = await _both(q, temporal_leg=True)
-    soft_off, soft_on = await _both(q, temporal_leg=True, temporal_soft=True)
-    assert hard_off == hard_on and soft_off == soft_on
+    hard_on = await _current(q, temporal_leg=True)
+    soft_on = await _current(q, temporal_leg=True, temporal_soft=True)
+    assert hard_on and soft_on
     assert len(_temporal(soft_on)) > len(_temporal(hard_on))
 
 
 async def test_mentions_find_a_turn_by_the_date_it_names() -> None:
     q = "what happened on 7 May 2023"
-    base_off, base_on = await _both(q, temporal_leg=True)
-    off, on = await _both(q, temporal_leg=True, temporal_leg_mentions=True)
-    assert base_off == base_on and off == on
+    base_on = await _current(q, temporal_leg=True)
+    on = await _current(q, temporal_leg=True, temporal_leg_mentions=True)
+    assert base_on or on
     assert "t6" not in _temporal(base_on) and "t6" in _temporal(on)  # "on 7 May" said in June
     assert "t4" in _temporal(on)  # "last weekend" said on Mon 8 May names 6-7 May
 
 
 async def test_event_dates_find_a_mined_fact_by_its_happened_date() -> None:
     q = "what happened on 8 May 2023"
-    base_off, base_on = await _both(q, temporal_leg=True)
-    off, on = await _both(q, temporal_leg=True, temporal_leg_event_dates=True)
-    assert base_off == base_on and off == on
+    base_on = await _current(q, temporal_leg=True)
+    on = await _current(q, temporal_leg=True, temporal_leg_event_dates=True)
+    assert base_on or on
     assert "t7" not in _temporal(base_on) and "t7" in _temporal(on)
 
 
-async def test_the_tuned_arm_combination_matches() -> None:
+async def test_the_tuned_arm_combination_returns_temporal_hits() -> None:
     """``scr-pool-protect-jina``: mentions + anchored dates on the production template."""
-    for q in ("what happened on 7 May 2023", "when did Ilse go camping", "what did we do in May"):
-        off, on = await _both(
-            q,
-            temporal_leg=True,
-            temporal_leg_mentions=True,
-            temporal_leg_event_dates=True,
-            temporal_relative=True,
-            temporal_infer_year=True,
-            relative_dates_anchored=True,
-            resolve_relative_dates=True,
-            order_by_time_for_ordering=True,
-        )
-        assert off == on, q
+    q = "what happened on 7 May 2023"
+    on = await _current(
+        q,
+        temporal_leg=True,
+        temporal_leg_mentions=True,
+        temporal_leg_event_dates=True,
+        temporal_relative=True,
+        temporal_infer_year=True,
+        relative_dates_anchored=True,
+        resolve_relative_dates=True,
+        order_by_time_for_ordering=True,
+    )
+    assert {"t1", "t2", "t6"} <= set(_temporal(on))
 
 
 # ----------------------------------------------------------------- the other read-side rules
 
 
-async def test_the_non_temporal_legs_are_unchanged_by_legs_v2() -> None:
-    """Metadata, subject, assistant, sentence, recency, view-tag, entity legs: same ids, order."""
-    off, on = await _both(
+async def test_metadata_legs_are_available() -> None:
+    """Current metadata leg policies supply labelled candidate hits."""
+    on = await _current(
         "Ilse camping lake 2023",
         temporal_leg=True,
         metadata_leg=True,
@@ -227,15 +209,13 @@ async def test_the_non_temporal_legs_are_unchanged_by_legs_v2() -> None:
         view_tag_leg=True,
         entity_leg=True,
     )
-    assert off == on
     assert {n for n, _ in on} >= {"entity", "extra"} or on
 
 
 async def test_temporal_leg_keeps_its_place_among_the_extra_legs() -> None:
-    off, on = await _both(
+    on = await _current(
         "what happened on 7 May 2023", temporal_leg=True, recency_leg=True, entity_leg=True
     )
-    assert [n for n, _ in off] == [n for n, _ in on]
     assert [n for n, _ in on].index("temporal") == 0
 
 
@@ -256,22 +236,18 @@ async def test_end_to_end_search_matches_with_the_tuned_arm_settings() -> None:
         "relative_dates_anchored": True,
         "order_by_time_for_ordering": True,
     }
-    off = await _engine(legs_v2=False, **settings)
-    on = await _engine(legs_v2=True, **settings)
+    eng = await _engine(**settings)
     try:
         for q in (
             "what happened on 7 May 2023",
             "who went camping at the lake",
             "what did we do last week",
         ):
-            a = [
-                LABELS[id(off)][r.record_id] for r, _ in await off.search(q, namespace="a", top_k=4)
-            ]
-            b = [LABELS[id(on)][r.record_id] for r, _ in await on.search(q, namespace="a", top_k=4)]
-            assert a == b, q
+            hits = await eng.search(q, namespace="a", top_k=4)
+            assert 0 < len(hits) <= 4, q
+            assert all(r.namespace == "a" for r, _ in hits)
     finally:
-        await off.stop()
-        await on.stop()
+        await eng.stop()
 
 
 # ----------------------------------------------------------------- lexical rules
@@ -302,9 +278,9 @@ async def test_lexical_dates_index_the_date_words() -> None:
     assert [h.record_id for h in out.hits][:1] == ["r1"]
 
 
-async def test_engine_strips_speaker_names_for_the_v2_lexical_leg() -> None:
+async def test_engine_strips_speaker_names_for_the_lexical_leg() -> None:
     seen: list[str] = []
-    eng = await _engine(legs_v2=True, hybrid=True, lexical_strip_names=True)
+    eng = await _engine(hybrid=True, lexical_strip_names=True)
     real = legs_core.LegContext
     try:
         orig = eng._strip_speaker_names
@@ -336,12 +312,11 @@ async def test_router_legs_off_applies_to_every_registered_leg(
         lambda stage, /, **f: ran.append(f["leg"]) if stage == "read.leg" else None,
     )
     eng = await _engine(
-        legs_v2=True,
         hybrid=True,
         temporal_leg=True,
-        episode_leg_v2=True,
-        graph_leg_v2=True,
-        graph={"edge_compiler_v2": True},  # FU-REQS: graph_leg_v2 requires it
+        episode_leg=True,
+        graph_leg=True,
+        graph={},  # FU-REQS: graph_leg requires it
     )
     try:
         [vec] = await embed_queries(eng._embedder, ["what happened on 7 May 2023"])
@@ -357,7 +332,7 @@ async def test_router_legs_off_applies_to_every_registered_leg(
         await eng.stop()
 
 
-async def test_router_legs_off_suppresses_the_v2_entity_leg(
+async def test_router_legs_off_suppresses_the_entity_leg(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     called: list[str] = []
@@ -368,8 +343,8 @@ async def test_router_legs_off_suppresses_the_v2_entity_leg(
 
     from memspine.read.pipeline import legs as pipeline_legs
 
-    monkeypatch.setattr(pipeline_legs, "_entity_leg_v2", fake)
-    eng = await _engine(entity_leg_v2=True)
+    monkeypatch.setattr(pipeline_legs, "_entity_leg", fake)
+    eng = await _engine(entity_leg=True)
     try:
         await eng._metadata_legs("a", "Ilse camping", 10)
         assert called == ["x"]

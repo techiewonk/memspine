@@ -116,7 +116,6 @@ def _stamp_turn(
     content: str,
     session_tags_on: bool,
 ) -> PendingStamp:
-    wcfg = eng._config().write
     pending = conv.turn(index, turn, content, recorded_at=datetime.now(UTC))
     st = pending.stamped
     extra: list[str] = []
@@ -134,8 +133,6 @@ def _stamp_turn(
             )
         if verdict.confirms and proposal_id is not None:
             extra.append(f"{ASSENT_TAG_PREFIX}{proposal_id}")
-    if wcfg.stamp_participant_tags == "v1" and not session_tags_on:
-        extra.extend(st.participant_tags)
     if tap.enabled():
         tap.event(
             "write.stamp.turn",

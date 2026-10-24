@@ -1,4 +1,4 @@
-"""Derive stage: pattern_observations (O4-05, LIB-31; opt-in L4, ``offline.patterns_v2``)."""
+"""Derive stage: pattern_observations (O4-05, LIB-31; opt-in L4, ``offline.patterns``)."""
 
 from __future__ import annotations
 
@@ -88,8 +88,8 @@ async def pattern_observations(ctx: PipelineContext) -> dict[str, object]:
     A stored observation that has a supporting fact no longer live is invalidated by changed group, and any
     stored observation the new run no longer produces (its evidence grew or went) is retired.
     """
-    if not ctx.config.offline.patterns_v2:
-        return {"status": "skipped", "reason": "offline.patterns_v2 is off"}
+    if not ctx.config.offline.patterns:
+        return {"status": "skipped", "reason": "offline.patterns is off"}
     if ctx.append_event is None or ctx.write_fact is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     cfg = _config(ctx)
@@ -134,7 +134,7 @@ async def pattern_observations(ctx: PipelineContext) -> dict[str, object]:
                     namespace,
                     sorted(retire),
                     "observation->retired",
-                    "patterns_v2",
+                    "patterns",
                 )
             kept_ids = {tag_value(r.tags, "obs:") for r in stored if r.record_id not in retire}
             by_record = {r.record_id: r for r in records}

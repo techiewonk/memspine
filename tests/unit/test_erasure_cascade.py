@@ -27,6 +27,7 @@ def _engine(**extra: Any) -> Engine:
         },
         "model": {"embedding": {"provider": "hash", "settings": {}}},
     }
+    config["privacy"] = {"erasure_redact_hidden": True}
     config.update(extra)
     return Engine(**config)
 

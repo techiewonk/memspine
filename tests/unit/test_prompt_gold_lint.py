@@ -167,29 +167,17 @@ def test_shipped_prompts_pass_the_synthetic_fixture_and_the_standing_deny_list()
     assert find_leaks(files, answers, names | set(KNOWN_SPEAKERS), literal=KNOWN_GOLD) == []
 
 
-def test_legacy_prompts_are_reachable_only_under_legacy_names() -> None:
+def test_historical_prompts_are_not_active_choices() -> None:
     from memspine_evals import readers
 
-    legacy = {k for k in readers.QA_PROMPTS if k.endswith("_legacy")}
-    assert legacy == {"grounded_legacy", "grounded_detail_legacy"}
-    # nothing but readers.py imports the legacy module
-    importers = [
-        p.name
-        for p in EVALS_PKG.rglob("*.py")
-        if p != LEGACY_FILE and "legacy_prompts" in p.read_text(encoding="utf-8")
-    ]
-    assert importers == ["readers.py"]
-    # every other registered prompt (fixed, derived or routed) is free of the known gold
+    assert not {k for k in readers.QA_PROMPTS if k.endswith("_legacy")}
+    assert "from .legacy_prompts import" not in (EVALS_PKG / "readers.py").read_text(
+        encoding="utf-8"
+    )
     for name, text in {**readers.QA_PROMPTS, **readers.ROUTED_QA_VARIANTS}.items():
-        if name in legacy:
-            continue
         hits = [g for g in KNOWN_GOLD if g.lower() in text.lower()]
         assert not hits, (name, hits)
-    # the default names are the clean prompts; the legacy text is the one with the gold
-    assert readers.QA_PROMPTS["grounded"] == readers.QA_PROMPTS["grounded_nodate"]
-    assert readers.QA_PROMPTS["grounded_detail"] == readers.QA_PROMPTS["grounded_detail_nodate"]
-    assert "9 June 2023" in readers.QA_PROMPTS["grounded_legacy"]
-    assert "9 June 2023" in readers.QA_PROMPTS["grounded_detail_legacy"]
+    assert readers.QA_PROMPTS["grounded"] == readers.GROUNDED_QA_PROMPT
 
 
 @pytest.mark.skipif(not LOCOMO.exists(), reason="LoCoMo data not present (optional extra check)")

@@ -104,7 +104,7 @@ class GlinerEntityExtractor:
         return (
             f"gliner2:{settings.model}@{settings.revision or 'default'}:{settings.device}:"
             f"local={settings.local_files_only}:tasks={','.join(sorted(settings.tasks))}:"
-            f"concurrency={settings.inference_concurrency}:grounded-mentions-v2[{labels}]"
+            f"concurrency={settings.inference_concurrency}:grounded-mentions[{labels}]"
         )
 
     async def extract(self, content: str) -> list[ExtractedFact]:

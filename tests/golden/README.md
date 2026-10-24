@@ -17,8 +17,8 @@ text) and 14 queries:
 - queries: single fact, current value of a changed fact, as-of read before the change, lists, temporal,
   relative time, multi-party with viewer, non-English, and two questions with no answer.
 
-The harness (`harness.py`) builds the engine with the `core` template, `embedding.provider: hash`,
-`read.rerank: off`, no LLM and a temporary SQLite file; ingests with `ingest_messages` and `write`; runs
+The harness (`harness.py`) builds the engine with the `core` template, `model.embedding.provider: hash`,
+`model.rerank.chain: []`, no LLM and a temporary SQLite file; ingests with `ingest_messages` and `write`; runs
 `Engine.sleep()` (the model-free offline pass; model stages report `skipped`); then for every query runs
 `search` (ordered hits and scores) and `read` in `retrieve` and `compose` modes.
 
@@ -55,7 +55,7 @@ registered in `tests/golden/conftest.py`, not in `pyproject.toml`.
 ## Moving modules: update the frozen clock in the same PR
 
 The harness freezes time by replacing the `datetime` name inside the modules listed in `_CLOCK_MODULES`
-(`tests/golden/harness.py`): today `memspine.core.policies.scoring`, `memspine.core.policies.decay`,
+(`tests/golden/harness.py`): today `memspine.core.policies.scoring`, `memspine.derive.decay`,
 `memspine.api.engine`, `memspine.derive.pipeline.integrate` and the `memspine.derive.pipeline.stages` modules that call
 `datetime.now()` (communities, consolidate, entity_summaries, maintenance, mining, retention, watches). `importlib.import_module` fails loudly when a listed
 module no longer exists, but a moved module that still calls `datetime.now()` and is missing from the list

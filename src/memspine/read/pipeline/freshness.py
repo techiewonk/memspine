@@ -1,4 +1,4 @@
-"""O4-01b (O-06): the read-path adapter for ``read.freshness_v2`` and ``read.freshness_fallback``.
+"""O4-01b (O-06): the read-path adapter for ``read.freshness`` and ``read.freshness_fallback``.
 
 Adapts today's records and the event log to the pure :mod:`memspine.read.freshness` library: it
 keeps the engine's :class:`~memspine.read.freshness.SourceSeqTracker` current, builds the

@@ -1,10 +1,10 @@
-"""W2-10 (``write.integration_v2``): the integration ladder as an envelope stage, order 400 (W-21, W-22, M-12).
+"""W2-10 (``write.integration``): the integration ladder as an envelope stage, order 400 (W-21, W-22, M-12).
 
 Built on LIB-02 (``derive/integrate.py``), which stays pure. This module adds the three W2-10 parts:
 
 * :class:`DefaultVerdict`: what an attribute without a declared cardinality does (W-22 / M-12). Undeclared
   means ``many`` (coexist); with no hint that a value *changed*, a conflicting live value is not decided
-  here but deferred to K_C (``offline.reconcile_v2`` re-folds the group in event-time order).
+  here but deferred to K_C (``offline.reconcile`` re-folds the group in event-time order).
 * :class:`ConflictLadder`: cardinality, then trust tier, then time (event interval closed or open), then
   negation binding, seeded by the extraction hints (``change_hint``, ``extras["transition"]`` /
   ``["replaces"]``, kind). It names the rung and the hint on every verdict.

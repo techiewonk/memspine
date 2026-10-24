@@ -1,7 +1,7 @@
 """Entity registry with reversible MERGE and SPLIT events (W2-09; decisions M-15, W-19).
 
 An entity is an opaque id plus a name, a type, an alias list and a scope. The registry is keyed by a
-scope key (tenant + owner when ``isolation.scope_keys_v2`` is on, the namespace string otherwise), so
+typed scope key (tenant + owner), so
 an entity of one owner is never a candidate for another's mention and ``merge`` refuses two entities
 that are not in the same scope.
 

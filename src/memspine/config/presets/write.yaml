@@ -1,0 +1,14 @@
+# FU-REQS profile: the whole W2 write stack on a window-facts write, in stage order (100 temporal,
+# 200 grounding, 250 coverage, 300 resolver, 400 integration). Run it on gc3 (S02, the winner), not
+# on window/gc2 (S03/S04 are net negative). Question: calls per turn, grounded-fact rate, MAB-CR
+# knowledge update. Needs a bound window_extract role. Gap: ground_adjudicator stays "lexical"
+# (the LLM tier of W2-08 is not implemented yet; audit section 4).
+write:
+  window_extract: facts
+  stamping: true
+  role_policy: true
+  temporal: true
+  grounding: true
+  coverage: true
+  resolver: true
+  integration: true

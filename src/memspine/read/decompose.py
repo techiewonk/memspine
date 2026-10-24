@@ -1,4 +1,4 @@
-"""R14-M-12 / OBS-10 (``read.decompose_v2``): detect a multi-entity question, split it into one
+"""R14-M-12 / OBS-10 (``read.decompose``): detect a multi-entity question, split it into one
 sub-question per entity, and name the combine operator the reader should apply.
 
 Pure rules, no model call. The map and reduce steps live in ``read/pipeline/decompose.py``.

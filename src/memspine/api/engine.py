@@ -15,8 +15,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import dataclasses
-import functools
-import os
 import threading
 import uuid
 from collections import Counter
@@ -70,7 +68,6 @@ from memspine.core.policies.trust import TrustPolicy
 from memspine.core.read_filters import (
     DateBound,
 )
-from memspine.core.relevance_probes import Calibration
 from memspine.core.vetting import VetFlag
 from memspine.derive import write as derive_write
 from memspine.derive.feedback import LatencyStats
@@ -167,7 +164,6 @@ from memspine.prompts.models import (
 )
 from memspine.prompts.registry import PromptRegistry
 from memspine.providers.changes import ChangeCategory, ChangeStrategy, RevisionGuard, SqlChangeStore
-from memspine.providers.connectors import legacy_sqlite_file
 from memspine.providers.contracts import SqlAccess
 from memspine.providers.control import EngineProviderChanges, ProviderChangeRuntime
 from memspine.providers.decider import build_read_decider, read_decider_slot
@@ -180,7 +176,6 @@ from memspine.providers.lifecycle import (
 )
 from memspine.providers.projection_bindings import (
     projection_target_bindings,
-    retire_graph_mirror_state,
 )
 from memspine.providers.recovery import CleanupQuiescenceGuard
 from memspine.providers.rerank import (
@@ -261,7 +256,6 @@ from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.records_port import RecordsStore
 from memspine.services.vector.base import VectorHit, VectorStore
 from memspine.services.vector.projector import VectorProjector
-from memspine.store import side_tables as _side_tables
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.projections.projector import Projector
 from memspine.store.records import (
@@ -277,21 +271,20 @@ from memspine.trust.audit import IntegrityReport, TaintReport
 from memspine.trust.erasure import redact_record
 from memspine.trust.firewall import Firewall, FirewallSignals, FirewallVerdict, QueryHistory
 from memspine.trust.pipeline import audit as trust_audit
-from memspine.trust.pipeline import audit_v2 as trust_audit_v2
+from memspine.trust.pipeline import audit_chain as trust_audit_chain
 from memspine.trust.pipeline import consent as trust_consent
 from memspine.trust.pipeline import erasure as trust_erasure
-from memspine.trust.pipeline import erasure_v2 as trust_erasure_v2
+from memspine.trust.pipeline import erasure_state as trust_erasure_state
 from memspine.trust.pipeline import firewall as trust_firewall
 from memspine.trust.pipeline import horizon as trust_horizon
 from memspine.trust.pipeline import privacy as trust_privacy
 from memspine.trust.pipeline import quarantine as trust_quarantine
-from memspine.trust.pipeline import retention_v2 as trust_retention_v2
+from memspine.trust.pipeline import retention as trust_retention
 from memspine.trust.pipeline.state import (
     AuthorizeDecision,
     _as_options_dict,
 )
 from memspine.trust.privacy import (
-    AuditChainReport,
     current_principal,
     export_line,
     export_record,
@@ -498,7 +491,7 @@ class Engine:
         self._extract_edges: ExtractEdges | None = None
         self._extract_session_edges: ExtractEdges | None = None
         self._runner: TaskRunner | None = None
-        self._sched_v2: _scheduler_rt.Scheduler | None = None  # RT-02
+        self._sched: _scheduler_rt.Scheduler | None = None  # RT-02
         self._cost_ledger: _economy_ledger.WriteCostLedger | None = None  # W2-12
         self._ops_ledger: _ops.OpsLedger | None = None  # T5-06 (observability.ops_ledger)
         #: RM-75 (ADR-079 decision 5): this Engine's gate, ledgers and tap, bound on every public
@@ -511,9 +504,9 @@ class Engine:
         self._tap_lease: Lease[tap.TapState] | None = None
         self._otel: OtelExporter | None = None  # T5-06 (observability.otel)
         self._scheduler: SleepScheduler | None = None  # D1: autonomous sleep loop
-        #: O4-01a: namespace jobs, leases, watermarks and triggers (``offline.sleep_v2``).
+        #: O4-01a: namespace jobs, leases, watermarks and triggers (``offline.sleep``).
         self._derive_sched: DerivationScheduler | None = None
-        #: O4-01b: latest raw-turn seq per namespace (``offline.budget_v2``, ``read.freshness_v2``).
+        #: O4-01b: latest raw-turn seq per namespace (``offline.budget``, ``read.freshness``).
         self._freshness_tracker: SourceSeqTracker | None = None
         self._started = False
         self._write_locks: dict[str, asyncio.Lock] = {}
@@ -531,13 +524,13 @@ class Engine:
         #: B0 ``turn`` mode: ledgers a write has used since their last read. The
         #: next read on such a key starts a fresh turn (R4-1).
         self._ledger_written: set[tuple[str, str]] = set()
-        #: W2-03 (write.role_policy_v2): the session's last read for the echo guard, and its counters
+        #: W2-03 (write.role_policy): the session's last read for the echo guard, and its counters
         self._last_read: dict[tuple[str, str], list[tuple[str, str, str]]] = {}
         self._role_metrics: Counter[str] = Counter()
         self._sync_loop: asyncio.AbstractEventLoop | None = None
         self._sync_thread: threading.Thread | None = None
         #: #49: the audit hash chain head (None = not loaded from the log yet).
-        self._audit_head: str | None = None
+        self._audit_head: tuple[int, str, datetime | None] | None = None
         self._audit_lock = asyncio.Lock()
         #: #48: the retention clock (tests swap in a fake one).
         self._clock: Callable[[], datetime] = lambda: datetime.now(UTC)
@@ -681,7 +674,6 @@ class Engine:
             storage, config.deployment.id, config.runtime.environment
         )
         self._provider_owner_id = wiring.owner_id
-        await self._import_side_files(store_base)
         if self._sql is not None:  # verified switches keep their manifests in SQL tables
             async with self._sql.engine.connect() as connection:
                 wiring.projection_routes = await verified_active_projection_routes(
@@ -698,7 +690,7 @@ class Engine:
         # One shared cache (Phase 2) fronts both the embedding and extraction
         # caches; the emb:/ext: producer key prefixes keep them isolated in it.
         self._cache = await container.get(KVCache)
-        # RT-02 (flags runtime.scheduler_v2 / runtime.model_concurrency): the scheduler of these
+        # RT-02 (flags runtime.scheduler / runtime.model_concurrency): the scheduler of these
         # settings, shared with Engines that have the same (RM-75); None when both are off, and
         # then nothing below changes.
         seams = self._binding
@@ -707,16 +699,16 @@ class Engine:
             await _scheduler_rt.acquire(config.runtime, self._resource_registry),
         )
         if self._sched_lease is not None:
-            sched = self._sched_v2 = self._sched_lease.value
+            sched = self._sched = self._sched_lease.value
             seams.scheduler, seams.gate = sched, sched.gate
             seams.slo_ledger = sched.slo_ledger
-        if config.economy.ledger_v2:  # W2-12 (W-26, P-22 C): the write-side cost ledger
+        if config.economy.ledger:  # W2-12 (W-26, P-22 C): the write-side cost ledger
             cost_lease = self._cost_lease = await self._acquire_cost_ledger(config)
             self._own_lease("seam.cost_ledger", cost_lease)
             self._cost_ledger = seams.cost_ledger = cost_lease.value
         self._embedder = await container.get(EmbeddingService)
-        if self._sched_v2 is not None:
-            self._embedder = self._sched_v2.wrap_embedder(self._embedder)
+        if self._sched is not None:
+            self._embedder = self._sched.wrap_embedder(self._embedder)
         self._vector = await container.get(VectorStore)
         self._rescore_active = wiring.rescore_active
         # E4 model2vec prefilter (ADR-020): only the intent is recorded here; the
@@ -788,7 +780,7 @@ class Engine:
                 conflict=ConflictPolicy.bind(
                     {
                         **(_as_options_dict(semantic_policies.get("conflict")) or {}),
-                        **({"integration_v2": True} if config.write.integration_v2 else {}),
+                        **({"integration": True} if config.write.integration else {}),
                     }
                 ),
                 dedup=DedupPolicy.bind(_as_options_dict(semantic_policies.get("dedup"))),
@@ -881,11 +873,6 @@ class Engine:
         # produced it. Fail closed before catch-up can serve data under a changed
         # graph/vector/lexical target.
         assert self._provider_owner_id is not None
-        if self._sql is not None:
-            # ADR-081 amendment 2026-10-23: the graph mirror is gone. A store that once ran it
-            # keeps no offset, binding or queued outbox work for it (idempotent, never fails).
-            # A records store without SQL (MongoDB, RM-112) never ran the mirror.
-            await retire_graph_mirror_state(self._storage, self._sql.engine)
         binding_store = self._storage.projection_bindings()
         for binding in projection_target_bindings(
             config,
@@ -937,12 +924,12 @@ class Engine:
 
                 self._scheduler = SleepScheduler(interval, _tick)
                 self._scheduler.start()
-        if config.offline.budget_v2 or config.read.freshness_v2:  # O4-01b: source seq, covers_seq
+        if config.offline.budget or config.read.freshness:  # O4-01b: source seq, covers_seq
             self._freshness_tracker = SourceSeqTracker()
             if not client_is_memory(config):
                 await read_freshness.bootstrap(self, self._freshness_tracker)
-        if config.offline.sleep_v2:  # O4-01a: non-blocking sleep, triggers, leases, watermarks
-            self._derive_sched = derive_scheduler.build_sleep_v2(self, config)
+        if config.offline.sleep:  # O4-01a: non-blocking sleep, triggers, leases, watermarks
+            self._derive_sched = derive_scheduler.build_sleep(self, config)
             if not config.offline.sleep_manual_only:
                 await self._derive_sched.on_open()
         self._install_write_timers(config)
@@ -980,8 +967,7 @@ class Engine:
             seams.tap = self._tap_lease.value
             if self._otel is not None:
                 seams.tap_sinks.append(self._otel)  # this Engine's exporter only
-        if config.privacy.erasure_v2:  # T5-04: erased / hidden ids, queue, purge table
-            await trust_erasure_v2.load(self)
+        await trust_erasure_state.load(self)
         self._started = True
         # Finish any accepted intake the last run did not apply.
         from memspine.ingest import gateway as intake_gateway
@@ -1128,25 +1114,6 @@ class Engine:
         if self._warmup is None:
             return {}
         return dict(await self._warmup.wait(timeout_s))
-
-    async def _import_side_files(self, store_base: str | None) -> None:
-        """RM-111 WP5 (ADR-081): a ``<base>.sleep``, ``<base>.cost`` or
-        ``<base>.deadletters.sqlite`` left by an older version is imported once into the storage
-        database (idempotent) and renamed to ``*.imported``. Nothing to do for ``:memory:``."""
-        sql, resources = self._sql, self._provider_resources
-        if store_base in (None, ":memory:") or sql is None or resources is None:
-            return
-        if sql.is_memory or "sync_sql" not in sql.capabilities:
-            return
-        engine = sql.sync_lease(resources, "side_file_import").engine
-        await asyncio.to_thread(
-            functools.partial(
-                _side_tables.import_side_files,
-                engine,
-                str(store_base),
-                open_file=legacy_sqlite_file,  # RM-113: the store never opens a connection
-            )
-        )
 
     async def _acquire_cost_ledger(
         self, config: MemspineConfig
@@ -1320,7 +1287,7 @@ class Engine:
 
         async def detach_model_scheduler() -> None:
             seams.scheduler = seams.gate = seams.slo_ledger = None
-            sched, self._sched_v2 = self._sched_v2, None
+            sched, self._sched = self._sched, None
             self._sched_lease = None
             if sched is not None:
                 await sched.close_embedder(self._embedder)  # this Engine's executors only
@@ -1514,7 +1481,7 @@ class Engine:
         is "now", which keeps every existing caller unchanged.
 
         ``purposes`` (#50) are the read purposes the record may serve, stored as its
-        ``consent_tags`` (``*`` = any); enforced only under ``consent.enforce``.
+        ``consent_tags`` (``*`` = any); enforced only under ``consent.enabled``.
 
         ``reply_to`` (G27, ADR-061) names the record this one answers, in the same
         namespace (a missing, foreign or erased one is refused like a missing
@@ -1801,25 +1768,6 @@ class Engine:
     ) -> list[tuple[MemoryRecord, int]]:
         return await read_legs._graph_walk(self, ns, query, fallback_ids, history=history)
 
-    async def _graph_leg(
-        self,
-        ns: str,
-        query: str,
-        vector_hits: Sequence[VectorHit],
-        lexical_hits: Sequence[LexicalHit],
-        extra_legs: list[list[LegHit]],
-        use_hybrid: bool,
-    ) -> list[LegHit]:
-        return await read_legs._graph_leg(
-            self,
-            ns,
-            query,
-            vector_hits,
-            lexical_hits,
-            extra_legs,
-            use_hybrid,
-        )
-
     async def _graph_node_legs(
         self,
         ns: str,
@@ -1922,18 +1870,6 @@ class Engine:
 
     async def _erase_assets(self, namespace: str, record_ids: Sequence[str] | None) -> int:
         return await ingest_assets._erase_assets(self, namespace, record_ids)
-
-    async def import_asset_dir(
-        self, directory: str | os.PathLike[str], *, namespace: str | None = None
-    ) -> Any:
-        """RM-113 item 18: import a pre-item-18 asset directory (the old ``ingest.asset_dir``:
-        ``registry.sqlite`` plus ``blobs/``) once. Rows go to the asset registry in the records
-        database, bytes to ``storage.documents`` (left in place without that slot); the files
-        are renamed ``*.imported``. Idempotent (a content digest is recorded). A row takes the
-        namespace of the record that carried it, else ``namespace``; without either it is
-        skipped. Returns an ``AssetImportResult`` (None when the directory has no registry)."""
-        self._require_started()
-        return await ingest_assets._import_asset_dir(self, os.fspath(directory), namespace)
 
     async def _asset_overlay(
         self,
@@ -2469,7 +2405,7 @@ class Engine:
         ``include_held=True``, the operator's audit view; :meth:`list_quarantined`
         is the review queue.
 
-        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+        ``purpose`` (#50): the read's purpose, checked under ``consent.enabled``.
         #53: records of PASSIVE sessions are left out unless ``include_passive=True``
         or ``group_id`` names their group."""
         return await read_router.retrieve(
@@ -2543,7 +2479,7 @@ class Engine:
         through the write door like every other mutation. Both E8 stages are
         off by default: results are bit-identical to the plain pipeline.
 
-        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+        ``purpose`` (#50): the read's purpose, checked under ``consent.enabled``.
         #53: records of PASSIVE sessions (session lifecycle) are left out unless
         ``include_passive=True``, ``session_id`` names their session, or ``group_id``
         names their group. With the lifecycle off no record is passive.
@@ -2699,7 +2635,7 @@ class Engine:
         ``shared_search``, so a multi-agent turn sees exactly what its grants allow
         (trust-capped, and under ``integrity.*`` attenuated and admitted at theta).
 
-        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+        ``purpose`` (#50): the read's purpose, checked under ``consent.enabled``.
         #53: PASSIVE-session records enter only with ``include_passive=True`` or when
         ``session_id`` names their session (see :meth:`search`).
 
@@ -2981,7 +2917,7 @@ class Engine:
         ``session_id`` keys the B0 read ledger (as in :meth:`assemble`), for the read
         headers and the routed read alike.
 
-        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``.
+        ``purpose`` (#50): the read's purpose, checked under ``consent.enabled``.
         #53: PASSIVE-session records enter only with ``include_passive=True`` or when
         ``session_id`` names their session (see :meth:`search`).
 
@@ -3219,8 +3155,8 @@ class Engine:
     async def _decided(self, task: str, question: str, context: str | None, heuristic: str) -> str:
         return await read_request._decided(self, task, question, context, heuristic)
 
-    async def _list_fires(self, query: str) -> bool:
-        return await read_request._list_fires(self, query)
+    async def _list_fires(self, query: str, namespace: str = "default") -> bool:
+        return await read_request._list_fires(self, namespace, query)
 
     async def _bridge_fires(
         self,
@@ -3232,19 +3168,6 @@ class Engine:
 
     async def _gate_raw_tops(self, ns: str, text: str, legs: Sequence[str]) -> dict[str, float]:
         return await read_gate._gate_raw_tops(self, ns, text, legs)
-
-    async def _store_calibration(
-        self, ns: str, legs: Sequence[str]
-    ) -> tuple[dict[str, Calibration], bool]:
-        return await read_gate._store_calibration(self, ns, legs)
-
-    async def _calibrated_gate(
-        self, query: str, result: ReadResult, ns: str | None = None
-    ) -> ReadResult:
-        return await read_gate._calibrated_gate(self, query, result, ns)
-
-    async def _gate_bypassed(self, query: str, ns: str | None, result: ReadResult) -> bool:
-        return await read_gate._gate_bypassed(self, query, ns, result)
 
     async def _relevance_gate(
         self, query: str, result: ReadResult, ns: str | None = None
@@ -3905,18 +3828,18 @@ class Engine:
         return trust_erasure._erasable_texts(self, record)
 
     async def _retract_compiled_edges(self, namespace: str, record_ids: Sequence[str]) -> None:
-        """F-02c (``graph.edge_compiler_v2``): compiled graph edges of erased records go."""
-        from memspine.derive.pipeline.stages.edge_compiler_v2 import retract_after_forget
+        """F-02c (``graph.edge_compiler``): compiled graph edges of erased records go."""
+        from memspine.derive.pipeline.stages.edge_compiler import retract_after_forget
 
         await retract_after_forget(self, namespace, record_ids)
 
     async def _scrub_profile_cards(
         self, namespace: str, record_ids: Sequence[str], hard: bool
     ) -> None:
-        """FU-CLOSE (``offline.profile_card_v2``): a forgotten turn leaves the current profile
+        """FU-CLOSE (``offline.profile_card``): a forgotten turn leaves the current profile
         card now (a new card marker), and on a hard forget its entry text is redacted from the
         older card markers in the log. Lock held by the forget flow."""
-        if not self._config().offline.profile_card_v2:
+        if not self._config().offline.profile_card:
             return
         from memspine.derive.pipeline.stages.profile_erasure import scrub_profile_cards
 
@@ -3987,7 +3910,7 @@ class Engine:
     ) -> AssertionEnvelope | None:
         """FU-GAPS: the compiled assertion envelope a window fact was written from (time axes,
         evidence roles, integration verdict), or None when the record has none (it was not
-        written under ``write.envelope_v2``, or does not exist in ``namespace``). Same scope rules
+        written under ``write.envelope``, or does not exist in ``namespace``). Same scope rules
         as :meth:`get_record`."""
         record = await self.get_record(record_id, namespace)
         if record is None or record.fingerprint.envelope is None:
@@ -4098,7 +4021,7 @@ class Engine:
     async def consent_grant(
         self, owner: str, purpose: str = "*", *, grantee: str | None = None
     ) -> int:
-        """T5-03 (``consent.v2``): ``owner`` opts in to ``purpose``; returns the generation."""
+        """T5-03 (``consent.enabled``): ``owner`` opts in to ``purpose``; returns the generation."""
         return (await trust_consent.grant(self, owner, purpose, grantee=grantee)).generation
 
     async def consent_revoke(
@@ -4117,16 +4040,6 @@ class Engine:
         The gates already keep them out of every search leg; this catches the
         records assembly adds from elsewhere (persona, full-mode listing)."""
         return ops_trust._consent_context(self, context)
-
-    async def _audit_head_hash(self) -> str:
-        """The current chain head, loaded once from the log (the last audit event)."""
-        return await trust_audit._audit_head_hash(self)
-
-    async def _append_audit(
-        self, kind: EventKind, ns: str, actor: str, body: dict[str, object]
-    ) -> None:
-        """#49: append one chained audit event (serialized, so the chain is linear)."""
-        return await trust_audit._append_audit(self, kind, ns, actor, body)
 
     async def bulk_read_alerts(
         self,
@@ -4162,51 +4075,42 @@ class Engine:
             self, action, ns, record_ids, actor=actor, reason=reason, **extra
         )
 
-    async def verify_audit_chain(self) -> AuditChainReport:
-        """#49: validate the hash chain over the persisted audit events.
-
-        Each ``memory.read_audit`` / ``memory.audit`` event stores the previous
-        event's hash; an edited, inserted or removed audit event breaks a link.
-        A rolling log anchors at its oldest surviving audit event; an ephemeral
-        log persists nothing, so its report covers no events."""
-        return await trust_audit.verify_audit_chain(self)
-
     async def audit_chain_ok(self) -> bool:
         """#49: True when the audit hash chain verifies (see :meth:`verify_audit_chain`);
-        under ``audit.chain_v2`` the LIB-41 chain (:meth:`verify_audit_chain_v2`)."""
+        using the current LIB-41 chain."""
         return await trust_audit.audit_chain_ok(self)
 
-    async def verify_audit_chain_v2(self) -> ChainReport:
-        """T5-05 (``audit.chain_v2``): re-read the hash-chained audit records and verify the
+    async def verify_audit_chain(self) -> ChainReport:
+        """T5-05: re-read the hash-chained audit records and verify the
         sequence, the links, each hash and the time order. A rolling log anchors at its oldest
         surviving record; an ephemeral log persists none."""
-        return await trust_audit_v2.verify(self)
+        return await trust_audit_chain.verify(self)
 
     def erasure_status(self) -> dict[str, object]:
-        """T5-04 (``privacy.erasure_v2``): generation, erased / hidden / queued counts and the
+        """T5-04 (``privacy.erasure``): generation, erased / hidden / queued counts and the
         purge jobs (state, done, total) by manifest id."""
-        return trust_erasure_v2.status(self)
+        return trust_erasure_state.status(self)
 
     def erasure_queue(self, *, include_dropped: bool = False) -> list[dict[str, object]]:
         """T5-04: the re-derivation queue (record id, action, remaining live sources) the
         offline runner consumes; ids only. Entries ``privacy.erasure_redact_hidden`` marked
         ``dropped_no_rederive`` (hard-forgotten, nothing to re-derive) show only with
         ``include_dropped``."""
-        return trust_erasure_v2.queue(self, include_dropped=include_dropped)
+        return trust_erasure_state.queue(self, include_dropped=include_dropped)
 
     async def erasure_release(self, record_ids: Sequence[str], namespace: str = "default") -> int:
         """T5-04: hidden ids the offline runner re-derived (or dropped) become visible again;
         erased ids never do. Returns how many were released."""
-        return await trust_erasure_v2.release(self, record_ids, namespace)
+        return await trust_erasure_state.release(self, record_ids, namespace)
 
     async def erasure_resume_purges(self) -> list[str]:
         """T5-04: re-run every purge job that is not done; returns the manifest ids now done."""
-        return await trust_erasure_v2.resume_purges(self)
+        return await trust_erasure_state.resume_purges(self)
 
     def retention_boundary(self, namespace: str = "default") -> RetentionBoundary | None:
-        """T5-05 (``retention.v2``): the last retention boundary and rebuild mode planned for
+        """T5-05: the last retention boundary and rebuild mode planned for
         ``namespace`` (None before the first pass)."""
-        return trust_retention_v2.boundary(self, namespace)
+        return trust_retention.boundary(self, namespace)
 
     async def export(
         self,
@@ -4604,26 +4508,7 @@ class Engine:
         turn: int | None = None,
         source_id: str | None = None,
     ) -> MemoryRecord:
-        """#54: record a user's ``like`` / ``dislike`` / ``note`` on one record.
-
-        O4-11 (``write.feedback_v2``, off): the keyword arguments after ``namespace`` and the kinds
-        ``correction`` / ``rejection`` / ``confirmation`` / ``rating`` are explicit-feedback only;
-        see :func:`memspine.api.ops_trust.feedback`. With the flag off they are refused.
-
-        Appends one FEEDBACK event through the door; the record projector keeps the
-        per-record counts (``scoring.likes`` / ``dislikes`` / ``notes``). With
-        ``read.scoring.utility_weight > 0`` the ranking's utility term then includes
-        ``tanh((likes - dislikes) / FEEDBACK_UTILITY_SCALE)``, bounded in (-1, 1), so
-        a repeated like cannot dominate relevance. A record with no feedback scores
-        exactly as before.
-
-        ``note`` is optional with a like or dislike and required for ``"note"``. It
-        is screened like message content (``firewall.redact_secrets`` / ``pii``),
-        cut to ``FEEDBACK_NOTE_MAX_CHARS`` and stored in the event only, under
-        ``content``, so a hard forget of the record erases it too. Namespace-scoped
-        like :meth:`quarantine`: a missing, foreign or forgotten id raises the same
-        ``ConflictError``. Returns the record with its updated counts.
-        """
+        """Record deliberate correction, rejection, confirmation or rating feedback."""
         return await ops_trust.feedback(
             self,
             record_id,
@@ -4641,7 +4526,7 @@ class Engine:
         )
 
     async def correction_latency(self, namespace: str = "default") -> LatencyStats:
-        """O4-11 (``write.feedback_v2``): turns from a wrong memory first being surfaced to its
+        """O4-11 (``write.feedback``): turns from a wrong memory first being surfaced to its
         explicit correction, from the log (one turn = one search of the namespace)."""
         return await ops_trust.correction_latency(self, namespace)
 
@@ -5257,7 +5142,7 @@ class Engine:
         now: datetime | None = None,
         cues: Sequence[str] = (),
     ) -> list[Reminder]:
-        """Advisory reminders from stated plans (O4-10, ``memories.prospective.policies.v2``).
+        """Advisory reminders from stated plans (O4-10, ``memories.prospective.policies.enabled``).
         Read-only and pull-based: it never acts, writes or delivers. See ``ops_advisory``."""
         return await ops_advisory.reminders(self, namespace, now, cues)
 
@@ -5267,7 +5152,7 @@ class Engine:
         namespace: str = "default",
         limit: int | None = None,
     ) -> list[Suggestion]:
-        """Advisory procedure ranking (O4-10, ``memories.procedural.policies.v2``); counts move on
+        """Advisory procedure ranking (O4-10, ``memories.procedural.policies.enabled``); counts move on
         explicit feedback only. Never executes anything. See ``ops_advisory``."""
         return await ops_advisory.suggest_procedures(self, context_tags, namespace, limit)
 
@@ -5311,7 +5196,7 @@ class Engine:
     ) -> list[tuple[MemoryRecord, float]]:
         """Own-namespace search plus granted foreign results (see :meth:`_shared_search`).
 
-        ``purpose`` (#50): the read's purpose, checked under ``consent.enforce``
+        ``purpose`` (#50): the read's purpose, checked under ``consent.enabled``
         for own and foreign records alike."""
         return await memory_shared.shared_search(
             self, query, namespace, top_k, session_id, ledger_id, purpose
@@ -5450,10 +5335,10 @@ class Engine:
     async def freshness(self, namespace: str = "default") -> dict[str, Any]:
         """O4-01b (O-06): per derived layer, the gap between the namespace's latest raw-turn seq and
         the minimum ``covers_seq`` of the layer's stamped records, and its ``stale`` flag. Needs
-        ``offline.budget_v2`` or ``read.freshness_v2``."""
+        ``offline.budget`` or ``read.freshness``."""
         self._require_started()
         if self._freshness_tracker is None:
-            raise MemspineError("freshness needs offline.budget_v2 or read.freshness_v2")
+            raise MemspineError("freshness needs offline.budget or read.freshness")
         return (await read_freshness.report(self, validate_namespace(namespace))).as_dict()
 
     @tap.traced("job")
@@ -5461,7 +5346,7 @@ class Engine:
         """Run the maintenance sleep cycle now (M2/E7): consolidate → decay →
         compress → prune. All steps are idempotent; P3 gives them teeth.
 
-        Under ``offline.sleep_v2`` returns a ``SleepHandle`` at once instead of the stage stats
+        Under ``offline.sleep`` returns a ``SleepHandle`` at once instead of the stage stats
         (``await handle.wait()`` gives the stats)."""
         return await derive_scheduler.sleep(self)
 
@@ -5926,11 +5811,7 @@ class Engine:
             link_derived=(
                 self._link_derived_summary if self._config().write.lineage_table else None
             ),
-            live_gate=(
-                self._offline_live
-                if self._config().consent.v2 or self._config().privacy.erasure_v2
-                else None
-            ),
+            live_gate=self._offline_live,
             # Only when associative projects it (ADR-015): an explicit-config
             # graph store without the projector would reorganize a stale graph.
             graph=self._graph if self._associative is not None else None,
@@ -6020,7 +5901,7 @@ class Engine:
         return await ingest_windows.close_session(self, namespace, session_id)
 
     def cost_report(self, namespace: str | None = None) -> dict[str, Any]:
-        """W2-12 (``economy.ledger_v2``): model calls, tokens in/out, latency and embed calls of
+        """W2-12 (``economy.ledger``): model calls, tokens in/out, latency and embed calls of
         the writes since ``start()``, in total and split per layer, stage (``window_extract``,
         each sleep stage) and namespace; ``namespace`` filters. Engine-wide sleep stages sit under
         namespace ``"-"``. ``budget`` is None without ``economy.budget``. ``{}`` when the flag is
@@ -6037,8 +5918,8 @@ class Engine:
     def ops_report(self, namespace: str | None = None) -> dict[str, Any]:
         """T5-06 (G-20): one report over the ops ledger (``observability.ops_ledger``: runs,
         errors, items, dropped, deferred and p50 / p95 per read verb, write verb, window extract
-        and sleep stage), the SLO ledger (``runtime.scheduler_v2``: read p95, lag, backlog) and the
-        write cost ledger (``economy.ledger_v2``: model calls, tokens, embed calls, budget). A
+        and sleep stage), the SLO ledger (``runtime.scheduler``: read p95, lag, backlog) and the
+        write cost ledger (``economy.ledger``: model calls, tokens, embed calls, budget). A
         ledger that is off contributes nothing; ``namespace`` filters the cost rows. Ids, counts
         and durations only."""
         slo_ledger = self._binding.slo_ledger

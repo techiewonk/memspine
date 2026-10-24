@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib
 import sys
 from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -83,7 +84,7 @@ def test_defaults_are_heuristic() -> None:
     assert OpenDeciderSettings().device == "cpu"
     slot = DeciderReadSlot(provider="opendecider")
     assert slot.tasks == ["list_mode", "bridge_hop"]
-    assert ReadConfig().relevance_gate == "off"
+    assert ReadConfig().gate is False
     assert slot.min_confidence == 0.5  # the calibrated probability, no tuned cut
 
 
@@ -133,7 +134,11 @@ def test_build_decider() -> None:
 # -- decision points honour the decider ----------------------------------------------------
 
 
-async def test_list_mode_follows_the_decider() -> None:
+async def test_list_mode_follows_the_decider(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "memspine.read.list_trigger.list_signal",
+        lambda *args: SimpleNamespace(fire=True, score=1.0),
+    )
     eng = _engine(
         list_mode=True,
         decider={"tasks": ["list_mode"], "min_confidence": 0.6},
@@ -190,7 +195,13 @@ async def test_bridge_gate_follows_the_decider_and_records_it() -> None:
         await eng.stop()
 
 
-async def test_a_failing_decider_falls_back_to_the_heuristic() -> None:
+async def test_a_failing_decider_falls_back_to_the_heuristic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "memspine.read.list_trigger.list_signal",
+        lambda *args: SimpleNamespace(fire=True, score=1.0),
+    )
     eng = _engine(list_mode=True, decider={"tasks": ["list_mode"]})
     eng.set_decider(BoomDecider())
     await eng.start()

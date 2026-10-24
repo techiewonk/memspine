@@ -24,7 +24,6 @@ from pydantic import ValidationError
 from memspine.config import constants, presets
 from memspine.config.schema import MemspineConfig
 from memspine.config.schema.base import ConfigInputError, validate_config_input
-from memspine.config.schema.model import MOVED_ROOTS
 from memspine.exceptions import ConfigError
 
 __all__ = [
@@ -187,9 +186,7 @@ def _env_layer(env: Mapping[str, str]) -> dict[str, Any]:
     strict (``extra="forbid"``) schema. Values that are not valid YAML scalars
     fall back to the raw string rather than raising a parser error.
     """
-    # ADR-082: a removed model root (``MEMSPINE_EMBEDDING__...``) still enters the layer, so
-    # it is rejected naming its new key instead of being silently ignored.
-    known_roots = set(MemspineConfig.model_fields) | set(MOVED_ROOTS)
+    known_roots = set(MemspineConfig.model_fields)
     layer: dict[str, Any] = {}
     for key, raw in env.items():
         if not key.startswith(_ENV_PREFIX):

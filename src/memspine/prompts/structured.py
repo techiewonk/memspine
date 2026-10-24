@@ -1,11 +1,11 @@
 """``prompts.structured`` and ``prompts.structured.repair`` (W2-06a; W-14, W-15, P-05, P-06).
 
-The wire contract of the envelope-v2 write path (``write.envelope_v2``): the model emits a JSON list of
-:class:`~memspine.schemas.steps.shared.ItemV1` items in compact keys and nothing else, citing the numbered
+The wire contract of the envelope write path (``write.envelope``): the model emits a JSON list of
+:class:`~memspine.schemas.steps.shared.ExtractionItem` items in compact keys and nothing else, citing the numbered
 lines it drew each item from. It authors content only (S2-1); ids, scope, trust, times and provenance are
 set by code.
 
-Layout (compatible with ``prompts.layout_v2``, W2-07): the system text is a constant, byte-identical for
+Layout (compatible with ``prompts.layout``, W2-07): the system text is a constant, byte-identical for
 every call; everything that varies (participants, the numbered lines) is in the user part.
 
 ``repair_messages`` is the one targeted re-ask of P-05 / W-14: the original messages (so the lines are
@@ -116,7 +116,7 @@ def repair_messages(
     )
 
 
-# --- W2-06b: ONE call for every requested section (write.prompt_v2) --------------------------------
+# --- W2-06b: ONE call for every requested section (write.prompt) --------------------------------
 
 WINDOW_PROMPT_ID = "structured.window"
 WINDOW_VERSION = 1

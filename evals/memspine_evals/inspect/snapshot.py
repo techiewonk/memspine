@@ -9,7 +9,7 @@ additive file:
 * ``links.jsonl``: lineage-table rows (``lineage``), ``source.parents`` edges (``derived_from``)
   and every graph edge (``graph`` / ``reply`` / ``mentions`` / ``derived_from`` / ``typed``).
 * ``sleep.jsonl``: the sleep markers read from the event log (``stage_done``, ``graph_extracted``,
-  ``entity_resolved``, ``entity_summarized``, ``community_partition``, ``profile_card_v2``,
+  ``entity_resolved``, ``entity_summarized``, ``community_partition``, ``profile_card``,
   ``session_closed``) and the CONSOLIDATE events. Each event is written once per out dir (the
   last seq dumped is kept in ``.snapshot_state.json``), so the files are append-safe.
 * ``graph_nodes.jsonl`` (additive): the graph nodes, one row per node per phase.
@@ -51,7 +51,7 @@ _MARKER_STAGE = {
     "entity_resolved": "resolve_entities",
     "entity_summarized": "summarize_entities",
     "community_partition": "communities",
-    "profile_card_v2": "reflect_profile",
+    "profile_card": "reflect_profile",
     "session_closed": "session_close",
 }
 
@@ -444,7 +444,7 @@ async def _dump_store(args: argparse.Namespace) -> dict[str, int]:
     engine = await memspine.open(
         template=args.template,
         dotenv_path=None,
-        storage={"path": args.store},
+        storage={"records": {"provider": "sqlite", "settings": {"path": args.store}}},
         model={"embedding": {"provider": "hash"}},
     )
     try:

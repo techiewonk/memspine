@@ -3,8 +3,7 @@
 Gap analysis of a 9B reader on LoCoMo (``analysis/READER_GAPS.md``): about half of the wrong
 answers with the gold evidence in context were refusals ("not mentioned"). With
 ``--retry-refusal`` a refusal is re-asked once. I1: the default wording is neutral and asserts
-no evidence (an unanswerable question may still be refused); ``mode="assertive"`` is the old
-firmer wording, kept to reproduce earlier runs. Off (the default) no wrapper is built and
+no evidence (an unanswerable question may still be refused). Off (the default) no wrapper is built and
 readers are unchanged.
 
 The patterns copy ``failure_buckets.REFUSAL`` / ``DENIAL`` (that module lives outside the
@@ -25,15 +24,9 @@ __all__ = [
     "DENIAL",
     "MAX_RETRIES",
     "REFUSAL",
-    "REFUSAL_MATCH_MODES",
     "RETRY_INSTRUCTION",
-    "RETRY_INSTRUCTION_ASSERTIVE",
-    "RETRY_INSTRUCTION_NEUTRAL",
-    "RETRY_MODES",
     "RefusalRetryReader",
     "is_refusal",
-    "is_refusal_legacy",
-    "is_refusal_whole",
     "named_entities",
     "names_absent_entity",
     "shares_content_word",
@@ -54,28 +47,11 @@ DENIAL = re.compile(r"^[A-Z][\w'.]*(?: and [A-Z][\w']*)? (?:did|does|has|had|was
 #: I1: the DEFAULT retry wording is neutral. It claims nothing about the memories, so on an
 #: unanswerable question (LoCoMo cat 5, abstention probes) the reader may still refuse, and the
 #: exact refusal string is offered as the way to do it.
-RETRY_INSTRUCTION_NEUTRAL = (
+RETRY_INSTRUCTION = (
     "\n\nRe-read the memories carefully. If they contain information that answers the "
     "question, answer it; if they truly do not, reply exactly: Not mentioned in the "
     "conversation."
 )
-#: The original wording (``mode="assertive"``), kept only to reproduce earlier runs (the
-#: BEST_dev runs used it). It asserts the evidence exists, which is false on unanswerable
-#: questions: it can turn a correct refusal into a fabrication.
-RETRY_INSTRUCTION_ASSERTIVE = (
-    "\n\nNote: the memories above do contain information relevant to this question, so do not "
-    "reply that it is unknown or not mentioned. Answer from the best-supported evidence in "
-    "them, even if it is indirect: resolve relative times against the date of the line they "
-    "appear in, and give your most likely answer in a few words."
-)
-#: Back-compat name: the default (neutral) wording.
-RETRY_INSTRUCTION = RETRY_INSTRUCTION_NEUTRAL
-
-RETRY_MODES: dict[str, str] = {
-    "neutral": RETRY_INSTRUCTION_NEUTRAL,
-    "assertive": RETRY_INSTRUCTION_ASSERTIVE,
-}
-
 _WORD = re.compile(r"[a-z0-9]{4,}")
 _STOP_TEXT = (
     "that this with from have has had were was been being they them their there then than what "
@@ -202,12 +178,6 @@ def names_absent_entity(question: str, context: str) -> bool:
     return bool(names) and all(name.lower() not in low for name in names)
 
 
-#: I22: how ``is_refusal`` reads an answer. ``whole`` (default): only when the WHOLE answer is
-#: a refusal / abstention statement. ``legacy``: the original substring regexes, which also
-#: matched negative facts ("There is no school on Friday", "I did not go") and any answer that
-#: merely contained "there is no"; kept to reproduce earlier runs (``--refusal-match legacy``).
-REFUSAL_MATCH_MODES = ("whole", "legacy")
-
 _TAIL = r"(?:\W.{0,100})?"
 _NO_THING = (
     r"(?:mention|specific information|information|info|record|indication|evidence|details?|"
@@ -259,16 +229,7 @@ _SENTENCE_SPLIT = re.compile(r"(?<=[.!?])\s+|\n+")
 _WRAP = "*_`\"'“” "
 
 
-def is_refusal_legacy(answer: str) -> bool:
-    """The original ``is_refusal``: a substring match, so any answer containing "there is no"
-    or opening "<Name> did not ..." counted. Kept behind ``--refusal-match legacy``."""
-    text = answer.strip()
-    if not text:
-        return True
-    return bool(REFUSAL.search(text) or DENIAL.search(text))
-
-
-def is_refusal_whole(answer: str) -> bool:
+def is_refusal(answer: str) -> bool:
     """I22: True when ``answer`` is empty or the WHOLE answer is a refusal / abstention
     statement ("I do not know", "Not mentioned in the conversation", "There is no information
     about it"). A negative fact ("There is no school on Friday", "I did not go") is an
@@ -287,17 +248,6 @@ def is_refusal_whole(answer: str) -> bool:
         if _HEDGE.search(core) or not any(p.fullmatch(core) for p in _WHOLE_PATTERNS):
             return False
     return True
-
-
-def is_refusal(answer: str, mode: str = "whole") -> bool:
-    """True when ``answer`` is empty or declines. ``mode="whole"`` (default, I22): the whole
-    answer must be a refusal statement (:func:`is_refusal_whole`). ``mode="legacy"``: the
-    original substring regexes (:func:`is_refusal_legacy`)."""
-    if mode == "legacy":
-        return is_refusal_legacy(answer)
-    if mode != "whole":
-        raise ValueError(f"refusal match mode must be one of {REFUSAL_MATCH_MODES}, got {mode!r}")
-    return is_refusal_whole(answer)
 
 
 class RefusalRetryReader:
@@ -321,20 +271,12 @@ class RefusalRetryReader:
         inner: Any,
         instruction: str | None = None,
         *,
-        mode: str = "neutral",
         require_context_overlap: bool = False,
         decider: Any = None,
         decider_min_confidence: float = 0.5,
         guard_absent_entity: bool = False,
-        refusal_match: str = "whole",
         inference_gate: Any = None,
     ) -> None:
-        if refusal_match not in REFUSAL_MATCH_MODES:
-            raise ValueError(f"refusal_match must be one of {REFUSAL_MATCH_MODES}")
-        #: I22: ``whole`` (default) or ``legacy`` (the original substring regexes).
-        self.refusal_match = refusal_match
-        if mode not in RETRY_MODES:
-            raise ValueError(f"retry mode must be one of {sorted(RETRY_MODES)}, got {mode!r}")
         self.inner = inner
         #: R14-M-9 (``read.inference_mode = gated``): optional ``question -> bool``. When it is
         #: true the retry uses the commit-with-cited-reason instruction (the inner prompt
@@ -344,18 +286,16 @@ class RefusalRetryReader:
         #: entity the context never mentions (the question cannot be answered from the store).
         self.guard_absent_entity = guard_absent_entity
         self.guard = getattr(inner, "guard", None)
-        self.mode = mode
         #: optional safety valve (default off): accept the retry answer only when it shares a
         #: content word with the retrieved context
         self.require_context_overlap = require_context_overlap
-        self.instruction = RETRY_MODES[mode] if instruction is None else instruction
+        self.instruction = RETRY_INSTRUCTION if instruction is None else instruction
         #: I28: optional ``memspine.services.decider.decider.Decider``. When set and sure
         #: enough, it replaces the ``is_refusal`` regex on question + answer text only (never
         #: the gold, the category or the abstention flag); otherwise the regex decides.
         self.decider = decider
         self.decider_min_confidence = decider_min_confidence
-        # the assertive id is the historical one, so earlier runs keep their reader identity
-        self.reader_id = f"{inner.reader_id}+retry" + ("" if mode == "assertive" else "-neutral")
+        self.reader_id = f"{inner.reader_id}+retry"
         if decider is not None:
             self.reader_id += f"-{getattr(decider, 'decider_id', 'decider')}"
         if guard_absent_entity:
@@ -375,18 +315,17 @@ class RefusalRetryReader:
         return {
             **self.inner.describe(),
             "retry_refusal": True,
-            "retry_mode": self.mode,
+            "retry_policy": "neutral",
             "retry_require_context_overlap": self.require_context_overlap,
             **({"retry_guard_absent_entity": True} if self.guard_absent_entity else {}),
             **({"retry_inference_gate": True} if self.inference_gate is not None else {}),
-            **({"refusal_match": self.refusal_match} if self.refusal_match != "whole" else {}),
             **({"decider": self.decider.decider_id} if self.decider is not None else {}),
         }
 
     async def _refusal(self, question: str, text: str, log: list[dict[str, Any]]) -> bool:
         """Whether ``text`` is a refusal: the decider when set and sure, else the regex.
         Every decider call is appended to ``log`` (task, label, confidence, adapter)."""
-        rule = is_refusal(text, self.refusal_match)
+        rule = is_refusal(text)
         if self.decider is None or not text.strip():
             return rule
         try:
@@ -451,7 +390,7 @@ class RefusalRetryReader:
                 "first_answer": first.text,
                 "retry_answer": second.text,
                 "retry_accepted": accepted,
-                "retry_mode": self.mode,
+                "retry_policy": "neutral",
                 "retry_require_context_overlap": self.require_context_overlap,
                 **({"retry_inference": True} if inference else {}),
                 **({"decisions": decisions} if decisions else {}),

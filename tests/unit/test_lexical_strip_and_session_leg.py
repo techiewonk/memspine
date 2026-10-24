@@ -35,48 +35,50 @@ async def _fill_names(eng: Engine) -> None:
         await eng.write(text, namespace="a", memory_type="episodic")
 
 
-def _spy_lexical(eng: Engine) -> list[str]:
+def _spy_lexical(eng: Engine, monkeypatch: pytest.MonkeyPatch) -> list[str]:
+    from memspine.read.legs.lexical import LexicalLeg
+
     seen: list[str] = []
-    orig = eng._lexical_leg
+    original = LexicalLeg.run
 
-    async def spy(ns: str, text: str, fetch_k: int) -> Any:
-        seen.append(text)
-        return await orig(ns, text, fetch_k)
+    async def spy(self: Any, ctx: Any) -> Any:
+        seen.append(ctx.lexical_query or ctx.query)
+        return await original(self, ctx)
 
-    eng._lexical_leg = spy  # type: ignore[method-assign]
+    monkeypatch.setattr(LexicalLeg, "run", spy)
     return seen
 
 
-async def test_names_stripped_from_bm25_query_only() -> None:
+async def test_names_stripped_from_bm25_query_only(monkeypatch: pytest.MonkeyPatch) -> None:
     eng = _engine(lexical_strip_names=True)
     await eng.start()
     try:
         await _fill_names(eng)
-        seen = _spy_lexical(eng)
+        seen = _spy_lexical(eng, monkeypatch)
         await eng.search("What did Caroline's friend Melanie do kayaking?", "a", top_k=3)
         assert seen == ["What did friend do kayaking?"]
     finally:
         await eng.stop()
 
 
-async def test_names_kept_when_off_by_default() -> None:
+async def test_names_kept_when_off_by_default(monkeypatch: pytest.MonkeyPatch) -> None:
     eng = _engine()
     await eng.start()
     try:
         await _fill_names(eng)
-        seen = _spy_lexical(eng)
+        seen = _spy_lexical(eng, monkeypatch)
         await eng.search("Caroline kayaking", "a", top_k=3)
         assert seen == ["Caroline kayaking"]
     finally:
         await eng.stop()
 
 
-async def test_strip_falls_back_when_nothing_left() -> None:
+async def test_strip_falls_back_when_nothing_left(monkeypatch: pytest.MonkeyPatch) -> None:
     eng = _engine(lexical_strip_names=True)
     await eng.start()
     try:
         await _fill_names(eng)
-        seen = _spy_lexical(eng)
+        seen = _spy_lexical(eng, monkeypatch)
         await eng.search("Caroline Melanie", "a", top_k=3)
         assert seen == ["Caroline Melanie"]
     finally:

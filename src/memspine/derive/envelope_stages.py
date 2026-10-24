@@ -1,6 +1,6 @@
 """Ordered post-compile stages over a window's assertion envelopes (W2-06c stage hook list).
 
-``process_items`` (W2-06a, ``write.envelope_v2``) validates, repairs and compiles the model's items
+``process_items`` (W2-06a, the extraction envelope) validates, repairs and compiles the model's items
 into :class:`AssertionEnvelope`s. Before they are deposited, the window pipeline runs them through
 this ordered list of stages. Each Phase 2 write package plugs in here with its own module and one
 builder line in ``ingest/windows.py:_envelope_stages``, so the packages stay independent:

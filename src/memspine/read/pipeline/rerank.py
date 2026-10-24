@@ -110,7 +110,7 @@ async def _static_embedding_prefilter(
 # ---------------------------
 
 #: LIB-42 order (Q5/Q6): Jina v3.5, Qwen3-Reranker-0.6B, MiniLM on CPU, then none (unscored).
-#: The tier plan (``model.placement.tiers_v2``) names these providers; this table only documents
+#: The tier plan (``model.placement.tiers``) names these providers; this table only documents
 #: the model each one stands for.
 CHAIN_MODELS: dict[str, str] = {
     "jina": "jina-v3.5",
@@ -146,14 +146,14 @@ def stage_settings(stage: Any, rerank_cfg: Any, device: str | None = None) -> Re
 
 
 def _planned_chain(eng: Any) -> list[tuple[Any, str]] | None:
-    """MD-01 (``model.placement.tiers_v2``): the planned chain as ``(stage, device)``, computed
+    """MD-01 (``model.placement.tiers``): the planned chain as ``(stage, device)``, computed
     once per engine; None when the flag is off (the chain is then ``model.rerank.chain``).
 
     A planned provider takes the settings of the first configured entry of that provider (none:
     empty settings); configured entries the plan does not name follow, in configured order."""
     cfg_of = getattr(eng, "_config", None)
     cfg = cfg_of() if callable(cfg_of) else None
-    if cfg is None or not cfg.model.placement.tiers_v2:
+    if cfg is None or not cfg.model.placement.tiers:
         return None
     cached = eng.__dict__.get("_rerank_planned_chain")
     if cached is None:
@@ -305,7 +305,7 @@ async def rerank_stage(
         }
         tap.event("read.rerank.scored", **payload)
         if (fx := _FORENSICS.get()) is not None:
-            fx["rerank_v2"] = payload  # forensic data key, kept for the eval tooling
+            fx["rerank"] = payload  # forensic data key, kept for the eval tooling
     if not scored_idx:
         return candidates, False
     vals = [float(scores[i]) for i in scored_idx]  # type: ignore[arg-type]

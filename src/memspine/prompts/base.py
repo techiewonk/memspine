@@ -76,7 +76,7 @@ class RenderedMessages(list[dict[str, str]]):
         super().__init__(messages or [])
         self.prompt_id = prompt_id
         self.prompt_version = prompt_version
-        #: W2-07: hash of the stable prefix; set only under ``prompts.layout_v2``.
+        #: W2-07: hash of the stable prefix; set only under ``prompts.layout``.
         self.identity = identity
 
 
@@ -99,8 +99,8 @@ class Prompt(BaseModel):
     #: straight from YAML still renders and versions correctly on its own.
     _env: Environment | None = PrivateAttr(default=None)
     _version_suffix: str = PrivateAttr(default="")
-    #: W2-07 (``prompts.layout_v2``): the partials the registry left switched on, or ``None``
-    #: for a v1 prompt (every render path below is then untouched).
+    #: W2-07 (``prompts.layout``): the partials the registry left switched on, or ``None``
+    #: when layout metadata is absent.
     _layout_partials: tuple[str, ...] | None = PrivateAttr(default=None)
 
     @property
@@ -115,11 +115,9 @@ class Prompt(BaseModel):
         ``{% include %}`` names resolve against the bound partials loader. The
         result is a list tagged with this prompt's id and version (#33)."""
         env = self._env or default_environment()
-        language = "en"
-        if self._layout_partials is not None:
-            context = dict(context)
-            language = str(context.get("language") or detect_language(source_text(context)))
-            context["language"] = language
+        context = dict(context)
+        language = str(context.get("language") or detect_language(source_text(context)))
+        context["language"] = language
         try:
             user = env.from_string(self.body).render(**context)
             system = env.from_string(self.system).render(**context) if self.system else None

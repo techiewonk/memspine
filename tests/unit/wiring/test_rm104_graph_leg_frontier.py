@@ -21,7 +21,7 @@ import test_rm88_rm91_graph_caller as caller_tests
 from test_rm93_graph_filter import NS, QUERY, _build, _engine, _Spy
 
 from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
-from memspine.derive.pipeline.stages.edge_compiler_v2 import compile_graph_edges
+from memspine.derive.pipeline.stages.edge_compiler import compile_graph_edges
 from memspine.read.legs.graph import HopEdge, HopResult, one_hop
 from memspine.read.pipeline import legs as pipeline_legs
 from memspine.services.graph.qualifiers import (
@@ -273,7 +273,7 @@ def _random_graph(rng: random.Random, n_nodes: int, n_edges: int) -> list[tuple[
         seen.add(key)
         props: dict[str, Any] = {
             "weight": rng.choice((0.0, 0.4, 0.8, 1.0)),
-            "compiled": "edge_compiler_v2" if rng.random() < 0.9 else "other",
+            "compiled": "edge_compiler" if rng.random() < 0.9 else "other",
             "tentative": rng.random() < 0.1,
             "closed": rng.random() < 0.05,
         }

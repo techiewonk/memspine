@@ -167,7 +167,7 @@ def test_engines_on_two_event_loops_share_only_loop_free_resources(tmp_path: Pat
 
     def run(index: int) -> None:
         async def main() -> None:
-            eng = _engine(path, runtime={"scheduler_v2": True, "model_concurrency": 2})
+            eng = _engine(path, runtime={"scheduler": True, "model_concurrency": 2})
             await eng.start()
             try:
                 assert eng._sql is not None
@@ -175,7 +175,7 @@ def test_engines_on_two_event_loops_share_only_loop_free_resources(tmp_path: Pat
                     "sql": eng._sql.engine,
                     "lexical": eng._lexical.connector,  # type: ignore[union-attr]
                     "client": eng._vector._client,  # type: ignore[union-attr]
-                    "scheduler": eng._sched_v2,
+                    "scheduler": eng._sched,
                 }
                 await asyncio.to_thread(started.wait)
                 if index == 0:

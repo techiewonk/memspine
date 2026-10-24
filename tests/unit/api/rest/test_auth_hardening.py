@@ -319,7 +319,12 @@ async def test_write_and_feedback_bind_the_principal(engine: Engine, keys: None)
         assert bare.json()["source"]["principal"] == "alice"
         fb = await http.post(
             "/feedback",
-            json={"record_id": bare.json()["record_id"], "signal": "like", "actor": "mallory"},
+            json={
+                "record_id": bare.json()["record_id"],
+                "signal": "rating",
+                "rating": 5,
+                "actor": "mallory",
+            },
             headers=_h(ALICE_KEY),
         )
         assert fb.status_code == 200

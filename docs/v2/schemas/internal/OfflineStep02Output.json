@@ -143,6 +143,7 @@
         },
         "schema_version": {
           "default": 1,
+          "maximum": 1,
           "minimum": 1,
           "title": "Schema Version",
           "type": "integer"
@@ -212,6 +213,7 @@
         },
         "schema_version": {
           "default": 1,
+          "maximum": 1,
           "minimum": 1,
           "title": "Schema Version",
           "type": "integer"
@@ -296,6 +298,7 @@
         },
         "schema_version": {
           "default": 1,
+          "maximum": 1,
           "minimum": 1,
           "title": "Schema Version",
           "type": "integer"

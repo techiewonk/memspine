@@ -187,7 +187,7 @@ _CORRELATION = frozenset(
 
 # ------------------------------------------------------------------------------------------------ arms
 def resolve_arm(arm: str | Path) -> tuple[str, dict[str, Any]]:
-    """``scr-b8-write-v2`` (an ``evals/arms`` name) or a path to a json file -> ``(name, config)``."""
+    """``scr-b8-write`` (an ``evals/arms`` name) or a path to a json file -> ``(name, config)``."""
     if str(arm) == "demo":
         return "demo", json.loads(DEMO_ARM.read_text(encoding="utf-8"))
     p = Path(str(arm))
@@ -2003,8 +2003,8 @@ class StepSession(TuneMixin):
         return True
 
     async def run(self, script: Iterable[str] | None = None) -> None:
-        await self.start()
         try:
+            await self.start()
             if script is not None:
                 for line in script:
                     self.w(f"\nstep> {line.strip()}")
@@ -2124,7 +2124,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--arm",
         required=True,
-        help="evals/arms name (scr-gc3-graph-jina, scr-b8-write-v2) or a json path",
+        help="evals/arms name (scr-gc3-graph-jina, scr-b8-write) or a json path",
     )
     p.add_argument(
         "--out",

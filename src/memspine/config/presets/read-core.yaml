@@ -1,0 +1,16 @@
+# FU-REQS profile (audit 2026-10-13, section 3): the v2 read spine as one bundle.
+# Question: does the v2 read spine equal or beat the v1 spine? Reference: f-jref2-i2 on J, S02 on GC.
+# Replaces the single-flag rows S11, S12, S14-S16, S17, S36-S38. Every key here is off by default.
+read:
+  family_fusion: true
+  lift_before_rerank: true
+  exact_budget: true
+  contract_rules: true
+  router_rules: true
+  tiers: true
+model:
+  rerank:
+    chain:             # R3-07 licence fallback chain (Jina v3.5, Qwen3-Reranker-0.6B, MiniLM CPU)
+      - {provider: jina, settings: {}}
+      - {provider: qwen3, settings: {}}
+      - {provider: onnx, settings: {}}

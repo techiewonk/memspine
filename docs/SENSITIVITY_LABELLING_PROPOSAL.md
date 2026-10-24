@@ -2,7 +2,7 @@
 
 Status: accepted by the owner decisions of 2026-10-22 (RM-52, RM-86, RM-87, RM-98, RM-99).
 Implemented in `src/memspine/derive/sensitivity.py` and wired into `compile_edges`
-(`derive/pipeline/stages/edge_compiler_v2.py`). Tests: `tests/unit/derive/test_sensitivity.py`,
+(`derive/pipeline/stages/edge_compiler.py`). Tests: `tests/unit/derive/test_sensitivity.py`,
 `tests/unit/services/graph/test_qualifier_exclusions.py`,
 `tests/unit/wiring/test_rm99_sensitivity_edges.py`.
 

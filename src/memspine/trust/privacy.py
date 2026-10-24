@@ -2,8 +2,6 @@
 
 - the request-scoped **principal** and read **purpose** (context variables the REST
   auth middleware and the read verbs set, the read gates and the audit read),
-- the **purpose gate** over a record's ``consent_tags`` (``consent.enforce``),
-- the **audit hash chain** over ``memory.read_audit`` / ``memory.audit`` events,
 - **retention class** matching (``retention.classes``),
 - the **export line** encoders (subject-access export, JSONL).
 """
@@ -11,28 +9,21 @@
 from __future__ import annotations
 
 import fnmatch
-import hashlib
 from collections.abc import Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
-from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 import orjson
 
-from memspine.store.events import EventKind, MemoryEvent, canonical_payload
 from memspine.store.records import MemoryRecord, PiiTier
 
 if TYPE_CHECKING:
-    from memspine.config.schema import ConsentConfig, RetentionClassConfig
+    from memspine.config.schema import RetentionClassConfig
 
 __all__ = [
-    "AUDIT_GENESIS",
-    "AUDIT_KINDS",
     "PURPOSE_ANY",
     "PURPOSE_NONE",
-    "AuditChainReport",
-    "chain_digest",
     "current_principal",
     "current_purpose",
     "export_line",
@@ -43,15 +34,9 @@ __all__ = [
     "payload_mentions",
     "pii_rank",
     "principal_scope",
-    "purpose_allows",
     "read_scope",
-    "verify_audit_chain",
 ]
 
-#: The chain anchor of the first audit event in a full log.
-AUDIT_GENESIS = "memspine-audit-v1"
-#: Event kinds the audit hash chain covers.
-AUDIT_KINDS = frozenset({EventKind.READ_AUDIT, EventKind.AUDIT})
 #: A record purpose that allows every read purpose.
 PURPOSE_ANY = "*"
 #: The purpose set of a record derived from parents whose purposes do not
@@ -109,22 +94,6 @@ def read_scope(purpose: str | None) -> Iterator[bool]:
         _READ_DEPTH.reset(depth_token)
 
 
-def purpose_allows(record: MemoryRecord, purpose: str | None, consent: ConsentConfig) -> bool:
-    """#50 purpose gate. Off (``consent.enforce`` false) every record passes.
-
-    On: a record with no purposes passes when ``consent.untagged`` is ``allow``; a
-    record carrying ``*`` passes every read; otherwise the read's purpose must be one
-    of the record's purposes (a read with no purpose sees no tagged record)."""
-    if not consent.enforce:
-        return True
-    purposes = record.consent_tags
-    if not purposes:
-        return consent.untagged == "allow"
-    if PURPOSE_ANY in purposes:
-        return True
-    return purpose is not None and purpose != PURPOSE_NONE and purpose in purposes
-
-
 def inherited_consent(tag_sets: Iterable[Sequence[str]], untagged: str = "allow") -> list[str]:
     """The purposes a record derived from parts carrying ``tag_sets`` may serve:
     the intersection of the parts' purposes, so the derived record is never
@@ -157,70 +126,6 @@ def inherited_pii(tiers: Iterable[PiiTier | str]) -> PiiTier:
 
 
 # ── audit hash chain ─────────────────────────────────────────────────────────
-
-
-def chain_digest(prev: str, kind: str, namespace: str, actor: str, body: dict[str, Any]) -> str:
-    """SHA-256 over the previous hash and the event's kind, namespace, actor and
-    canonical payload (without its ``chain`` field)."""
-    content = {key: value for key, value in body.items() if key != "chain"}
-    message = b"|".join(
-        [
-            prev.encode(),
-            kind.encode(),
-            namespace.encode(),
-            actor.encode(),
-            canonical_payload(content),
-        ]
-    )
-    return hashlib.sha256(message).hexdigest()
-
-
-@dataclass
-class AuditChainReport:
-    """Result of :func:`verify_audit_chain`."""
-
-    events: int = 0
-    ok: bool = True
-    #: seq of the first event whose link or hash does not verify (None = intact).
-    broken_at: int | None = None
-    head: str = AUDIT_GENESIS
-    problems: list[str] = field(default_factory=list)
-
-
-def verify_audit_chain(events: Iterable[MemoryEvent], *, anchored: bool = True) -> AuditChainReport:
-    """Check the hash chain over the audit events of ``events`` (seq order).
-
-    ``anchored``: the first audit event must link to :data:`AUDIT_GENESIS` (a full
-    log). A rolling log prunes old events, so the first surviving event's ``prev``
-    is accepted as the anchor there (``anchored=False``)."""
-    report = AuditChainReport()
-    prev: str | None = AUDIT_GENESIS if anchored else None
-    for event in events:
-        if event.kind not in AUDIT_KINDS:
-            continue
-        report.events += 1
-        chain = event.payload.get("chain")
-        seq = int(event.seq or -1)
-        if not isinstance(chain, dict):
-            report.problems.append(f"seq {seq}: no chain field")
-        else:
-            link = str(chain.get("prev", ""))
-            expected = chain_digest(
-                link, event.kind.value, event.namespace, event.actor, event.payload
-            )
-            if prev is not None and link != prev:
-                report.problems.append(f"seq {seq}: prev link does not match")
-            elif chain.get("hash") != expected:
-                report.problems.append(f"seq {seq}: hash does not match its content")
-            prev = str(chain.get("hash", ""))
-        if report.problems and report.broken_at is None:
-            report.broken_at = seq
-    report.ok = not report.problems
-    report.head = prev or AUDIT_GENESIS
-    return report
-
-
-# ── retention classes ────────────────────────────────────────────────────────
 
 
 def matching_class(

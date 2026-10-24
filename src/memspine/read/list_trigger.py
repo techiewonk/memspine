@@ -1,4 +1,4 @@
-"""R14-M-1 (``read.list_mode_trigger_v2`` / ``read.coverage_select``): list depth and coverage.
+"""R14-M-1 (``read.list_mode_trigger`` / ``read.coverage_select``): list depth and coverage.
 
 Two pure, model-free helpers for list-mode reads:
 

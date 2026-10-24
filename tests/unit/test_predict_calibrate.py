@@ -10,6 +10,7 @@ from memspine import Engine
 from memspine.config import constants
 from memspine.prompts.models import ExtractedFact
 from memspine.store.records import RecordStatus
+from memspine.trust.pipeline.erasure_state import visible_id
 
 
 def _engine(policies: dict[str, object] | None) -> Engine:
@@ -75,7 +76,7 @@ async def _surprises(eng: Engine) -> list[object]:
     return [
         r
         for r in await eng.retrieve(namespace="a", memory_type="semantic")
-        if constants.SURPRISE_FACT_TAG in r.tags
+        if constants.SURPRISE_FACT_TAG in r.tags and visible_id(eng, r.record_id)
     ]
 
 
@@ -173,7 +174,9 @@ async def test_engine_incremental_summary_wiring(monkeypatch: pytest.MonkeyPatch
         summaries = [
             r
             for r in await eng.retrieve(namespace="a", memory_type="semantic")
-            if r.source.channel == "consolidation" and r.status is RecordStatus.ACTIVATED
+            if r.source.channel == "consolidation"
+            and r.status is RecordStatus.ACTIVATED
+            and visible_id(eng, r.record_id)
         ]
         assert [s.content for s in summaries] == ["Alice news. More."]
         assert set(summaries[0].source.parents) == {*turns, more[0].record_id}
@@ -181,7 +184,9 @@ async def test_engine_incremental_summary_wiring(monkeypatch: pytest.MonkeyPatch
         live = [
             r
             for r in await eng.retrieve(namespace="a", memory_type="semantic")
-            if r.source.channel == "consolidation" and r.status is RecordStatus.ACTIVATED
+            if r.source.channel == "consolidation"
+            and r.status is RecordStatus.ACTIVATED
+            and visible_id(eng, r.record_id)
         ]
         assert live == []  # erasure cascades through parents (ADR-039)
     finally:

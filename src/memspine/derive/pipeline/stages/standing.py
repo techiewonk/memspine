@@ -1,8 +1,8 @@
 """Derive stage: standing_answers, and the read-side block (O4-08, LIB-32; opt-in L5).
 
-Sleep side (``offline.standing_v2``): precomputed answers for the current value of each keyed state fact,
+Sleep side (``offline.standing``): precomputed answers for the current value of each keyed state fact,
 built from value histories, rebuilt only for the groups that changed, evicted by usefulness.
-Read side (``read.standing_v2``): :func:`standing_block` picks the fresh answers for the topic entities of a
+Read side (``read.standing``): :func:`standing_block` picks the fresh answers for the topic entities of a
 read (``select_for_context``) and the guarded standing instructions, as one lead block.
 
 An answer is a derived semantic record (channel ``standing``): its text is ``render_answer``; the question
@@ -150,8 +150,8 @@ async def standing_answers(ctx: PipelineContext) -> dict[str, object]:
     ``offline.standing_max_answers``; ``eviction_candidates`` drops the idle or surplus ones. Records are
     written through the derived-write door (parents = the supporting facts, trust capped at the weakest).
     """
-    if not ctx.config.offline.standing_v2:
-        return {"status": "skipped", "reason": "offline.standing_v2 is off"}
+    if not ctx.config.offline.standing:
+        return {"status": "skipped", "reason": "offline.standing is off"}
     if ctx.append_event is None or ctx.write_fact is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     cfg = ctx.config.offline
@@ -234,7 +234,7 @@ async def standing_answers(ctx: PipelineContext) -> dict[str, object]:
             to_write = [a for a in answers if a.id in stale_ids] + answers_new
             if retire:
                 await archive_records(
-                    ctx.append_event, namespace, sorted(retire), "standing->retired", "standing_v2"
+                    ctx.append_event, namespace, sorted(retire), "standing->retired", "standing"
                 )
             for a in to_write:
                 parents = [p for p in a.support_ids if p in by_record]
@@ -320,7 +320,7 @@ def guarded_instructions(
 async def standing_block(
     eng: Any, ns: str, scored: list[tuple[MemoryRecord, float]]
 ) -> MemoryRecord | None:
-    """O4-08 (``read.standing_v2``): one lead block of fresh standing answers and guarded instructions.
+    """O4-08 (``read.standing``): one lead block of fresh standing answers and guarded instructions.
 
     Topic entities come from the best-scored keyed semantic hits, as for the timelines; each entity's
     question key is its top hit's attribute. A stored answer whose supporting facts changed since the build

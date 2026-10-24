@@ -1,6 +1,6 @@
 """Derive stage: reconcile (backlog, entity resolution, contradiction sweep) (O4-03, LIB-37).
 
-Flag ``offline.reconcile_v2`` (default off; the stage then reports ``skipped`` and the sleep cycle
+Flag ``offline.reconcile`` (default off; the stage then reports ``skipped`` and the sleep cycle
 does not even schedule it). On: per namespace, under the namespace lock, the live semantic facts are
 projected to envelopes (``envelope_adapter``) and :func:`memspine.derive.reconcile.sweep` re-folds every
 (entity, attribute) group in event-time order (LIB-02 ``integrate``). The plan is applied through the
@@ -81,8 +81,8 @@ def _successors(after: list[AssertionEnvelope]) -> dict[tuple[str, str], str]:
 
 async def reconcile(ctx: PipelineContext) -> dict[str, object]:
     """O4-03: re-fold contradictions across sessions; archive/contest through the write door."""
-    if not ctx.config.offline.reconcile_v2:
-        return {"status": "skipped", "reason": "offline.reconcile_v2 off"}
+    if not ctx.config.offline.reconcile:
+        return {"status": "skipped", "reason": "offline.reconcile off"}
     if ctx.append_event is None:
         return {"status": "skipped", "reason": "read-only context (no write door)"}
     now = datetime.now(UTC)

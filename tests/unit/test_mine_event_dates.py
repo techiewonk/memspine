@@ -270,44 +270,33 @@ async def test_llm_fill_off_makes_no_dating_call(monkeypatch: pytest.MonkeyPatch
 # -- #27: extract@session3 ----------------------------------------------------------
 
 
-async def test_mine_prompt_session3_selects_v3_and_caps_output(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+async def test_base_session_miner_caps_output(monkeypatch: pytest.MonkeyPatch) -> None:
     seen: list[tuple[str, dict[str, Any]]] = []
 
-    class _Rec(_Extract):
+    class Capture(_Extract):
         async def chat(self, messages: list[dict[str, str]], **options: Any) -> str:
             seen.append((messages[0]["content"], options))
             return "facts: []\n"
 
-    for variant, marker, cap in (
-        ("session", "(6) classify each fact", None),
-        ("session3", "complete coverage", 4096),
-    ):
-        seen.clear()
-        eng = _llm_engine(monkeypatch, _Rec("dates: []"), mine_prompt=variant)
-        await eng.start()
-        try:
-            await _write_session(eng)
-            await eng.sleep()
-            [(system, options)] = seen
-            assert marker in system
-            assert options.get("max_tokens") == cap
-            assert ("worked" in system or "Example." in system) is (variant == "session3")
-        finally:
-            await eng.stop()
+    eng = _llm_engine(monkeypatch, Capture("dates: []"))
+    await eng.start()
+    try:
+        await _write_session(eng)
+        await eng.sleep()
+        [(system, options)] = seen
+        assert "complete coverage" in system and "`turns`" in system
+        assert options["max_tokens"] == 4096
+    finally:
+        await eng.stop()
 
 
-def test_session3_prompt_is_v3_and_a_variant() -> None:
+def test_base_session_prompt_is_the_current_contract() -> None:
     from memspine.prompts.registry import PromptRegistry
 
-    registry = PromptRegistry()
-    v3 = registry.select("extract", condition="session3")
-    assert (v3.id, v3.version, v3.token_budget) == ("extract@session3", 4, 4096)
-    v2 = registry.select("extract", condition="session")
-    assert v2.id == "extract@session" and (v2.token_budget or 0) < 4096
-    system = v3.render({"content": "x"})[0]["content"]
-    assert "2021-03-12" in system and "complete coverage" in system and "`turns`" in system
+    prompt = PromptRegistry().select("extract", condition="session")
+    assert prompt.id == "extract@session" and prompt.token_budget == 4096
+    system = prompt.render({"content": "x"})[0]["content"]
+    assert "complete coverage" in system and "`turns`" in system
 
 
 # -- review fixes: one date shift, plans stay plans, the right anchor turn ----------

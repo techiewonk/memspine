@@ -198,6 +198,10 @@ async def test_an_erased_or_held_cue_leaves_the_encoder(how: str) -> None:
         assert cue_id not in index
         encoded = await eng._encoder().encode("a", QUERY)
         assert encoded.expansions == () and encoded.matches == ()
+        # A fresh in-process encoder must not reload hidden dependents from storage.
+        eng._query_encoder = None
+        reloaded = await eng._encoder().encode("a", QUERY)
+        assert reloaded.expansions == () and reloaded.matches == ()
     finally:
         await eng.stop()
 

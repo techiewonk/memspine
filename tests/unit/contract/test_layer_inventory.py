@@ -25,8 +25,8 @@ async def test_runtime_inventory_counts_latest_card_without_inventing_record_row
         },
         model={"embedding": {"provider": "hash", "settings": {}}},
         memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
-        offline={"session_close_v2": True, "profile_card_v2": True, "patterns_v2": True},
-        read={"legs_v2": True, "episode_leg_v2": True},
+        offline={"session_close": True, "profile_card": True, "patterns": True},
+        read={"episode_leg": True},
     )
     await eng.start()
     try:
@@ -43,7 +43,7 @@ async def test_runtime_inventory_counts_latest_card_without_inventing_record_row
                 kind=EventKind.MARKER,
                 namespace="inventory",
                 actor="system",
-                payload={"marker": "profile_card_v2", "card": card_to_dict(card)},
+                payload={"marker": "profile_card", "card": card_to_dict(card)},
             )
         )
         reg = await layer_inventory(eng, "inventory", eng._config().read, selected=["L2"])
@@ -72,7 +72,7 @@ async def test_runtime_inventory_counts_latest_card_without_inventing_record_row
                 namespace="inventory",
                 actor="system",
                 payload={
-                    "marker": "profile_card_v2",
+                    "marker": "profile_card",
                     "card": card_to_dict(ProfileCard("inventory", "inventory")),
                 },
             )

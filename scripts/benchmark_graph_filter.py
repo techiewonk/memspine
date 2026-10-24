@@ -71,7 +71,7 @@ from memspine.services.graph.qualifiers import (
 )
 
 NS = "bench/rm96"
-COMPILED = "edge_compiler_v2"
+COMPILED = "edge_compiler"
 BUDGET_P95_MS = 50.0
 DOMAINS = ("work", "residence", "health", "family", "travel", "finance", "hobby", "school")
 T0 = dt.datetime(2024, 1, 1, tzinfo=dt.UTC)
@@ -742,12 +742,11 @@ async def engine_read(
             "episodic": {"enabled": True},
             "associative": {"enabled": True, "policies": {"entity_nodes": True}},
         },
-        graph={"edge_compiler_v2": True},
+        graph={"edge_compiler": True},
         read={
             "hybrid": True,
             "record_access": False,
-            "legs_v2": True,
-            "graph_leg_v2": True,
+            "graph_leg": True,
             "graph_leg_seed_hits": 0,
         },
     )

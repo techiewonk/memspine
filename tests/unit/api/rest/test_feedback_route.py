@@ -42,18 +42,20 @@ async def test_feedback_route_counts_and_scopes(
     record = await eng.write("Ana likes green tea", namespace="a")
     headers = {"X-Memspine-Namespace": "a"}
     resp = await http.post(
-        "/feedback", json={"record_id": record.record_id, "signal": "like"}, headers=headers
-    )
-    assert resp.status_code == 200 and resp.json()["scoring"]["likes"] == 1
-    resp = await http.post(
         "/feedback",
-        json={"record_id": record.record_id, "signal": "note", "note": "keep"},
+        json={"record_id": record.record_id, "signal": "rating", "rating": 5},
         headers=headers,
     )
-    assert resp.status_code == 200 and resp.json()["scoring"]["notes"] == 1
+    assert resp.status_code == 200 and resp.json()["record_id"] == record.record_id
+    resp = await http.post(
+        "/feedback",
+        json={"record_id": record.record_id, "signal": "rating", "rating": 2, "note": "keep"},
+        headers=headers,
+    )
+    assert resp.status_code == 200 and resp.json()["record_id"] == record.record_id
     foreign = await http.post(
         "/feedback",
-        json={"record_id": record.record_id, "signal": "like"},
+        json={"record_id": record.record_id, "signal": "rating", "rating": 5},
         headers={"X-Memspine-Namespace": "b"},
     )
     assert foreign.status_code == 409

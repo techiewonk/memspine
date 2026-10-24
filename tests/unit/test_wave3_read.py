@@ -312,8 +312,8 @@ def test_read_plan_v3_fields() -> None:
 def test_plan_v3_prompt_is_a_variant() -> None:
     from memspine.prompts.registry import PromptRegistry
 
-    v3 = PromptRegistry().select("plan", condition="v3")
-    assert (v3.id, v3.version) == ("plan@v3", 4)
+    v3 = PromptRegistry().get("plan")
+    assert (v3.id, v3.version) == ("plan", 4)
     system = v3.render({"query": "What did Melanie do in May 2023?"})[0]["content"]
     assert "time_expr" in system and "persons" in system
 
@@ -345,26 +345,23 @@ async def _leg_read(eng: Engine) -> list[str]:
     return [r.record_id for r in out.context.records]
 
 
-@pytest.mark.parametrize(("version", "fused"), [("v2", False), ("v3", True)])
-async def test_planner_v3_fuses_the_person_time_leg(
-    monkeypatch: pytest.MonkeyPatch, version: str, fused: bool
-) -> None:
+async def test_planner_v3_fuses_the_person_time_leg(monkeypatch: pytest.MonkeyPatch) -> None:
     stub = _Stub(PLAN_V3)
     _with_roles(monkeypatch, {"plan": stub})
-    eng = _engine(planner="llm", planner_version=version)
+    eng = _engine(planner="llm")
     await eng.start()
     try:
         target = await _seed_leg(eng)
-        assert (target in await _leg_read(eng)) is fused
+        assert (target in await _leg_read(eng)) is True
         assert eng.model_calls() == {"plan": 1}  # the leg costs no call
-        assert ("time_expr" in stub.prompts[0][0]["content"]) is fused
+        assert ("time_expr" in stub.prompts[0][0]["content"]) is True
     finally:
         await eng.stop()
 
 
 async def test_person_time_leg_k_caps_the_leg(monkeypatch: pytest.MonkeyPatch) -> None:
     _with_roles(monkeypatch, {"plan": _Stub(PLAN_V3)})
-    eng = _engine(planner="llm", planner_version="v3", person_time_leg_k=1)
+    eng = _engine(planner="llm", person_time_leg_k=1)
     await eng.start()
     try:
         await _seed_leg(eng)

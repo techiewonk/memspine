@@ -50,7 +50,7 @@ RERANKERS: dict[str, list[dict]] = {
         {"provider": "jina", "settings": {"model": "jinaai/jina-reranker-v3.5", "device": "cuda"}}
     ],
     "roff": [],
-    "rbge": [{"provider": "onnx", "settings": {"model": "BAAI/bge-reranker-base"}}],
+    "rmsmarco": [{"provider": "onnx", "settings": {"model": "Xenova/ms-marco-MiniLM-L-6-v2"}}],
     "rq06": [
         {"provider": "qwen3", "settings": {"model": "Qwen/Qwen3-Reranker-0.6B", "device": "cuda"}}
     ],

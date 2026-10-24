@@ -1,5 +1,5 @@
 """RT-02: priority classes, the global model semaphore, encoder executors, backpressure (coalesce,
-never drop) and the SLO ledger. Flags ``runtime.scheduler_v2`` / ``runtime.model_concurrency``,
+never drop) and the SLO ledger. Flags ``runtime.scheduler`` / ``runtime.model_concurrency``,
 both OFF by default. Model-free: calls are asyncio sleeps and a hash embedder."""
 
 from __future__ import annotations
@@ -67,7 +67,7 @@ def _clean() -> Any:
 # ------------------------------------------------------------------------------ flag off
 async def test_flags_default_off_and_acquire_is_a_noop() -> None:
     cfg = _runtime()
-    assert cfg.scheduler_v2 is False and cfg.model_concurrency == 0
+    assert cfg.scheduler is False and cfg.model_concurrency == 0
     assert await sched.acquire(cfg) is None
 
 
@@ -175,7 +175,7 @@ async def test_a_cancelled_waiter_leaks_no_slot() -> None:
 
 
 async def test_scheduler_gate_bounds_the_llm_and_embedding_seams() -> None:
-    cfg = _runtime(model_concurrency=2, scheduler_v2=True)
+    cfg = _runtime(model_concurrency=2, scheduler=True)
     lease = await sched.acquire(cfg)
     assert lease is not None
     s = lease.value
@@ -285,7 +285,7 @@ async def test_batched_embedding_matches_the_hash_embedder() -> None:
         if "dim" in HashEmbedding.__init__.__code__.co_varnames
         else HashEmbedding()
     )
-    wrapped = sched.Scheduler(_runtime(scheduler_v2=True)).wrap_embedder(inner)
+    wrapped = sched.Scheduler(_runtime(scheduler=True)).wrap_embedder(inner)
     assert isinstance(wrapped, sched.BatchedEmbedding)
     try:
         texts = [f"memory number {i}" for i in range(9)]
@@ -517,7 +517,7 @@ async def test_load_reads_keep_their_p95_under_background_load_and_nothing_is_dr
 
 
 async def test_load_through_the_runner_reads_stay_fast_and_all_jobs_finish() -> None:
-    cfg = _runtime(scheduler_v2=True, model_concurrency=2, backlog_max_items=0)
+    cfg = _runtime(scheduler=True, model_concurrency=2, backlog_max_items=0)
     lease = await sched.acquire(cfg)
     assert lease is not None
     s = lease.value
@@ -577,7 +577,7 @@ async def test_engine_flag_on_gives_the_same_facts_and_releases_the_gate(
         monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
         runtime: dict[str, Any] = (
             {
-                "scheduler_v2": True,
+                "scheduler": True,
                 "model_concurrency": 2,
                 "backlog_coalesce_items": 1,
                 "backlog_max_items": 2,  # tiny: forces coalescing, rejection and deferral

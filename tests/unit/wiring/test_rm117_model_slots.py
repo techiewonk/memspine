@@ -39,6 +39,19 @@ RUNTIME = {
 }
 
 
+def _engine(**kwargs: Any) -> Engine:
+    kwargs.setdefault(
+        "storage",
+        {
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
+    )
+    return Engine(**kwargs)
+
+
 def _cfg(**sections: Any) -> MemspineConfig:
     return MemspineConfig.model_validate({"runtime": RUNTIME, **sections})
 
@@ -227,7 +240,7 @@ def test_stage_settings_carry_the_entry_settings_and_chunking() -> None:
 
 
 async def _search(model: dict[str, Any], fake: _FakeReranker, top_k: int = 3) -> list[str]:
-    eng = Engine(
+    eng = _engine(
         template="core",
         dotenv_path=None,
         storage={
@@ -276,7 +289,7 @@ async def test_max_top_k_is_honoured() -> None:
 
 
 async def test_an_unknown_chain_provider_fails_at_start() -> None:
-    eng = Engine(
+    eng = _engine(
         template="core",
         dotenv_path=None,
         model={"embedding": {"provider": "hash"}, "rerank": {"chain": [{"provider": "nope"}]}},
@@ -322,7 +335,7 @@ def test_read_decider_opendecider_takes_settings_and_workers() -> None:
 
 
 async def test_decider_active_follows_the_read_slot() -> None:
-    eng = Engine(
+    eng = _engine(
         template="core",
         dotenv_path=None,
         model={
@@ -336,7 +349,7 @@ async def test_decider_active_follows_the_read_slot() -> None:
         assert not eng._decider_active("bridge_hop")
     finally:
         await eng.stop()
-    plain = Engine(template="core", dotenv_path=None, model={"embedding": {"provider": "hash"}})
+    plain = _engine(template="core", dotenv_path=None, model={"embedding": {"provider": "hash"}})
     await plain.start()
     try:
         assert not plain._decider_active("list_mode")
@@ -488,7 +501,7 @@ def test_tiered_role_config_is_an_llm_slot() -> None:
 
     placement = PlacementConfig.model_validate(
         {
-            "tiers_v2": True,
+            "tiers": True,
             "catalogue": [
                 {
                     "id": "ollama/qwen3.5:9b",

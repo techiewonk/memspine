@@ -1,4 +1,4 @@
-"""O4-01b wiring: background budget (offline.budget_v2) and read freshness (read.freshness_v2,
+"""O4-01b wiring: background budget (offline.budget) and read freshness (read.freshness,
 read.freshness_fallback). Model-free: hash embedder, fake stage runners."""
 
 from __future__ import annotations
@@ -123,9 +123,9 @@ async def _observations(eng: Engine) -> list[MemoryRecord]:
 
 def test_flags_default_off() -> None:
     off, rd = OfflineConfig(), ReadConfig()
-    assert off.budget_v2 is False
+    assert off.budget is False
     assert off.budget_calls_per_cycle is None and off.budget_tokens_per_cycle is None
-    assert rd.freshness_v2 is False and rd.freshness_fallback is False
+    assert rd.freshness is False and rd.freshness_fallback is False
     assert rd.freshness_stale_gap == 20 and rd.freshness_fallback_max == 20
     assert (
         MemspineConfig(
@@ -141,11 +141,11 @@ def test_flags_default_off() -> None:
     )
 
 
-def test_covers_seq_is_not_dumped_while_unset() -> None:
-    assert "covers_seq" not in RecordFingerprint().model_dump()
+def test_covers_seq_is_explicit_in_the_current_payload() -> None:
+    assert RecordFingerprint().model_dump()["covers_seq"] is None
     assert RecordFingerprint(covers_seq=5).model_dump()["covers_seq"] == 5
     plain = MemoryRecord(namespace=NS, memory_type="episodic", content="x")
-    assert "covers_seq" not in plain.model_dump(mode="json").get("fingerprint", {})
+    assert plain.model_dump(mode="json")["fingerprint"]["covers_seq"] is None
     stamped = plain.model_copy(update={"fingerprint": RecordFingerprint(covers_seq=9)})
     again = MemoryRecord.model_validate(stamped.model_dump(mode="json"))
     assert again.fingerprint.covers_seq == 9
@@ -305,9 +305,9 @@ async def test_job_taps_budget_and_deferred() -> None:
 async def test_engine_budget_defers_model_stages_and_persists(tmp_path: Path) -> None:
     path = tmp_path / "m.db"
     off = {
-        "sleep_v2": True,
+        "sleep": True,
         "sleep_manual_only": True,
-        "budget_v2": True,
+        "budget": True,
         "budget_calls_per_cycle": 0,
     }
     eng = _engine(path, offline=off)
@@ -332,7 +332,7 @@ async def test_engine_budget_defers_model_stages_and_persists(tmp_path: Path) ->
 
 
 async def test_engine_budget_flag_off_does_not_defer_or_stamp() -> None:
-    eng = _engine(offline={"sleep_v2": True, "sleep_manual_only": True})
+    eng = _engine(offline={"sleep": True, "sleep_manual_only": True})
     await eng.start()
     try:
         assert eng._freshness_tracker is None and eng._derive_sched.budget is None
@@ -356,7 +356,7 @@ def pytest_raises_freshness() -> Any:
 
 
 async def test_covers_seq_is_stamped_on_derived_records() -> None:
-    eng = _engine(offline={"budget_v2": True, "patterns_v2": True})
+    eng = _engine(offline={"budget": True, "patterns": True})
     await eng.start()
     try:
         await _weekly(eng)
@@ -377,7 +377,7 @@ async def test_covers_seq_is_stamped_on_derived_records() -> None:
 
 
 async def test_flag_off_derived_records_carry_no_covers_seq() -> None:
-    eng = _engine(offline={"patterns_v2": True})
+    eng = _engine(offline={"patterns": True})
     await eng.start()
     try:
         await _weekly(eng)
@@ -389,7 +389,7 @@ async def test_flag_off_derived_records_carry_no_covers_seq() -> None:
 
 
 async def test_stamp_uses_the_snapshot_not_the_live_head() -> None:
-    eng = _engine(offline={"budget_v2": True})
+    eng = _engine(offline={"budget": True})
     await eng.start()
     try:
         token = COVERS_SEQ.set({NS: 41})
@@ -450,8 +450,8 @@ def test_tracker_orders_bounds_and_lists_raw_turns_beyond_a_seq() -> None:
 async def _stale_engine(**read: Any) -> Engine:
     eng = _engine(
         lineage=True,  # the derived-write door sets the layer (L4 for observations)
-        offline={"budget_v2": True, "patterns_v2": True},
-        read={"freshness_v2": True, "freshness_stale_gap": 0, **read},
+        offline={"budget": True, "patterns": True},
+        read={"freshness": True, "freshness_stale_gap": 0, **read},
     )
     await eng.start()
     await _weekly(eng)
