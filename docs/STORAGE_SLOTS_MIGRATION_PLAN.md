@@ -75,9 +75,8 @@ new location.
 2. **`data_dir`.** It is required only when a host-local slot is selected. It defaults to
    today's placement base, so file paths and projection fingerprints stay byte-identical.
 3. **Schema.** Alembic runs for every durable SQL database, with a Postgres advisory lock
-   around upgrades. `create_all` is used only for `:memory:`. Existing `create_all`
-   Postgres databases are adopted by the existing legacy stamp. A test pins that the
-   `create_all` schema equals the stamped revision.
+   around startup. This first-cycle tree has one fresh baseline revision containing the
+   complete current schema. Existing historical layouts are unsupported and are not adopted.
 4. **Pinning.** `auto` resolves once; the resolved provider is recorded in the projector
    binding. A later difference is reported as an explicit provider change and never
    applied silently.
@@ -85,9 +84,9 @@ new location.
    - pgvector needs a Postgres target.
    - `sqlite_adjacency` is renamed `sql_adjacency` and supports SQLite and Postgres (no
      alias).
-6. **Side files.** Sleep leases, the cost ledger and dead letters move to tables in
-   `records`. A one-time import reads an existing `.sleep`, `.cost` or `.deadletters`
-   file and then renames it to `*.imported`.
+6. **Side tables.** Sleep leases, the cost ledger and dead letters are tables in
+   `records`. Historical `.sleep`, `.cost` and `.deadletters` files are unsupported;
+   no importer or compatibility path exists.
 
 ## 4. Work packages (after approval)
 
@@ -95,9 +94,9 @@ new location.
 |---|---|---|
 | 1 | Config schema: `deployment` and `storage.<slot>`; remove the old keys with errors naming the new key; templates; config baseline; USAGE rows | config schema tests, docs-config surface, baseline regeneration |
 | 2 | Container wiring: build each category from its slot; locality traits on descriptors; `data_dir` placement | provider and wiring suites, combinations |
-| 3 | Schema: Alembic always; advisory lock; legacy adoption test; delete `services/storage/profile.py` (or replace it with a read-only topology report) | storage, migration and Postgres e2e (disposable container) |
+| 3 | Schema: one fresh Alembic baseline; advisory lock; reject non-empty unversioned databases; delete `services/storage/profile.py` (or replace it with a read-only topology report) | storage, migration and Postgres e2e (disposable container) |
 | 4 | Pinning `auto` in projector bindings; `sql_adjacency` on Postgres; capability-based mirror gate | graph contract on SQLite, LadybugDB and Postgres; binding drift tests |
-| 5 | Side files into `records`, with one-time import; encryption covered | SQLCipher test, import test, leases on SQLite and Postgres |
+| 5 | Side tables live directly in `records`; no historical side-file importer; encryption covered | SQLCipher test, leases on SQLite and Postgres |
 | 6 | Locality validation (`multi_node` / `multi_process`) | config-rule unit tests; e2e with two engines on one Postgres |
 | 7 | A codemod moves the old keys in tests, examples, docs and eval configs (about 300+ sites); full regression plus e2e on Postgres | full chunked regression, e2e, combinations |
 
@@ -137,9 +136,8 @@ WP7 runs with WP1 so the tree stays green.
 **Contract shipped (RM-111, 2026-10-23).** The port is
 `services/storage/records_port.py` (`RecordsStore`). The conformance suite is
 `tests/unit/services/storage/test_records_conformance.py`, which runs on SQLite (memory and
-file) and on Postgres (Alembic; WP3 removed the Postgres `create_all` path, and a legacy
-`create_all` database is adopted by the stamp, pinned in
-`tests/unit/store/test_f16d_storage_profile.py`). The contract text for future providers
+file) and on Postgres (Alembic; WP3 removed the Postgres `create_all` path). The fresh
+baseline contract is pinned in `tests/unit/store/test_f16d_storage_profile.py`. The contract text for future providers
 is `docs/RECORDS_STORE_CONTRACT.md`.
 
 Original analysis:
@@ -313,13 +311,8 @@ locality `cluster`, needs `deployment.id`.
   without that slot. Erasure: `_forget_many` (hard) deletes the erased records' rows and any
   stored bytes no remaining row references, after `erase_records`; `erase_namespace` deletes
   every row of the namespace. `ingest.asset_dir` is removed and rejected naming
-  `storage.records` and `storage.documents` (ADR-068, no alias); because the old directory
-  path is no longer in the config, the one-time import is explicit:
-  `Engine.import_asset_dir(path, namespace=None)` copies `registry.sqlite` rows and `blobs/`
-  bytes, records a content digest in `side_file_imports` (kind `assets`) in the rows'
-  transaction and renames both to `*.imported` (bytes stay in place without a documents slot).
-  The legacy file is read through `clients/sqlite/files.py`; no `sqlite3.connect` remains in
-  `services/`.
+  `storage.records` and `storage.documents` (ADR-068, no alias). Historical
+  `registry.sqlite` / `blobs` layouts are unsupported and there is no importer.
 
 ## 10. Provider notes: MongoDB records and documents (RM-112, 2026-10-23)
 

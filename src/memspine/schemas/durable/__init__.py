@@ -20,6 +20,15 @@ from memspine.schemas.durable.erasure import ErasedIds, ErasureManifest, Retenti
 from memspine.schemas.durable.events import EVENT_KINDS, MemoryEvent
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
 from memspine.schemas.durable.identity import AssertionKey, occurrence_id, write_id
+from memspine.schemas.durable.ingestion import (
+    AnnotationBatch,
+    DerivationFailure,
+    EffectCommitState,
+    EffectIdentity,
+    IngestionSourceSnapshot,
+    RequiredDerivation,
+    effect_commit_allowed,
+)
 from memspine.schemas.durable.jobs import (
     Hole,
     JobLease,
@@ -38,10 +47,14 @@ from memspine.schemas.durable.temporal import (
 
 __all__ = [
     "EVENT_KINDS",
+    "AnnotationBatch",
     "AssertionEnvelope",
     "AssertionKey",
     "Assessment",
+    "DerivationFailure",
     "Duration",
+    "EffectCommitState",
+    "EffectIdentity",
     "EntityMention",
     "ErasedIds",
     "ErasureManifest",
@@ -49,6 +62,7 @@ __all__ = [
     "Fingerprint",
     "GroundingChecks",
     "Hole",
+    "IngestionSourceSnapshot",
     "IntegrationVerdict",
     "Interval",
     "JobLease",
@@ -59,6 +73,7 @@ __all__ = [
     "OwnerScope",
     "Progress",
     "Provenance",
+    "RequiredDerivation",
     "RetentionBoundary",
     "SourceRef",
     "Span",
@@ -69,6 +84,7 @@ __all__ = [
     "TurnRef",
     "can_supersede",
     "commit_allowed",
+    "effect_commit_allowed",
     "inherit_trust",
     "integration_outcome",
     "is_tentative",

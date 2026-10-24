@@ -19,9 +19,11 @@ refused and logged; the stale worker stops without writing.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import threading
 import time
-from collections.abc import Awaitable, Callable, Mapping
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -56,6 +58,7 @@ _log = get_logger(__name__)
 
 Prepare = Callable[[OwnerScope, int, dict[str, Any]], Awaitable[Any]]
 Commit = Callable[[OwnerScope, int, Any], Awaitable[None]]
+EffectResults = Callable[[Any], Mapping[str, int]]
 NamespaceLock = Callable[[str], AbstractAsyncContextManager[Any]]
 Sleeper = Callable[[float], Awaitable[None]]
 
@@ -71,6 +74,7 @@ class StageHandler:
     prepare: Prepare
     commit: Commit
     commit_locked: bool = False
+    effect_results: EffectResults | None = None
 
 
 @dataclass
@@ -153,13 +157,19 @@ class InlineRunner:
         prepare: Prepare | None = None,
         commit: Commit | None = None,
         commit_locked: bool = False,
+        effect_results: EffectResults | None = None,
     ) -> None:
         """Register a stage: a ``StageHandler``, or its ``prepare``/``commit`` callables (so callers
         below ``runtime`` in the layering, such as ``workers.windows``, need not import it)."""
         if handler is None:
             if prepare is None or commit is None:
                 raise TypeError("register needs a StageHandler or both prepare and commit")
-            handler = StageHandler(prepare=prepare, commit=commit, commit_locked=commit_locked)
+            handler = StageHandler(
+                prepare=prepare,
+                commit=commit,
+                commit_locked=commit_locked,
+                effect_results=effect_results,
+            )
         self._handlers[stage] = handler
 
     @property
@@ -301,6 +311,40 @@ class InlineRunner:
         """Items beyond the watermark (not yet handled), oldest first."""
         return self.store.items_after(scope, stage, self.book.progress(scope, stage).watermark)
 
+    async def save_draft(
+        self, scope: OwnerScope, stage: str, payload: dict[str, Any] | None
+    ) -> None:
+        """Atomically replace incomplete stage work; ``None`` clears it."""
+        await self._io(self.store.put_draft, scope, stage, payload, self.clock())
+
+    async def load_draft(self, scope: OwnerScope, stage: str) -> dict[str, Any] | None:
+        """Load incomplete stage work saved before a process restart."""
+        draft = await self._io(self.store.get_draft, scope, stage)
+        return draft if isinstance(draft, dict) else None
+
+    def effect_status(self, scope: OwnerScope) -> list[dict[str, Any]]:
+        """Persisted per-layer results for readiness/status surfaces."""
+        return self.store.effect_status(scope)
+
+    def contains_record(self, scope: OwnerScope, stage: str, record_id: str) -> bool:
+        """Whether durable queued or draft work already contains ``record_id``."""
+        if self.store.has_source(scope, stage, record_id):
+            return True
+        for _offset, payload in self.store.items_after(scope, stage, -1):
+            if record_id in payload.get("record_ids", []):
+                return True
+        draft = self.store.get_draft(scope, stage)
+        return bool(
+            draft
+            and any(str(turn.get("record_id")) == record_id for turn in draft.get("turns", []))
+        )
+
+    async def mark_sources(
+        self, scope: OwnerScope, stage: str, record_ids: Sequence[str]
+    ) -> None:
+        """Acknowledge sources accepted by the canonical stage."""
+        await self._io(self.store.mark_sources, scope, stage, record_ids, self.clock())
+
     async def rewrite_pending(
         self,
         scope: OwnerScope,
@@ -310,6 +354,38 @@ class InlineRunner:
         """Rewrite the payload of every unhandled item through ``fn`` (None: leave it). Used by
         forget so no queued item still names an erased record. Returns the rewritten count."""
         return int(await self._io(self._rewrite_pending, scope, stage, fn))
+
+    async def rewrite_all_items(
+        self,
+        scope: OwnerScope,
+        stage: str,
+        fn: Callable[[dict[str, Any]], dict[str, Any] | None],
+    ) -> int:
+        """Rewrite retained payloads too; erasure must remove historical source ids."""
+        return int(await self._io(self._rewrite_all_items, scope, stage, fn))
+
+    async def rewrite_all_stage_items(
+        self, stage: str, fn: Callable[[dict[str, Any]], dict[str, Any] | None]
+    ) -> int:
+        """Rewrite retained payloads for every scope of a stage."""
+        total = 0
+        for scope in self.store.item_scopes(stage):
+            total += await self.rewrite_all_items(scope, stage, fn)
+        return total
+
+    def _rewrite_all_items(
+        self,
+        scope: OwnerScope,
+        stage: str,
+        fn: Callable[[dict[str, Any]], dict[str, Any] | None],
+    ) -> int:
+        n = 0
+        for offset, payload in self.store.items_after(scope, stage, -1):
+            new = fn(payload)
+            if new is not None:
+                self.store.set_item(scope, stage, offset, new)
+                n += 1
+        return n
 
     def _rewrite_pending(
         self,
@@ -384,6 +460,7 @@ class InlineRunner:
         return report
 
     async def _drain_stage(self, scope: OwnerScope | None, stage: str, report: DrainReport) -> None:
+        await self._reconcile_stage(scope, stage)
         if self._retry_holes_next:
             await self._retry_holes(scope, stage, report)
         while not self._stopping:
@@ -416,21 +493,29 @@ class InlineRunner:
                 self._current = None
             report.jobs += 1
 
+    async def _reconcile_stage(self, scope: OwnerScope | None, stage: str) -> None:
+        """Create missing jobs for atomically discovered durable items."""
+        scopes = [scope] if scope is not None else self.store.item_scopes(stage)
+        for candidate in scopes:
+            top = self.store.last_offset(candidate, stage)
+            if top > self.book.progress(candidate, stage).watermark:
+                await self._io(self.book.enqueue, candidate, stage, top)
+
     async def _item(
         self, handler: StageHandler, scope: OwnerScope, stage: str, offset: int
-    ) -> None:
+    ) -> Any:
         payload = self.store.get_item(scope, stage, offset)
         if payload is None:  # pruned or never written: nothing to do, not an error
-            return
+            return None
         if self._backpressure is None and self._ledger is None:  # flag off: the original path
-            await self._phases(handler, scope, offset, payload, stage)
-            return
+            return await self._phases(handler, scope, offset, payload, stage)
         with priority_scope(Priority.DERIVE):  # RT-02: background derive work
-            await self._phases(handler, scope, offset, payload, stage)
+            prepared = await self._phases(handler, scope, offset, payload, stage)
         if self._ledger is not None:
             queued_at = self.store.item_created_at(scope, stage, offset)
             if queued_at is not None:
                 self._ledger.record_lag(max(0.0, (self.clock() - queued_at).total_seconds()))
+        return prepared
 
     async def _phases(
         self,
@@ -439,16 +524,58 @@ class InlineRunner:
         offset: int,
         payload: dict[str, Any],
         stage: str = "",
-    ) -> None:
+    ) -> Any:
         if insp.inspect_enabled():  # TI-1 (F17): prepare and commit run inside a job request
             with tap.request("job", stage=f"outbox_{stage}", offset=offset):
                 with tap.span("runtime.outbox.prepare", stage=stage, offset=offset):
                     prepared = await handler.prepare(scope, offset, payload)
                 with tap.span("runtime.outbox.commit_item", stage=stage, offset=offset):
                     await self._commit(handler, scope, offset, prepared)
-            return
+            return prepared
         prepared = await handler.prepare(scope, offset, payload)
         await self._commit(handler, scope, offset, prepared)
+        return prepared
+
+    async def _record_effects(
+        self,
+        handler: StageHandler,
+        job: Job,
+        epoch: int,
+        offset: int,
+        prepared: Any,
+        failure: dict[str, Any] | None = None,
+        effect_stage: str | None = None,
+    ) -> None:
+        if handler.effect_results is None:
+            return
+        results = handler.effect_results(prepared)
+        semantic_stage = effect_stage or job.stage
+        for layer, count in results.items():
+            identity = {
+                "scope": [job.scope.tenant, job.scope.owner, job.scope.owner_kind],
+                "offset": offset,
+                "layer": layer,
+                "stage": semantic_stage,
+            }
+            effect_id = hashlib.sha256(
+                json.dumps(identity, sort_keys=True, separators=(",", ":")).encode()
+            ).hexdigest()[:16]
+            ok = await self._io(
+                self.store.commit_effect,
+                job_id=job.job_id,
+                epoch=epoch,
+                scope=job.scope,
+                stage=semantic_stage,
+                offset=offset,
+                layer=layer,
+                effect_id=effect_id,
+                identity=identity,
+                result_count=count,
+                failure=failure,
+                at=self.clock(),
+            )
+            if not ok:
+                raise _Fenced
 
     async def _commit(
         self, handler: StageHandler, scope: OwnerScope, offset: int, prepared: Any
@@ -470,10 +597,25 @@ class InlineRunner:
                 raise _Fenced
             failed: dict[int, tuple[str, str | None]] = {}
             try:
-                await self._item(handler, job.scope, job.stage, offset)
+                prepared = await self._item(handler, job.scope, job.stage, offset)
+                await self._record_effects(handler, job, epoch, offset, prepared)
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
+                await self._record_effects(
+                    handler,
+                    job,
+                    epoch,
+                    offset,
+                    None,
+                    {
+                        "stage": job.stage,
+                        "error_class": type(exc).__name__,
+                        "attempts": job.attempts,
+                        "retry_eligible": True,
+                        "source_ids": [],
+                    },
+                )
                 failed[offset] = ("raised", f"{type(exc).__name__}: {exc}"[:300])
                 report.holes += 1
                 tap.event(
@@ -502,18 +644,69 @@ class InlineRunner:
         )
 
     async def _retry_holes(self, scope: OwnerScope | None, stage: str, report: DrainReport) -> None:
-        """One retry pass over open holes still inside the per-hole budget (ER-09, ER-15)."""
+        """Retry holes under a fresh durable lease, never as an unfenced callback."""
         handler = self._handlers[stage]
         for sc in self._scopes_with_holes(scope, stage):
             for hole in self.book.holes_to_retry(sc, stage):
                 if self._stopping:
                     return
                 report.hole_retries += 1
+                retry_stage = f"{stage}.hole.{hole.offset}"
+                await self._io(self.book.enqueue, sc, retry_stage, 0)
+                claim = await self._io(
+                    self.book.claim,
+                    self.owner,
+                    self.lease_ttl,
+                    scope=sc,
+                    stage=retry_stage,
+                )
+                if claim is None:
+                    continue
                 try:
-                    await self._item(handler, sc, stage, hole.offset)
+                    if not (
+                        await self._io(
+                            self.book.heartbeat,
+                            claim.job.job_id,
+                            claim.lease.epoch,
+                            self.lease_ttl,
+                        )
+                    ).ok:
+                        raise _Fenced
+                    prepared = await self._item(handler, sc, stage, hole.offset)
+                    await self._record_effects(
+                        handler,
+                        claim.job,
+                        claim.lease.epoch,
+                        hole.offset,
+                        prepared,
+                        effect_stage=stage,
+                    )
                 except asyncio.CancelledError:
                     raise
                 except Exception as exc:
+                    await self._record_effects(
+                        handler,
+                        claim.job,
+                        claim.lease.epoch,
+                        hole.offset,
+                        None,
+                        {
+                            "stage": stage,
+                            "error_class": type(exc).__name__,
+                            "attempts": hole.attempts + 1,
+                            "retry_eligible": hole.attempts + 1 < self.book.budget.max_hole_attempts,
+                            "source_ids": [],
+                        },
+                        effect_stage=stage,
+                    )
+                    await self._io(
+                        self.book.fail,
+                        claim.job.job_id,
+                        claim.lease.epoch,
+                        f"{type(exc).__name__}: {exc}"[:300],
+                        "raised",
+                        retryable=False,
+                    )
                     await self._io(
                         self.book.record_hole_result,
                         sc,
@@ -523,6 +716,16 @@ class InlineRunner:
                         f"{type(exc).__name__}: {exc}"[:300],
                     )
                 else:
+                    checkpoint = await self._io(
+                        self.book.checkpoint, claim.job.job_id, claim.lease.epoch, 0
+                    )
+                    if not checkpoint.ok:
+                        raise _Fenced
+                    committed = await self._io(
+                        self.book.commit, claim.job.job_id, claim.lease.epoch
+                    )
+                    if not committed.ok:
+                        raise _Fenced
                     await self._io(self.book.record_hole_result, sc, stage, hole.offset, True)
                     report.hole_filled += 1
 

@@ -1,0 +1,92 @@
+{
+  "additionalProperties": true,
+  "description": "Pinned source input checked again at fenced effect commit.",
+  "properties": {
+    "content_hash": {
+      "minLength": 1,
+      "title": "Content Hash",
+      "type": "string"
+    },
+    "erasure_generation": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Erasure Generation",
+      "type": "integer"
+    },
+    "namespace": {
+      "minLength": 1,
+      "title": "Namespace",
+      "type": "string"
+    },
+    "record_id": {
+      "minLength": 1,
+      "title": "Record Id",
+      "type": "string"
+    },
+    "role": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Role"
+    },
+    "schema_version": {
+      "default": 1,
+      "maximum": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "sender": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Sender"
+    },
+    "source_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source At"
+    },
+    "source_id": {
+      "minLength": 1,
+      "title": "Source Id",
+      "type": "string"
+    },
+    "source_version": {
+      "minimum": 1,
+      "title": "Source Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "namespace",
+    "record_id",
+    "source_id",
+    "source_version",
+    "content_hash"
+  ],
+  "title": "IngestionSourceSnapshot",
+  "type": "object",
+  "x-kind": "ingestion_source_snapshot",
+  "x-schema-version": 1
+}

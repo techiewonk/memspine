@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import json
 import threading
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from typing import Any
@@ -47,10 +47,13 @@ from memspine.schemas.durable.jobs import Hole, Progress
 from memspine.services.storage.outbox_tables import (
     OUTBOX_TABLES,
     outbox,
+    outbox_draft,
+    outbox_effect,
     outbox_item,
     outbox_log,
     outbox_metadata,
     outbox_progress,
+    outbox_source_membership,
 )
 
 __all__ = [
@@ -339,6 +342,23 @@ class SqlJobStore:
             ).all()
         return [(int(r.item_offset), dict(json.loads(r.payload))) for r in rows]
 
+    def item_scopes(self, stage: str) -> list[OwnerScope]:
+        """Scopes with durable items for ``stage`` (used by crash reconciliation)."""
+        with self._tx() as c:
+            rows = c.execute(
+                select(
+                    outbox_item.c.tenant,
+                    outbox_item.c.owner,
+                    outbox_item.c.owner_kind,
+                )
+                .where(outbox_item.c.stage == stage)
+                .distinct()
+            ).all()
+        return [
+            OwnerScope(tenant=row.tenant, owner=row.owner, owner_kind=row.owner_kind)
+            for row in rows
+        ]
+
     def set_item(self, scope: OwnerScope, stage: str, offset: int, payload: dict[str, Any]) -> None:
         with self._tx() as c:
             c.execute(
@@ -350,6 +370,168 @@ class SqlJobStore:
                 )
                 .values(payload=json.dumps(payload, default=str))
             )
+
+    # ------------------------------------------------------------------ durable open work
+    def put_draft(
+        self, scope: OwnerScope, stage: str, payload: dict[str, Any] | None, at: datetime
+    ) -> None:
+        """Replace one incomplete work draft, or delete it when ``payload`` is None."""
+        key = [*_scope_where(outbox_draft, scope), outbox_draft.c.stage == stage]
+        with self._tx() as c:
+            if payload is None:
+                c.execute(delete(outbox_draft).where(*key))
+                return
+            values = {"payload": json.dumps(payload, default=str), "updated_at": _ts(at)}
+            result = c.execute(update(outbox_draft).where(*key).values(**values))
+            if result.rowcount == 0:
+                c.execute(
+                    insert(outbox_draft).values(
+                        tenant=scope.tenant,
+                        owner=scope.owner,
+                        owner_kind=scope.owner_kind,
+                        stage=stage,
+                        **values,
+                    )
+                )
+
+    def get_draft(self, scope: OwnerScope, stage: str) -> dict[str, Any] | None:
+        with self._tx() as c:
+            row = c.execute(
+                select(outbox_draft.c.payload).where(
+                    *_scope_where(outbox_draft, scope), outbox_draft.c.stage == stage
+                )
+            ).first()
+        return None if row is None else dict(json.loads(row.payload))
+
+    def mark_sources(
+        self, scope: OwnerScope, stage: str, record_ids: Sequence[str], at: datetime
+    ) -> None:
+        """Persist canonical source acceptance independently of prunable item rows."""
+        with self._tx() as c:
+            for record_id in dict.fromkeys(record_ids):
+                key = [
+                    *_scope_where(outbox_source_membership, scope),
+                    outbox_source_membership.c.stage == stage,
+                    outbox_source_membership.c.record_id == record_id,
+                ]
+                if c.execute(select(outbox_source_membership.c.record_id).where(*key)).first():
+                    continue
+                c.execute(
+                    insert(outbox_source_membership).values(
+                        tenant=scope.tenant,
+                        owner=scope.owner,
+                        owner_kind=scope.owner_kind,
+                        stage=stage,
+                        record_id=record_id,
+                        accepted_at=_ts(at),
+                    )
+                )
+
+    def has_source(self, scope: OwnerScope, stage: str, record_id: str) -> bool:
+        with self._tx() as c:
+            return bool(
+                c.execute(
+                    select(outbox_source_membership.c.record_id).where(
+                        *_scope_where(outbox_source_membership, scope),
+                        outbox_source_membership.c.stage == stage,
+                        outbox_source_membership.c.record_id == record_id,
+                    )
+                ).first()
+            )
+
+    def commit_effect(
+        self,
+        *,
+        job_id: str,
+        epoch: int,
+        scope: OwnerScope,
+        stage: str,
+        offset: int,
+        layer: str,
+        effect_id: str,
+        identity: dict[str, Any],
+        result_count: int,
+        failure: dict[str, Any] | None,
+        at: datetime,
+    ) -> bool:
+        """Record/reuse one effect only while ``job_id`` owns ``epoch``.
+
+        The lease check and idempotency insert share one SQL transaction.  A
+        duplicate effect id is success and never increments readiness counts.
+        The window stores currently materialise through provider-owned,
+        idempotent transactions before recording this outcome; this boundary
+        fences the durable readiness claim, not those cross-provider writes.
+        """
+        with self._tx() as c:
+            job = c.execute(
+                select(outbox.c.epoch, outbox.c.state).where(outbox.c.job_id == job_id)
+            ).first()
+            if job is None or int(job.epoch) != epoch or job.state != "running":
+                return False
+            existing = c.execute(
+                select(outbox_effect.c.effect_id, outbox_effect.c.state).where(
+                    outbox_effect.c.effect_id == effect_id
+                )
+            ).first()
+            if existing is not None:
+                if existing.state == "failed" and failure is None:
+                    c.execute(
+                        update(outbox_effect)
+                        .where(outbox_effect.c.effect_id == effect_id)
+                        .values(
+                            job_id=job_id,
+                            epoch=epoch,
+                            state="complete",
+                            result_count=result_count,
+                            failure=None,
+                            committed_at=_ts(at),
+                        )
+                    )
+                return True
+            c.execute(
+                insert(outbox_effect).values(
+                    effect_id=effect_id,
+                    job_id=job_id,
+                    epoch=epoch,
+                    tenant=scope.tenant,
+                    owner=scope.owner,
+                    owner_kind=scope.owner_kind,
+                    stage=stage,
+                    item_offset=offset,
+                    layer=layer,
+                    state="failed" if failure is not None else "complete",
+                    result_count=result_count,
+                    failure=None if failure is None else json.dumps(failure, sort_keys=True),
+                    identity=json.dumps(identity, sort_keys=True, default=str),
+                    committed_at=_ts(at),
+                )
+            )
+        return True
+
+    def effect_status(self, scope: OwnerScope) -> list[dict[str, Any]]:
+        """Return persisted layer outcomes for one namespace scope."""
+        with self._tx() as c:
+            rows = c.execute(
+                select(outbox_effect)
+                .where(*_scope_where(outbox_effect, scope))
+                .order_by(outbox_effect.c.committed_at, outbox_effect.c.effect_id)
+            ).all()
+        return [
+            {
+                "effect_id": row.effect_id,
+                "job_id": row.job_id,
+                "epoch": row.epoch,
+                "stage": row.stage,
+                "offset": row.item_offset,
+                "layer": row.layer,
+                "state": row.state,
+                "count": row.result_count,
+                "failure": None if row.failure is None else json.loads(row.failure),
+                "identity": json.loads(row.identity),
+                "committed_at": row.committed_at,
+            }
+            for row in rows
+        ]
 
     def item_created_at(self, scope: OwnerScope, stage: str, offset: int) -> datetime | None:
         """When item ``offset`` was queued (RT-02: the start of its time-to-searchable)."""

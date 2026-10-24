@@ -1,0 +1,38 @@
+{
+  "additionalProperties": true,
+  "description": "Authoritative state read in the transaction that appends an effect.",
+  "properties": {
+    "current_epoch": {
+      "minimum": 1,
+      "title": "Current Epoch",
+      "type": "integer"
+    },
+    "erasure_generation": {
+      "minimum": 0,
+      "title": "Erasure Generation",
+      "type": "integer"
+    },
+    "source_content_hashes": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Source Content Hashes",
+      "type": "object"
+    },
+    "source_versions": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Source Versions",
+      "type": "object"
+    }
+  },
+  "required": [
+    "current_epoch",
+    "erasure_generation",
+    "source_versions",
+    "source_content_hashes"
+  ],
+  "title": "EffectCommitState",
+  "type": "object"
+}

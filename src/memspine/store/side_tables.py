@@ -18,20 +18,28 @@ from sqlalchemy import (
     MetaData,
     Table,
     Text,
-    create_engine,
 )
 from sqlalchemy.engine import Connection, Engine
-from sqlalchemy.pool import StaticPool
 
 __all__ = [
     "SIDE_TABLES",
     "BackgroundWriter",
+    "configure_local_engine_factory",
     "ensure_side_tables",
     "is_postgres",
     "local_engine",
     "side_metadata",
     "write_tx",
 ]
+
+_local_engine_factory: Callable[[str], Engine] | None = None
+
+
+def configure_local_engine_factory(factory: Callable[[str], Engine]) -> None:
+    """Install the composition-owned factory for standalone local stores."""
+    global _local_engine_factory
+    _local_engine_factory = factory
+
 
 _log = structlog.get_logger(__name__)
 
@@ -156,13 +164,9 @@ def is_postgres(engine: Engine) -> bool:
 def local_engine(path: str) -> Engine:
     """A private SQLite engine for a store that has no authoritative database: ``:memory:`` (one
     shared connection) or a plain file (tests and tools only)."""
-    if path == ":memory:":
-        return create_engine(
-            "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
-        )
-    return create_engine(
-        f"sqlite:///{path}", connect_args={"timeout": 10.0, "check_same_thread": False}
-    )
+    if _local_engine_factory is None:
+        raise RuntimeError("local SQL engine factory was not configured by the composition root")
+    return _local_engine_factory(path)
 
 
 @contextlib.contextmanager

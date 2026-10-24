@@ -366,7 +366,10 @@ def tap_report_cmd(
     since: Annotated[str | None, typer.Option("--since", help="2h | 1d | ISO date")] = None,
 ) -> None:
     """List the gaps and issues of each traced request."""
+    from memspine.clients.sqlite.files import file_connection
     from memspine.observability import tap_report
+
+    tap_report.configure_sqlite_reader(file_connection)
 
     argv = [str(path)]
     if request:

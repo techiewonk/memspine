@@ -244,6 +244,8 @@ from memspine.services.rerank.base import Reranker
 
 if TYPE_CHECKING:
     from memspine.config.schema.model import GlinerConsumer
+    from memspine.schemas.public.receipt import WaitResult
+    from memspine.schemas.steps.shared import IntentStatus
 from memspine.schemas.durable import AssertionEnvelope, OwnerScope
 from memspine.schemas.durable.erasure import RetentionBoundary
 from memspine.semantics.domains import topic_hook
@@ -2248,6 +2250,88 @@ class Engine:
             valid_from,
             conversation_id=conversation_id,
         )
+
+    async def ingestion_status(
+        self,
+        message_ids: Sequence[str],
+        namespace: str = "default",
+    ) -> dict[str, IntentStatus]:
+        """Return durable derivation status for each requested source message.
+
+        Message identities are namespace-scoped and resolved through the canonical
+        intake index; record scans and the mutable ``last_receipt`` convenience
+        value are deliberately not used. Several messages accepted together may
+        share one intent, but each requested message still receives an entry.
+
+        An unknown or erased message is reported as unknown. This prevents stale
+        status from becoming an oracle for a source whose identity was removed.
+        """
+        from memspine.ingest.message_store import lookup_messages
+
+        ns = validate_namespace(namespace)
+        wanted = list(dict.fromkeys(message_ids))
+        if not wanted:
+            return {}
+        gw = ingest_gateway.gateway_of(self)
+        rows = await lookup_messages(await gw._engine(), ns, wanted)
+        missing = [message_id for message_id in wanted if message_id not in rows]
+        erased = [
+            message_id
+            for message_id in wanted
+            if message_id in rows and not rows[message_id].get("intent_id")
+        ]
+        unavailable = missing + erased
+        if unavailable:
+            raise KeyError(f"unknown message IDs in namespace {ns!r}: {unavailable!r}")
+        by_intent = {
+            intent_id: await gw.status(intent_id)
+            for intent_id in dict.fromkeys(str(rows[mid]["intent_id"]) for mid in wanted)
+        }
+        return {
+            message_id: by_intent[str(rows[message_id]["intent_id"])].status()
+            for message_id in wanted
+        }
+
+    async def wait_for_derivation(
+        self,
+        message_ids: Sequence[str],
+        namespace: str = "default",
+        *,
+        capabilities: Sequence[str] = ("facts", "graph", "summaries"),
+        timeout_s: float = 0.0,
+    ) -> dict[str, WaitResult]:
+        """Wait at most ``timeout_s`` for requested derivation capabilities.
+
+        Shared intents are waited once and fanned back out to their messages. The
+        timeout is a single wall-clock budget: independent intents wait in
+        parallel, so a batch cannot multiply the caller's deadline. A timeout is
+        returned as ``WaitResult.timed_out``; it does not cancel durable work.
+        """
+        from memspine.ingest.message_store import lookup_messages
+
+        ns = validate_namespace(namespace)
+        wanted = list(dict.fromkeys(message_ids))
+        if not wanted:
+            return {}
+        gw = ingest_gateway.gateway_of(self)
+        rows = await lookup_messages(await gw._engine(), ns, wanted)
+        missing = [message_id for message_id in wanted if message_id not in rows]
+        erased = [
+            message_id
+            for message_id in wanted
+            if message_id in rows and not rows[message_id].get("intent_id")
+        ]
+        unavailable = missing + erased
+        if unavailable:
+            raise KeyError(f"unknown message IDs in namespace {ns!r}: {unavailable!r}")
+        intent_ids = list(dict.fromkeys(str(rows[mid]["intent_id"]) for mid in wanted))
+        waited = await asyncio.gather(
+            *(gw.wait(intent_id, capabilities, timeout_s) for intent_id in intent_ids)
+        )
+        by_intent = dict(zip(intent_ids, waited, strict=True))
+        return {
+            message_id: by_intent[str(rows[message_id]["intent_id"])] for message_id in wanted
+        }
 
     async def _prefetch_neighbours(
         self, ns: str, contents: Sequence[str]

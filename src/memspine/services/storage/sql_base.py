@@ -18,6 +18,7 @@ compression (D-45/D-32), and M7 erasure all live here unchanged.
 
 from __future__ import annotations
 
+import asyncio
 import json
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, datetime
@@ -29,6 +30,7 @@ from sqlalchemy import ColumnElement, String, any_, bindparam, delete, func, ins
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from memspine.config.constants import RECORD_BATCH_CHUNK, STORAGE_HEALTH_DEADLINE_S, ZSTD_LEVEL
@@ -523,8 +525,30 @@ class SqlStorage(ServiceAdapter):
             stmt = stmt.where(memory_records.c.memory_type == memory_type)
         if group_id is not None:  # D2 sub-scoping facet
             stmt = stmt.where(memory_records.c.group_id == group_id)
-        async with self._client.engine.connect() as conn:
-            rows = (await conn.execute(stmt)).all()
+        deadline = asyncio.get_running_loop().time() + float(
+            getattr(self._client, "busy_timeout_s", 5.0)
+        )
+        delay = 0.005
+        while True:
+            try:
+                async with self._client.engine.connect() as conn:
+                    rows = (await conn.execute(stmt)).all()
+                break
+            except OperationalError as exc:
+                # SQLite shared-cache :memory: databases report SQLITE_LOCKED
+                # ("database table is locked"), which PRAGMA busy_timeout does
+                # not retry. A concurrent grant/write is short-lived; retry the
+                # read until the configured client deadline so callers observe
+                # either the state before or after the transaction, never an
+                # infrastructure exception or a torn partial result.
+                if (
+                    self._is_postgres
+                    or "locked" not in str(exc).lower()
+                    or asyncio.get_running_loop().time() >= deadline
+                ):
+                    raise
+                await asyncio.sleep(delay)
+                delay = min(delay * 2, 0.05)
         return [self._row_to_record(row._mapping) for row in rows]
 
     async def list_session_records(

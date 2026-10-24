@@ -43,7 +43,7 @@ memory metadata cache, Tantivy writer heap and commit retries) moved from
 
 ## 2a. Live status by provider (updated after each merge; RM-113 row holds the evidence)
 
-Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`) and the RM-113 leftovers (items 6, 7, 11, 12, `8226befe`); import contracts 18 kept / 0 broken. WP6 locality + documents slot landed (`72855bb5`); pgvector live-tested (`d9a87db6`). RM-117 model slots (ADR-082) landed (`80490893`..`778ccaca`): every model.* row is configured through its `model.<slot>`; regression green, import contracts 18 kept / 0 broken. RM-118 follow-ups (`28236a18`) and the RM-02 dependency refresh (`5d132e89`, audit 0 outdated) landed. S3 + Weaviate documents (`79394028`), `storage.graph_mirror` removed: one graph client at a time (`655ac7f9`, ADR-081 amendment), asset registry on records + documents (`d8540742`). In progress: MongoDB records + GridFS (RM-112), single-query walks LadybugDB then Neo4j (RM-96); then the managed local mongod (RM-119, ADR-083).
+Last update: 2026-10-24. RM-113 is complete: both shrink-only baselines are empty; Taskiq borrows the shared Redis connector; lease, side-table and observability connections are opened only by `clients`; and the eval harness can seed each fresh item store from a precomputed asset pack. Asset rows live in records and bytes in documents. The historical audit below is implementation evidence, not a list of current violations.
 ✅ done · 🔧 in progress (agent) · ⏳ queued · ⚠️ known gap
 
 | Slot | Provider | Connector | Adapter | Factory | Status | Work |
@@ -142,12 +142,12 @@ Graph port (2026-10-23, one port): the three graph rows implement one port,
 there is no separate qualified protocol and no `qualifier_filter` descriptor capability
 (ADR-080 item 10 note).
 
-Connections are also opened outside providers:
+At the original audit, connections were also opened outside providers:
 - **In services:**
   - `services/assets/registry.py`: sqlite3;
   - `services/assets/fetch.py`, `vision.py`, `external/provider.py`, `external/wikipedia.py`: urllib;
   - `services/secrets/aws.py`: boto3.
-- **Elsewhere:** `derive/job.py`, `store/side_tables.py`, `observability/tap_sinks.py`, `workers/step_journal.py` and `workers/taskiq_runner.py` (Redis).
+- **Elsewhere:** `derive/job.py`, `store/side_tables.py`, `observability/tap_sinks.py`, `workers/step_journal.py` and `workers/taskiq_runner.py` (Redis). These findings are now closed; the constructor baseline is empty.
 
 **Nothing enforced layering at audit time.** `.importlinter` had
 `include_external_packages = False`, and the CI script filtered out every non-memspine
@@ -177,8 +177,8 @@ Section 4 records the enforcement added on 2026-10-23.
 
 **Connector layer (G) status, 2026-10-23.** Done: 1 (OpenSearch and Weaviate factories
 now take their identity from the connector), 2, 3 (plus Tantivy, HTTP and AWS), 4, 5, 8, 9
-(Postgres runs hold the `MIGRATION_LOCK_KEY` session advisory lock; the legacy stamp adoption
-is unchanged), 10 and 14. Open at the time: 6, 7, 11, 12, 13 (6, 7, 11 and 12 are
+(Postgres runs hold the `MIGRATION_LOCK_KEY` session advisory lock; the current first-cycle
+schema is one fresh baseline), 10 and 14. Open at the time: 6, 7, 11, 12, 13 (6, 7, 11 and 12 are
 closed by 8226befe below). Behaviour notes: `TantivyLexical.close()` only commits held documents; the
 connector's owner closes the index. `DriverExecutor.close()` never closes the driver. Every
 connector opens with `open()` (no `connect()`), and every constructor takes its spec.
@@ -228,7 +228,7 @@ OpenDecider adapter takes the weight registry (it builds its connector lazily pe
 setting); retry policy stays in `services/_retry.py` (it logs through observability, which
 clients may not import); the config keys `decision.provider` and `read.decider*` are unchanged
 in this pass.
-18. ADR-081 alignment (`records`, `documents` and `locality` on descriptors); the assets registry moves to records/documents. Status 2026-10-23: `locality`, `resolve_locality`, `single_writer` and `needs_placement` are on the descriptors and checked by `providers/locality.py` (RM-111 WP6); the `documents` slot ships with the filesystem provider; the asset registry move is still open (it keeps its sqlite3 sidecar and blob directory, and `multi_node` rejects `ingest.asset_dir` until it moves).
+18. ✅ ADR-081 alignment (`records`, `documents` and `locality` on descriptors). `locality`, `resolve_locality`, `single_writer` and `needs_placement` are checked by `providers/locality.py`; the documents providers ship under `storage.documents`; asset rows live in the records database and bytes use the documents port. There is no asset sidecar or `ingest.asset_dir` compatibility path.
 
 ## 4. Enforcement
 

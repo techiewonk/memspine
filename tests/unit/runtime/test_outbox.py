@@ -93,6 +93,126 @@ async def test_tables_exist_and_drain_runs_items_in_order(tmp_path: Path) -> Non
     con.close()
 
 
+async def test_effect_status_is_idempotent_and_fenced_by_current_lease() -> None:
+    runner, _ = make_runner()
+    await runner.enqueue(SCOPE, "derive", {"n": 0})
+    claim = runner.book.claim("worker-a", timedelta(minutes=1))
+    assert claim is not None
+    identity = {"effect_id": "0123456789abcdef", "sources": ["source-1"]}
+
+    assert runner.store.commit_effect(
+        job_id=claim.job.job_id,
+        epoch=claim.lease.epoch,
+        scope=SCOPE,
+        stage="derive",
+        offset=0,
+        layer="facts",
+        effect_id="0123456789abcdef",
+        identity=identity,
+        result_count=2,
+        failure=None,
+        at=T0,
+    )
+    # Replay reuses the effect identity rather than adding another count.
+    assert runner.store.commit_effect(
+        job_id=claim.job.job_id,
+        epoch=claim.lease.epoch,
+        scope=SCOPE,
+        stage="derive",
+        offset=0,
+        layer="facts",
+        effect_id="0123456789abcdef",
+        identity=identity,
+        result_count=99,
+        failure=None,
+        at=T0,
+    )
+    assert runner.store.effect_status(SCOPE) == [
+        {
+            "effect_id": "0123456789abcdef",
+            "job_id": claim.job.job_id,
+            "epoch": claim.lease.epoch,
+            "stage": "derive",
+            "offset": 0,
+            "layer": "facts",
+            "state": "complete",
+            "count": 2,
+            "failure": None,
+            "identity": identity,
+            "committed_at": T0.isoformat(),
+        }
+    ]
+    assert not runner.store.commit_effect(
+        job_id=claim.job.job_id,
+        epoch=claim.lease.epoch + 1,
+        scope=SCOPE,
+        stage="derive",
+        offset=0,
+        layer="facts",
+        effect_id="fedcba9876543210",
+        identity={"effect_id": "fedcba9876543210"},
+        result_count=1,
+        failure=None,
+        at=T0,
+    )
+    assert len(runner.store.effect_status(SCOPE)) == 1
+
+
+async def test_effect_status_persists_bounded_failure_metadata() -> None:
+    runner, _ = make_runner()
+    await runner.enqueue(SCOPE, "derive", {"n": 0})
+    claim = runner.book.claim("worker-a", timedelta(minutes=1))
+    assert claim is not None
+    failure = {
+        "stage": "facts",
+        "error_class": "malformed",
+        "attempts": 2,
+        "retry_eligible": False,
+        "source_ids": ["source-1"],
+    }
+    assert runner.store.commit_effect(
+        job_id=claim.job.job_id,
+        epoch=claim.lease.epoch,
+        scope=SCOPE,
+        stage="derive",
+        offset=0,
+        layer="facts",
+        effect_id="failure000000001",
+        identity={"effect_id": "failure000000001"},
+        result_count=0,
+        failure=failure,
+        at=T0,
+    )
+    row = runner.store.effect_status(SCOPE)[0]
+    assert row["state"] == "failed" and row["count"] == 0
+    assert row["failure"] == failure
+
+
+async def test_runner_retries_holes_under_fresh_lease_and_replaces_failure() -> None:
+    rec = Recorder()
+    rec.fail[0] = 1
+    runner, _ = make_runner(rec=rec)
+    runner.register(
+        "derive",
+        StageHandler(rec.prepare, rec.commit, effect_results=lambda prepared: {"facts": 0}),
+    )
+    await runner.enqueue(SCOPE, "derive", {"n": 0})
+    first = await runner.drain()
+    assert first.holes == 1
+    failed = runner.store.effect_status(SCOPE)
+    assert len(failed) == 1 and failed[0]["state"] == "failed"
+
+    second = await runner.drain()
+    assert second.hole_filled == 1
+    completed = runner.store.effect_status(SCOPE)
+    assert len(completed) == 1
+    assert completed[0]["state"] == "complete" and completed[0]["count"] == 0
+    assert completed[0]["failure"] is None
+    retry_job = runner.store.get_job(completed[0]["job_id"])
+    assert retry_job is not None and retry_job.stage == "derive.hole.0"
+    assert retry_job.state == "succeeded" and retry_job.epoch >= 1
+
+
 async def test_queued_jobs_survive_a_restart(tmp_path: Path) -> None:
     first, _ = make_runner(file_engine(tmp_path))
     await first.enqueue(SCOPE, "derive", {"n": 0})

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Column, MetaData, String, Table, Text
+from sqlalchemy import Column, Integer, MetaData, String, Table, Text
 
 intake_metadata = MetaData()
 
@@ -32,6 +32,9 @@ intake_intent = Table(
     Column("status", String, nullable=False),
     Column("receipt", Text, nullable=False),
     Column("readiness", Text, nullable=False),
+    # BI-01: the derivation policy promise is frozen with acceptance.  It is
+    # updated only to attach the real record ids after raw application.
+    Column("required_derivation", Text, nullable=False),
     Column("apply", Text, nullable=True),
     Column("created_at", String, nullable=False),
 )
@@ -59,10 +62,42 @@ conversation_identity = Table(
     Column("intent_id", String, nullable=True),
 )
 
+# BI-03: discovery is a durable reconciliation cursor, not an in-memory
+# observer callback.  The mapping makes a reset/retry idempotent, while the
+# cursor and outbox insert are advanced in the same database transaction.
+intake_derivation_cursor = Table(
+    "intake_derivation_cursor",
+    intake_metadata,
+    Column("scope_key", String, primary_key=True),
+    Column("stage", String, primary_key=True),
+    Column("created_at", String, nullable=False),
+    Column("intent_id", String, nullable=False),
+)
+intake_derivation_discovery = Table(
+    "intake_derivation_discovery",
+    intake_metadata,
+    Column("intent_id", String, primary_key=True),
+    Column("stage", String, primary_key=True),
+    Column("item_offset", Integer, nullable=False),
+    Column("discovered_at", String, nullable=False),
+)
+intake_derivation_policy = Table(
+    "intake_derivation_policy",
+    intake_metadata,
+    Column("scope_key", String, primary_key=True),
+    Column("stage", String, primary_key=True),
+    Column("policy_revision", String, nullable=False),
+    Column("registry_digest", String, nullable=True),
+    Column("activated_at", String, nullable=False),
+)
+
 INTAKE_TABLES: tuple[str, ...] = (
     "intake_source",
     "intake_write",
     "intake_intent",
     "intake_message_identity",
     "intake_conversation_identity",
+    "intake_derivation_cursor",
+    "intake_derivation_discovery",
+    "intake_derivation_policy",
 )

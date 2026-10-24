@@ -32,20 +32,26 @@ from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
 
+from memspine.derive.gliner_mentions import MentionSpan, bind_gliner_mentions
 from memspine.memories.associative import entity_cache
 from memspine.memories.associative.entities import (
     ENTITY_LABEL,
+    ENTITY_SURFACE_LABEL,
+    HAS_MENTION_REL,
+    MENTION_OCCURRENCE_LABEL,
     MENTIONS_REL,
+    REFERS_TO_REL,
     EntityPolicy,
+    canonical_entity,
     entity_node_id,
     is_entity_node,
     record_entity_names,
 )
 from memspine.observability.logging import get_logger
 from memspine.services.graph.base import GraphStore
-from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
 from memspine.store.projections.projector import Projector
-from memspine.store.records import MemoryRecord
+from memspine.store.records import EntityMention, MemoryRecord
 
 __all__ = ["GraphProjector"]
 
@@ -86,6 +92,7 @@ class GraphProjector(Projector):
                 properties={"namespace": record.namespace},
                 namespace=record.namespace,
             )
+            await self._project_bound_mentions(record)
             if self._entities is not None:
                 await self._project_mentions(record, self._entities)
             for key in _DERIVATION_KEYS:
@@ -159,14 +166,166 @@ class GraphProjector(Projector):
             # A forgotten memory must stop being reachable (M7): the node and
             # every touching edge go, both soft and hard forget.
             record_id = str(event.payload["record_id"])
+            occurrences = await self._mention_occurrences(record_id)
+            surfaces: list[str] = []
+            for occurrence in occurrences:
+                surfaces.extend(
+                    edge.dst
+                    for edge in await self._store.edges_of(occurrence)
+                    if edge.src == occurrence and edge.rel_type == REFERS_TO_REL
+                )
             mentioned = await self._mentioned(record_id) if self._entities is not None else []
             await self._store.delete_node(record_id)
+            for occurrence in occurrences:
+                await self._store.delete_node(occurrence)
             if self._entities is None:
                 # RM-110: the record's mentions (from an earlier policy) are unknown here.
                 entity_cache.invalidate(self._store)
             else:
                 entity_cache.note_unmentioned(self._store, mentioned)
             await self._drop_orphans(mentioned)
+            await self._drop_surface_orphans(surfaces)
+
+    async def _mention_occurrences(self, record_id: str) -> list[str]:
+        """Occurrence nodes currently projected for ``record_id``."""
+        return [
+            edge.dst
+            for edge in await self._store.edges_of(record_id)
+            if edge.src == record_id and edge.rel_type == HAS_MENTION_REL and edge.weight > 0
+        ]
+
+    async def _project_bound_mentions(self, record: MemoryRecord) -> None:
+        """BI-08: project every exact annotation as an individual occurrence.
+
+        The occurrence identity includes the complete source binding and offsets;
+        replay therefore upserts the same nodes, while a new source version cannot
+        overwrite the provenance of an older occurrence.  These edges are always
+        explicitly unasserted and are never relation evidence.
+        """
+        mentions = record.fingerprint.entity_mentions
+        if mentions:
+            rebound = bind_gliner_mentions(
+                record,
+                (
+                    MentionSpan(
+                        text=mention.text,
+                        label=mention.label,
+                        start=mention.start,
+                        end=mention.end,
+                        confidence=mention.confidence,
+                        asserted=False,
+                    )
+                    for mention in mentions
+                ),
+            )
+            if rebound != mentions:
+                raise ValueError("entity mentions do not match the current source binding")
+        try:
+            existing = await self._mention_occurrences(record.record_id)
+        except Exception:
+            # A plain WRITE with no bound annotations must not add a new graph
+            # dependency to the write path.  Graph evolution already reports
+            # provider failures and can catch up from the event log.  A batch
+            # that actually carries mentions remains loud so it cannot be
+            # acknowledged without projecting its source-bound occurrences.
+            if mentions:
+                raise
+            return
+        wanted: dict[str, tuple[EntityMention, str]] = {}
+        for mention in mentions:
+            identity = {
+                "namespace": mention.source_namespace,
+                "record_id": mention.source_record_id,
+                "version": mention.source_version,
+                "content_fingerprint": mention.source_content_fingerprint,
+                "binding_hash": mention.source_binding_hash,
+                "label": mention.label,
+                "start": mention.start,
+                "end": mention.end,
+                "text": mention.text,
+            }
+            occurrence_id = f"mention:{mention.source_namespace}:{fingerprint_payload(identity)}"
+            surface = canonical_entity(mention.text)
+            surface_id = f"ent:{mention.source_namespace}:{mention.label}:{surface}"
+            wanted[occurrence_id] = (mention, surface_id)
+
+        stale = [node_id for node_id in existing if node_id not in wanted]
+        stale_surfaces: list[str] = []
+        for occurrence_id in stale:
+            stale_surfaces.extend(
+                edge.dst
+                for edge in await self._store.edges_of(occurrence_id)
+                if edge.src == occurrence_id and edge.rel_type == REFERS_TO_REL
+            )
+            await self._store.delete_node(occurrence_id)
+
+        for occurrence_id, (mention, surface_id) in wanted.items():
+            properties = {
+                "namespace": mention.source_namespace,
+                "source_record_id": mention.source_record_id,
+                "source_version": mention.source_version,
+                "source_content_fingerprint": mention.source_content_fingerprint,
+                "source_binding_hash": mention.source_binding_hash,
+                "label": mention.label,
+                "text": mention.text,
+                "start": mention.start,
+                "end": mention.end,
+                "confidence": mention.confidence,
+                "source_role": mention.source_role,
+                "source_channel": mention.source_channel,
+                "source_message_id": mention.source_message_id,
+                "sender_id": mention.sender_id,
+                "sender_role": mention.sender_role,
+                "created_at": mention.created_at,
+                "asserted": False,
+            }
+            await self._store.upsert_node(
+                occurrence_id,
+                labels=[MENTION_OCCURRENCE_LABEL],
+                properties=properties,
+                namespace=record.namespace,
+            )
+            await self._store.upsert_node(
+                surface_id,
+                labels=[ENTITY_SURFACE_LABEL, mention.label],
+                properties={
+                    "namespace": record.namespace,
+                    "label": mention.label,
+                    "surface": canonical_entity(mention.text),
+                    "asserted": False,
+                },
+                namespace=record.namespace,
+            )
+            edge_properties = {
+                "weight": 1.0,
+                "asserted": False,
+                "source_version": mention.source_version,
+                "source_content_fingerprint": mention.source_content_fingerprint,
+                "start": mention.start,
+                "end": mention.end,
+            }
+            await self._store.upsert_edge(
+                record.record_id,
+                occurrence_id,
+                HAS_MENTION_REL,
+                edge_properties,
+                namespace=record.namespace,
+            )
+            await self._store.upsert_edge(
+                occurrence_id,
+                surface_id,
+                REFERS_TO_REL,
+                edge_properties,
+                namespace=record.namespace,
+            )
+        self.last_edges += len(wanted) * 2
+        await self._drop_surface_orphans(stale_surfaces)
+
+    async def _drop_surface_orphans(self, surface_ids: list[str]) -> None:
+        for surface_id in dict.fromkeys(surface_ids):
+            edges = await self._store.edges_of(surface_id)
+            if not any(edge.rel_type == REFERS_TO_REL and edge.weight > 0 for edge in edges):
+                await self._store.delete_node(surface_id)
 
     async def _mentioned(self, record_id: str, live_only: bool = False) -> list[str]:
         """The entity nodes ``record_id``'s ``mentions`` edges point at."""

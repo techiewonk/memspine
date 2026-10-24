@@ -18,6 +18,7 @@ __all__ = [
     "MIGRATION_LOCK_KEY",
     "advisory_lock",
     "migration_connection",
+    "open_dbapi_connection",
     "postgres_sync_engine",
 ]
 
@@ -39,6 +40,18 @@ def postgres_sync_engine(
         connect_args=dict(connect_args or {}),
         **dict(pool_options or {}),
     )
+
+
+def open_dbapi_connection(url: str, *, autocommit: bool = False) -> Any:
+    """Open a psycopg DB-API connection; the caller owns the returned connection."""
+    try:
+        import psycopg
+    except ImportError as exc:
+        from memspine.exceptions import StorageError
+
+        raise StorageError("Postgres connections need the [postgres] extra (psycopg)") from exc
+    dsn = url.replace("postgresql+psycopg://", "postgresql://", 1)
+    return psycopg.connect(dsn, autocommit=autocommit)
 
 
 @contextmanager

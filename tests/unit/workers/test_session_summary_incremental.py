@@ -227,6 +227,29 @@ async def test_without_an_llm_the_extractive_summary_is_rebuilt() -> None:
     assert current.content == "turn 0. turn 1. turn 2. turn 3."
 
 
+async def test_extractive_only_disables_full_and_incremental_model_calls() -> None:
+    counter = Counter()
+    policy = _policy() | {
+        "session_summary": {
+            "incremental": True,
+            "rebuild_every": 3,
+            "extractive_only": True,
+        }
+    }
+    ctx, harness = await make_ctx(policy, counter)
+    for i in range(3):
+        await add_turn(harness, f"turn {i}. detail", 20 - i)
+    await consolidate(ctx)
+    await add_turn(harness, "turn 3. detail", 16)
+    await consolidate(ctx)
+    assert counter.full == [] and counter.incremental == []
+    [current] = await active_summaries(ctx)
+    assert current.content == "turn 0. turn 1. turn 2. turn 3."
+    events = await ctx.storage.read_events()
+    markers = [event for event in events if event.kind is EventKind.CONSOLIDATE]
+    assert all(event.payload["summarizer"] == "extractive" for event in markers)
+
+
 async def test_an_open_summary_is_closed_after_incremental_is_switched_off() -> None:
     """Review fix: an open-session summary written under ``incremental: true`` is
     still closed once the flag is off, or its session never reaches the derived

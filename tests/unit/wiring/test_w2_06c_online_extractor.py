@@ -125,11 +125,72 @@ async def test_no_model_template_makes_zero_calls_with_every_write_flag_on(
     await eng.start()
     try:
         await _send(eng, "a", "s1", _turns("trip", 8))
-        assert await eng.flush_windows() == {}
-        assert not ingest_windows.online_extractor(eng).active
+        stats = await eng.flush_windows()
+        assert ingest_windows.online_extractor(eng).active
+        assert stats.get("rule_facts_returned", 0) == 0
+        assert stats["calls"] == 0
         assert await eng.search("tea", namespace="a")
         assert calls == []
         assert await _facts(eng) == []
+    finally:
+        await eng.stop()
+
+
+async def test_no_model_online_extractor_deposits_grounded_rule_fact(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
+        return LLMRouter({})
+
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
+        model={"embedding": {"provider": "hash", "settings": {}}},
+        memories={"episodic": {"enabled": True}, "semantic": {"enabled": True}},
+        write={
+            "online_extractor": True,
+            "window_extract": "facts",
+            "window_async": False,
+            "window_max_turns": 1,
+            "window_idle_s": 0.0,
+        },
+        workers={"outbox": True},
+    )
+    await eng.start()
+    try:
+        await eng.ingest_messages(
+            [
+                {
+                    "message_id": "rule-1",
+                    "role": "user",
+                    "sender": {"id": "Mira"},
+                    "content": "I work for Acme.",
+                    "timestamp": "2026-10-24T10:00:00+00:00",
+                }
+            ],
+            namespace="a",
+            session_id="s1",
+            conversation_id="s1",
+        )
+        stats = await eng.flush_windows("a")
+        facts = await _facts(eng, "a")
+        assert stats["calls"] == 0 and stats["rule_facts_returned"] == 1
+        assert len(facts) == 1
+        assert facts[0].content == "Mira employed_by Acme"
+        assert facts[0].source.parents
+        assert "non_generative" in facts[0].tags
+        status = (await eng.ingestion_status(["rule-1"], namespace="a"))["rule-1"]
+        assert status.counts == {"L1": 1, "L2": 0}
+        assert not status.failures
     finally:
         await eng.stop()
 

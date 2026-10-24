@@ -157,7 +157,7 @@ async def _consolidate_session(
     ]
     summary_text = policy.fallback_summary(members)
     tags: list[str] = []
-    mode: str | None = None
+    mode = "extractive"
     if policy.session_summary.incremental:
         # #56 (ADR-048): incremental update or periodic full rebuild.
         summary_text, mode, since = await _incremental_summary(
@@ -166,7 +166,7 @@ async def _consolidate_session(
         tags.append(f"{constants.SUMMARY_SINCE_REBUILD_PREFIX}{since}")
         if still_open:
             tags.append(constants.SUMMARY_OPEN_TAG)
-    elif ctx.summarize is not None:
+    elif ctx.summarize is not None and not policy.session_summary.extractive_only:
         # B9 (F3): sanitise BEFORE compression. A flagged member reaches the
         # summariser wrapped as data, never as raw instructions; cleaning the
         # summary afterwards leaves the influence in (State Contamination).
@@ -178,12 +178,11 @@ async def _consolidate_session(
         ]
         try:
             summary_text = await ctx.summarize("\n".join(rendered))
+            mode = "llm"
         except Exception as exc:  # LLM is an enhancer, never a gate (N6)
             _log.warning("consolidate.summarize_fallback", namespace=namespace, error=str(exc))
     summary = _summary_record(namespace, session, members, summary_text, tags)
-    extra: dict[str, object] = {}
-    if mode is not None:
-        extra = {"summary_mode": mode, "open_session": still_open}
+    extra: dict[str, object] = {"summary_mode": mode, "open_session": still_open}
     if not await _append_summary(ctx, namespace, session, summary, stale, now, extra):
         return summaries, superseded  # I72: a member was forgotten while summarising
     return summaries + 1, superseded + len(stale)
@@ -305,7 +304,9 @@ async def _append_summary_locked(
                 "member_record_ids": session.record_ids,
                 "summary_record_id": summary.record_id,
                 "superseded_summary_ids": [old.record_id for old in stale],
-                "summarizer": "llm" if ctx.summarize is not None else "extractive",
+                "summarizer": (
+                    "extractive" if extra.get("summary_mode") == "extractive" else "llm"
+                ),
                 **extra,
             },
         )
@@ -348,7 +349,7 @@ async def _incremental_summary(
     or when a member left the session) the summary is rebuilt from every turn.
     Without an LLM the deterministic extractive summary is used (it cannot drift).
     """
-    if ctx.summarize is None:
+    if ctx.summarize is None or policy.session_summary.extractive_only:
         return fallback, "extractive", 0
     member_ids = {m.record_id for m in members}
     previous = [

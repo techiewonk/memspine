@@ -2,8 +2,8 @@
 
 Through the Engine: ingest registers the attachment rows in the records database, a ``fetch``
 read downloads through the real fetcher (an in-process HTTP transport) into the documents slot
-and describes it, a restart finds the evidence (``cached``), erasure removes rows and bytes, and
-a pre-item-18 ``registry.sqlite`` + ``blobs/`` directory is imported once. No network, no model.
+and describes it, a restart finds the evidence (``cached``), and erasure removes rows and bytes.
+No historical asset sidecar is supported. No network, no model.
 """
 
 from __future__ import annotations

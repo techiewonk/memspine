@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import sqlite3
 import threading
 from collections import deque
 from datetime import UTC, datetime
@@ -14,6 +13,14 @@ from typing import Any
 from memspine.observability import tap
 
 __all__ = ["JsonlSink", "LogSink", "MemorySink", "OtelSink", "SqliteSink", "register_builtin"]
+
+_sqlite_opener: Any = None
+
+
+def configure_sqlite_opener(opener: Any) -> None:
+    """Install the client-owned opener at the composition boundary."""
+    global _sqlite_opener
+    _sqlite_opener = opener
 
 
 class JsonlSink:
@@ -68,7 +75,9 @@ class SqliteSink:
         d.mkdir(parents=True, exist_ok=True)
         self.path = d / "tap.sqlite"
         self._lock = threading.Lock()
-        self._db = sqlite3.connect(self.path, check_same_thread=False)
+        if _sqlite_opener is None:
+            raise tap.TapConfigError("SQLite tap sink was not configured by the composition root")
+        self._db = _sqlite_opener(self.path, check_same_thread=False)
         self._db.executescript(self.SCHEMA)
 
     def write(self, trace: dict[str, Any]) -> None:

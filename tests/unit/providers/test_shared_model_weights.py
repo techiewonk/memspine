@@ -39,8 +39,10 @@ def _engine() -> ProviderLifecycleManager:
     return ProviderLifecycleManager(close_timeout_s=2.0)
 
 
-def _shared(resources: ProviderLifecycleManager) -> SharedBuildContext:
-    return SharedBuildContext(resources, "deployment-a", 1.0)
+def _shared(
+    resources: ProviderLifecycleManager, registry: ResourceRegistry | None = None
+) -> SharedBuildContext:
+    return SharedBuildContext(resources, "deployment-a", 1.0, registry=registry)
 
 
 def _held(category: str) -> list[int]:
@@ -352,10 +354,11 @@ async def test_onnx_reranker_shared_across_engines_with_warm_hook(
             return [float(len(d)) for d in documents]
 
     monkeypatch.setattr(cross_encoder, "OnnxModel", FakeCrossEncoder)
+    registry = ResourceRegistry()
     engine_a, engine_b = _engine(), _engine()
     built = [
         await build_reranker_result(
-            RerankSettings(mode="onnx"), RerankerBuildContext(_shared(engine))
+            RerankSettings(mode="onnx"), RerankerBuildContext(_shared(engine, registry))
         )
         for engine in (engine_a, engine_b)
     ]
@@ -369,7 +372,7 @@ async def test_onnx_reranker_shared_across_engines_with_warm_hook(
     await engine_a.close_all()
     assert await services[1].rerank("q", ["abc"]) == [3.0]
     await engine_b.close_all()
-    assert _held("model.reranker.onnx") == []
+    assert registry.stats() == ()
 
 
 async def test_standalone_reranker_build_stays_private(monkeypatch: pytest.MonkeyPatch) -> None:

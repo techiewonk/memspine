@@ -1,8 +1,28 @@
 # Raw ingestion plus durable background grounding — implementation plan
 
-Design baseline: 2026-10-18. Reconciled for handoff: 2026-10-20. Status: design for review; BI implementation not started.
+Design baseline: 2026-10-18. Reconciled for handoff: 2026-10-24. Status: implementation integrated; remaining promotion gates are listed below.
 Authority: owner accepted all three policies. [Current trace](INGESTION_STORAGE_TRACE.md),
 [ADR-077](adr/ADR-077-background-grounded-ingestion.md), D-99.
+
+## Implementation state (2026-10-24)
+
+| Package | State | Implemented gate | Remaining gate |
+|---|---|---|---|
+| BI-01 | DONE | Canonical durable contracts, policy/registry revision identity, explicit activation and scoped unfinished-work requeue | None in BI-01 contract scope |
+| BI-02 | DONE | Required-derivation manifest is atomic with accepted intent; canonical source provenance and parent/session rules are preserved | None |
+| BI-03 | DONE | Applied raw intents reconcile through the existing outbox with one atomic cursor/item transaction and durable source membership | None |
+| BI-04 | DONE | Open windows persist and restore with policy boundaries; late arrivals, sessions and conversations remain isolated | None |
+| BI-05 | IN_PROGRESS | Strict source-bound `AnnotationBatch`, explicit zero-result accounting, exact occurrence projection | Persist the complete annotation batch as a durable materialized artifact, not only its effect count |
+| BI-06 | IN_PROGRESS | Deterministic zero-generative rule candidates, exact evidence, unresolved outcomes and canonical derived writes | Complete the full typed semantic-envelope/role/cardinality path and optional configured non-generative extractor path |
+| BI-07 | IN_PROGRESS | Fresh leased hole retries and lease-epoch-gated idempotent effect ledger | Provider materialization and source version/hash/erasure validation are not one cross-provider SQL transaction |
+| BI-08 | VERIFY | Occurrence-level unasserted graph projection passes SQLite, LadybugDB and Neo4j contract fixtures | Promote after BI-05 and BI-07 close |
+| BI-09 | DONE | Durable per-layer counts/failures plus bounded status/wait APIs | None |
+| BI-10 | DONE | Cold sources inflate before grounding with exact Unicode/fingerprint preservation | None |
+| BI-11 | VERIFY | Extractive-only summaries make zero generative calls and preserve raw-parent lineage | Promote after BI-05 through BI-07 close |
+| BI-12 | NEEDS_INPUT | Namespace/restart/fault/provider matrix and full suite pass | Owner must select the application profile/model binding to promote as the default |
+
+Verification at this revision: 9,174 main tests collected; 8,899 passed,
+275 skipped and zero failed. Ruff and generated schema/reference checks pass.
 
 ## Accepted policy
 
@@ -261,15 +281,16 @@ savings. No automatic lossy deletion, provider copying or re-embedding.
 
 ## Status and next action
 
-All BI-01..BI-12 are **PLANNED**. The three policy decisions are accepted;
-implementation, configuration schemas and operating limits remain reviewable.
-Next: implement BI-01, then BI-02/03, before changing the application's default.
-Provider tracker totals are unchanged; this is a separate ingestion workstream,
-not completion of deployment acceptance or PA-107 evaluation migration.
+BI-01 through BI-04 and BI-09/10 are implemented. BI-05/06/07 remain open at
+the durable annotation, semantic-envelope and cross-provider commit boundaries;
+BI-08/11 are implemented and held in verification behind those prerequisites.
+BI-12 has a green integration matrix but cannot promote a default until the owner
+selects the application profile/model binding.
+This remains separate from deployment acceptance and PA-107 evaluation migration.
 
 ## Exact target contract review — 2026-10-18
 
-See [ENRICHMENT_SCHEMA_CONTRACTS.md](ENRICHMENT_SCHEMA_CONTRACTS.md), including executable review-only JSON Schema and all 52 requirement mappings. This refines BI-01 contracts, BI-04 snapshots, BI-05 mentions, BI-06 facts, BI-07 effects, BI-08 graph projection and BI-09 coverage/readiness. All BI implementation steps remain PLANNED; technical choices Q-S1..5 are selected as B/B/A/A/B. Existing canonical durable/read types must evolve directly, without a second intake/fact path.
+See [ENRICHMENT_SCHEMA_CONTRACTS.md](ENRICHMENT_SCHEMA_CONTRACTS.md), including executable review-only JSON Schema and all 52 requirement mappings. This refines BI-01 contracts, BI-04 snapshots, BI-05 mentions, BI-06 facts, BI-07 effects, BI-08 graph projection and BI-09 coverage/readiness. Technical choices Q-S1..5 are selected as B/B/A/A/B. Existing canonical durable/read types evolved directly, without a second intake/fact path; current implementation state is recorded above.
 
 ## Accepted rewrite constraints — 2026-10-18
 
@@ -281,7 +302,7 @@ Owner selected a 4,096-token target evidence budget (not the unchanged current r
 
 ## Operating selections accepted — 2026-10-18
 
-O1..O4 accepted A/A/A/A. Use the balanced numeric limits and 4K assembly target, full gated vocabulary, immediate read denial plus tracked asynchronous copied-data cleanup, development backups off and production content retention at most seven days with restore gate. These constrain BI-01/04/06/07/09 and erasure tests. All BI runtime steps remain PLANNED; limits are not measured SLOs.
+O1..O4 accepted A/A/A/A. Use the balanced numeric limits and 4K assembly target, full gated vocabulary, immediate read denial plus tracked asynchronous copied-data cleanup, development backups off and production content retention at most seven days with restore gate. These constrain BI-01/04/06/07/09 and erasure tests. Limits are not measured SLOs.
 
 ## Semantic structure and usage guide — 2026-10-18
 

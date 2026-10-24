@@ -95,6 +95,8 @@ class IntentStatus(InternalModel):
     ]  # keys L0..L5
     failure_class: str | None = None
     covers_seq: int | None = None
+    counts: dict[str, int] = Field(default_factory=dict)
+    failures: dict[str, list[dict[str, object]]] = Field(default_factory=dict)
 
 
 class FirewallVerdict(InternalModel):

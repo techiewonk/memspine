@@ -13,7 +13,6 @@ import argparse
 import fnmatch
 import html
 import json
-import sqlite3
 import sys
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -36,6 +35,14 @@ __all__ = [
     "render_text",
     "summary_table",
 ]
+
+_sqlite_context: Any = None
+
+
+def configure_sqlite_reader(context_factory: Any) -> None:
+    """Install the client-owned short-lived SQLite reader."""
+    global _sqlite_context
+    _sqlite_context = context_factory
 
 
 @dataclass(frozen=True, slots=True)
@@ -349,8 +356,9 @@ def _parse_since(text: str | None) -> datetime | None:
 
 
 def _load_sqlite(path: Path) -> list[dict[str, Any]]:
-    db = sqlite3.connect(path)
-    try:
+    if _sqlite_context is None:
+        raise RuntimeError("SQLite report reader was not configured by the composition root")
+    with _sqlite_context(path, timeout_s=5.0) as db:
         reqs: dict[str, dict[str, Any]] = {}
         for r in db.execute(
             "SELECT id,parent_id,kind,scope_hash,started,duration_ms,fields FROM requests"
@@ -373,8 +381,6 @@ def _load_sqlite(path: Path) -> list[dict[str, Any]]:
                 reqs[rid]["events"].append(
                     {"seq": seq, "t_ms": t, "stage": stage, "fields": json.loads(f or "{}")}
                 )
-    finally:
-        db.close()
     roots: list[dict[str, Any]] = []
     for r in reqs.values():
         parent = reqs.get(r["parent_id"]) if r["parent_id"] else None

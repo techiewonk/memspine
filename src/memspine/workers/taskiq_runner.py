@@ -160,9 +160,14 @@ class TaskiqRunner:
         consumer: str = "memspine-engine",
         claim_min_idle_ms: int = constants.TASKIQ_CLAIM_MIN_IDLE_MS,
         redis: Any | None = None,
+        connector: RedisConnector | None = None,
     ) -> None:
-        #: RM-113 item 6: without an injected client, the clients/redis connector owns it
-        self._connector: RedisConnector | None = None
+        if redis is not None and connector is not None:
+            raise ValueError("TaskiqRunner accepts either redis or connector, not both")
+        #: A connector supplied by composition is borrowed and released by the Engine's
+        #: lifecycle manager. Direct construction owns its connector for standalone use.
+        self._connector = connector
+        self._owns_connector = False
         if redis is None:
             try:
                 import taskiq  # noqa: F401  — the extra gate (D-10)
@@ -170,7 +175,9 @@ class TaskiqRunner:
                 from redis import asyncio as _redis_asyncio  # noqa: F401
             except ImportError as exc:
                 raise MissingServiceError("workers.taskiq", extra="taskiq") from exc
-            self._connector = RedisConnector(RedisSpec(url))
+            if self._connector is None:
+                self._connector = RedisConnector(RedisSpec(url))
+                self._owns_connector = True
         self._redis: Any = redis
         self._scope = scope
         self._consumer = consumer
@@ -223,7 +230,8 @@ class TaskiqRunner:
     async def close(self) -> None:
         if self._connector is not None:
             self._redis = None
-            await self._connector.close()
+            if self._owns_connector:
+                await self._connector.close()
             return
         aclose = getattr(self._redis, "aclose", None)
         if callable(aclose):

@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import precompute_assets as pa
+import pytest
 
 from memspine.services.assets import (
     AssetAdapter,
@@ -115,3 +116,39 @@ def test_limit_and_describe_without_download_does_nothing(tmp_path: Path) -> Non
     vision = FakeVision()
     r = _run(tmp_path, FakeFetcher(), vision, phase="describe", limit=2)
     assert r["images"] == 2 and r["described"] == 0 and vision.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_memspine_system_loads_precomputed_pack(tmp_path: Path) -> None:
+    from memspine_evals.systems.memspine_system import MemspineSystem
+
+    from memspine.services.assets import AssetEntry
+
+    registry, documents, source_engine = await pa.open_pack(tmp_path)
+    try:
+        head = await documents.put("eval", b"image-bytes")
+        await registry.update(
+            AssetEntry(
+                asset_id="asset-1",
+                source_turn_id="turn-1",
+                uri="https://example.test/image.png",
+                namespace="eval",
+                availability="cached",
+                content_hash=head.digest,
+                evidence_status="ok",
+                evidence="a blue square",
+            )
+        )
+    finally:
+        await source_engine.dispose()
+
+    system = MemspineSystem(asset_pack=str(tmp_path))
+    await system.reset("item-1")
+    try:
+        loaded = await system._engine._asset_registry().get("eval", "asset-1")
+        assert loaded is not None
+        assert loaded.evidence == "a blue square"
+        assert loaded.record_id is None
+        assert await system._engine.documents.get("eval", head.digest) == b"image-bytes"
+    finally:
+        await system.close()

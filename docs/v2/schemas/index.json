@@ -1,6 +1,14 @@
 {
   "models": [
     {
+      "file": "durable/AnnotationBatch.json",
+      "kind": "annotation_batch",
+      "module": "memspine.schemas.durable.ingestion",
+      "name": "AnnotationBatch",
+      "schema_version": 1,
+      "tier": "durable"
+    },
+    {
       "file": "durable/AssertionEnvelope.json",
       "kind": "assertion_envelope",
       "module": "memspine.schemas.durable.assertion",
@@ -25,11 +33,35 @@
       "tier": "durable"
     },
     {
+      "file": "durable/DerivationFailure.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.ingestion",
+      "name": "DerivationFailure",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
       "file": "durable/Duration.json",
       "kind": null,
       "module": "memspine.schemas.durable.temporal",
       "name": "Duration",
       "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/EffectCommitState.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.ingestion",
+      "name": "EffectCommitState",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/EffectIdentity.json",
+      "kind": "derivation_effect_identity",
+      "module": "memspine.schemas.durable.ingestion",
+      "name": "EffectIdentity",
+      "schema_version": 1,
       "tier": "durable"
     },
     {
@@ -78,6 +110,14 @@
       "module": "memspine.schemas.durable.jobs",
       "name": "Hole",
       "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/IngestionSourceSnapshot.json",
+      "kind": "ingestion_source_snapshot",
+      "module": "memspine.schemas.durable.ingestion",
+      "name": "IngestionSourceSnapshot",
+      "schema_version": 1,
       "tier": "durable"
     },
     {
@@ -158,6 +198,14 @@
       "module": "memspine.schemas.durable.common",
       "name": "Provenance",
       "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/RequiredDerivation.json",
+      "kind": "required_derivation",
+      "module": "memspine.schemas.durable.ingestion",
+      "name": "RequiredDerivation",
+      "schema_version": 1,
       "tier": "durable"
     },
     {

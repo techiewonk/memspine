@@ -1,0 +1,151 @@
+{
+  "$defs": {
+    "IngestionSourceSnapshot": {
+      "additionalProperties": true,
+      "description": "Pinned source input checked again at fenced effect commit.",
+      "properties": {
+        "content_hash": {
+          "minLength": 1,
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "erasure_generation": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Erasure Generation",
+          "type": "integer"
+        },
+        "namespace": {
+          "minLength": 1,
+          "title": "Namespace",
+          "type": "string"
+        },
+        "record_id": {
+          "minLength": 1,
+          "title": "Record Id",
+          "type": "string"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "schema_version": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sender": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sender"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_version": {
+          "minimum": 1,
+          "title": "Source Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "namespace",
+        "record_id",
+        "source_id",
+        "source_version",
+        "content_hash"
+      ],
+      "title": "IngestionSourceSnapshot",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "Stable idempotency identity for one fenced derivation output.",
+  "properties": {
+    "effect_id": {
+      "maxLength": 16,
+      "minLength": 16,
+      "title": "Effect Id",
+      "type": "string"
+    },
+    "job_id": {
+      "minLength": 1,
+      "title": "Job Id",
+      "type": "string"
+    },
+    "output_key": {
+      "minLength": 1,
+      "title": "Output Key",
+      "type": "string"
+    },
+    "policy_revision": {
+      "minLength": 1,
+      "title": "Policy Revision",
+      "type": "string"
+    },
+    "producer_revision": {
+      "minLength": 1,
+      "title": "Producer Revision",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": 1,
+      "maximum": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/IngestionSourceSnapshot"
+      },
+      "minItems": 1,
+      "title": "Sources",
+      "type": "array"
+    }
+  },
+  "required": [
+    "effect_id",
+    "job_id",
+    "output_key",
+    "sources",
+    "producer_revision",
+    "policy_revision"
+  ],
+  "title": "EffectIdentity",
+  "type": "object",
+  "x-kind": "derivation_effect_identity",
+  "x-schema-version": 1
+}

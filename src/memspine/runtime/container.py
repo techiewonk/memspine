@@ -38,6 +38,9 @@ from typing import Any, cast
 
 from dishka import AsyncContainer, BaseScope, Provider, make_async_container, new_scope
 
+from memspine.clients.postgres.sync import open_dbapi_connection
+from memspine.clients.sqlite.files import file_connection, open_file_connection
+from memspine.clients.sqlite.sync import memory_sync_engine, sqlite_sync_engine
 from memspine.config.loader import ResolvedConfig, default_template, load_config
 from memspine.config.schema import MemspineConfig
 from memspine.config.schema.base import ConfigInputError
@@ -62,8 +65,11 @@ from memspine.memories.semantic.write_pipeline import (
     extraction_rounds,
 )
 from memspine.observability.logging import get_logger
+from memspine.observability.tap_report import configure_sqlite_reader
+from memspine.observability.tap_sinks import configure_sqlite_opener
 from memspine.plugins import enable as enable_plugins
 from memspine.prompts.registry import PromptRegistry
+from memspine.providers.connectors import acquire
 from memspine.providers.contexts import (
     CacheBuildContext,
     DocumentsBuildContext,
@@ -148,9 +154,26 @@ from memspine.services.secrets.chained import ChainedSecrets
 from memspine.services.secrets.env import EnvSecrets
 from memspine.services.storage.records_port import RecordsStore
 from memspine.services.vector.base import VectorStore
+from memspine.store.leases import configure_connection_factories
 from memspine.store.projections.projector import Projector
+from memspine.store.side_tables import configure_local_engine_factory
 from memspine.workers.inline import InlineRunner
 from memspine.workers.runner import TaskRunner
+
+
+def _standalone_sqlite_engine(path: str) -> Any:
+    return (
+        memory_sync_engine()
+        if path == ":memory:"
+        else sqlite_sync_engine(path, busy_timeout_s=10.0)
+    )
+
+
+# RM-113: the composition root lends client-owned construction callables to lower layers.
+configure_connection_factories(sqlite=open_file_connection, postgres=open_dbapi_connection)
+configure_local_engine_factory(_standalone_sqlite_engine)
+configure_sqlite_opener(open_file_connection)
+configure_sqlite_reader(file_connection)
 
 __all__ = [
     "Capabilities",
@@ -1628,7 +1651,7 @@ def build_write_pipeline(
     )
 
 
-def build_runner(
+async def build_runner(
     config: MemspineConfig, hooks: WiringHooks, _caps: Capabilities, wiring: Wiring
 ) -> TaskRunner:
     if config.workers.runner == "inline":
@@ -1667,9 +1690,16 @@ def build_runner(
             resonate_max_concurrent_tasks=resonate.max_concurrent_tasks,
         )
     if config.workers.runner == "taskiq":
+        from memspine.clients.redis import RedisConnector, RedisSpec
         from memspine.workers.taskiq_runner import TaskiqRunner
 
-        return TaskiqRunner(url=config.workers.broker_url)
+        connector, _resource = await acquire(
+            shared_build_context(config, wiring),
+            RedisConnector,
+            RedisSpec(config.workers.broker_url),
+            resource_id="connector:workers:taskiq",
+        )
+        return TaskiqRunner(connector=connector)
     raise ConfigError(
         f"unknown workers.runner {config.workers.runner!r} (valid: inline, temporal, taskiq)"
     )

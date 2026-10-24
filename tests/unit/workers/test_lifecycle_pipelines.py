@@ -138,7 +138,42 @@ async def test_consolidate_uses_llm_summarizer_and_survives_its_failure() -> Non
     assert stats == {"status": "ok", "summaries": 1, "superseded": 0}
     events = await harness.storage.read_events()
     marker = next(e for e in events if e.kind is EventKind.CONSOLIDATE)
-    assert marker.payload["summarizer"] == "llm"  # attempted; content fell back
+    assert marker.payload["summarizer"] == "extractive"  # records the producer actually used
+    assert marker.payload["summary_mode"] == "extractive"
+
+
+async def test_extractive_only_never_calls_an_available_summarizer() -> None:
+    ctx, harness = await make_ctx(
+        memories={
+            "episodic": {
+                "enabled": True,
+                "policies": {
+                    "consolidation": {"session_summary": {"extractive_only": True}}
+                },
+            }
+        }
+    )
+    for minutes in (125, 122, 120):
+        await write(harness, episode(f"event {minutes}. detail", minutes))
+    calls: list[str] = []
+
+    async def forbidden_summarize(text: str) -> str:
+        calls.append(text)
+        return "should not be used"
+
+    ctx.summarize = forbidden_summarize
+    assert (await consolidate(ctx))["summaries"] == 1
+    assert calls == []
+    events = await harness.storage.read_events()
+    marker = next(e for e in events if e.kind is EventKind.CONSOLIDATE)
+    assert marker.payload["summarizer"] == "extractive"
+    [summary] = [
+        record
+        for record in await ctx.storage.list_records("agent/a", "semantic")
+        if record.source.channel == "consolidation"
+    ]
+    assert summary.source.parents
+    assert "event 125." in summary.content
 
 
 async def test_consolidate_never_reconsolidates_summaries() -> None:

@@ -32,6 +32,7 @@ from collections import Counter, deque
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any, Protocol
 
 from memspine.config import constants
@@ -118,6 +119,7 @@ SECTION_MODES: dict[str, tuple[str, ...]] = {
 
 #: F-04: the outbox stage (and read-barrier capability) of the window pipeline.
 WINDOW_STAGE = "window"
+DISCOVERY_STAGE = "window.discovery"
 #: F-04: the tenant of a window job's ``OwnerScope`` (the namespace is the owner).
 _TENANT = "default"
 _LINE_CHARS = 2000
@@ -568,6 +570,9 @@ class _Prepared:
     window_id: str
     groups: int
     failed: bool
+    rule_facts: tuple[Any, ...] = ()
+    unresolved: tuple[Any, ...] = ()
+    annotation_batches: tuple[Any, ...] = ()
 
 
 @dataclass
@@ -632,6 +637,7 @@ class WindowPipeline:
         context_builder: PromptContextBuilder | None = None,
         prepass: Any = None,
         mark_disputed: MarkDisputedFn | None = None,
+        rule_only: bool = False,
     ) -> None:
         #: W2-06b (the base prompt layout): one call per window or batch, NEW / CONTEXT / KNOWN.
         self._ctx = context_builder
@@ -644,6 +650,7 @@ class WindowPipeline:
         self._extract = extractor
         self._get = get_record
         self._deposit_fact = deposit_fact
+        self._rule_only = rule_only
         self._deposit_episode = deposit_episode
         #: FU-GAPS (``write.integration``): marks the older live peer of a contest ``disputed``.
         self._mark_disputed = mark_disputed
@@ -670,9 +677,23 @@ class WindowPipeline:
         self._persist_retry: asyncio.Task[None] | None = None  # RT-02 backpressure retry
         self._persist_lock = asyncio.Lock()
         self._recovered = outbox is None
+        self._draft_restored: set[str] = set()
         #: W2-05 (stream segmentation): time-gap/adaptive segmenter and the call batcher.
         self._seg = segmentation or SegmentationSettings()
         self._clock = clock
+        self._policy_revision = fingerprint_payload(
+            {
+                "settings": {
+                    "max_turns": settings.max_turns,
+                    "max_tokens": settings.max_tokens,
+                    "topic_k": settings.topic_k,
+                    "idle_s": settings.idle_s,
+                },
+                "sections": list(self.sections),
+                "segmentation": vars(self._seg),
+                "role_policy": role_policy,
+            }
+        )
         self._batch_sections = self.sections
         self._batcher: CallBatcher | None = None
         if segmentation is not None and segmentation.batching and self._batch_sections:
@@ -685,7 +706,20 @@ class WindowPipeline:
         self._prefetched: dict[tuple[str, int], _Prepared | None] = {}
         self._batch_reason = ""
         if outbox is not None:
-            outbox.register(WINDOW_STAGE, prepare=self._outbox_prepare, commit=self._outbox_commit)
+            # Discovery must drain before windows.  A crash can leave an applied raw
+            # intent without the foreground observer call; replaying that source first
+            # lets the same drain consume the canonical window item it creates.
+            outbox.register(
+                DISCOVERY_STAGE,
+                prepare=self._discovery_prepare,
+                commit=self._discovery_commit,
+            )
+            outbox.register(
+                WINDOW_STAGE,
+                prepare=self._outbox_prepare,
+                commit=self._outbox_commit,
+                effect_results=self._outbox_effect_results,
+            )
         #: (namespace, session) -> what the session-closed hook returned (the last 100).
         self.closed_results: dict[tuple[str, str], object] = {}
 
@@ -709,6 +743,73 @@ class WindowPipeline:
             self._stores[namespace] = store
         return store
 
+    async def _restore_draft(self, namespace: str) -> None:
+        """Restore an incomplete window once per namespace after a restart."""
+        if (
+            self._outbox is None
+            or not hasattr(self._outbox, "load_draft")
+            or namespace in self._draft_restored
+        ):
+            return
+        self._draft_restored.add(namespace)
+        payload = await self._outbox.load_draft(self._scope(namespace), WINDOW_STAGE)
+        if not payload:
+            return
+        store = self._store(namespace)
+        store.session = payload.get("session")
+        store.conversation_id = payload.get("conversation_id")
+        restored: list[WindowTurn] = []
+        for item in payload.get("turns", []):
+            record = await self._get(str(item["record_id"]))
+            if record is None or record.status is RecordStatus.DELETED:
+                continue
+            when = item.get("when")
+            turn = WindowTurn(
+                record_id=record.record_id,
+                text=record.content,
+                session=item.get("session"),
+                when=datetime.fromisoformat(when) if isinstance(when, str) else record.valid_from,
+                vector=item.get("vector"),
+                tokens=int(item.get("tokens", 0)),
+            )
+            restored.append(turn)
+        if payload.get("policy_revision") != self._policy_revision:
+            if restored:
+                self._enqueue(
+                    namespace,
+                    store,
+                    Window(restored, "flush", session=restored[0].session),
+                )
+        else:
+            for turn in restored:
+                for closed in store.segmenter.add(turn):
+                    self._enqueue(namespace, store, closed)
+        await self._persist_staged()
+        await self._persist_draft(namespace, store)
+
+    async def _persist_draft(self, namespace: str, store: _Store) -> None:
+        if self._outbox is None or not hasattr(self._outbox, "save_draft"):
+            return
+        turns = store.segmenter.open_turns
+        payload = None
+        if turns:
+            payload = {
+                "policy_revision": self._policy_revision,
+                "session": store.session,
+                "conversation_id": store.conversation_id,
+                "turns": [
+                    {
+                        "record_id": turn.record_id,
+                        "session": turn.session,
+                        "when": turn.when.isoformat() if turn.when is not None else None,
+                        "vector": list(turn.vector) if turn.vector is not None else None,
+                        "tokens": turn.tokens,
+                    }
+                    for turn in turns
+                ],
+            }
+        await self._outbox.save_draft(self._scope(namespace), WINDOW_STAGE, payload)
+
     async def observe(self, record: MemoryRecord, session: str | None) -> None:
         """Add one just-written episodic turn. Quarantined or instruction-flagged turns never
         enter a window (text from them is excluded from every extraction input)."""
@@ -718,6 +819,7 @@ class WindowPipeline:
             return
         self._recover_in_background()
         ns = record.namespace
+        await self._restore_draft(ns)
         store = self._store(ns)
         conversation_id = _conversation_id(record)
         # The source/session id may deliberately identify one physical transcript containing
@@ -760,6 +862,9 @@ class WindowPipeline:
             store.session_windows.setdefault(session, 0)
         self._arm_idle(ns, store)
         await self._persist_staged()
+        await self._persist_draft(ns, store)
+        if self._outbox is not None:
+            await self._outbox.mark_sources(self._scope(ns), WINDOW_STAGE, [record.record_id])
 
     def _scope(self, ns: str) -> OwnerScope:
         return OwnerScope(tenant=_TENANT, owner=ns)
@@ -929,6 +1034,7 @@ class WindowPipeline:
         if window is not None:
             self._enqueue(ns, store, window)
             await self._persist_staged()
+            await self._persist_draft(ns, store)
 
     def _ensure_worker(self, ns: str, store: _Store) -> None:
         if store.worker is not None and not store.worker.done():
@@ -982,6 +1088,8 @@ class WindowPipeline:
         session-closed hook for the sessions still open): the end of a stream or a batch."""
         if self._outbox is not None:
             await self._await_recovery()
+        if namespace is not None:
+            await self._restore_draft(namespace)
         names = [namespace] if namespace is not None else list(self._stores)
         for ns in names:
             store = self._stores.get(ns)
@@ -998,6 +1106,7 @@ class WindowPipeline:
                     self._enqueue_closed(ns, store, store.session)
                     store.session = None
                 await self._persist_staged(force=True)  # an explicit flush defers nothing
+                await self._persist_draft(ns, store)
             if store.worker is not None and not store.worker.done():
                 await asyncio.shield(store.worker)
             await self._drain(ns, store, final=True)
@@ -1009,6 +1118,7 @@ class WindowPipeline:
         """The session-closed hook: cut the open window of ``session_id`` (default: the
         namespace's current session), process the namespace's queue in order, fire the call-2
         interface once. Returns what the hook returned."""
+        await self._restore_draft(namespace)
         store = self._stores.get(namespace)
         if store is None:
             return {"status": "skipped", "reason": "no window state for this namespace"}
@@ -1025,6 +1135,7 @@ class WindowPipeline:
         before = self._counts["sessions_closed"]
         self._enqueue_closed(namespace, store, session)
         await self._persist_staged(force=True)
+        await self._persist_draft(namespace, store)
         if store.worker is not None and not store.worker.done():
             await asyncio.shield(store.worker)
         await self._drain(namespace, store, final=True)
@@ -1112,8 +1223,27 @@ class WindowPipeline:
         await self._await_recovery()
         return await self._outbox.wait(self._scope(namespace), list(capabilities), timeout)
 
+    def derivation_effect_status(self, namespace: str) -> list[dict[str, Any]]:
+        """Durable layer counts/failures; empty when the outbox is disabled."""
+        if self._outbox is None or not hasattr(self._outbox, "effect_status"):
+            return []
+        status = self._outbox.effect_status(self._scope(namespace))
+        return status if isinstance(status, list) else []
+
     def _forget_in_item(self, payload: dict[str, Any], record_id: str) -> dict[str, Any] | None:
         """A queued item loses a forgotten turn; an item left with no turn becomes a no-op."""
+        if payload.get("kind") == "required_derivation":
+            manifest = payload.get("manifest")
+            if not isinstance(manifest, dict) or record_id not in manifest.get(
+                "source_record_ids", []
+            ):
+                return None
+            kept = [rid for rid in manifest["source_record_ids"] if rid != record_id]
+            return {
+                **payload,
+                "manifest": {**manifest, "source_record_ids": kept},
+                "erased": not kept,
+            }
         ids = payload.get("record_ids")
         if payload.get("kind") != "window" or not isinstance(ids, list) or record_id not in ids:
             return None
@@ -1167,6 +1297,41 @@ class WindowPipeline:
             store.inflight = None
             raise
         return ("window", prepared)
+
+    async def _discovery_prepare(
+        self, scope: OwnerScope, offset: int, payload: dict[str, Any]
+    ) -> tuple[str, ...]:
+        """Resolve a discovery manifest to sources missing from durable window state."""
+        if payload.get("kind") != "required_derivation":
+            raise ValueError("window discovery item has an unknown kind")
+        manifest = payload.get("manifest")
+        if not isinstance(manifest, dict):
+            raise ValueError("window discovery item has no manifest")
+        ids = tuple(str(record_id) for record_id in manifest.get("source_record_ids", []))
+        if not ids:
+            raise ValueError("window discovery manifest has no source records")
+        namespace = manifest.get("namespace")
+        if not isinstance(namespace, str) or not namespace:
+            raise ValueError("window discovery manifest has no namespace")
+        window_scope = self._scope(namespace)
+        assert self._outbox is not None
+        return tuple(
+            record_id
+            for record_id in ids
+            if not self._outbox.contains_record(window_scope, WINDOW_STAGE, record_id)
+        )
+
+    async def _discovery_commit(
+        self, scope: OwnerScope, offset: int, record_ids: tuple[str, ...]
+    ) -> None:
+        """Replay missing raw records through the one canonical window observer."""
+        for record_id in record_ids:
+            record = await self._get(record_id)
+            if record is None or record.status is RecordStatus.DELETED:
+                continue
+            message = record.source.message or {}
+            session = message.get("session_id") if isinstance(message, dict) else None
+            await self.observe(record, session if isinstance(session, str) else None)
 
     # -- batching (W2-05) ---------------------------------------------------------------------
 
@@ -1505,6 +1670,33 @@ class WindowPipeline:
         finally:
             store.inflight = None
 
+    def _outbox_effect_results(self, prepared: Any) -> dict[str, int]:
+        """Summarise committed window outputs for the durable readiness ledger."""
+        layers: dict[str, int] = {}
+        if "facts" in self.sections:
+            layers["facts"] = 0
+        if "edges" in self.sections:
+            layers["graph_mentions"] = 0
+        if "episode" in self.sections:
+            layers["summaries"] = 0
+        if prepared is None:
+            return layers
+        kind, body = prepared
+        if kind != "window" or body is None:
+            return layers
+        merged = body.merged
+        if "facts" in layers and isinstance(merged.get("facts"), list):
+            layers["facts"] = len(merged["facts"])
+        if "facts" in layers and body.rule_facts:
+            layers["facts"] = len(body.rule_facts)
+        if body.annotation_batches:
+            layers["annotations"] = sum(len(batch.mentions) for batch in body.annotation_batches)
+        if "graph_mentions" in layers and isinstance(merged.get("edges"), list):
+            layers["graph_mentions"] = len(merged["edges"])
+        if "summaries" in layers and merged.get("episode") not in (None, "", [], {}):
+            layers["summaries"] = 1
+        return layers
+
     async def resume_deferred(self, namespace: str) -> int:
         """Derive the windows a spent budget parked (W2-12). Does nothing while the namespace's
         budget is still spent. Returns the number of windows put back and drained."""
@@ -1537,6 +1729,9 @@ class WindowPipeline:
             await self._outbox.rewrite_pending(
                 self._scope(namespace), WINDOW_STAGE, lambda p: self._forget_in_item(p, record_id)
             )
+            await self._outbox.rewrite_all_stage_items(
+                DISCOVERY_STAGE, lambda p: self._forget_in_item(p, record_id)
+            )
         store = self._stores.get(namespace)
         if store is not None:
             if store.segmenter.discard(record_id):
@@ -1561,6 +1756,7 @@ class WindowPipeline:
                     batch.covered.remove(record_id)
                 if not batch.covered and not batch.edges:
                     store.pending.remove(batch)
+            await self._persist_draft(namespace, store)
         for ready in self._prefetched.values():  # W2-05: a batched call's results, not committed
             if ready is not None and record_id in ready.job.members:
                 ready.job.cancelled = True
@@ -1770,6 +1966,60 @@ class WindowPipeline:
         single-window case of a batch)."""
         window = job.window
         assert window is not None
+        if self._rule_only:
+            from memspine.derive.non_generative_facts import mine_grounded_facts
+            from memspine.schemas.durable.ingestion import AnnotationBatch, IngestionSourceSnapshot
+
+            scope = OwnerScope(tenant=_TENANT, owner=ns)
+            facts: list[Any] = []
+            unresolved: list[Any] = []
+            annotations: list[Any] = []
+            for record in records:
+                result = mine_grounded_facts(record, scope)
+                facts.extend(result.facts)
+                unresolved.extend(result.unresolved)
+                message = record.source.message or {}
+                sender = message.get("sender") if isinstance(message, dict) else None
+                annotations.append(
+                    AnnotationBatch(
+                        source=IngestionSourceSnapshot(
+                            namespace=record.namespace,
+                            record_id=record.record_id,
+                            source_id=record.record_id,
+                            source_version=record.version,
+                            content_hash=fingerprint_payload({"content": record.content}),
+                            sender=sender.get("id") if isinstance(sender, dict) else None,
+                            role=record.source.role,
+                            source_at=record.source_at,
+                        ),
+                        mentions=record.fingerprint.entity_mentions,
+                        producer_revision="personal-rules:1",
+                    )
+                )
+            member_ids = [record.record_id for record in records]
+            window_id = fingerprint_payload({"ns": ns, "turns": member_ids})[:12]
+            self._counts["windows_processed"] += 1
+            self._counts["rule_facts_returned"] += len(facts)
+            self._counts["rule_facts_unresolved"] += len(unresolved)
+            tap.event(
+                "write.extract.non_generative",
+                id=window_id,
+                facts=len(facts),
+                unresolved=len(unresolved),
+                generative_calls=0,
+            )
+            return _Prepared(
+                job,
+                records,
+                {},
+                [record.content for record in records],
+                window_id,
+                0,
+                False,
+                tuple(facts),
+                tuple(unresolved),
+                tuple(annotations),
+            )
         if not episode_only:
             verdict = await self._prepass_verdict(records, namespace=ns)
             if verdict == "skip":
@@ -2048,6 +2298,43 @@ class WindowPipeline:
                 prepared.line_texts,
                 prepared.window_id,
             )
+            if prepared.rule_facts:
+                await self._store_rule_facts(ns, prepared)
+
+    async def _store_rule_facts(self, ns: str, prepared: _Prepared) -> None:
+        """Deposit deterministic candidates through the canonical derived-write door."""
+        if self._deposit_fact is None:
+            return
+        by_id = {record.record_id: record for record in prepared.records}
+        for candidate in prepared.rule_facts:
+            source_id = candidate.evidence.turn.source_id
+            source = by_id.get(source_id)
+            if source is None or prepared.job.cancelled:
+                continue
+            when = source.source_at or source.valid_from
+            stored = await self._deposit_fact(
+                ns,
+                f"{candidate.subject} {candidate.predicate} {candidate.object}",
+                candidate.subject,
+                candidate.predicate,
+                [source_id],
+                when,
+                f"rule:{prepared.window_id}",
+                kind="fact",
+                said=when.date().isoformat(),
+                extra_tags=[
+                    "window_fact",
+                    f"window:{prepared.window_id}",
+                    "non_generative",
+                    f"predicate:{candidate.predicate}",
+                ],
+                require_live=[source_id],
+                envelope=candidate.model_dump(mode="json"),
+            )
+            if stored is None:
+                prepared.job.cancelled = True
+                return
+            self._counts["facts_deposited"] += 1
 
     async def _purge_window_cache(self, member_ids: Sequence[str]) -> None:
         if self._cache is None:
@@ -2351,6 +2638,8 @@ class WindowPipeline:
             "facts_deposited": c["facts_deposited"],
             "facts_skipped_parent_gone": c["facts_skipped_parent_gone"],
             "facts_deposit_errors": c["facts_deposit_errors"],
+            "rule_facts_returned": c["rule_facts_returned"],
+            "rule_facts_unresolved": c["rule_facts_unresolved"],
             "edges_returned": c["edges_returned"],
             "edges_invalid": c["edges_invalid"],
             "edges_ungrounded": c["edges_ungrounded"],

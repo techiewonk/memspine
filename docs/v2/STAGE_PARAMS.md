@@ -1439,6 +1439,7 @@ evals/memspine_evals/cli.py:run (argparse)
 | `cli:--locomo-path` | `null` | str | locomo10.json paired with LoCoMo-Plus | - | - |
 | `cli:--max-model-calls` | `null` | int | Hard cap on reader and judge calls in one run (stops the run when reached). | - | - |
 | `cli:--max-usd` | `null` | float | dollar cap per arm (reader + judge + engine); a call whose worst case would cross it is refused and the arm stops with UNATTEMPTED rows | - | - |
+| `cli:--memspine-asset-pack` | `null` | str | precomputed assets.db + documents/ directory for the memspine arm | - | - |
 | `cli:--memspine-config` | `null` | str | JSON engine overrides for the memspine arm | ingest | - |
 | `cli:--memspine-llm` | `none` | none \\| bedrock-qwen3 | bind every engine LLM role of the memspine arm (extract, summarize, reflect, ...) to this model; bedrock-qwen3 = the reader's Qwen3-32B in the environment's AWS region. | ingest | - |
 | `cli:--mode` | `retrieval` | retrieval \\| qa | retrieval = score retrieval only, qa = also run reader and judge. | - | - |

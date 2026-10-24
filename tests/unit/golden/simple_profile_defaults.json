@@ -523,6 +523,7 @@
       "reflect_profile": false,
       "session_gap_minutes": 30,
       "session_summary": {
+        "extractive_only": false,
         "incremental": false,
         "rebuild_every": 8
       },

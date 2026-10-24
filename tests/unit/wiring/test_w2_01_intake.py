@@ -217,6 +217,12 @@ async def test_receipt_readiness_without_windows_claims_only_raw_search(tmp_path
         assert rd.raw_search == "ready"
         assert (rd.facts, rd.graph, rd.summaries, rd.profile) == ("unavailable",) * 4
         intent = await gw.status(gw.last_receipt.intent_id)
+        manifest = await gw.required_derivation(gw.last_receipt.intent_id)
+        assert manifest is not None
+        assert manifest.namespace == NS and manifest.historical is False
+        assert manifest.required_layers[0] == "raw_store"
+        assert manifest.source_record_ids == tuple(gw.last_receipt.record_ids)
+        assert manifest.policy_revision.startswith("policy:")
         layers = intent.status().layers
         assert layers["L0"] == "done" and layers["L1"] == "skipped" and layers["L4"] == "skipped"
         assert intent.pending_layers() == []
@@ -224,6 +230,58 @@ async def test_receipt_readiness_without_windows_claims_only_raw_search(tmp_path
         assert not res.timed_out and res.missing == []
     finally:
         await eng.stop()
+
+
+async def test_engine_exposes_namespace_scoped_message_readiness(tmp_path: Path) -> None:
+    eng = await build(tmp_path / "message-status.db")
+    try:
+        await eng.ingest_messages(TURNS[:2], namespace=NS, session_id="s1")
+
+        status = await eng.ingestion_status(["turn-1", "turn-0", "turn-1"], namespace=NS)
+        assert list(status) == ["turn-1", "turn-0"]
+        assert status["turn-0"].layers == status["turn-1"].layers
+        assert status["turn-0"].layers["L0"] == "done"
+        assert status["turn-0"].layers["L1"] == "skipped"
+
+        waited = await eng.wait_for_derivation(
+            ["turn-0", "turn-1"],
+            namespace=NS,
+            capabilities=("raw_search", "facts"),
+            timeout_s=0.01,
+        )
+        assert waited["turn-0"] is waited["turn-1"]  # one shared intent is waited once
+        assert not waited["turn-0"].timed_out
+        assert waited["turn-0"].missing == []
+        assert waited["turn-0"].waited_ms >= 0
+
+        with pytest.raises(KeyError, match="unknown message IDs"):
+            await eng.ingestion_status(["turn-0"], namespace="acme/other")
+        with pytest.raises(KeyError, match="missing"):
+            await eng.wait_for_derivation(["missing"], namespace=NS)
+    finally:
+        await eng.stop()
+
+
+async def test_message_readiness_survives_restart_without_last_receipt(tmp_path: Path) -> None:
+    path = tmp_path / "message-status-restart.db"
+    first = await build(path)
+    try:
+        await first.ingest_messages(TURNS[:1], namespace=NS, session_id="s1")
+        expected = (await first.ingestion_status(["turn-0"], namespace=NS))["turn-0"]
+    finally:
+        await first.stop()
+
+    reopened = await build(path)
+    try:
+        assert gateway_of(reopened).last_receipt is None
+        actual = (await reopened.ingestion_status(["turn-0"], namespace=NS))["turn-0"]
+        assert actual == expected
+        waited = await reopened.wait_for_derivation(
+            ["turn-0"], namespace=NS, capabilities=("raw_search",), timeout_s=0.1
+        )
+        assert not waited["turn-0"].timed_out
+    finally:
+        await reopened.stop()
 
 
 class _StubWindowLLM:

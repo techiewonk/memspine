@@ -33,6 +33,7 @@ from memspine.ingest.intake import (
     SourceState,
     VersionRecord,
 )
+from memspine.schemas.durable.ingestion import RequiredDerivation
 from memspine.schemas.public.receipt import Readiness, Receipt
 from memspine.services.storage.intake_tables import (
     INTAKE_TABLES as INTAKE_TABLES,
@@ -52,6 +53,7 @@ __all__ = [
     "INTAKE_TABLES",
     "Overlay",
     "applied_intent",
+    "applied_scope_keys",
     "commit",
     "ensure_schema",
     "intents_by_id",
@@ -193,6 +195,20 @@ async def pending_intents(engine: AsyncEngine) -> list[dict[str, Any]]:
     return [dict(r._mapping) for r in rows]
 
 
+async def applied_scope_keys(engine: AsyncEngine) -> list[str]:
+    """Scopes with committed raw intents, used by restart reconciliation."""
+    async with engine.connect() as conn:
+        rows = (
+            await conn.execute(
+                select(intake_intent.c.scope_key)
+                .where(intake_intent.c.status == "applied")
+                .distinct()
+                .order_by(intake_intent.c.scope_key)
+            )
+        ).all()
+    return [str(row.scope_key) for row in rows]
+
+
 async def record_ids(engine: AsyncEngine, skey: str, write_ids: Sequence[str]) -> dict[str, str]:
     if not write_ids:
         return {}
@@ -217,6 +233,7 @@ async def commit(
     namespace: str,
     apply_payload: str,
     created_at: str,
+    required_derivation: RequiredDerivation,
 ) -> None:
     """The one transaction of an accept: source state, new write ids, receipt, apply payload."""
     skey = change.scope_key
@@ -282,6 +299,7 @@ async def commit(
                     status="accepted",
                     receipt=change.receipt.model_dump_json(),
                     readiness=change.readiness.model_dump_json(),
+                    required_derivation=required_derivation.model_dump_json(),
                     apply=apply_payload,
                     created_at=created_at,
                 )
@@ -368,6 +386,7 @@ async def applied_intent(
     real_ids: Mapping[str, str],
     receipt: Receipt,
     readiness: Readiness,
+    required_derivation: RequiredDerivation,
 ) -> None:
     """The apply finished: real record ids into the write rows, the live state, the receipt; the
     apply payload (source text) is dropped. One transaction."""
@@ -425,6 +444,7 @@ async def applied_intent(
                 apply=None,
                 receipt=receipt.model_dump_json(),
                 readiness=readiness.model_dump_json(),
+                required_derivation=required_derivation.model_dump_json(),
             )
         )
 

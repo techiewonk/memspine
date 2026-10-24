@@ -8,7 +8,6 @@ layer, below the pipelines (target-layers contract).
 from __future__ import annotations
 
 import contextlib
-import sqlite3
 import time
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
@@ -26,12 +25,37 @@ __all__ = [
     "NamespaceLease",
     "SleepJobError",
     "StageWatermark",
+    "configure_connection_factories",
     "is_pg_url",
     "pg_sql",
 ]
 
 
 Clock = Callable[[], float]  # seconds since the epoch
+ConnectionFactory = Callable[..., Any]
+_sqlite_connection_factory: ConnectionFactory | None = None
+_postgres_connection_factory: ConnectionFactory | None = None
+
+
+def configure_connection_factories(
+    *, sqlite: ConnectionFactory, postgres: ConnectionFactory
+) -> None:
+    """Install client-owned openers without importing a transport in the store layer."""
+    global _sqlite_connection_factory, _postgres_connection_factory
+    _sqlite_connection_factory = sqlite
+    _postgres_connection_factory = postgres
+
+
+def _sqlite_connection(path: str, *, timeout_s: float = 5.0) -> Any:
+    if _sqlite_connection_factory is None:
+        raise StorageError("SQLite connection factory was not configured by the composition root")
+    return _sqlite_connection_factory(path, timeout_s=timeout_s, autocommit=True)
+
+
+def _postgres_connection(url: str) -> Any:
+    if _postgres_connection_factory is None:
+        raise StorageError("Postgres connection factory was not configured by the composition root")
+    return _postgres_connection_factory(url, autocommit=True)
 
 
 class SleepJobError(MemspineError):
@@ -114,12 +138,7 @@ class _PgConn:
     """A psycopg3 connection offering the few ``sqlite3.Connection`` calls the store makes."""
 
     def __init__(self, url: str) -> None:
-        try:
-            import psycopg
-        except ImportError as exc:
-            raise StorageError("Postgres sleep leases need the [postgres] extra (psycopg)") from exc
-        dsn = url.replace("postgresql+psycopg://", "postgresql://", 1)
-        self._c = psycopg.connect(dsn, autocommit=True)
+        self._c = _postgres_connection(url)
         self.in_transaction = False
 
     def execute(self, sql: str, params: Sequence[object] = ()) -> Any:
@@ -216,9 +235,9 @@ class LeaseStore:
         #: True for the storage database: callers on the event loop run the writes on a thread.
         self.offload = self._engine is not None
         self._db_time = self._pg and clock is None  # FU-GAPS: lease times come from the database
-        self._shared: sqlite3.Connection | None = None
+        self._shared: Any | None = None
         if path == ":memory:":
-            self._shared = sqlite3.connect(":memory:", isolation_level=None)
+            self._shared = _sqlite_connection(":memory:")
         if self._engine is not None:
             ensure_side_tables(self._engine, SIDE_TABLES["sleep"])
         else:
@@ -245,7 +264,7 @@ class LeaseStore:
             finally:
                 pg.close()
             return
-        con = sqlite3.connect(self.path, timeout=10.0, isolation_level=None)
+        con = _sqlite_connection(self.path, timeout_s=10.0)
         try:
             yield con
         finally:

@@ -105,6 +105,14 @@ async def _reopen_session(eng: Any, storage: RecordsStore, ns: str, session: str
     _log.info("memory.session_reopened", namespace=ns, session_id=session)
 
 
+async def _load_source_record(
+    storage: RecordsStore, inflate: Any, record_id: str
+) -> MemoryRecord | None:
+    """Load a grounding source with reversible cold storage encoding removed."""
+    record = await storage.get_record(record_id)
+    return inflate.inflate(record) if record is not None else None
+
+
 def end_session(eng: Any, namespace: str = "default", session_id: str | None = None) -> None:
     """B0: forget a session's read ledger (``session_id=None``: the namespace's
     anonymous ledger, which no read or write ever clears on its own)."""
@@ -119,16 +127,16 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
     mode = config.write.window_extract
     if mode == "off":
         return None
-    if eng._llm is None or eng._prompts is None or "window_extract" not in eng._llm.roles:
-        if config.write.online_extractor:
-            # W2-06c: the no-model template. No extraction (the L1/L2 stages do not run), no call.
-            _log.warning(
-                "window.no_model",
-                detail=f"write.window_extract={mode!r} skipped: no model.llm.window_extract",
-            )
-            return None
+    no_model = eng._llm is None or eng._prompts is None or "window_extract" not in eng._llm.roles
+    rule_only = bool(no_model and config.write.online_extractor)
+    if no_model and not rule_only:
         raise ConfigError(
             f"write.window_extract={mode!r} needs an LLM role: set model.llm.window_extract"
+        )
+    if rule_only and mode != "facts":
+        raise ConfigError(
+            "the non-generative online extractor supports write.window_extract='facts'; "
+            "graph mentions require the GLiNER annotation stage and summaries are separate"
         )
     if eng._semantic is None or eng._episodic is None:
         raise ConfigError(
@@ -155,7 +163,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         if _outbox_factory is None:
             raise ConfigError("workers.outbox=true but no outbox factory is registered")
         outbox = _outbox_factory(eng, config)
-    envelope = _envelope_write(eng, config) if "facts" in sections else None
+    envelope = _envelope_write(eng, config) if "facts" in sections and not rule_only else None
     pre = _prepass(eng, config)
     resolve = getattr(eng, "_entity_resolve_stage", None)
     context_builder = PromptContextBuilder(
@@ -165,6 +173,34 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         prepass=prepass_known(pre) if pre is not None else None,
         resolver=resolver_known(resolve) if config.write.resolver and resolve else None,
     )
+
+    async def source_record(record_id: str) -> MemoryRecord | None:
+        """Load retained source text in its canonical, usable representation.
+
+        Cold-tier compression is lossless storage encoding. Background work may
+        resume after the source became cold, so grounding must never interpret
+        the materialized row's empty compressed placeholder as source text.
+        """
+        return await _load_source_record(storage, eng._inflate, record_id)
+
+    class _RuleOnlyExtractor:
+        identity = "personal-rules:1"
+
+        async def __call__(self, sections: Any, variables: Any) -> dict[str, Any]:
+            raise AssertionError("rule-only extraction never calls a model adapter")
+
+    extractor = (
+        _RuleOnlyExtractor()
+        if rule_only
+        else PromptWindowExtractor(
+            eng._llm.for_role("window_extract"),
+            eng._prompts.for_role("window_extract"),
+            str(role.settings.get("model", "")) if role is not None else "",
+            partial=eng._prompts.partial,
+            use_schema=config.write.prompt_schema == "auto",
+        )
+    )
+
     return WindowPipeline(
         settings=WindowSettings(
             max_turns=config.write.window_max_turns,
@@ -173,14 +209,8 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
             idle_s=config.write.window_idle_s,
         ),
         sections=sections,
-        extractor=PromptWindowExtractor(
-            eng._llm.for_role("window_extract"),
-            eng._prompts.for_role("window_extract"),
-            str(role.settings.get("model", "")) if role is not None else "",
-            partial=eng._prompts.partial,
-            use_schema=config.write.prompt_schema == "auto",
-        ),
-        get_record=storage.get_record,
+        extractor=extractor,
+        get_record=source_record,
         deposit_fact=eng._deposit_mined_fact,
         deposit_episode=eng._deposit_window_episode if "episode" in sections else None,
         embed=eng._embedder.embed if eng._embedder is not None else None,
@@ -196,6 +226,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         context_builder=context_builder,
         prepass=_prepass(eng, config),
         mark_disputed=_mark_disputed(eng) if config.write.integration else None,
+        rule_only=rule_only,
     )
 
 

@@ -69,6 +69,12 @@ class StreamSegmenter(WindowSegmenter):
         if previous is not None and previous.session != turn.session:
             closed.append(self._cut("session_end"))
             previous = None
+        # Historical arrivals never get appended behind newer source time.  Cut
+        # first so replay/restart produces the same isolated window regardless
+        # of wall-clock arrival order.
+        if previous is not None and previous.when and turn.when and turn.when < previous.when:
+            closed.append(self._cut("late_arrival"))
+            previous = None
         if previous is not None and seg.gap_s > 0 and previous.when and turn.when:
             reasons = hard_cut_reasons(
                 previous.session,

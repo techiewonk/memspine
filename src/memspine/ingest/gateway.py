@@ -32,6 +32,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -47,11 +48,13 @@ from memspine.exceptions import ConfigError
 from memspine.ingest import intake_store as store
 from memspine.ingest import role_wiring
 from memspine.ingest import write as ingest_write
+from memspine.ingest.discovery import discover_committed_derivations
 from memspine.ingest.intake import (
     IntakeBook,
     IntakeCost,
     SourceState,
     ValidatedEnvelope,
+    owner_scope,
     scope_key,
     validate_source,
     write_id,
@@ -65,6 +68,7 @@ from memspine.ingest.message_helpers import (
 from memspine.ingest.message_schema import ValidatedMessageBatch
 from memspine.memories.procedural.skills import make_skill_record
 from memspine.observability import tap
+from memspine.schemas.durable.ingestion import RequiredDerivation
 from memspine.schemas.public import QuotaExceeded, WaitResult
 from memspine.schemas.public.errors import QuotaExceededError
 from memspine.schemas.public.receipt import CAPABILITIES, Readiness, Receipt
@@ -238,6 +242,45 @@ def capabilities_of(eng: Any) -> dict[str, bool]:
     }
 
 
+def _required_layers(eng: Any, capabilities: Mapping[str, bool]) -> tuple[str, ...]:
+    """Translate configured producers into the logical layers frozen at acceptance."""
+    layers = ["raw_store"]
+    if getattr(eng, "_vector", None) is not None and getattr(eng, "_embedder", None) is not None:
+        layers.append("vector")
+    if getattr(eng, "_lexical", None) is not None:
+        layers.append("lexical")
+    config = eng._config()
+    semantic_cfg = config.memories.get("semantic")
+    semantic = (
+        semantic_cfg.policies.get("entity_extraction", "off")
+        if semantic_cfg is not None
+        else "off"
+    )
+    if semantic != "off" or config.write.prepass == "gliner":
+        layers.append("annotations")
+    if capabilities["facts"]:
+        layers.append("facts")
+    if capabilities["graph"]:
+        layers.append("graph_mentions")
+    if capabilities["summaries"]:
+        layers.append("summaries")
+    return tuple(layers)
+
+
+def _policy_revision(eng: Any) -> str:
+    """Digest the effective current configuration; edits are inert until a new acceptance."""
+    payload = eng._config().model_dump(mode="json", exclude_none=False)
+    return "policy:" + hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+    ).hexdigest()[:24]
+
+
+def _registry_digest() -> str:
+    from memspine.semantics import load_builtin_registry
+
+    return load_builtin_registry().digest
+
+
 def _progress(intent_id: str, current: Readiness, progress: Mapping[str, Any]) -> Readiness:
     """Apply readiness progress with the book's monotone rules."""
     ov = store.Overlay()
@@ -340,6 +383,19 @@ class IntakeGateway:
                 return await self._result(db, skey, out.receipt, replayed=True, noop=out.noop)
             change = ov.change
             payload = self._payload(validated, ns, adapter, args, out, before, wids, version)
+            configured = capabilities_of(eng)
+            manifest = RequiredDerivation(
+                intent_id=change.receipt.intent_id,
+                namespace=ns,
+                scope=owner_scope(venv.scope),
+                source_id=venv.source_id,
+                source_version=change.version,
+                source_write_ids=tuple(e.removeprefix("evt-") for e in change.receipt.event_ids),
+                required_layers=_required_layers(eng, configured),  # type: ignore[arg-type]
+                policy_revision=_policy_revision(eng),
+                registry_digest=_registry_digest(),
+                activated_at=now,
+            )
             self._boundary("pre_commit")
             await store.commit(
                 db,
@@ -347,6 +403,7 @@ class IntakeGateway:
                 namespace=ns,
                 apply_payload=json.dumps(payload, default=str),
                 created_at=now.isoformat(),
+                required_derivation=manifest,
             )
             tap.event(
                 "write.intake.committed",
@@ -445,6 +502,7 @@ class IntakeGateway:
         real = {**known, **landed}
         receipt = Receipt.model_validate_json(row["receipt"])
         readiness = Readiness.model_validate_json(row["readiness"])
+        manifest = RequiredDerivation.model_validate_json(row["required_derivation"])
         readiness = _progress(intent_id, readiness, {"raw_search": "ready"})
         receipt = receipt.model_copy(
             update={
@@ -460,7 +518,26 @@ class IntakeGateway:
             real_ids=landed,
             receipt=receipt,
             readiness=readiness,
+            required_derivation=manifest.model_copy(
+                update={
+                    "source_record_ids": tuple(
+                        real[w] for w in manifest.source_write_ids if w in real
+                    )
+                }
+            ),
         )
+        # BI-03: reconcile the committed manifest into the existing durable
+        # outbox.  The derivation handler feeds only missing sources through
+        # WindowPipeline.observe, so its persisted segmentation remains the
+        # single window authority.
+        pipeline = getattr(self.eng, "_windows", None)
+        if pipeline is not None and getattr(pipeline, "_outbox", None) is not None:
+            await discover_committed_derivations(
+                db,
+                scope_key=skey,
+                stage="window.discovery",
+                discovered_at=datetime.now(UTC),
+            )
         tap.event(
             "write.intake.applied",
             intent_id=intent_id,
@@ -745,6 +822,14 @@ class IntakeGateway:
             update={"readiness": Readiness.model_validate_json(row["readiness"])}
         )
 
+    async def required_derivation(self, intent_id: str) -> RequiredDerivation | None:
+        """Return the policy manifest pinned in the raw-acceptance transaction."""
+        db = await self._engine()
+        row = (await store.intents_by_id(db, [intent_id])).get(intent_id)
+        if row is None:
+            return None
+        return RequiredDerivation.model_validate_json(row["required_derivation"])
+
     async def status(self, intent_id: str, timeout: float = 0.0) -> DerivationIntent:  # noqa: ASYNC109
         """Refresh the intent's readiness from the engine and report it per layer (W-02)."""
         db = await self._engine()
@@ -762,8 +847,19 @@ class IntakeGateway:
                     intent_id=intent_id,
                     **{k: v for k, v in progress.items()},
                 )
+        pipeline = getattr(self.eng, "_windows", None)
+        effects = (
+            pipeline.derivation_effect_status(row["namespace"])
+            if pipeline is not None and hasattr(pipeline, "derivation_effect_status")
+            else ()
+        )
         return DerivationIntent(
-            intent_id, row["source_id"], receipt.source_version, readiness, applied=applied
+            intent_id,
+            row["source_id"],
+            receipt.source_version,
+            readiness,
+            applied=applied,
+            effects=effects,
         )
 
     async def wait(
@@ -773,6 +869,7 @@ class IntakeGateway:
         timeout: float = 0.0,  # noqa: ASYNC109
     ) -> WaitResult:
         """The readiness reached for ``capabilities`` within ``timeout`` (never raises on timeout)."""
+        started = time.monotonic()
         intent = await self.status(intent_id, timeout)
         req = list(dict.fromkeys(capabilities))
         bad = [c for c in req if c not in CAPABILITIES]
@@ -782,7 +879,7 @@ class IntakeGateway:
             requested=req,  # type: ignore[arg-type]
             readiness=intent.readiness,
             timed_out=bool(intent.readiness.pending(req)),
-            waited_ms=0,
+            waited_ms=max(0, round((time.monotonic() - started) * 1000)),
         )
 
     async def _window_progress(
@@ -828,6 +925,18 @@ async def recover(eng: Any) -> int:
                 continue
             await gw._finish(db, row["intent_id"], json.loads(row["apply"]), resume=True)
             done += 1
+    # A crash after marking an intent applied but before discovery leaves no
+    # pending intent to resume.  Scan all applied scopes on every start; the
+    # durable cursor and intent mapping make this idempotent.
+    pipeline = getattr(eng, "_windows", None)
+    if pipeline is not None and getattr(pipeline, "_outbox", None) is not None:
+        for skey in await store.applied_scope_keys(db):
+            await discover_committed_derivations(
+                db,
+                scope_key=skey,
+                stage="window.discovery",
+                discovered_at=datetime.now(UTC),
+            )
     if done:
         tap.event("write.intake.recovered", intents=done)
     return done

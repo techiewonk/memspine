@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "namespace": "tenant/user",
+  "record_id": "r1",
+  "source_id": "s1",
+  "source_version": 1,
+  "content_hash": "0123456789abcdef",
+  "sender": "u1",
+  "role": "user",
+  "source_at": "2026-10-24T00:00:00Z",
+  "erasure_generation": 0
+}

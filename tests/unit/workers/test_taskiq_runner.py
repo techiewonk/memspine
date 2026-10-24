@@ -8,10 +8,12 @@ The only taskiq-specific behavior — the import gate — is asserted directly.
 from __future__ import annotations
 
 import sys
+from types import SimpleNamespace
 
 import fakeredis.aioredis
 import pytest
 
+from memspine.clients.redis import RedisConnector, RedisSpec
 from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.config.loader import load_config
 from memspine.derive.pipeline.stages.context import PipelineContext
@@ -92,6 +94,33 @@ def test_missing_taskiq_raises_missing_service_naming_the_extra(
     monkeypatch.setitem(sys.modules, "taskiq", None)
     with pytest.raises(MissingServiceError, match=r"memspine\[taskiq\]"):
         TaskiqRunner()
+
+
+def test_rejects_both_raw_client_and_connector() -> None:
+    redis = fakeredis.aioredis.FakeRedis()
+    connector = RedisConnector(RedisSpec("redis://localhost:6379/0"))
+    with pytest.raises(ValueError, match="either redis or connector"):
+        TaskiqRunner(redis=redis, connector=connector)
+
+
+async def test_borrowed_connector_is_not_closed_by_runner(monkeypatch: pytest.MonkeyPatch) -> None:
+    redis = fakeredis.aioredis.FakeRedis()
+    monkeypatch.setitem(sys.modules, "taskiq", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "taskiq_redis", SimpleNamespace())
+    monkeypatch.setitem(sys.modules, "redis", SimpleNamespace(asyncio=SimpleNamespace()))
+    connector = RedisConnector(RedisSpec("redis://localhost:6379/0"))
+    connector._client = redis
+    closed = False
+
+    async def close() -> None:
+        nonlocal closed
+        closed = True
+
+    monkeypatch.setattr(connector, "close", close)
+    runner = TaskiqRunner(connector=connector)
+    await runner.start()
+    await runner.close()
+    assert closed is False
 
 
 # ── broker mechanics against fakeredis (D-41) ─────────────────────────────────

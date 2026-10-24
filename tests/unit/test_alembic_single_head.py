@@ -16,7 +16,14 @@ SRC = REPO / "src"
 
 
 def version_dirs(src: Path = SRC) -> list[Path]:
-    return sorted(p for p in src.rglob("versions") if p.is_dir() and p.parent.name == "alembic")
+    """Active migration trees only; retired provider directories may remain as packages."""
+    return sorted(
+        p
+        for p in src.rglob("versions")
+        if p.is_dir()
+        and p.parent.name == "alembic"
+        and any(f.name != "__init__.py" for f in p.glob("*.py"))
+    )
 
 
 def _assigned(tree: ast.Module, name: str):

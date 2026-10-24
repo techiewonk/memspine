@@ -1,0 +1,283 @@
+{
+  "$defs": {
+    "EntityMention": {
+      "additionalProperties": false,
+      "description": "An unasserted entity span bound to its authoritative source snapshot.",
+      "properties": {
+        "asserted": {
+          "const": false,
+          "default": false,
+          "title": "Asserted",
+          "type": "boolean"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "created_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Created At"
+        },
+        "end": {
+          "exclusiveMinimum": 0,
+          "title": "End",
+          "type": "integer"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "parents": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Parents",
+          "type": "array"
+        },
+        "sender_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sender Id"
+        },
+        "sender_role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sender Role"
+        },
+        "source_binding_hash": {
+          "maxLength": 16,
+          "minLength": 16,
+          "title": "Source Binding Hash",
+          "type": "string"
+        },
+        "source_channel": {
+          "minLength": 1,
+          "title": "Source Channel",
+          "type": "string"
+        },
+        "source_content_fingerprint": {
+          "maxLength": 16,
+          "minLength": 16,
+          "title": "Source Content Fingerprint",
+          "type": "string"
+        },
+        "source_message_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Message Id"
+        },
+        "source_namespace": {
+          "minLength": 1,
+          "title": "Source Namespace",
+          "type": "string"
+        },
+        "source_record_id": {
+          "minLength": 1,
+          "title": "Source Record Id",
+          "type": "string"
+        },
+        "source_role": {
+          "minLength": 1,
+          "title": "Source Role",
+          "type": "string"
+        },
+        "source_version": {
+          "minimum": 1,
+          "title": "Source Version",
+          "type": "integer"
+        },
+        "start": {
+          "minimum": 0,
+          "title": "Start",
+          "type": "integer"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        }
+      },
+      "required": [
+        "text",
+        "label",
+        "start",
+        "end",
+        "source_namespace",
+        "source_record_id",
+        "source_version",
+        "source_content_fingerprint",
+        "source_binding_hash",
+        "source_role",
+        "source_channel"
+      ],
+      "title": "EntityMention",
+      "type": "object"
+    },
+    "IngestionSourceSnapshot": {
+      "additionalProperties": true,
+      "description": "Pinned source input checked again at fenced effect commit.",
+      "properties": {
+        "content_hash": {
+          "minLength": 1,
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "erasure_generation": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Erasure Generation",
+          "type": "integer"
+        },
+        "namespace": {
+          "minLength": 1,
+          "title": "Namespace",
+          "type": "string"
+        },
+        "record_id": {
+          "minLength": 1,
+          "title": "Record Id",
+          "type": "string"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "schema_version": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "sender": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sender"
+        },
+        "source_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source At"
+        },
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "source_version": {
+          "minimum": 1,
+          "title": "Source Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "namespace",
+        "record_id",
+        "source_id",
+        "source_version",
+        "content_hash"
+      ],
+      "title": "IngestionSourceSnapshot",
+      "type": "object"
+    }
+  },
+  "additionalProperties": true,
+  "description": "One completed mention assessment, including an explicit empty result.",
+  "properties": {
+    "mentions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EntityMention"
+      },
+      "title": "Mentions",
+      "type": "array"
+    },
+    "producer_revision": {
+      "minLength": 1,
+      "title": "Producer Revision",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": 1,
+      "maximum": 1,
+      "minimum": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source": {
+      "$ref": "#/$defs/IngestionSourceSnapshot"
+    }
+  },
+  "required": [
+    "source",
+    "producer_revision"
+  ],
+  "title": "AnnotationBatch",
+  "type": "object",
+  "x-kind": "annotation_batch",
+  "x-schema-version": 1
+}

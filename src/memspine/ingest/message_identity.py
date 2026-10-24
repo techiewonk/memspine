@@ -165,20 +165,24 @@ def normalise_messages(
             raise ValueError("call and message conversation_id conflict")
 
         if reply_to is not None:
-            if parent is None and session_id is None and msg_session is None:
-                raise ValueError("reply to an existing message requires an explicit session_id")
-            resolved_session = (
-                msg_session
-                or session_id
-                or (parent_session if parent is not None else generated_call_session)
-            )
-            if parent_session is not None and resolved_session != parent_session:
-                raise ValueError("reply session_id differs from parent session")
-            resolved_conversation = msg_conversation or conversation_id or parent_conversation
-            if resolved_conversation is None:
-                raise ValueError("reply parent has no conversation_id")
-            if parent_conversation is not None and resolved_conversation != parent_conversation:
-                raise ValueError("reply conversation_id differs from parent conversation")
+            # A missing session inherits the authorised stored parent.  An
+            # explicitly different session is a cross-session reply: retain the
+            # link but start a new conversation in that session.
+            explicit_session = msg_session or session_id
+            resolved_session = explicit_session or parent_session or generated_call_session
+            cross_session = parent_session is not None and resolved_session != parent_session
+            if cross_session:
+                resolved_conversation = msg_conversation or conversation_id or uuid4().hex
+                if parent_conversation is not None and resolved_conversation == parent_conversation:
+                    raise ValueError(
+                        "cross-session reply must start a new conversation_id"
+                    )
+            else:
+                resolved_conversation = msg_conversation or conversation_id or parent_conversation
+                if resolved_conversation is None:
+                    raise ValueError("reply parent has no conversation_id")
+                if parent_conversation is not None and resolved_conversation != parent_conversation:
+                    raise ValueError("reply conversation_id differs from parent conversation")
         else:
             resolved_session = msg_session or generated_call_session
             resolved_conversation = msg_conversation or conversation_id or uuid4().hex

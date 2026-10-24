@@ -1,0 +1,41 @@
+{
+  "additionalProperties": true,
+  "description": "Bounded, content-free failure metadata suitable for status surfaces.",
+  "properties": {
+    "attempts": {
+      "minimum": 1,
+      "title": "Attempts",
+      "type": "integer"
+    },
+    "error_class": {
+      "minLength": 1,
+      "title": "Error Class",
+      "type": "string"
+    },
+    "retry_eligible": {
+      "title": "Retry Eligible",
+      "type": "boolean"
+    },
+    "source_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Source Ids",
+      "type": "array"
+    },
+    "stage": {
+      "minLength": 1,
+      "title": "Stage",
+      "type": "string"
+    }
+  },
+  "required": [
+    "stage",
+    "error_class",
+    "attempts",
+    "retry_eligible"
+  ],
+  "title": "DerivationFailure",
+  "type": "object"
+}

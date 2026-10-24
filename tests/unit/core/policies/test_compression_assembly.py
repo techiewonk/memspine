@@ -281,17 +281,23 @@ def test_f2_stage_budgets_squeeze_volatile_before_stable(monkeypatch: pytest.Mon
 
 
 def test_f4_block_compressed_emits_observability_event(monkeypatch: pytest.MonkeyPatch) -> None:
-    import structlog
-
     monkeypatch.setattr(
         compression_module,
         "_load_llmlingua",
         lambda rate=0.5, **kw: lambda text: text[:4],
     )
+    events: list[tuple[str, dict[str, object]]] = []
+
+    class CapturingLogger:
+        def info(self, event: str, **fields: object) -> None:
+            events.append((event, fields))
+
+    monkeypatch.setattr(compression_module, "_log", CapturingLogger())
     policy = CompressionPolicy.bind({"assembly": True, "assembly_stage": ["llmlingua"]})
-    with structlog.testing.capture_logs() as logs:
-        policy.fit_assembly([(_volatile("z" * 200), 0.9)], budget_tokens=1, estimate=estimate)
-    assert any(e["event"] == "compression.block_compressed" for e in logs)
+    policy.fit_assembly([(_volatile("z" * 200), 0.9)], budget_tokens=1, estimate=estimate)
+    assert [event for event, _fields in events] == ["compression.block_compressed"]
+    assert events[0][1]["chars_before"] == 200
+    assert events[0][1]["chars_after"] == 4
 
 
 def test_f4_asserts_inflated_content_before_compressing(monkeypatch: pytest.MonkeyPatch) -> None:

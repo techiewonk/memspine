@@ -35,7 +35,11 @@ from memspine.store.records import MemoryRecord
 __all__ = [
     "ENTITY_LABEL",
     "ENTITY_PREFIX",
+    "ENTITY_SURFACE_LABEL",
+    "HAS_MENTION_REL",
     "MENTIONS_REL",
+    "MENTION_OCCURRENCE_LABEL",
+    "REFERS_TO_REL",
     "EntityPolicy",
     "canonical_entity",
     "entity_node_id",
@@ -51,6 +55,12 @@ ENTITY_PREFIX = "ent:"
 ENTITY_LABEL = "entity"
 #: The rel of a record -> entity edge. Reserved (system-written only, ADR-015 §2).
 MENTIONS_REL = "mentions"
+#: BI-08: exact source-bound annotations use an occurrence node so repeated
+#: surface forms in one source cannot collapse into one graph edge.
+HAS_MENTION_REL = "has_mention"
+REFERS_TO_REL = "refers_to"
+MENTION_OCCURRENCE_LABEL = "mention_occurrence"
+ENTITY_SURFACE_LABEL = "entity_surface"
 #: The tag an edge fact carries for its destination entity (GP-1).
 _DST_TAG = "dst:"
 

@@ -12,6 +12,7 @@ from memspine.ingest.message_identity import normalise_messages
 from memspine.ingest.message_retry import input_fingerprint, prepare_retries
 from memspine.ingest.message_schema import ValidatedMessageBatch
 from memspine.ingest.message_store import lookup_conversations, lookup_messages
+from memspine.ingest.source_provenance import message_provenance
 from memspine.observability import tap
 from memspine.store.records import MemoryRecord
 from memspine.store.scope import validate_namespace
@@ -153,6 +154,9 @@ async def _ingest_once(
         }
         public["ingested_at"] = accepted_at.isoformat()
         public["created_at_generated"] = turn["_created_at_generated"]
+        public["source_provenance"] = message_provenance(
+            turn, source_id=str(turn["message_id"])
+        ).model_dump(mode="json")
         public["input_fingerprints"] = {
             k: input_fingerprint(v)
             for k, v in originals[str(turn["message_id"])].items()

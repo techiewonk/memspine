@@ -102,6 +102,7 @@ class C01Config:
     bedrock: bool = False
     #: Engine overrides for the memspine arm (e.g. Cohere embed-v4 at 1024-d).
     memspine_config: dict[str, Any] | None = None
+    memspine_asset_pack: str | None = None
     #: memspine arm read path: None = assemble, else an Engine.read mode (C7').
     memspine_read_mode: str | None = None
     #: N34: memspine reads as of each question's date (LongMemEval ``question_date``).
@@ -538,6 +539,7 @@ def build_systems(config: C01Config) -> list[SystemAdapter]:
                 mark_hits=config.memspine_mark_hits,
                 stamp_timezone=config.stamp_timezone,
                 context_order=config.memspine_context_order,
+                asset_pack=config.memspine_asset_pack,
             )
         )
     if config.only_systems:

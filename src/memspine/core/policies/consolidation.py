@@ -44,6 +44,11 @@ class SessionSummaryOptions(PolicyOptions):
     #: With ``incremental``: once this many turns were folded in incrementally since
     #: the last full rebuild, the summary is rebuilt from all turns (stops drift).
     rebuild_every: int = Field(default=constants.SESSION_SUMMARY_REBUILD_EVERY, ge=1)
+    #: Select the deterministic summary producer even when a ``summarize`` model
+    #: is available. Background grounding profiles use this to make their
+    #: zero-generative-call contract explicit instead of relying on an absent
+    #: model binding as an accidental switch.
+    extractive_only: bool = False
 
 
 class ConsolidationOptions(PolicyOptions):

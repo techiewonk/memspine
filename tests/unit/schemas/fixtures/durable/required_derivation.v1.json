@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "intent_id": "i1",
+  "namespace": "tenant/user",
+  "scope": {"tenant": "tenant", "owner": "user", "owner_kind": "user"},
+  "source_id": "s1",
+  "source_version": 1,
+  "source_write_ids": ["w1"],
+  "source_record_ids": ["r1"],
+  "required_layers": ["raw_store", "vector", "facts"],
+  "policy_revision": "policy:test",
+  "registry_digest": "registry:test",
+  "activated_at": "2026-10-24T00:00:00Z",
+  "historical": false
+}

@@ -39,19 +39,31 @@ def test_reply_inherits_earlier_message_identity_and_sender_is_projected() -> No
     assert source[1].get("speaker") is None
 
 
-def test_existing_reply_requires_explicit_same_session() -> None:
+def test_existing_reply_inherits_parent_or_starts_cross_session_conversation() -> None:
     old = [{"message_id": "old", "session_id": "s", "conversation_id": "c"}]
-    with pytest.raises(ValueError, match="explicit session_id"):
-        normalise_messages([message(reply_to="old")], namespace="n", existing=old, now=NOW)
+    inherited = normalise_messages(
+        [message(reply_to="old")], namespace="n", existing=old, now=NOW
+    )[0]
+    assert (inherited["session_id"], inherited["conversation_id"]) == ("s", "c")
     reply = normalise_messages(
         [message(reply_to="old")], namespace="n", session_id="s", existing=old, now=NOW
     )[0]
     assert (reply["session_id"], reply["conversation_id"]) == ("s", "c")
     fresh = normalise_messages([message()], namespace="n", existing=old, now=NOW)[0]
     assert fresh["session_id"] != "s"
-    with pytest.raises(ValueError, match="differs from parent session"):
+    crossed = normalise_messages(
+        [message(reply_to="old")], namespace="n", session_id="other", existing=old, now=NOW
+    )[0]
+    assert crossed["session_id"] == "other"
+    assert crossed["conversation_id"] != "c"
+    assert crossed["reply_to"] == "old"
+    with pytest.raises(ValueError, match="new conversation_id"):
         normalise_messages(
-            [message(reply_to="old")], namespace="n", session_id="other", existing=old, now=NOW
+            [message(reply_to="old", conversation_id="c")],
+            namespace="n",
+            session_id="other",
+            existing=old,
+            now=NOW,
         )
 
 

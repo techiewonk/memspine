@@ -20,6 +20,7 @@ from collections.abc import AsyncIterator, Sequence
 import pytest
 
 from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
+from memspine.derive.gliner_mentions import MentionSpan, bind_gliner_mentions
 from memspine.memories.associative.links import link_event
 from memspine.memories.associative.projector import GraphProjector
 from memspine.services.graph.base import GraphEdge, GraphStore, capped_neighbors
@@ -293,4 +294,54 @@ async def test_rebuild_reproduces_the_projection(store: GraphStore) -> None:
     assert await _snapshot(store) == first
     # Every projected edge lands in its event's namespace, none in limbo.
     assert sum(first[3].values()) == first[1]  # type: ignore[index, union-attr, arg-type]
+    await store.close()
+
+
+async def test_bound_mention_occurrences_project_identically(store: GraphStore) -> None:
+    """BI-08: every graph adapter preserves exact, unasserted occurrences.
+
+    Repeated text at two offsets must remain two nodes. Replaying the WRITE is
+    idempotent, another namespace cannot leak into the projection, and FORGET
+    removes the occurrence and surface nodes as well as their edges.
+    """
+    projector = GraphProjector(store)
+    record = MemoryRecord(namespace="ns/mentions", memory_type="episodic", content="Mira met Mira")
+    mentions = bind_gliner_mentions(
+        record,
+        (
+            MentionSpan(text="Mira", label="person", start=0, end=4, confidence=0.9),
+            MentionSpan(text="Mira", label="person", start=9, end=13, confidence=0.8),
+        ),
+    )
+    record = record.model_copy(
+        update={"fingerprint": record.fingerprint.model_copy(update={"entity_mentions": mentions})}
+    )
+    write = MemoryEvent(
+        kind=EventKind.WRITE,
+        namespace=record.namespace,
+        actor="test",
+        payload={"record": record.model_dump(mode="json")},
+    )
+
+    await projector.apply(write)
+    await projector.apply(write)
+    edges = await store.edge_list(record.namespace)
+    occurrence_ids = {
+        edge.dst for edge in edges if edge.src == record.record_id and edge.rel_type == "has_mention"
+    }
+    assert len(occurrence_ids) == 2
+    assert all(edge.properties["asserted"] is False for edge in edges)
+    assert all(edge.properties["source_version"] == record.version for edge in edges)
+    assert await store.edge_list("ns/other") == []
+
+    await projector.apply(
+        MemoryEvent(
+            kind=EventKind.FORGET,
+            namespace=record.namespace,
+            actor="test",
+            payload={"record_id": record.record_id},
+        )
+    )
+    assert await store.edge_list(record.namespace) == []
+    assert await store.node_count() == 0
     await store.close()

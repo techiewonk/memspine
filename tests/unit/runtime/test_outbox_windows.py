@@ -161,6 +161,29 @@ async def test_queued_windows_survive_a_stop_and_run_after_the_restart(
         await second.stop()
 
 
+async def test_incomplete_open_window_survives_restart(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    db = tmp_path / "open-window.db"
+    first = await _engine(monkeypatch, FakeWindowLLM(), db, outbox=True)
+    await _send(first, "a", "s1", _turns("partial", 3))
+    assert first._windows is not None
+    assert len(first._windows._store("a").segmenter.open_turns) == 3
+    assert _rows(db, "outbox_draft") == 1
+    await first.stop()
+
+    llm = FakeWindowLLM()
+    second = await _engine(monkeypatch, llm, db, outbox=True)
+    try:
+        await second.flush_windows("a")
+        facts = await _facts(second)
+        assert len(facts) == 3
+        assert llm.transcripts
+        assert _rows(db, "outbox_draft") == 0
+    finally:
+        await second.stop()
+
+
 async def test_no_namespace_lock_is_held_while_the_window_call_runs(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

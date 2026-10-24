@@ -12,10 +12,13 @@ from sqlalchemy import Boolean, Column, Index, Integer, MetaData, String, Table,
 __all__ = [
     "OUTBOX_TABLES",
     "outbox",
+    "outbox_draft",
+    "outbox_effect",
     "outbox_item",
     "outbox_log",
     "outbox_metadata",
     "outbox_progress",
+    "outbox_source_membership",
 ]
 outbox_metadata = MetaData()
 
@@ -84,4 +87,60 @@ outbox_log = Table(
     Column("reason", String, nullable=False),
 )
 
-OUTBOX_TABLES: tuple[str, ...] = ("outbox", "outbox_progress", "outbox_item", "outbox_log")
+# BI-03/04: incomplete windows are durable state, not process memory.  A
+# namespace has at most one draft for a stage; replacing it is atomic.
+outbox_draft = Table(
+    "outbox_draft",
+    outbox_metadata,
+    Column("tenant", String, primary_key=True),
+    Column("owner", String, primary_key=True),
+    Column("owner_kind", String, primary_key=True),
+    Column("stage", String, primary_key=True),
+    Column("payload", Text, nullable=False),
+    Column("updated_at", String, nullable=False),
+)
+
+# BI-07/09: idempotent derivation effects and caller-visible per-layer status.
+# The effect id is the semantic idempotency key; the scope/stage/offset columns
+# make readiness queryable without inspecting provider-specific projections.
+outbox_effect = Table(
+    "outbox_effect",
+    outbox_metadata,
+    Column("effect_id", String, primary_key=True),
+    Column("job_id", String, nullable=False),
+    Column("epoch", Integer, nullable=False),
+    Column("tenant", String, nullable=False),
+    Column("owner", String, nullable=False),
+    Column("owner_kind", String, nullable=False),
+    Column("stage", String, nullable=False),
+    Column("item_offset", Integer, nullable=False),
+    Column("layer", String, nullable=False),
+    Column("state", String, nullable=False),
+    Column("result_count", Integer, nullable=False, default=0),
+    Column("failure", Text, nullable=True),
+    Column("identity", Text, nullable=False),
+    Column("committed_at", String, nullable=False),
+    Index("ix_outbox_effect_scope", "tenant", "owner", "owner_kind", "layer"),
+    Index("ix_outbox_effect_job", "job_id", "item_offset"),
+)
+
+outbox_source_membership = Table(
+    "outbox_source_membership",
+    outbox_metadata,
+    Column("tenant", String, primary_key=True),
+    Column("owner", String, primary_key=True),
+    Column("owner_kind", String, primary_key=True),
+    Column("stage", String, primary_key=True),
+    Column("record_id", String, primary_key=True),
+    Column("accepted_at", String, nullable=False),
+)
+
+OUTBOX_TABLES: tuple[str, ...] = (
+    "outbox",
+    "outbox_progress",
+    "outbox_item",
+    "outbox_log",
+    "outbox_draft",
+    "outbox_effect",
+    "outbox_source_membership",
+)

@@ -9,7 +9,7 @@ Pure: no I/O. The intake gateway (``ingest.gateway``) builds it from the receipt
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from memspine.schemas.public.receipt import Readiness
@@ -40,6 +40,7 @@ class DerivationIntent:
     source_version: int
     readiness: Readiness
     applied: bool = True  # False while the raw records are still being written (resumable)
+    effects: Sequence[Mapping[str, object]] = ()
 
     def status(self) -> IntentStatus:
         layers: dict[str, str] = {}
@@ -49,11 +50,37 @@ class DerivationIntent:
                 state = "pending"
             for layer in names:
                 layers[layer] = state
+        counts: dict[str, int] = {}
+        failures: dict[str, list[dict[str, object]]] = {}
+        effect_layers = {
+            "raw_store": "L0",
+            "vector": "L0",
+            "lexical": "L0",
+            "facts": "L1",
+            "annotations": "L2",
+            "graph_mentions": "L2",
+            "summaries": "L3",
+        }
+        for effect in self.effects:
+            effect_layer = effect_layers.get(str(effect.get("layer", "")))
+            if effect_layer is None:
+                continue
+            raw_count = effect.get("count", 0)
+            count = int(raw_count) if isinstance(raw_count, int | str) else 0
+            counts[effect_layer] = counts.get(effect_layer, 0) + count
+            failure = effect.get("failure")
+            if isinstance(failure, Mapping):
+                failures.setdefault(effect_layer, []).append(dict(failure))
+                layers[effect_layer] = "failed"
+            elif effect.get("state") == "complete":
+                layers[effect_layer] = "done"
         failed = [c for c in LAYER_OF_CAPABILITY if self.readiness.get(c) == "failed"]
         return IntentStatus(
             intent_id=self.intent_id,
             layers=layers,  # type: ignore[arg-type]
-            failure_class="derivation_failed" if failed else None,
+            failure_class="derivation_failed" if failed or failures else None,
+            counts=counts,
+            failures=failures,
         )
 
     def pending_layers(self) -> list[str]:

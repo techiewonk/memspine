@@ -8471,6 +8471,16 @@
      "screen_ids": []
     },
     {
+     "key": "cli:--memspine-asset-pack",
+     "default": null,
+     "type": "str",
+     "description": "precomputed assets.db + documents/ directory for the memspine arm",
+     "effect": "precomputed assets.db + documents/ directory for the memspine arm",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": []
+    },
+    {
      "key": "cli:--memspine-config",
      "default": null,
      "type": "str",

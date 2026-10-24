@@ -245,6 +245,7 @@ class MemspineSystem:
         stamp_timezone: str = "UTC",
         inspect: bool | None = None,
         inspect_content: bool = True,
+        asset_pack: str | None = None,
     ) -> None:
         self.system_id = system_id
         #: TI-1 (Trace Inspector): the engine runs with ``observability.inspect`` and the tap writes
@@ -280,6 +281,7 @@ class MemspineSystem:
         self.template = template
         self.namespace = namespace
         self.config = dict(config or {})
+        self._asset_pack = None if asset_pack is None else Path(asset_pack).resolve()
         #: I5 / I39: send each turn's speaker (a LoCoMo participant name) and chat role
         #: (``user`` / ``assistant``) to ``ingest_messages`` as message metadata, and the
         #: asker (``persona`` / ``asker`` in a question's meta) to the read. The stored
@@ -352,6 +354,7 @@ class MemspineSystem:
             ),
             **({"mark_hits": self._mark_hits} if self._mark_hits != "off" else {}),
             **({"context_order": self._context_order} if self._context_order != "chrono" else {}),
+            **({"asset_pack": str(self._asset_pack)} if self._asset_pack is not None else {}),
             "token_counter": dict(self._counter.describe()),
         }
 
@@ -397,6 +400,19 @@ class MemspineSystem:
             records["settings"] = storage_settings
             storage["records"] = records
             overrides["storage"] = storage
+        if self._asset_pack is not None:
+            registry_path = self._asset_pack / "assets.db"
+            documents_path = self._asset_pack / "documents"
+            if not registry_path.is_file() or not documents_path.is_dir():
+                raise ValueError(
+                    f"asset_pack must contain assets.db and documents/: {self._asset_pack}"
+                )
+            storage = dict(overrides.get("storage") or {})
+            storage["documents"] = {
+                "provider": "filesystem",
+                "settings": {"root": str(documents_path), "fsync": False},
+            }
+            overrides["storage"] = storage
         # Never load a .env: the harness passes only what a run needs (a repo .env
         # can hold unrelated secrets, and a benchmark must not depend on it).
         overrides.setdefault("dotenv_path", None)
@@ -426,11 +442,33 @@ class MemspineSystem:
         if profile_on and self._shape and "data_shape" not in overrides:
             overrides["data_shape"] = dict(self._shape)
         engine = await memspine.open(template=self.template, **overrides)
+        if self._asset_pack is not None:
+            await self._load_asset_pack(engine)
         if profile_on and self._perspective_auto:
             # a preset may have switched the perspective layer on: send speaker and role too
             policy = engine._memory_policy(engine.config, "episodic").get("perspective")
             self._perspective_metadata = bool(policy)
         return engine
+
+    async def _load_asset_pack(self, engine: Any) -> None:
+        """Seed one fresh eval store from a precomputed asset pack."""
+        from dataclasses import replace
+
+        from sqlalchemy.ext.asyncio import create_async_engine
+
+        from memspine.services.assets import SqlAssetRegistry
+
+        assert self._asset_pack is not None
+        source_engine = create_async_engine(
+            f"sqlite+aiosqlite:///{(self._asset_pack / 'assets.db').as_posix()}"
+        )
+        source = SqlAssetRegistry(source_engine)
+        target = engine._asset_registry()
+        try:
+            for entry in await source.all(self.namespace):
+                await target.update(replace(entry, namespace=self.namespace, record_id=None))
+        finally:
+            await source_engine.dispose()
 
     @property
     def _memory(self) -> Any:

@@ -57,6 +57,15 @@ async def test_canonical_path_persists_sender_identity_and_history(engine: Engin
     assert first["created_at"] == "2024-02-03T09:00:00+05:30"
     assert first["created_at_generated"] is False and reply["created_at_generated"] is True
     assert first["sender"]["id"] == "user-123"
+    assert first["source_provenance"] == {
+        "origin": "raw_message",
+        "source_id": "m1",
+        "sender_id": "user-123",
+        "assertion_owner_id": None,
+        "trust_tier": None,
+        "asset_id": None,
+        "explicit_fetch": False,
+    }
     assert "reply_to:" + rows[0].record_id in rows[1].tags
     assert rows[0].axes.speaker == "user-123"
     hits = await engine.search("quiet trails", namespace="history", tags=["sender_id:user-123"])
@@ -133,13 +142,17 @@ async def test_duplicate_source_id_and_session_conflicts_are_rejected(engine: En
             namespace="conflict",
             session_id="S1",
         )
-    with pytest.raises(ValueError, match="session"):
-        await engine.ingest_messages(
-            [
-                {"role": "assistant", "content": "reply", "reply_to": "root"},
-            ],
-            namespace="conflict",
-        )
+    reply = await engine.ingest_messages(
+        [
+            {"role": "assistant", "content": "reply", "reply_to": "root"},
+        ],
+        namespace="conflict",
+    )
+    assert reply[0].source.message["session_id"] == "S1"
+    assert (
+        reply[0].source.message["conversation_id"]
+        == root.source.message["conversation_id"]
+    )
     with pytest.raises(ValueError, match="another session"):
         await engine.ingest_messages(
             [

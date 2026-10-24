@@ -24,6 +24,7 @@ from memspine.ingest.message_store import (
     lookup_conversations,
     lookup_messages,
 )
+from memspine.schemas.durable import OwnerScope, RequiredDerivation
 from memspine.schemas.steps.shared import Scope, Segment, SourceEnvelope
 
 
@@ -180,12 +181,26 @@ async def test_identity_conflict_rolls_back_the_entire_acceptance(tmp_path) -> N
         return change, payload
 
     first, first_payload = await acceptance("source-1", "conversation-1", "one")
+    def manifest(change, source_id: str) -> RequiredDerivation:
+        return RequiredDerivation(
+            intent_id=change.receipt.intent_id,
+            namespace="ns",
+            scope=OwnerScope(tenant="tenant", owner="user"),
+            source_id=source_id,
+            source_version=1,
+            source_write_ids=tuple(change.new_write_ids),
+            required_layers=("raw_store",),
+            policy_revision="test-policy",
+            activated_at=datetime.now(UTC),
+        )
+
     await intake_store.commit(
         db,
         first,
         namespace="ns",
         apply_payload=json.dumps(first_payload),
         created_at=datetime.now(UTC).isoformat(),
+        required_derivation=manifest(first, "source-1"),
     )
     second, second_payload = await acceptance("source-2", "conversation-2", "two")
     with pytest.raises(ValueError, match="message_id identity conflict"):
@@ -195,6 +210,7 @@ async def test_identity_conflict_rolls_back_the_entire_acceptance(tmp_path) -> N
             namespace="ns",
             apply_payload=json.dumps(second_payload),
             created_at=datetime.now(UTC).isoformat(),
+            required_derivation=manifest(second, "source-2"),
         )
 
     async with db.connect() as conn:

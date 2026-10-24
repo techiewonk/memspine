@@ -24,12 +24,16 @@ import pytest
 from memspine import Engine
 from memspine.config.schema import StorageConfig
 from memspine.config.schema.observability import TapConfig
+from memspine.derive.gliner_mentions import MentionSpan, bind_gliner_mentions
 from memspine.exceptions import ConfigError
+from memspine.memories.associative.projector import GraphProjector
 from memspine.observability import tap
 from memspine.providers.contracts import BuildResult, ProviderRef
 from memspine.providers.registry import get_registry
 from memspine.services.graph.base import GraphStore
 from memspine.services.graph.neo4j import CYPHER, Neo4jExecutor, Neo4jGraphStore
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 NS = "acme/alice"
 NS2 = "acme/bram"
@@ -266,6 +270,52 @@ class FakeNeo4j:
             for e in self.edges.values()
         )
         return nodes, edges
+
+
+async def test_bi08_bound_mention_occurrences_on_neo4j_projection() -> None:
+    """The Neo4j adapter preserves the canonical occurrence projection contract."""
+    backend = FakeNeo4j()
+    graph = Neo4jGraphStore(backend)
+    projector = GraphProjector(graph)
+    record = MemoryRecord(namespace="tenant/mira", memory_type="episodic", content="Mira met Mira")
+    mentions = bind_gliner_mentions(
+        record,
+        (
+            MentionSpan(text="Mira", label="person", start=0, end=4, confidence=0.9),
+            MentionSpan(text="Mira", label="person", start=9, end=13, confidence=0.8),
+        ),
+    )
+    record = record.model_copy(
+        update={"fingerprint": record.fingerprint.model_copy(update={"entity_mentions": mentions})}
+    )
+    write = MemoryEvent(
+        kind=EventKind.WRITE,
+        namespace=record.namespace,
+        actor="test",
+        payload={"record": record.model_dump(mode="json")},
+    )
+
+    await projector.apply(write)
+    await projector.apply(write)
+    edges = await graph.edge_list(record.namespace)
+    occurrence_ids = {
+        edge.dst for edge in edges if edge.src == record.record_id and edge.rel_type == "has_mention"
+    }
+    assert len(occurrence_ids) == 2
+    assert all(edge.properties["asserted"] is False for edge in edges)
+    assert all(edge.properties["source_version"] == record.version for edge in edges)
+    assert await graph.edge_list("tenant/other") == []
+
+    await projector.apply(
+        MemoryEvent(
+            kind=EventKind.FORGET,
+            namespace=record.namespace,
+            actor="test",
+            payload={"record_id": record.record_id},
+        )
+    )
+    assert await graph.edge_list(record.namespace) == []
+    assert await graph.node_count() == 0
 
 
 # --------------------------------------------------------------------------- live executor

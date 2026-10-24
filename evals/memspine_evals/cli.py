@@ -344,6 +344,7 @@ def cmd_c0_1(args: argparse.Namespace) -> int:
         max_model_calls=args.max_model_calls,
         bedrock=args.bedrock,
         memspine_config=json.loads(args.memspine_config) if args.memspine_config else None,
+        memspine_asset_pack=args.memspine_asset_pack,
         memspine_read_mode=args.memspine_read_mode,
         memspine_as_of_question_date=args.memspine_as_of_question_date,
         memspine_mark_hits=args.memspine_mark_hits,
@@ -599,6 +600,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     c01.add_argument(
         "--memspine-config", default=None, help="JSON engine overrides for the memspine arm"
+    )
+    c01.add_argument(
+        "--memspine-asset-pack",
+        default=None,
+        help="precomputed assets.db + documents/ directory for the memspine arm",
     )
     c01.add_argument("--only-systems", default=None, help="comma list of system ids to run")
     c01.add_argument(

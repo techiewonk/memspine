@@ -4,6 +4,13 @@
       "additionalProperties": true,
       "description": "Internal step type.",
       "properties": {
+        "counts": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Counts",
+          "type": "object"
+        },
         "covers_seq": {
           "anyOf": [
             {
@@ -27,6 +34,17 @@
           ],
           "default": null,
           "title": "Failure Class"
+        },
+        "failures": {
+          "additionalProperties": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "title": "Failures",
+          "type": "object"
         },
         "intent_id": {
           "title": "Intent Id",
