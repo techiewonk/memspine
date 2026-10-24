@@ -566,7 +566,7 @@ engine.usage(reset=True)  # snapshot, then clear the per-prompt counters
 Every internal LLM call renders a named, versioned prompt (D-43), so `usage()` keys
 its counters by `prompt_version` (`<id>@<version>`; `"<unnamed>"` for messages you
 send yourself through `engine.llm(role)`). Tokens are the provider's own report when
-it gives one (LiteLLM); otherwise a characters/4 estimate, counted in
+it gives one; otherwise a characters/4 estimate, counted in
 `estimated_calls`. Each call also logs an `llm.usage` event at DEBUG level. The
 counters live in the process only (never persisted). The evals harness reads them
 into each result's `meta["engine_prompts"]` and the run summary's
@@ -984,11 +984,9 @@ an explicit `deployment.id`; install `[aws]` for Bedrock. Health never calls a m
 | `bedrock` | `aws_region`, boto3 credential chain | Converse, embeddings and rerank via `[aws]` |
 | `anyllm` | `upstream_provider`, optional `api_key_env` / `api_base` | hosted LLM and embedding providers via `[anyllm]`; install the upstream SDK extra separately |
 
-The removed `litellm` provider is rejected with a rewrite hint. Migrate JSON/YAML
-configs with `python scripts/migrate_config_keys_adr085.py config.yaml` (`--check`
-detects pending changes). For example `ollama/llama3` becomes provider `ollama`
-with model `llama3`; `bedrock/...` becomes `bedrock`; OpenAI-compatible endpoints
-need an explicit `api_base`, and other hosted routes become `anyllm`.
+Only the current explicit providers and bare model IDs are supported. This is
+our first development cycle, so no retired-provider configuration migration,
+rewrite hints or aliases are shipped.
 
 **Embedding: local to hosted** ? endpoint dimensions must be configured explicitly.
 
@@ -1271,7 +1269,7 @@ in the schema — or if the schema gains a key not documented here.
 | `model.llm.*.escalation` | `null` | ADR-082 (was `models.escalation.<role>`): opt-in bounded retry ladder for one role. `targets` (ordered, unique inline LLM slots `{provider, timeout_s, settings}` tried after the primary; a target equal to the primary is an error), `triggers` (non-empty list of `error`, `empty`, `invalid_json`; default `[error]`), `max_attempts` (total including the primary; at least 2 with targets, at most 1 + targets; default 2), `timeout_s` (required, seconds per attempt), `max_tokens_per_attempt` (required). Every candidate keeps the consent gates; cancellation propagates. |
 | `model.llm.*.provider` | required | ADR-082 (was `llm.roles.<role>.provider`): explicit LLM provider for the role (`openai_compatible`, `ollama`, `vllm`, `bedrock`, `llamacpp`, ...); model prefixes never select a provider. A role that is not listed is off. Roles must be known prompt or catalogue roles. |
 | `model.llm.*.settings` | `{}` | Provider-owned settings (`model`, `api_base`, `temperature`, `max_tokens`, `n_ctx`, ...) validated by the selected descriptor. `settings.timeout_seconds` is rejected: use `timeout_s`. |
-| `model.llm.*.structured.constrained_retry` | `false` | I69 (was `llm.structured.constrained_retry`): on that retry only, request JSON-schema constrained decoding (`response_format`; OpenAI-compatible servers, Ollama via LiteLLM, llama.cpp); a backend that refuses it falls back to a plain retry. Set per role. |
+| `model.llm.*.structured.constrained_retry` | `false` | I69 (was `llm.structured.constrained_retry`): on that retry only, request JSON-schema constrained decoding (`response_format`; OpenAI-compatible servers, native Ollama, llama.cpp); a backend that refuses it falls back to a plain retry. Set per role. |
 | `model.llm.*.structured.retry_on_error` | `false` | I69 (was `llm.structured.retry_on_error`): when a structured reply fails validation, re-prompt ONCE with the validation error appended. Measure first with `engine.structured_stats()`. Set per role. |
 | `model.llm.*.thinking` | `null` | MD-01 (P-15; was `models.thinking.<role>`): capped thinking budget in tokens for an explicit slot. Allowed only on `judge` and `reflect` (any other role is a config error); honoured on a model that supports thinking. A role picked by the tier plan uses `model.placement.thinking` instead. Screen before enabling. |
 | `model.llm.*.timeout_s` | required | ADR-082: positive finite seconds for one call of the role (strict float). Required on every LLM slot. |
@@ -1686,8 +1684,8 @@ in the schema — or if the schema gains a key not documented here.
 | `runtime.service_switches.storage.auto_delete_source` | — | Provider and policy fields are validated by their typed configuration schema. |
 | `runtime.service_switches.storage.mode` | — | Provider and policy fields are validated by their typed configuration schema. |
 | `runtime.service_switches.storage.strategy` | — | Provider and policy fields are validated by their typed configuration schema. |
-| `runtime.shared_resources.http.keepalive_s` | `30.0` | RM-78 (ADR-079): idle keep-alive for HTTP/Bolt clients memspine builds. Honoured by Neo4j (driver liveness-check idle time); OpenSearch, Weaviate, LiteLLM and OpenAI-compatible servers keep their library default. |
-| `runtime.shared_resources.http.max_connections` | `100` | RM-78 (default not yet measured; verify in deployment checks): connection-pool size for HTTP/Bolt clients memspine builds: OpenSearch (aiohttp connector limit), Weaviate (HTTP session pool), Neo4j graph provider (driver pool). Not honoured by LiteLLM / OpenAI-compatible model servers (library-global client). Part of the client's sharing key. |
+| `runtime.shared_resources.http.keepalive_s` | `30.0` | Idle keep-alive for shared HTTP/Bolt clients: honored by owned model HTTP pools and Neo4j. Other native provider SDKs retain their own defaults. |
+| `runtime.shared_resources.http.max_connections` | `100` | Connection-pool bound for owned model HTTP pools, OpenSearch, Weaviate and Neo4j. Part of the shared client identity; SDK-specific transports keep their own limits. |
 | `runtime.shared_resources.idle_ttl_s` | `null` | RM-78: with `keep_warm`, close retained model weights nobody has used for this many seconds. `null` = never. Requires `keep_warm: true`. |
 | `runtime.shared_resources.keep_warm` | `true` | RM-78: model weights (embedders, rerankers, GLiNER, llama.cpp, decider) stay loaded when their last holder releases them, until process exit, so a restarted or second Engine reuses them. Connections, index handles and SQL pools still close on their last release. With `scope: engine` the retained weights close when the Engine stops. |
 | `runtime.shared_resources.max_models_per_category` | `null` | RM-78: with `keep_warm`, at most this many loaded weights per category (`model.gliner`, `model.embedding.onnx` ...); the least recently used idle ones close first; weights in use are never closed. |
@@ -1764,7 +1762,7 @@ in the schema — or if the schema gains a key not documented here.
 | `write.prompt_context_turns` | `3` | W2-06b. With `write.prompt_v2`: turns of the previous window shown under CONTEXT. `0`: no CONTEXT. |
 | `write.prompt_known_cap` | `40` | W2-06b. With `write.prompt_v2`: most entities listed under KNOWN in one prompt (entities named in the NEW lines first). `0`: no KNOWN. |
 | `write.prompt_schema` | `auto` | W2-06b. With `write.prompt_v2`: `auto` passes the JSON schema to providers that support it; `off` never does. |
-| `write.prompt_v2` | `false` | W2-06b (LIB-05; W-16, P-04, P-09, P-11, G-W49). Needs `write.envelope_v2`. `true`: ONE model call per window (or per batch of windows) fills every requested section (`facts`, `edges`, `episode`) under one JSON schema, where `envelope_v2` alone makes two (the items call, then a second call for edges and episode). The prompt has three parts: NEW (the numbered lines), CONTEXT (the last turns of the previous window, for pronouns; never cited) and KNOWN (entities already in the store with their aliases, `Name = alias \| alias`, deduplicated and capped; hooks for the P-23 pre-pass and the online resolver). The system text holds no examples and is constant per section set; the same-language partial (non-English input) is in the user part and the coarse-date partial in the system part. In a batch, `episode` is a list with one object per window block. The JSON schema is passed as `response_format` to providers that support it (an OpenAI-compatible or Ollama LiteLLM model, llama.cpp; or a provider that sets `supports_json_schema`); other providers get the W2-06a validator plus its one repair. A backend that refuses the schema is called again once without it, and the schema is no longer sent. A reply that is not a JSON object fails every section of that call (counted as `parse_failures`). `write.split` has no effect. Tap `write.prompt.v2` (sections, known_count, schema_mode). `false` (default): unchanged. |
+| `write.prompt_v2` | `false` | W2-06b (LIB-05; W-16, P-04, P-09, P-11, G-W49). Needs `write.envelope_v2`. `true`: ONE model call per window (or per batch of windows) fills every requested section (`facts`, `edges`, `episode`) under one JSON schema, where `envelope_v2` alone makes two (the items call, then a second call for edges and episode). The prompt has three parts: NEW (the numbered lines), CONTEXT (the last turns of the previous window, for pronouns; never cited) and KNOWN (entities already in the store with their aliases, `Name = alias \| alias`, deduplicated and capped; hooks for the P-23 pre-pass and the online resolver). The system text holds no examples and is constant per section set; the same-language partial (non-English input) is in the user part and the coarse-date partial in the system part. In a batch, `episode` is a list with one object per window block. The JSON schema is passed as `response_format` to providers that support it (an OpenAI-compatible server or native Ollama, llama.cpp; or a provider that sets `supports_json_schema`); other providers get the W2-06a validator plus its one repair. A backend that refuses the schema is called again once without it, and the schema is no longer sent. A reply that is not a JSON object fails every section of that call (counted as `parse_failures`). `write.split` has no effect. Tap `write.prompt.v2` (sections, known_count, schema_mode). `false` (default): unchanged. |
 | `write.resolve_cache` | `1024` | W2-09. Bound of the name-vector cache and of the rule resolver's decision cache under `write.resolver_v2`. |
 | `write.resolve_grey` | `0.7` | W2-09. Embedding cosine at or above which (and below `write.resolve_high`) a mention becomes a `pending_merge` candidate instead of a new entity. |
 | `write.resolve_high` | `0.9` | W2-09. Embedding cosine at or above which a mention is the same entity under `write.resolver_v2`. Calibrated with the hash embedder on the synthetic homonym/alias set (`derive/resolve_calibration.py`): 0 of 200 homonym pairs merge (gate <= 1%); at or below 0.71 the rate is 7.5%. Re-run `calibrate` when the embedding model changes. |
@@ -1990,29 +1988,22 @@ instead of confirming or refusing. It trades against abstention, so screen it wi
   scoring (ADR-030, proposed), and the decision port with call accounting (ADR-031,
   proposed).
 
-### ONNX models and upgrading existing stores (ADR-084)
+### ONNX models and storage identities (ADR-084)
 
 The default embedding provider is `onnx`, using ONNX Runtime and tokenizers with
 an explicit catalogue of pinned Hugging Face exports. The four embedding models
 are BGE small/base English, all-MiniLM-L6-v2, and the multilingual MiniLM preset;
 the cross-encoder is `Xenova/ms-marco-MiniLM-L-6-v2`. Unsupported models require
-complete `settings.model_spec` metadata; memspine never guesses pooling or files.
+complete `settings.model_spec` metadata; pooling and file choices are not guessed.
 Set `settings.local_files_only: true` for offline loading, `threads` for runtime
 threads, `providers` for installed execution providers, and `batch_size` for
-inference batches. First use downloads into the standard Hugging Face cache;
-fastembed's private cache does not automatically populate that cache.
+inference batches. Files live only in the standard Hugging Face cache.
 
-The old provider selection `fastembed` is rejected. Migrate current config files
-with `python scripts/migrate_config_keys_adr084.py PATH...` (`--dry-run` previews,
-`--check` detects pending changes). Repeat runs make no changes.
-
-Catalogue models report `embedder:<model>`. A store recording `fastembed:<model>`
-is adopted only when its model and settings match the certified reference space.
-Adoption updates identity metadata and preserves the existing physical vector
-table and values. Custom exports and changed prefixes require a controlled vector
-space change. `scripts/make_onnx_parity_fixtures.py` documents regenerating the
-reference fixtures in an isolated environment with fastembed installed.
-
+Catalogue models report `embedder:<model>`. Fresh tables, projection bindings and
+versioned spaces use that identity directly. No retired-provider IDs, cache paths,
+physical table names or configuration migration tools are supported. Custom exports
+and changed prefixes have distinct vector identities. Normal model lifecycle
+changes use explicit versioned spaces and re-embedding.
 
 Ollama supports embedding through `/v1/embeddings`, but has no rerank API. A rerank
 selection of `ollama` is rejected with an `onnx` / `vllm` replacement hint; use a
@@ -2022,6 +2013,5 @@ request](https://github.com/ollama/ollama/issues/10467).
 
 Hosted embedding IDs include the endpoint and server-family digest; `anyllm`
 embeddings additionally identify the upstream provider. Changing endpoints is a
-new vector space. The ADR-085 codemod validates rewritten slots; a hosted rerank
-route without a supported SDK or an explicit compatible endpoint is reported for
-manual migration, and the original file is preserved.
+new vector space. Current provider settings are validated directly; there is no prior-provider
+configuration rewriting in this first development cycle.

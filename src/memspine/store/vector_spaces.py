@@ -31,7 +31,7 @@ import os
 import tempfile
 from collections import Counter
 from collections.abc import Awaitable, Callable, Iterable, Mapping
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from memspine.observability import tap
@@ -67,8 +67,6 @@ class VectorSpace:
     query_instruction: str | None = None
     normalisation: str = "none"
     version: int = 1
-    #: Persisted physical table identity after a certified provider relabel; not vector semantics.
-    physical_id: str | None = None
 
     @property
     def id(self) -> str:
@@ -87,7 +85,7 @@ class VectorSpace:
     @property
     def qualified_id(self) -> str:
         """The id a backend names its table from: model id plus space id."""
-        return self.physical_id or f"{self.model_id}@{self.id}"
+        return f"{self.model_id}@{self.id}"
 
     @property
     def cache_version(self) -> str:
@@ -102,7 +100,6 @@ class VectorSpace:
             "query_instruction": self.query_instruction,
             "normalisation": self.normalisation,
             "version": self.version,
-            "physical_id": self.physical_id,
         }
 
     @classmethod
@@ -114,7 +111,6 @@ class VectorSpace:
             query_instruction=data.get("query_instruction"),
             normalisation=str(data.get("normalisation", "none")),
             version=int(data.get("version", 1)),
-            physical_id=data.get("physical_id"),
         )
 
 
@@ -225,8 +221,6 @@ class VersionedSpaceStore:
         factory: Callable[[VectorSpace], SpaceBackend],
         current: VectorSpace,
         state: SpaceStateStore | None = None,
-        *,
-        legacy_model_id: str | None = None,
     ) -> None:
         self._factory = factory
         self._state_store = state or InMemorySpaceState()
@@ -235,32 +229,7 @@ class VersionedSpaceStore:
         self._active: dict[str, str] = {}
         self._cursors: dict[str, dict[str, Any]] = {}
         self._load()
-        if legacy_model_id is not None:
-            self._adopt_legacy(current, legacy_model_id)
         self._current = self.register_space(current)
-
-    def _adopt_legacy(self, current: VectorSpace, legacy_model_id: str) -> None:
-        """Relabel only an otherwise byte-identical certified space in one state save."""
-        old = replace(current, model_id=legacy_model_id)
-        saved = self._spaces.get(old.id)
-        if saved is None or saved != old or current.id in self._spaces:
-            return
-        adopted = replace(current, version=saved.version, physical_id=saved.qualified_id)
-        del self._spaces[old.id]
-        self._spaces[adopted.id] = adopted
-        self._active = {
-            namespace: adopted.id if sid == old.id else sid
-            for namespace, sid in self._active.items()
-        }
-        for cursor in self._cursors.values():
-            if cursor.get("target") == old.id:
-                cursor["target"] = adopted.id
-        self._save()
-        from memspine.observability.logging import get_logger
-
-        fields = dict(old=old.id, new=adopted.id)
-        get_logger(__name__).info("provider.vector_space_adopted", **fields)
-        tap.event("provider.vector_space_adopted", **fields)
 
     # -- spaces ---------------------------------------------------------
 

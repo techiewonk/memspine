@@ -57,11 +57,11 @@ ADR-084 (the other Hub 2.x blocker).
    - `anyllm`: an optional `[anyllm]` extra (`any-llm-sdk` base package). The user installs
      the provider extras they need. It is the only route to the hosted long tail.
    - The in-process `llamacpp` provider (`clients/weights/llama_cpp`) is unchanged.
-3. **`litellm` leaves the project:** the provider name, the connector and the dependency go.
-   A config naming `litellm` is rejected with an error that names `openai_compatible` or
-   `anyllm` and gives the model-id mapping (for example `ollama/llama3` →
-   `{provider: ollama, settings: {model: llama3}}`). There is no alias (ADR-068), and a codemod
-   rewrites configs.
+3. **Current provider contracts only (owner amendment, 2026-10-24).**
+   The retired provider, connector and dependency are absent. This first development
+   cycle has no prior configuration to support: no aliases, old-model-ID rewriting,
+   dedicated rejection mapping or migration tool. Users configure the current
+   explicit provider, endpoint and bare model ID directly.
 4. **Behaviour parity.** The no-think rules, usage accounting, timeout semantics, retry policy
    (`services/_retry.py`), structured-output recovery (I69: one re-prompt and an optional
    constrained retry) and offline/locality rules must behave as today. Locality: a loopback
@@ -88,7 +88,7 @@ ADR-084 (the other Hub 2.x blocker).
   local-first default) need no third-party client library.
 - Hosted providers other than OpenAI-compatible clouds and Bedrock need the `[anyllm]` extra.
 - The build covers: the connector; LLM, embedding and rerank adapters and their presets;
-  Bedrock on boto3; the `anyllm` adapter; config rejection plus the codemod; the stub
+  Bedrock on boto3; the `anyllm` adapter; current settings validation; the stub
   transport and test migration; docs (USAGE, FEATURES, PROVIDER_DEFAULTS, DEPENDENCY_ANALYSIS,
   PYTHON313_DEPENDENCIES); and the regression including evals with 0 new failures.
 - After both ADR-084 and ADR-085 land, re-run the Hub 2.x attempt (RM-02 / T-07). The

@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
 
 from pydantic import BaseModel, JsonValue
 
@@ -22,35 +21,14 @@ from memspine.services.base import CapabilityManifest
 from memspine.services.vector.base import VectorStore
 
 
-def _physical_profile(ctx: VectorBuildContext) -> dict[str, Any]:
-    """The old table hash includes the full profile pin, including its provider hash."""
-    profile: dict[str, Any] = dict(ctx.profile_meta or {})
-    if getattr(ctx.embedding, "legacy_embedder_id", None) and profile.get("provider") == "onnx":
-        from memspine.models.embedding_profiles import EmbeddingProfile
-
-        old = EmbeddingProfile(
-            name=str(profile["name"]),
-            provider="fastembed",
-            model_id=str(profile["model_id"]),
-            dim=int(profile["dim"]),
-            dtype=str(profile["dtype"]),
-            query_instruction=profile.get("query_instruction"),
-            normalisation=str(profile["normalisation"]),
-        )
-        return old.to_dict()
-    return profile
-
-
 def _table_name(ctx: VectorBuildContext) -> str:
-    from memspine.services.vector.lancedb_store import physical_embedder_id
-
     identity = "\0".join(
         (
             ctx.shared.owner_id,
             ctx.generation_id,
-            physical_embedder_id(ctx.embedding),
+            ctx.embedding.embedder_id,
             str(ctx.embedding.dim),
-            json.dumps(_physical_profile(ctx), sort_keys=True, separators=(",", ":")),
+            json.dumps(dict(ctx.profile_meta or {}), sort_keys=True, separators=(",", ":")),
         )
     )
     return "vectors_" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:24]
@@ -123,7 +101,6 @@ class PgvectorBuilder:
                 create_extension=settings.create_extension,
             ),
             embedder_id=ctx.embedding.embedder_id,
-            legacy_embedder_id=getattr(ctx.embedding, "legacy_embedder_id", None),
         )
         await service.start()
         return BuildResult(

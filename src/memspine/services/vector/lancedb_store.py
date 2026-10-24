@@ -101,16 +101,6 @@ def _table_name(embedder_id: str) -> str:
     return "memspine_" + re.sub(r"[^a-zA-Z0-9_]", "_", embedder_id)
 
 
-def physical_embedder_id(embedder: Any) -> str:
-    """Keep certified ONNX models on their original physical tables (ADR-084).
-
-    Public identity and cache keys use ``embedder:``; a physical name is never an alias
-    accepted in configuration. Fresh stores use the same stable physical convention.
-    """
-    legacy = getattr(embedder, "legacy_embedder_id", None)
-    return legacy if isinstance(legacy, str) and legacy else str(embedder.embedder_id)
-
-
 def _record_ids(table: Any) -> set[str]:
     """Every ``record_id`` in a table (empty for a new in-memory table)."""
     if int(table.count_rows()) == 0:
@@ -224,7 +214,7 @@ class LanceDBVectorStore:
                         schema = schema.with_metadata(
                             {"memspine.embedding_profile": json.dumps(self._profile_meta)}
                         )
-                    name = _table_name(physical_embedder_id(self._embedder)) + self._table_suffix
+                    name = _table_name(self._embedder.embedder_id) + self._table_suffix
                     seen = self._client.write_epoch(name)  # before the open: never too new
                     # ``exist_ok=True`` makes create-or-open one atomic call on
                     # LanceDB's side: a check-then-act (table_names() then
@@ -589,7 +579,7 @@ class LanceDBVectorStore:
             return False
         await self._ensure_table()
         escaped = record_id.replace("'", "''")
-        name = _table_name(physical_embedder_id(self._embedder)) + self._table_suffix
+        name = _table_name(self._embedder.embedder_id) + self._table_suffix
 
         def _scan() -> bool | None:
             # A separate handle: checkout() would pin the shared one to the past.

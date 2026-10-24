@@ -1,8 +1,8 @@
 """Replay fastembed 0.9.0 references; entirely offline, skip uncached exports.
 
-Populate models / regenerate references with scripts/make_onnx_parity_fixtures.py
-while the reference fastembed version remains installed. Fixture hashes and pinned
-revisions are reviewed data; tests never regenerate expected vectors.
+The committed reference vectors, file hashes and pinned revisions are reviewed
+numerical fixtures. Tests never regenerate expected vectors or import the
+reference implementation.
 """
 
 from __future__ import annotations

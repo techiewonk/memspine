@@ -110,7 +110,6 @@ class PgVectorStore:
         projection: PgVectorProjection,
         *,
         embedder_id: str,
-        legacy_embedder_id: str | None = None,
     ) -> None:
         if not embedder_id:
             raise ValueError("pgvector requires an embedder identity")
@@ -118,9 +117,6 @@ class PgVectorStore:
         self._projection = projection
         self._table = projection_table(projection)
         self._embedder_id = embedder_id
-        self._read_embedder_ids = (
-            (embedder_id,) if legacy_embedder_id is None else (embedder_id, legacy_embedder_id)
-        )
         self._dimension = projection.dimension
         self._hnsw_ef_search = projection.hnsw_ef_search
         self._use_hnsw = projection.use_hnsw
@@ -222,7 +218,7 @@ class PgVectorStore:
         distance = table.c.embedding.cosine_distance(vector)
         statement = (
             select(table.c.record_id, distance.label("distance"))
-            .where(table.c.namespace == namespace, table.c.embedder_id.in_(self._read_embedder_ids))
+            .where(table.c.namespace == namespace, table.c.embedder_id == self._embedder_id)
             .order_by(distance.asc(), table.c.record_id.asc())
             .limit(top_k)
         )
@@ -255,7 +251,7 @@ class PgVectorStore:
         distance = table.c.embedding.cosine_distance(vector)
         statement = select(table.c.record_id, distance.label("distance")).where(
             table.c.namespace == namespace,
-            table.c.embedder_id.in_(self._read_embedder_ids),
+            table.c.embedder_id == self._embedder_id,
             table.c.record_id.in_(record_ids),
         )
 

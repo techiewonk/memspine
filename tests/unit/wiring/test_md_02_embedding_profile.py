@@ -279,15 +279,23 @@ async def test_memory_store_pins_nothing() -> None:
 
 
 def _onnx_cached(model: str) -> bool:
-    base = os.environ.get("FASTEMBED_CACHE_PATH") or os.path.join(
-        os.environ.get("TEMP", "/tmp"), "onnx_cache"
+    from huggingface_hub import try_to_load_from_cache
+
+    from memspine.clients.weights.onnx_catalogue import CATALOGUE
+
+    spec = CATALOGUE[model]
+    files = (
+        spec.model_file,
+        spec.tokenizer_file,
+        "tokenizer_config.json",
+        "special_tokens_map.json",
+        *spec.additional_files,
     )
-    hf = os.path.expanduser("~/.cache/huggingface/hub")
-    stem = model.split("/")[-1].lower()
-    for root in (base, hf):
-        if os.path.isdir(root) and any(stem in d.lower() for d in os.listdir(root)):
-            return True
-    return False
+    return all(
+        isinstance(path := try_to_load_from_cache(spec.repo, filename, revision=spec.revision), str)
+        and os.path.isfile(path)
+        for filename in files
+    )
 
 
 @pytest.mark.skipif(

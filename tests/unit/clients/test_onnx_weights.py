@@ -9,7 +9,6 @@ import pytest
 from memspine.clients.weights.onnx import OnnxModel, text_weights
 from memspine.clients.weights.onnx_catalogue import (
     CATALOGUE,
-    legacy_embedder_id,
     model_embedder_id,
     model_reranker_id,
     resolve_model_spec,
@@ -36,11 +35,9 @@ def test_offline_missing_file_names_file(monkeypatch: pytest.MonkeyPatch) -> Non
 def test_catalogue_and_custom_certification() -> None:
     from dataclasses import asdict
 
-    assert legacy_embedder_id(MODEL) == f"fastembed:{MODEL}"
-    assert legacy_embedder_id(MODEL, query_instruction="query: ") is None
+    assert CATALOGUE[MODEL].certified
     values = asdict(CATALOGUE[MODEL])
     assert not resolve_model_spec("custom", values).certified
-    assert legacy_embedder_id(MODEL, model_spec=values) is None
     assert OnnxEmbedding(MODEL, model_spec=values).embedder_id.startswith("onnx:")
     with pytest.raises(ValueError, match="explicit"):
         resolve_model_spec("unknown")
@@ -74,8 +71,6 @@ async def test_identical_specs_share_one_load_without_sharing_holder_limits(
     assert (await second.embed_queries(["abc"]))[0][0] == 10
     assert loads == 1
     assert first.embedder_id == f"embedder:{MODEL}"
-    assert first.legacy_embedder_id == f"fastembed:{MODEL}"
-    assert second.legacy_embedder_id is None
     assert first.embedder_id != second.embedder_id
     await first.aclose()
     assert (await second.embed(["x"]))[0][0] == 1

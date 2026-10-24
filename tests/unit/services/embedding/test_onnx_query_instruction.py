@@ -50,7 +50,6 @@ async def test_instruction_prefixes_queries_only() -> None:
         constants.BGE_QUERY_INSTRUCTION + "when did Ana go camping?",
     ]
     assert emb.embedder_id.startswith("onnx:BAAI/bge-small-en-v1.5:")
-    assert emb.legacy_embedder_id is None
 
 
 async def test_cache_never_serves_a_vector_made_under_the_other_setting() -> None:

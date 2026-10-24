@@ -167,21 +167,6 @@ def resolve_model_spec(
         ) from exc
 
 
-def legacy_embedder_id(
-    model: str, *, model_spec: Any = None, query_instruction: str | None = None
-) -> str | None:
-    spec = CATALOGUE.get(model)
-    if (
-        spec is None
-        or not spec.certified
-        or spec.pooling == "score"
-        or model_spec is not None
-        or query_instruction
-    ):
-        return None
-    return f"fastembed:{model}"
-
-
 def spec_identity(spec: OnnxModelSpec) -> dict[str, Any]:
     return asdict(spec)
 

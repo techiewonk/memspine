@@ -69,7 +69,7 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | documents | mongodb | ✅ `clients/mongodb` (one connector with the records slot) | ✅ `services/documents/mongodb.py` (GridFS bucket + `<bucket>.heads`; streamed hashing, cap and digest abort; revision CAS head merge); conformance 19/19 | ✅ `providers/builtin/documents.py`, locality cluster | ✅ | RM-112 (473c3f48) |
 | documents | weaviate | ✅ shared Weaviate connector (one client with the vector/lexical slots) | ✅ `services/documents/weaviate.py` (non-vectorized collection; head, BLOB chunk (1 MiB default, 4 MiB max) and per-record reference objects); conformance 19/19 live | ✅ `acquire()`, locality cluster, needs `deployment.id` | ✅ | RM-112 (79394028) |
 | assets (registry) | records + documents | ✅ storage's own async engine; bytes through the `DocumentStore` port | ✅ `services/assets/registry.py` (`asset_registry` table, Alembic SQLite + Postgres); no sqlite3 sidecar; `ingest.asset_dir` removed | ✅ built by the container | ✅ | RM-113 item 18 (d8540742) |
-| model.embedding | onnx | ✅ `clients/weights/onnx` | ✅ `services/embedding/onnx.py` | ✅ `providers/builtin/models.py` | ✅ | ADR-084; pinned catalogue, parity fixtures, metadata adoption |
+| model.embedding | onnx | ✅ `clients/weights/onnx` | ✅ `services/embedding/onnx.py` | ✅ `providers/builtin/models.py` | ✅ | ADR-084; pinned catalogue, reference fixtures, current identities |
 | model.embedding | sentence_transformers | ✅ `clients/weights/sentence_transformers` | ✅ `services/embedding/st.py` | ✅ | ✅ | F (fa543ba0) |
 | model.embedding | static (model2vec) | ✅ `clients/weights/model2vec` | ✅ `services/embedding/static.py` | ✅ | ✅ | F (fa543ba0) |
 | model.embedding | openai_compatible | ✅ `clients/openai_compat` | ✅ `services/embedding/openai_compat.py` | ✅ | ✅ | ADR-085; HTTP transport tests |
@@ -89,7 +89,7 @@ Last update: 2026-10-23, after the storage-slot merge (A, `28c54d8e`..`41e66f51`
 | model.embedding | bedrock | yes `clients/bedrock` | yes `services/embedding/openai_compat.py` | yes | yes | ADR-085; Stubber |
 | model.rerank | bedrock | yes `clients/bedrock` | yes `services/rerank/openai_compat.py` | yes | yes | ADR-085; Stubber |
 | model.llm | llamacpp | ✅ `clients/weights/llama_cpp` | ✅ `services/llm/llamacpp.py` | ✅ | ✅ | F (fa543ba0) |
-| model.rerank | onnx | ✅ `clients/weights/onnx` | ✅ `services/rerank/onnx.py` | ✅ one factory `providers/builtin/rerank.py` | ✅ | ADR-084; pinned catalogue, parity fixtures, metadata adoption |
+| model.rerank | onnx | ✅ `clients/weights/onnx` | ✅ `services/rerank/onnx.py` | ✅ one factory `providers/builtin/rerank.py` | ✅ | ADR-084; pinned catalogue, reference fixtures, current identities |
 | model.rerank | flashrank | ✅ `clients/weights/flashrank` | ✅ `services/rerank/flashrank.py` | ✅ one factory | ✅ | F (fa543ba0) |
 | model.rerank | qwen3 / jina | ✅ `clients/weights/transformers` | ✅ `services/rerank/{qwen3,jina}.py` | ✅ one factory | ✅ | F (fa543ba0) |
 | model.rerank | openai_compatible | ✅ `clients/openai_compat` | ✅ `services/rerank/openai_compat.py` | ✅ one factory | ✅ | ADR-085; HTTP transport tests |

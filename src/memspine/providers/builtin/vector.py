@@ -102,7 +102,6 @@ class LanceDBBuilder:
                     factory,
                     current,
                     state,
-                    legacy_model_id=getattr(ctx.embedding, "legacy_embedder_id", None),
                 ),
             )
         elif settings.isolation == "per_namespace":

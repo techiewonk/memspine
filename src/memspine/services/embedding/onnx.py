@@ -10,7 +10,6 @@ from memspine.clients.weights.onnx import text_weights
 from memspine.clients.weights.onnx_catalogue import (
     CATALOGUE,
     OnnxModelSpec,
-    legacy_embedder_id,
     model_embedder_id,
     resolve_model_spec,
 )
@@ -47,7 +46,6 @@ class OnnxEmbedding:
             raise ValueError("ONNX batch_size must be positive")
         self._dim = self._expected_dim = self._spec.dim
         self._query_instruction = query_instruction or None
-        self._model_spec = model_spec
         self._batch_size = batch_size
         self._model: Any = None
         self._weights = (
@@ -65,12 +63,6 @@ class OnnxEmbedding:
     @property
     def embedder_id(self) -> str:
         return self._embedder_id
-
-    @property
-    def legacy_embedder_id(self) -> str | None:
-        return legacy_embedder_id(
-            self._model_name, model_spec=self._model_spec, query_instruction=self._query_instruction
-        )
 
     @property
     def dim(self) -> int:

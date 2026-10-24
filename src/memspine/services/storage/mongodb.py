@@ -271,35 +271,6 @@ class MongoProjectionBindingStore:
         doc = await self._bindings.find_one(self._key(deployment_id, projector_name))
         return None if doc is None else binding_source_name(str(doc["provider"]))
 
-    async def adopt_equivalent_target(
-        self, target: ProjectionTargetBinding, old_fingerprint: str
-    ) -> bool:
-        """CAS only the certified old vector target; never reset its offset."""
-        if target.projector_name != "vectors" or target.source_provider is not None:
-            return False
-        result = await self._bindings.update_one(
-            {
-                **self._key(target.deployment_id, target.projector_name),
-                "provider": target.provider,
-                "generation_id": target.generation_id,
-                "target_fingerprint": old_fingerprint,
-            },
-            {
-                "$set": {
-                    "target_fingerprint": target.target_fingerprint,
-                    "updated_at": _iso(datetime.now(UTC)),
-                }
-            },
-        )
-        adopted = result.modified_count == 1
-        if adopted:
-            from memspine.observability import tap
-
-            fields = dict(old=old_fingerprint, new=target.target_fingerprint)
-            _log.info("provider.vector_identity_adopted", **fields)
-            tap.event("provider.vector_identity_adopted", **fields)
-        return adopted
-
     async def adopt_renamed_provider(
         self, target: ProjectionTargetBinding, old_provider: str
     ) -> bool:

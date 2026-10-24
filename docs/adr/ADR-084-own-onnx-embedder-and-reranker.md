@@ -31,10 +31,10 @@ default itself stays), and the `fastembed` entry of `model.rerank.chain`.
 
 ## Decision
 
-1. **New provider `onnx`** for `model.embedding` and for `model.rerank.chain` entries. The
-   provider `fastembed` is removed with no alias (ADR-068): a config naming it is rejected,
-   naming `onnx`. `scripts/migrate_config_keys_adr082.py` (or a successor codemod) rewrites
-   configs.
+1. **Current provider `onnx`** for `model.embedding` and `model.rerank.chain`.
+   This is the first development cycle: there is no previous provider contract to
+   support, no alias and no configuration migration tool. Unknown providers fail
+   normal registry validation.
 2. **Layering follows the RM-113 standard:**
    - The weights connector in `clients/weights/onnx.py` owns
      `onnxruntime.InferenceSession` plus `tokenizers.Tokenizer`. Files come through
@@ -75,17 +75,14 @@ default itself stays), and the `fastembed` entry of `model.rerank.chain`.
      different vectors for the same model name.
    - Hosted embedders (OpenAI-compatible, ADR-085) keep provider-qualified ids: their vectors
      are defined by the service, not by a local file.
-7. **Vector-space adoption, not re-embedding, for parity-certified models.**
-   - A store whose vector table or binding records `fastembed:<m>` is adopted on first start as
-     `embedder:<m>` when the configured embedder is `onnx` with catalogue model `m` and that model
-     is parity-certified.
-   - The adoption rewrites the identity metadata only (binding and space rows), never vectors,
-     in one audited step with a tap event and a log line. It is idempotent.
-   - A model without certification, or a changed model, pooling or prefix, is a new space and
-     goes through the F-03 controlled re-embed.
-   - The projection fingerprint and table-name rules must be checked during the build. If the
-     table name embeds the embedder id, adoption must keep the existing table (rename the
-     binding, not the data).
+7. **First-cycle storage identities (owner amendment, 2026-10-24).**
+   - Fresh tables, projection bindings and versioned spaces use the current
+     `embedder:<model>` identity directly. There is no old-provider table naming,
+     metadata adoption, profile-pin relabel, alternate read identity or migration.
+   - The earlier adoption design is withdrawn: there are no deployed previous
+     versions to preserve. Remove that implementation and its migration tests.
+   - Normal versioned-space routing and explicit re-embedding remain real model
+     lifecycle features; they are not compatibility with retired code.
 8. **Dependencies:**
    - `onnxruntime`, `tokenizers` and `huggingface-hub` become direct core dependencies. All
      three are already installed as fastembed's dependencies, so the core does not grow.
@@ -98,10 +95,9 @@ default itself stays), and the `fastembed` entry of `model.rerank.chain`.
 
 - Removes one of the two Hub 2.x blockers. memspine owns the pooling and normalisation code
   for a small, tested set of models.
-- Weights move from fastembed's own cache to the standard Hugging Face cache. The first
-  start after the switch downloads the ONNX files once, or finds them already there when the
-  same repo files are cached. Document this in USAGE and the upgrade notes.
-- The build must cover: the catalogue; the connector and adapters; config rejection plus the
-  codemod; the parity fixtures and tests; the space-adoption step with tests on SQLite and
-  LanceDB, and pgvector if available; the warm-up category; and docs (USAGE, FEATURES,
-  PROVIDER_DEFAULTS, DEPENDENCY_ANALYSIS, PYTHON313_DEPENDENCIES).
+- Model files use the standard Hugging Face cache and pinned revisions. No retired
+  provider cache is searched. Offline loading stays explicit.
+- The build covers the catalogue, connector, current adapters/settings, committed
+  numerical reference fixtures, current table identities, warm-up and documentation.
+- The 2026-10-24 owner amendment supersedes the old-store adoption and configuration
+  migration requirements in the original plan.

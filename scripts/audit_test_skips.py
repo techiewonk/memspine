@@ -19,7 +19,7 @@ from typing import Any
 
 SCAN_DIRS = ("tests", "evals/tests", "evals/conftest.py", "docs/v2/data/test_build_plan.py")
 DEFAULT_OUTPUT = "docs/provider_verification/test-skip-inventory.json"
-ENV_PREFIXES = ("MEMSPINE_", "EX1A_", "FASTEMBED_", "HF_", "CI", "TEMP")
+ENV_PREFIXES = ("MEMSPINE_", "EX1A_", "HF_", "CI", "TEMP")
 
 
 def dotted_name(node: ast.AST) -> str | None:
