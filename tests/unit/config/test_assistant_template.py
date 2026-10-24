@@ -75,6 +75,10 @@ async def test_core_template_is_bare_and_base_has_the_advantages() -> None:
         assert base.describe()["profile"] == "simple"
         assert read.default_mode == "replay" and read.resolve_relative_dates
         assert "computed from the line's own date" in base.chat_messages("hi")[0]["content"]
+        assert base.config.write.window_extract == "facts"
+        assert base.config.write.online_extractor is True
+        assert base.config.workers.outbox is True
+        assert "window_extract" not in base.config.model.llm
         conflict = base.config.memories["semantic"].policies["conflict"]
         assert conflict["contest_lower_trust"] is True
     finally:
@@ -98,6 +102,10 @@ async def test_engine_without_a_template_uses_assistant() -> None:
     try:
         assert eng.describe()["profile"] == "assistant"
         assert eng.config.read.default_mode == "replay"
+        assert eng.config.write.window_extract == "facts"
+        assert eng.config.write.online_extractor is True
+        assert eng.config.workers.outbox is True
+        assert "window_extract" not in eng.config.model.llm
     finally:
         await eng.stop()
     simple = _engine("base")

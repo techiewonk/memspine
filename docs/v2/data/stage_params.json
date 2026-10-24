@@ -907,7 +907,7 @@
      "key": "workers.outbox",
      "default": false,
      "type": "bool",
-     "description": "F-04: durable outbox. Window jobs are rows first, an inline runner drains them after each write and at start, a stop keeps unfinished jobs; model calls run outside namespace locks. `false` keeps the in-memory queue.",
+     "description": "F-04: durable outbox. Window jobs are rows first, an inline runner drains them after each write and at start, a stop keeps unfinished jobs; model calls run outside namespace locks. The schema and `core` default are `false`; the `base` application profile and templates extending it set `true` for durable rules-only background ingestion.",
      "effect": "Durable outbox. Window jobs are rows first, an inline runner drains them after each write and at start, a stop keeps unfinished jobs; model calls run outside namespace locks.",
      "rebuild": false,
      "rebuild_scope": "",
@@ -1263,8 +1263,8 @@
      "key": "write.window_extract",
      "default": "off",
      "type": "Literal['off', 'facts', 'facts_graph', 'all']",
-     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `model.llm.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
-     "effect": "Adaptive-window write, call 1.",
+     "description": "W1 / BI-12 adaptive-window derivation. `facts` derives atomic, dated, grounded facts with cited source parents. With `write.online_extractor: true` and no `model.llm.window_extract`, the supported rules-only path makes zero generative calls; otherwise a configured `window_extract` model supplies structured candidates. `facts_graph` adds entity edges and `all` adds episode fragments, and therefore are not rules-only modes. Requires episodic and semantic memory. The schema and `core` default are `off`; the `base` application profile and templates extending it select `facts`.",
+     "effect": "Adaptive-window derivation.",
      "rebuild": true,
      "rebuild_scope": "ingest",
      "screen_ids": [
@@ -1379,16 +1379,6 @@
      "screen_ids": [
       "S62"
      ]
-    },
-    {
-     "key": "write.online_extractor",
-     "default": false,
-     "type": "bool",
-     "description": "W2-06c (W-12). `true`: `derive.OnlineExtractor` is the named entry for online extraction over the outbox window stage (`ingest.windows.online_extractor`); the window stats gain `online_extractor` (the stage hook list in run order) and `envelope_stages` (the stages' drop / rewrite counters, e.g. `ground.dropped`), needs `write.envelope`; and a window mode with no `model.llm.window_extract` slot (the no-model `core` template) skips extraction with a warning instead of failing at start, so ingestion makes zero model calls and the L1/L2 stages do not run. `false` (default): stats unchanged, that start fails (D-10).",
-     "effect": "`true`: `derive.OnlineExtractor` is the named entry for online extraction over the outbox window stage (`ingest.windows.online_extractor`); the window stats gain `online_extractor` (the stage hook list in run order) and `envelope_stages` (t",
-     "rebuild": true,
-     "rebuild_scope": "ingest",
-     "screen_ids": []
     },
     {
      "key": "write.temporal",
@@ -1644,8 +1634,8 @@
      "key": "write.window_extract",
      "default": "off",
      "type": "Literal['off', 'facts', 'facts_graph', 'all']",
-     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `model.llm.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
-     "effect": "Adaptive-window write, call 1.",
+     "description": "W1 / BI-12 adaptive-window derivation. `facts` derives atomic, dated, grounded facts with cited source parents. With `write.online_extractor: true` and no `model.llm.window_extract`, the supported rules-only path makes zero generative calls; otherwise a configured `window_extract` model supplies structured candidates. `facts_graph` adds entity edges and `all` adds episode fragments, and therefore are not rules-only modes. Requires episodic and semantic memory. The schema and `core` default are `off`; the `base` application profile and templates extending it select `facts`.",
+     "effect": "Adaptive-window derivation.",
      "rebuild": true,
      "rebuild_scope": "ingest",
      "screen_ids": [
@@ -1678,11 +1668,21 @@
      "screen_ids": []
     },
     {
+     "key": "write.online_extractor",
+     "default": false,
+     "type": "bool",
+     "description": "W2-06c / BI-12. `true`: `derive.OnlineExtractor` is the named entry over the durable window stage. With no `model.llm.window_extract` slot and `write.window_extract: facts`, it runs the deterministic grounded-rule path, makes zero generative calls, persists explicit unresolved/empty outcomes and never falls back to generation. With a configured LLM it exposes the envelope-stage counters. The schema and `core` default are `false`; the `base` application profile and templates extending it set `true`.",
+     "effect": "`true`: `derive.OnlineExtractor` is the named entry over the durable window stage.",
+     "rebuild": true,
+     "rebuild_scope": "ingest",
+     "screen_ids": []
+    },
+    {
      "key": "write.window_extract",
      "default": "off",
      "type": "Literal['off', 'facts', 'facts_graph', 'all']",
-     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `model.llm.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
-     "effect": "Adaptive-window write, call 1.",
+     "description": "W1 / BI-12 adaptive-window derivation. `facts` derives atomic, dated, grounded facts with cited source parents. With `write.online_extractor: true` and no `model.llm.window_extract`, the supported rules-only path makes zero generative calls; otherwise a configured `window_extract` model supplies structured candidates. `facts_graph` adds entity edges and `all` adds episode fragments, and therefore are not rules-only modes. Requires episodic and semantic memory. The schema and `core` default are `off`; the `base` application profile and templates extending it select `facts`.",
+     "effect": "Adaptive-window derivation.",
      "rebuild": true,
      "rebuild_scope": "ingest",
      "screen_ids": [
@@ -1872,8 +1872,8 @@
      "key": "write.window_extract",
      "default": "off",
      "type": "Literal['off', 'facts', 'facts_graph', 'all']",
-     "description": "W1 adaptive-window write, call 1. `facts`: one structured `window_extract` call per window of consecutive turns yields atomic, dated, grounded facts (a verbatim `span` of a cited turn), deposited as semantic `atomic_fact` records with the cited turns as parents. `facts_graph` adds the entity-edge section (handed to the sleep stage `extract_graph`); `all` adds the episode-fragment section. Needs `model.llm.window_extract` and `memories.episodic` + `memories.semantic`. Run with `Engine.flush_windows()` (batch) or in the background (`window_async`). Counters: `Engine.window_stats()`.",
-     "effect": "Adaptive-window write, call 1.",
+     "description": "W1 / BI-12 adaptive-window derivation. `facts` derives atomic, dated, grounded facts with cited source parents. With `write.online_extractor: true` and no `model.llm.window_extract`, the supported rules-only path makes zero generative calls; otherwise a configured `window_extract` model supplies structured candidates. `facts_graph` adds entity edges and `all` adds episode fragments, and therefore are not rules-only modes. Requires episodic and semantic memory. The schema and `core` default are `off`; the `base` application profile and templates extending it select `facts`.",
+     "effect": "Adaptive-window derivation.",
      "rebuild": true,
      "rebuild_scope": "ingest",
      "screen_ids": [

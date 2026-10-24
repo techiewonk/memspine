@@ -54,6 +54,16 @@ prompts:
     chat:
       condition: dated          # H12: chat@dated answer prompt (+3.2 alone)
 
+# BI-12: the first-cycle application default derives only facts supported by
+# deterministic rules. No window_extract LLM is bound and no generative fallback
+# is allowed; unsupported inputs complete as unresolved/empty outcomes.
+write:
+  window_extract: facts
+  online_extractor: true
+
+workers:
+  outbox: true                  # accepted conversation/window input leaves durable derivation work
+
 memories:
   working:
     enabled: true

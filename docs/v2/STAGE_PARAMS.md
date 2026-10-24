@@ -247,7 +247,7 @@ Models:
 | `write.batch_max_windows` | `8` | int ge 1, le 64 | Most windows in one call; 1 turns batching off. | ingest | - |
 | `write.prompt_schema` | `auto` | auto \\| off | With `write.prompt`: `auto` passes the JSON schema to providers that support it; | ingest | - |
 | `write.window_cache` | `true` | bool | Cache each call by (model, prompt version, sections, window text), so a re-run on the same history makes no call. | ingest | - |
-| `write.window_extract` | `off` | off \\| facts \\| facts_graph \\| all | Adaptive-window write, call 1. | ingest | S43, S62 |
+| `write.window_extract` | `off` | off \\| facts \\| facts_graph \\| all | Adaptive-window derivation. | ingest | S43, S62 |
 
 Prompts:
 
@@ -286,7 +286,6 @@ Models:
 |---|---|---|---|---|---|
 | `write.coverage` | `false` | bool | With `write.envelope`: an envelope stage (order 250, after grounding) computes coverage, the share of the window's informative lines (filler, and system / echo turns per the W2-03 tags, excluded) cite | ingest | S62 |
 | `write.integration` | `false` | bool | `true` (needs `write.envelope`): an envelope stage at order 400 finds the live assertions on each state envelope's (subject, attribute) key (W2-09's resolved entity id when present, else the normalise | ingest | S62 |
-| `write.online_extractor` | `false` | bool | `true`: `derive.OnlineExtractor` is the named entry for online extraction over the outbox window stage (`ingest.windows.online_extractor`); the window stats gain `online_extractor` (the stage hook lis | ingest | - |
 | `write.temporal` | `false` | bool | Temporal anchoring as an envelope stage (order 100). | ingest | S62 |
 
 ## A21a 100 temporal
@@ -350,7 +349,7 @@ No tunable keys.
 
 | Key | Default | Type / range | Effect | Rebuild | Screens |
 |---|---|---|---|---|---|
-| `write.window_extract` | `off` | off \\| facts \\| facts_graph \\| all | Adaptive-window write, call 1. | ingest | S43, S62 |
+| `write.window_extract` | `off` | off \\| facts \\| facts_graph \\| all | Adaptive-window derivation. | ingest | S43, S62 |
 
 ## A23 Fact deposit
 
@@ -359,7 +358,8 @@ No tunable keys.
 | Key | Default | Type / range | Effect | Rebuild | Screens |
 |---|---|---|---|---|---|
 | `firewall.protected_keys` | `[]` | list[str] | Fact keys (`entity` or `entity.attribute`) only operator/system sources may write; others are quarantined. | - | - |
-| `write.window_extract` | `off` | off \\| facts \\| facts_graph \\| all | Adaptive-window write, call 1. | ingest | S43, S62 |
+| `write.online_extractor` | `false` | bool | `true`: `derive.OnlineExtractor` is the named entry over the durable window stage. | ingest | - |
+| `write.window_extract` | `off` | off \\| facts \\| facts_graph \\| all | Adaptive-window derivation. | ingest | S43, S62 |
 
 ## A24 Derived-write door and lineage
 
@@ -402,7 +402,7 @@ Models:
 
 | Key | Default | Type / range | Effect | Rebuild | Screens |
 |---|---|---|---|---|---|
-| `write.window_extract` | `off` | off \\| facts \\| facts_graph \\| all | Adaptive-window write, call 1. | ingest | S43, S62 |
+| `write.window_extract` | `off` | off \\| facts \\| facts_graph \\| all | Adaptive-window derivation. | ingest | S43, S62 |
 
 ## A27 Typed routing
 

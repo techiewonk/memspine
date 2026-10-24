@@ -6,8 +6,10 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
+from pathlib import Path
 
 from memspine.config import presets
 from memspine.config.loader import load_config, template_dir
@@ -39,4 +41,11 @@ def dump() -> dict:
 
 
 if __name__ == "__main__":
-    print(json.dumps(dump(), indent=1, sort_keys=True, default=str))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--write", type=Path)
+    args = parser.parse_args()
+    rendered = json.dumps(dump(), indent=1, sort_keys=True, default=str) + "\n"
+    if args.write is None:
+        print(rendered, end="")
+    else:
+        args.write.write_text(rendered, encoding="utf-8")

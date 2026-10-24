@@ -210,6 +210,72 @@ async def test_no_model_online_extractor_deposits_grounded_rule_fact(
         await eng.stop()
 
 
+async def test_base_profile_defaults_to_durable_rules_only_ingestion(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[str] = []
+
+    async def router(
+        config: MemspineConfig, hooks: object = None, wiring: object = None
+    ) -> LLMRouter:
+        calls.extend(config.model.llm)
+        return LLMRouter({})
+
+    monkeypatch.setattr("memspine.runtime.container.build_llm_router", router)
+    eng = Engine(
+        template="base",
+        dotenv_path=None,
+        storage={
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
+            }
+        },
+        model={"embedding": {"provider": "hash", "settings": {}}},
+        write={
+            "window_async": False,
+            "window_idle_s": 0.0,
+            "window_max_turns": 1,
+        },
+    )
+    await eng.start()
+    try:
+        assert eng.config.write.window_extract == "facts"
+        assert eng.config.write.online_extractor is True
+        assert eng.config.workers.outbox is True
+        await eng.ingest_messages(
+            [
+                {
+                    "message_id": "base-rule-1",
+                    "role": "user",
+                    "sender": {"id": "Mira"},
+                    "content": "I work for Acme.",
+                    "timestamp": "2026-10-24T10:00:00+00:00",
+                },
+                {
+                    "message_id": "base-rule-2",
+                    "role": "user",
+                    "sender": {"id": "Nora"},
+                    "content": "I live in Lisbon.",
+                    "timestamp": "2026-10-24T10:01:00+00:00",
+                },
+            ],
+            namespace="a",
+            session_id="s1",
+            conversation_id="s1",
+        )
+        stats = await eng.flush_windows("a")
+        facts = await _facts(eng, "a")
+        assert stats["calls"] == 0 and stats["rule_facts_returned"] == 2
+        assert sorted(fact.content for fact in facts) == [
+            "Mira employed_by Acme",
+            "Nora resides_in Lisbon",
+        ]
+        assert calls == []
+    finally:
+        await eng.stop()
+
+
 async def test_no_model_start_still_fails_with_the_flag_off() -> None:
     from memspine.exceptions import ConfigError
 

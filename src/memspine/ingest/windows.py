@@ -244,7 +244,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         asynchronous=asynchronous,
         on_session_closed=eng._window_session_closed,
         outbox=outbox,
-        segmentation=_segmentation(config),
+        segmentation=_segmentation(config, model_batching=not rule_only),
         role_policy=config.write.role_policy,
         envelope=envelope,
         context_builder=context_builder,
@@ -473,7 +473,9 @@ def _resolve_stage(eng: Any, config: MemspineConfig) -> Any:
     return stage.as_stage()
 
 
-def _segmentation(config: MemspineConfig) -> SegmentationSettings:
+def _segmentation(
+    config: MemspineConfig, *, model_batching: bool = True
+) -> SegmentationSettings:
     """W2-05: The base segmenter and optional batching settings."""
     w = config.write
     return SegmentationSettings(
@@ -482,7 +484,7 @@ def _segmentation(config: MemspineConfig) -> SegmentationSettings:
         grow_tokens=w.segment_grow_tokens,
         max_turns_cap=w.segment_max_turns,
         batch_max_tokens=w.batch_max_tokens,
-        batch_max_windows=w.batch_max_windows,
+        batch_max_windows=w.batch_max_windows if model_batching else 1,
         batch_max_age_s=w.batch_max_age_s,
     )
 

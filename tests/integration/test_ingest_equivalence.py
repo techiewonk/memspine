@@ -177,6 +177,7 @@ async def _observe_engine(template: str, storage_path: str) -> dict[str, Any]:
             )
         assert engine._storage is not None
         events = await engine._storage.read_events(after_seq=0, limit=1_000_000)
+        assert [event.seq for event in events] == list(range(1, len(events) + 1))
         norm = _Normaliser()
         event_rows = []
         for event in events:
@@ -184,6 +185,22 @@ async def _observe_engine(template: str, storage_path: str) -> dict[str, Any]:
             for key in _VOLATILE_EVENT_KEYS:
                 row.pop(key, None)
             event_rows.append(norm(row))
+        # The promoted base profile runs window derivation asynchronously. Its
+        # deterministic session markers may therefore interleave with source
+        # writes at different positions on memory and file stores. Preserve the
+        # authoritative source-event order and compare every marker payload, but
+        # canonicalise that background-only interleaving for this snapshot.
+        def is_session_closed_marker(row: dict[str, Any]) -> bool:
+            return (
+                row["kind"] == "memory.marker"
+                and row.get("payload", {}).get("marker") == "session_closed"
+            )
+
+        marker_rows = [row for row in event_rows if is_session_closed_marker(row)]
+        event_rows = [row for row in event_rows if not is_session_closed_marker(row)]
+        event_rows.extend(sorted(marker_rows, key=lambda row: json.dumps(row, sort_keys=True)))
+        for seq, row in enumerate(event_rows, 1):
+            row["seq"] = seq
         records = await engine.retrieve(namespace="conv", include_held=True)
         record_rows = sorted(
             (norm(record.model_dump(mode="json")) for record in records),

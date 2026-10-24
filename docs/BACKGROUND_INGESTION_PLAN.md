@@ -1,6 +1,6 @@
 # Raw ingestion plus durable background grounding — implementation plan
 
-Design baseline: 2026-10-18. Reconciled for handoff: 2026-10-24. Status: implementation integrated; remaining promotion gates are listed below.
+Design baseline: 2026-10-18. Reconciled for handoff: 2026-10-24. Status: implementation and first-cycle application-profile promotion complete.
 Authority: owner accepted all three policies. [Current trace](INGESTION_STORAGE_TRACE.md),
 [ADR-077](adr/ADR-077-background-grounded-ingestion.md), D-99.
 
@@ -19,9 +19,9 @@ Authority: owner accepted all three policies. [Current trace](INGESTION_STORAGE_
 | BI-09 | DONE | Durable per-layer counts/failures plus bounded status/wait APIs | None |
 | BI-10 | DONE | Cold sources inflate before grounding with exact Unicode/fingerprint preservation | None |
 | BI-11 | DONE | Extractive-only summaries make zero generative calls and preserve raw-parent lineage; BI-05 through BI-07 prerequisites are closed | None |
-| BI-12 | NEEDS_INPUT | Namespace/restart/fault/provider matrix and full suite pass | Owner must select the application profile/model binding to promote as the default |
+| BI-12 | DONE | Namespace/restart/fault/provider matrix and full suite pass; `base` and its application templates select durable `facts` windowing with the rules-only non-generative extractor and no `window_extract` model binding | None |
 
-Verification at this revision: 9,194 main tests collected; 8,919 passed,
+Verification at this revision: 9,195 main tests collected; 8,920 passed,
 275 skipped and zero failed. Ruff and generated schema/reference checks pass.
 
 ## Accepted policy
@@ -45,9 +45,9 @@ reranking and whole-unit packing capabilities must be reused and verified.
 
 One canonical gateway remains. No intake_v2 path, compatibility registry, alternate
 writer, DB copying, historical re-embedding or implicit historical backfill. This
-plan does not activate a provider, download a model or change a runtime default.
-The selected application profile becomes the target default after its gates pass;
-core mechanics tests can continue selecting an explicitly raw-only policy.
+The promoted first-cycle profile does not activate a model provider or download a
+model. `base` and the application templates extending it select durable rules-only
+fact derivation; `core` remains the explicit bare/raw-only template.
 
 ## Target flow
 
@@ -261,7 +261,11 @@ and legal-hold policy still apply. Compression is not encryption. Keep summaries
 separate from raw source and distinguish lossless disk savings from lossy token
 savings. No automatic lossy deletion, provider copying or re-embedding.
 
-## Focused verification checklist
+## Original focused verification checklist (historical planning)
+
+This is the pre-implementation checklist retained for decision history. The
+completed package gates and current verification evidence are recorded in the
+status table and verification summary above.
 
 - [ ] Policy/schema/default validation, missing-model and incompatible durability cases.
 - [ ] IDs, session/conversation/replies, historical times and idempotent retries.
@@ -281,9 +285,10 @@ savings. No automatic lossy deletion, provider copying or re-embedding.
 
 ## Status and next action
 
-BI-01 through BI-11 are implemented and their package gates pass. BI-12 has a
-green integration matrix but cannot promote a default until the owner
-selects the application profile/model binding.
+BI-01 through BI-12 are implemented and their package gates pass. The owner
+selected the rules-only non-generative profile for first-cycle promotion: `base`
+enables `write.window_extract: facts`, `write.online_extractor: true` and
+`workers.outbox: true`, without a `model.llm.window_extract` binding.
 This remains separate from deployment acceptance and PA-107 evaluation migration.
 
 ## Exact target contract review — 2026-10-18
@@ -310,7 +315,7 @@ O1..O4 accepted A/A/A/A. Use the balanced numeric limits and 4K assembly target,
 
 [Kernel results](CPU_NON_LLM_BENCHMARK_RESULTS.md) now support a proposed non-generative role split: cheap Model2Vec8M label/context candidates, optional GLiNER2.5 Small entity candidates, and TinyBERT/MiniLM passage reranking where needed. These are alternatives/task bindings, not a mandatory serial pipeline. On the tiny passage fixture, Model2Vec8M gets 4/8 while TinyBERT gets 7/8 and MiniLM gets 8/8; a good routing score does not justify truth decisions or evidence trimming.
 
-Keep source-span, role, modality, time, identity and authority checks after model candidates. No generative calls or hidden escalation. Current inference results do not test relation extraction, 4K dependency bundles or the configured 48-candidate pool. Those focused promotion gates remain open; all BI implementation steps remain PLANNED and no default model is changed.
+Keep source-span, role, modality, time, identity and authority checks after model candidates. No generative calls or hidden escalation. Current inference results do not test relation extraction, 4K dependency bundles or the configured 48-candidate pool. At the time of this 2026-10-18 benchmark, those focused promotion gates remained open, all BI implementation steps were planned, and no default model had changed.
 
 ## Measured 48-candidate / 2K-3K comparison - 2026-10-18
 
@@ -327,4 +332,4 @@ Recommended comparison profiles, not activated defaults:
 | Bundle assembly | Preserve source dependency closure and account for copied support | Flat TinyBERT packing 11/16 at 2K, linked/full 15/16; no partial linked bundles accepted |
 | Next engineering experiments | Obligation-aware selection, immutable token-cost cache, read-time source-span dedup | Proposed only; do not change durable copied-excerpt/erasure contracts |
 
-The previously accepted 4K target is not replaced by this benchmark request. Bind actual deployment budgets to the reader tokenizer and prompt reserve; benchmark BERT-token counts are not universal. BI implementation remains PLANNED and no model/provider/config defaults changed.
+The previously accepted 4K target is not replaced by this benchmark request. Bind actual deployment budgets to the reader tokenizer and prompt reserve; benchmark BERT-token counts are not universal. At the time of this 2026-10-18 benchmark, BI implementation remained planned and no model, provider or configuration default had changed.

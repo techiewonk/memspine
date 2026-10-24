@@ -47,8 +47,8 @@ copying, historical re-embedding, alternate ingestion path or compatibility laye
 
 ## Action items
 
-- [ ] BI-01 strict contracts/configuration.
-- [ ] BI-02/03 durable acceptance/discovery before default activation.
-- [ ] BI-04..09 isolated windows, grounded outputs, fenced commit, graph and readiness.
-- [ ] BI-10/11 recoverable encoding and separate summaries.
-- [ ] BI-12 focused integration/recovery gates and application-profile promotion.
+- [x] BI-01 strict contracts/configuration.
+- [x] BI-02/03 durable acceptance/discovery before default activation.
+- [x] BI-04..09 isolated windows, grounded outputs, fenced commit, graph and readiness.
+- [x] BI-10/11 recoverable encoding and separate summaries.
+- [x] BI-12 focused integration/recovery gates and rules-only application-profile promotion.

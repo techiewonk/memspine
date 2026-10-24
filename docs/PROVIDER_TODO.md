@@ -11,13 +11,13 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 |---|---:|
 | DEFERRED | 6 |
 | DEPLOYMENT_CHECK | 19 |
-| DONE | 209 |
+| DONE | 211 |
 | EXCLUDED | 4 |
 | IN_PROGRESS | 26 |
-| NEEDS_INPUT | 4 |
+| NEEDS_INPUT | 3 |
 | NEEDS_TOOLCHAIN | 1 |
 | OPEN | 9 |
-| OPEN_REVIEW | 18 |
+| OPEN_REVIEW | 17 |
 | PROPOSED | 3 |
 | REVIEW | 5 |
 
@@ -212,10 +212,10 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | BI-09 | DONE | P1 | API / observability maintainer | Readiness and controls | 2026-10-24: `ingestion_status` and bounded `wait_for_derivation` expose durable per-layer state/count/failure, explicit zero results, timeout/retry and non-oracle erased/unknown behavior. | Completed | Prereq: BI-01, BI-03; Feeds: BI-12 |
 | BI-10 | DONE | P1 | Storage / retention maintainer | Recoverable compression | 2026-10-24: grounding inflates canonical cold source records before extraction; exact Unicode/fingerprint, corruption, restart and erasure coverage pass. | Completed | Prereq: BI-01; Feeds: BI-12 |
 | BI-11 | DONE | P1 | Offline / memory maintainer | Separate summaries | 2026-10-24: explicit extractive-only mode makes zero summary LLM calls, preserves raw-parent lineage and records the actual producer after fallback; BI-05 through BI-07 prerequisites closed. | Completed | Prereq: BI-05, BI-06, BI-07; Feeds: none |
-| BI-12 | NEEDS_INPUT | P1 | Verification / engineering lead | Integration and promotion | 2026-10-24: namespace/restart/fault and SQLite/LadybugDB/Neo4j matrices pass; full suite 8,919 passed, 275 skipped, zero failed. | Owner must select the application profile/model binding to make the first-cycle default; accepted plans explicitly leave it unselected | Prereq: BI-02..BI-10, RM-22; Feeds: application profile promotion |
+| BI-12 | DONE | P1 | Verification / engineering lead | Integration and promotion | 2026-10-24: owner selected the rules-only non-generative first-cycle default. `base` and every application template extending it enable durable `facts` windowing (`write.online_extractor`, `workers.outbox`) without a `model.llm.window_extract` binding; `core` remains bare/raw-only. Namespace/restart/fault and SQLite/LadybugDB/Neo4j matrices pass; focused template/config/combinations/wiring regression passes; the full suite collected 9,195 tests: 8,920 passed, 275 skipped and zero failed. | Completed for the rules-only first-cycle application profile; optional model-backed extraction remains explicit | Prereq: BI-02..BI-11; Feeds: none |
 | DS-01 | DONE | P1 | Window/runtime maintainer | Staged windows retained across enqueue errors and cancellation | Acknowledged prefix retained; unaccepted suffix restored ahead of concurrent staging; accepted work still woken. 11 new recovery regressions; combined focused gate: 185 passed. [verification](provider_verification/ds-fixes-final-state-2026-10-21.json) | Completed local enqueue/cancellation scope. Open-window crash discovery remains BI-03/BI-04; provider acceptance ambiguity remains at-least-once | Prereq: none (DONE); Feeds: BI-03, BI-04 |
 | DS-02 | DONE | P1 | Runtime maintainer | Bound direct readiness waits with a cooperative monotonic deadline | Deadline now encloses inline drain, polling and barriers; nonpositive timeout snapshots without draining; pending work remains retryable. Combined focused gate: 185 passed. [verification](provider_verification/ds-fixes-final-state-2026-10-21.json) | Completed cooperative async deadline scope; blocking or cancellation-suppressing providers need their own native deadlines | Prereq: none (DONE); Feeds: BI-09 |
-| DS-03 | OPEN_REVIEW | P1 | Owning subsystem maintainer | Current window construction still requires generative extraction | Baseline reproduced/code traced; [review evidence](DEEP_SCAN_REVIEW_2026-10-21.md). No fix selected/completed | A profile with no LLM role produces grounded allowed candidates/annotations or explicit unresolved outcomes without losing the whole stage. | Prereq: none; Feeds: BI-01, BI-06 |
+| DS-03 | DONE | P1 | Owning subsystem maintainer | Support window construction without generative extraction | 2026-10-24: the promoted `base` profile runs deterministic grounded-rule fact extraction without a `model.llm.window_extract` binding, persists explicit unresolved/empty outcomes, disables model batching and makes zero generative calls; the two-window regression proves no hidden model path. | Completed by BI-06/BI-12; optional model-backed extraction remains explicit | Prereq: none; Feeds: BI-01, BI-06 |
 | DS-04 | OPEN_REVIEW | P1 | Owning subsystem maintainer | Window prepass annotations are attached through surviving assertion envelopes | Baseline reproduced/code traced; [review evidence](DEEP_SCAN_REVIEW_2026-10-21.md). No fix selected/completed | Zero facts, rejected facts and uncited source with valid mentions all yield correct source annotation readiness. | Prereq: none; Feeds: BI-05, BI-07 |
 | DS-05 | OPEN_REVIEW | P1 | Owning subsystem maintainer | Raw acceptance and window observation are separate failure boundaries | Baseline reproduced/code traced; [review evidence](DEEP_SCAN_REVIEW_2026-10-21.md). No fix selected/completed | Kill/fail after raw append before observation; eventual required job exists exactly once. | Prereq: none; Feeds: BI-02, BI-03 |
 | DS-06 | OPEN_REVIEW | P1 | Owning subsystem maintainer | Open window membership is volatile before a cut | Baseline reproduced/code traced; [review evidence](DEEP_SCAN_REVIEW_2026-10-21.md). No fix selected/completed | Restart after each of the first five turns of a six-turn window, plus idle/session-close cuts. | Prereq: none; Feeds: BI-03, BI-04 |
