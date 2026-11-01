@@ -323,6 +323,17 @@ print("abstained:", ctx.abstained, "tokens:", ctx.tokens_used)
 Records before `boundary_index` are the stable prefix (persona, facts) to feed
 provider prefix caching; volatile episodic/working content follows.
 
+**Hard token budget (ADR-092).** `budget_tokens` is a cap, counted with the packer's own
+counter (`len // 4 + 1`, or the `read.reader_tokenizer` counter under `read.exact_budget`).
+A first record larger than the budget is cut at a sentence boundary (a whitespace boundary
+when no sentence fits) and listed in `ctx.hits` with `truncated=True` and its
+`original_tokens`. The cut is a copy under the same `record_id`, held only in the result.
+If not even a cut fits, the record is left out and `ctx.budget_status == "oversize"`;
+otherwise it is `"within"`. E5 compression keeps protected blocks whole, so a context that
+stays over the budget that way also reports `"oversize"`. With `read.evidence_bundles`,
+every packed hit has a manifest in `ctx.hits` (`needed_turns`, `included_turns`,
+`dropped_turns`), and `ctx.partial_hits` lists the hits whose `status` is `partial`.
+
 ### Episodic — timeline + sessions
 ```python
 await engine.write("build started", namespace="dev", memory_type="episodic")
@@ -1347,6 +1358,7 @@ in the schema — or if the schema gains a key not documented here.
 | `read.bridge_hop_weak_threshold` | `0.4` | Second-best raw reranker score under which the `weak` gate fires. Picked offline on the dev forensics: on the 233 screen questions it fires on 31 (13%), including the target question 0-11 (0.349) and none of the 5 reader-drift losses; 0.35 is the edge of that question, 0.5 fires on 40. Tuned on one sample, so confirm on a run before relying on it. |
 | `read.bundle_fact_share` | `0.6` | R3-09b: share of the evidence budget fact bundles may take while other records wait. |
 | `read.bundle_pool_factor` | `2.0` | R3-09b: selection pool as a multiple of the budget when bundles are on. |
+| `read.bundle_turns` | `2` | ADR-092 (DS-13): source turns shown with a fact bundle, best-overlapping first. Every packed hit carries a dependency manifest in `AssembledContext.hits` (needed, included and dropped turns); a fact whose needed turn was cut is `partial`. |
 | `read.cache.enabled` | `false` | R3-15 (LIB-19, ER-31 B): cache whole read results, keyed by scope, viewer, query, config, model ids and store / erasure generations. Every hit is revalidated against the live store (POL-1); a partial revalidation recomputes. Reads naming a `session_id` are never cached. |
 | `read.cache.max_entries` | `256` | R3-15: read-cache capacity (oldest evicted). |
 | `read.cache.ttl_seconds` | `null` | R3-15: optional read-cache entry lifetime in seconds. |

@@ -6248,6 +6248,19 @@
      }
     },
     {
+     "key": "read.bundle_turns",
+     "default": 2,
+     "type": "int",
+     "description": "ADR-092 (DS-13): source turns shown with a fact bundle, best-overlapping first. Every packed hit carries a dependency manifest in `AssembledContext.hits` (needed, included and dropped turns); a fact whose needed turn was cut is `partial`.",
+     "effect": "Source turns shown with a fact bundle, best-overlapping first.",
+     "rebuild": false,
+     "rebuild_scope": "",
+     "screen_ids": [],
+     "range": {
+      "ge": 1
+     }
+    },
+    {
      "key": "read.compression",
      "default": {},
      "type": "dict[str, Any]",
@@ -8851,5 +8864,5 @@
   "workers.temporal": "no read site matched an inventory stage"
  },
  "unattributed_count": 132,
- "schema_key_count": 588
+ "schema_key_count": 589
 }

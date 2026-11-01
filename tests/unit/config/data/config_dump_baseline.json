@@ -263,6 +263,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -712,7 +713,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "9d20d0e7838c8fb0937a82021f7e60227e5d2e997997d1941852a0e75a0f8eaf",
+ "json_schema_sha256": "616719adc907728f3a84cce3e5ec207ced34237bb4a7df92ac972747687b0da3",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -1004,6 +1005,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -1747,6 +1749,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -2490,6 +2493,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -3233,6 +3237,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -3976,6 +3981,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -4719,6 +4725,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -5475,6 +5482,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -6235,6 +6243,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -6978,6 +6987,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -7721,6 +7731,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": true,
     "max_entries": 256,
@@ -8464,6 +8475,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -9207,6 +9219,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -9950,6 +9963,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -10693,6 +10707,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -11436,6 +11451,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -12179,6 +12195,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -12931,6 +12948,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -13683,6 +13701,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -14416,6 +14435,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -15155,6 +15175,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -15906,6 +15927,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -16653,6 +16675,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -17417,6 +17440,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -18160,6 +18184,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -18904,6 +18929,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -19660,6 +19686,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,
@@ -20408,6 +20435,7 @@
    "bridge_hop_weak_threshold": 0.4,
    "bundle_fact_share": 0.6,
    "bundle_pool_factor": 2.0,
+   "bundle_turns": 2,
    "cache": {
     "enabled": false,
     "max_entries": 256,

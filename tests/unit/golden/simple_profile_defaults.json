@@ -131,6 +131,7 @@
       "bridge_hop_weak_threshold": 0.4,
       "bundle_fact_share": 0.6,
       "bundle_pool_factor": 2.0,
+      "bundle_turns": 2,
       "cache": {
         "enabled": false,
         "max_entries": 256,
