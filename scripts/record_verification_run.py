@@ -8,6 +8,7 @@ Every record carries a ``revision`` block (commit, tree, branch, dirty) and an `
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import platform
@@ -53,18 +54,36 @@ def _git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def revision_info(root: Path) -> dict[str, object]:
+def _porcelain_path(line: str) -> str:
+    """The (destination) path of one ``git status --porcelain`` line; tolerant of the
+    leading status column having been stripped from the first line."""
+    path = line.strip().split(None, 1)[-1]
+    return path.split(" -> ")[-1].strip('"')
+
+
+def revision_info(root: Path, ledger: Path | None = None) -> dict[str, object]:
     """Commit SHA, tree hash, branch (``None`` when detached) and dirty state of ``root``.
 
     ``dirty`` is any output from ``git status --porcelain``: modified, staged and untracked
-    files all count; nothing is filtered.
+    files all count. The only exclusion is ``ledger``, the evidence file this recorder
+    appends to, so the chunks of one run can be recorded on the same clean commit.
     """
+    ignored = None
+    if ledger is not None:
+        resolved = (ledger if ledger.is_absolute() else root / ledger).resolve()
+        with contextlib.suppress(ValueError):
+            ignored = resolved.relative_to(root.resolve()).as_posix()
+    changes = [
+        line
+        for line in _git(root, "status", "--porcelain", "--untracked-files=all").splitlines()
+        if line.strip() and _porcelain_path(line) != ignored
+    ]
     branch: str | None = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
     return {
         "commit": _git(root, "rev-parse", "HEAD"),
         "tree": _git(root, "rev-parse", "HEAD^{tree}"),
         "branch": None if branch == "HEAD" else branch,
-        "dirty": bool(_git(root, "status", "--porcelain")),
+        "dirty": bool(changes),
     }
 
 
@@ -144,7 +163,7 @@ def record_run(
         raise ValueError("gate and command must not be empty")
 
     root = root.resolve()
-    revision = revision_info(root)
+    revision = revision_info(root, output)
     if revision["dirty"] and not allow_dirty:
         raise DirtyTreeError(
             "working tree is dirty (git status --porcelain is not empty); commit or remove "

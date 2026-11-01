@@ -239,3 +239,27 @@ def test_records_only_explicit_fields_and_refuses_clear_credentials(
 
     with pytest.raises(ValueError, match="credentials"):
         _record(root, output, evidence=["token=obviously-secret"])
+
+
+def test_the_ledger_file_itself_does_not_make_the_tree_dirty(tmp_path: Path) -> None:
+    """Chunks of one run append to the same ledger on one clean commit (ADR-087)."""
+    import subprocess
+
+    from scripts.record_verification_run import revision_info
+
+    def git(*args: str) -> None:
+        subprocess.run(["git", *args], cwd=tmp_path, check=True, capture_output=True)
+
+    git("init", "-q")
+    git("config", "user.email", "t@example.com")
+    git("config", "user.name", "t")
+    (tmp_path / "a.txt").write_text("a", encoding="utf-8")
+    git("add", "a.txt")
+    git("commit", "-q", "-m", "init")
+    ledger = tmp_path / "docs" / "runs.jsonl"
+    ledger.parent.mkdir()
+    ledger.write_text("{}\n", encoding="utf-8")
+    assert revision_info(tmp_path, ledger)["dirty"] is False
+    assert revision_info(tmp_path)["dirty"] is True
+    (tmp_path / "a.txt").write_text("changed", encoding="utf-8")
+    assert revision_info(tmp_path, ledger)["dirty"] is True
