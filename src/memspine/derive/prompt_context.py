@@ -31,6 +31,7 @@ from memspine.prompts.layout_aliases import render_known
 
 __all__ = [
     "KnownEntity",
+    "KnownSet",
     "KnownSource",
     "KnownVisibility",
     "PromptContext",
@@ -73,7 +74,34 @@ class KnownEntity:
         return self.visibility is None or self.visibility.visible_to(namespace)
 
 
-#: ``(namespace, new text) -> entities``
+class KnownSet(tuple[KnownEntity, ...]):
+    """DS-12: a source's entities plus whether the set is complete.
+
+    ``deferred`` marks a capped or partly read set: names outside it may exist. Per ADR-089 a
+    deferred set never supports an auto-link (uniqueness needs the complete index); KNOWN is
+    a prompt hint either way."""
+
+    deferred: bool
+    reason: str | None
+
+    def __new__(
+        cls,
+        entities: Iterable[KnownEntity] = (),
+        *,
+        deferred: bool = False,
+        reason: str | None = None,
+    ) -> KnownSet:
+        out = super().__new__(cls, tuple(entities))
+        out.deferred = deferred
+        out.reason = reason
+        return out
+
+    @property
+    def supports_auto_link(self) -> bool:
+        return not self.deferred
+
+
+#: ``(namespace, new text) -> entities`` (a :class:`KnownSet` to report a deferred set)
 KnownSource = Callable[[str, str], Awaitable[Sequence[KnownEntity]]]
 
 
@@ -87,6 +115,12 @@ class PromptContext:
     manifest: tuple[KnownEntity, ...] = ()
     #: DS-11: entries dropped because the window's namespace may not see them
     hidden: int = 0
+    #: DS-12: the sources whose set was capped or partly read (KNOWN is then incomplete)
+    deferred: tuple[str, ...] = ()
+
+    @property
+    def known_complete(self) -> bool:
+        return not self.deferred
 
 
 def _visible(found: Iterable[KnownEntity], ns: str) -> tuple[list[KnownEntity], int]:
@@ -138,6 +172,7 @@ class PromptContextBuilder:
         provenance: dict[str, KnownEntity] = {}
         by_source: dict[str, int] = {}
         hidden = 0
+        deferred: list[str] = []
         for label, source in (
             ("prepass", self.prepass),
             ("resolver", self.resolver),
@@ -150,6 +185,8 @@ class PromptContextBuilder:
             except Exception as exc:
                 _log.warning("prompt_context.source_failed", source=label, error=str(exc)[:200])
                 continue
+            if isinstance(found, KnownSet) and found.deferred:
+                deferred.append(label)
             # DS-11: only entries the window's namespace may see.
             visible, dropped = _visible(found, ns)
             hidden += dropped
@@ -192,4 +229,5 @@ class PromptContextBuilder:
             by_source=by_source,
             manifest=tuple(provenance[key] for key, _, _ in chosen[:count]),
             hidden=hidden,
+            deferred=tuple(deferred),
         )

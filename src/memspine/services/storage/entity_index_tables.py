@@ -16,6 +16,9 @@ Row kinds (``kind`` / ``key`` / ``entity_id`` / ``ref``):
 * ``merge``:  ``key`` = merge id, ``entity_id`` = kept entity, ``ref`` = absorbed entity;
 * ``cite``:   ``key`` = an evidence record id, ``entity_id`` = the merge / alias id it supports,
   ``ref`` = ``merge`` or ``alias``.
+
+DS-12: ``select_after`` reads one kind's rows in ``(seq, key, entity_id, ref)`` order after a
+keyset cursor, one bounded page at a time (the KNOWN refresh's incremental read).
 """
 
 from __future__ import annotations
@@ -26,8 +29,24 @@ from dataclasses import dataclass, field
 from typing import Any, Protocol, runtime_checkable
 
 import orjson
-from sqlalchemy import Column, Index, Integer, MetaData, String, Table, Text, and_, delete, select
+from sqlalchemy import (
+    Column,
+    Index,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    Text,
+    and_,
+    delete,
+    or_,
+    select,
+    tuple_,
+)
 from sqlalchemy.ext.asyncio import AsyncEngine
+
+#: A ``select_after`` keyset cursor: ``(seq, key, entity_id, ref)`` of the last row read.
+RowCursor = tuple[int, str, str, str]
 
 __all__ = [
     "EntityIndexRow",
@@ -54,6 +73,8 @@ entity_index_table = Table(
     Column("seq", Integer, nullable=False, default=0),
     Index("ix_entity_index_match", "namespace", "kind", "match"),
     Index("ix_entity_index_entity", "namespace", "kind", "entity_id"),
+    # DS-12: the incremental (keyset) read of the KNOWN refresh
+    Index("ix_entity_index_seq", "namespace", "kind", "seq"),
 )
 
 
@@ -104,9 +125,21 @@ class EntityIndexStore(Protocol):
 
     async def clear(self) -> None: ...
 
+    async def select_after(
+        self, namespace: str, kind: str, *, after: RowCursor | None, limit: int
+    ) -> list[EntityIndexRow]:
+        """At most ``limit`` rows of ``kind`` past the cursor ``after`` (None: from the start),
+        ordered by ``(seq, key, entity_id, ref)``."""
+        ...
+
 
 def _matches(row: EntityIndexRow, wanted: dict[str, str | None]) -> bool:
     return all(v is None or getattr(row, k) == v for k, v in wanted.items())
+
+
+def row_cursor(row: EntityIndexRow) -> RowCursor:
+    """The ``select_after`` cursor just past ``row``."""
+    return (row.seq, row.key, row.entity_id, row.ref)
 
 
 class MemoryEntityIndexStore:
@@ -155,6 +188,21 @@ class MemoryEntityIndexStore:
 
     async def clear(self) -> None:
         self._rows.clear()
+
+    async def select_after(
+        self, namespace: str, kind: str, *, after: RowCursor | None, limit: int
+    ) -> list[EntityIndexRow]:
+        rows = sorted(
+            (
+                row
+                for pk, row in self._rows.items()
+                if pk[0] == namespace
+                and pk[1] == kind
+                and (after is None or row_cursor(row) > after)
+            ),
+            key=row_cursor,
+        )
+        return rows[: max(limit, 0)]
 
 
 class SqlEntityIndexStore:
@@ -255,6 +303,41 @@ class SqlEntityIndexStore:
     async def clear(self) -> None:
         async with self._engine.begin() as conn:
             await conn.execute(delete(entity_index_table))
+
+    async def select_after(
+        self, namespace: str, kind: str, *, after: RowCursor | None, limit: int
+    ) -> list[EntityIndexRow]:
+        if limit <= 0:
+            return []
+        t = entity_index_table
+        stmt = select(t).where(t.c.namespace == namespace, t.c.kind == kind)
+        if after is not None:
+            seq, key, entity_id, ref = after
+            stmt = stmt.where(
+                or_(
+                    t.c.seq > seq,
+                    and_(
+                        t.c.seq == seq,
+                        tuple_(t.c.key, t.c.entity_id, t.c.ref) > tuple_(key, entity_id, ref),
+                    ),
+                )
+            )
+        stmt = stmt.order_by(t.c.seq, t.c.key, t.c.entity_id, t.c.ref).limit(limit)
+        async with self._engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        return [
+            EntityIndexRow(
+                namespace=r.namespace,
+                kind=r.kind,
+                key=r.key,
+                entity_id=r.entity_id,
+                ref=r.ref,
+                match=r.match,
+                data=dict(orjson.loads(r.data)),
+                seq=int(r.seq),
+            )
+            for r in rows
+        ]
 
 
 _FALLBACK: weakref.WeakKeyDictionary[Any, MemoryEntityIndexStore] = weakref.WeakKeyDictionary()

@@ -6,7 +6,12 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 
-from memspine.derive.prompt_context import KnownEntity, KnownVisibility, PromptContextBuilder
+from memspine.derive.prompt_context import (
+    KnownEntity,
+    KnownSet,
+    KnownVisibility,
+    PromptContextBuilder,
+)
 from memspine.memories.associative.entities import EntityPolicy
 from memspine.memories.associative.entity_index import (
     LINKS_KEY,
@@ -14,7 +19,11 @@ from memspine.memories.associative.entity_index import (
     alias_event,
     with_entity_links,
 )
-from memspine.memories.associative.known_entities import KNOWN_SOURCE, index_known_entities
+from memspine.memories.associative.known_entities import (
+    KNOWN_SOURCE,
+    KnownEntityCursor,
+    index_known_entities,
+)
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
 
@@ -145,3 +154,108 @@ async def test_builder_keeps_only_visible_entries_and_reports_their_provenance()
 def test_window_text_hints_have_no_foreign_visibility() -> None:
     hint = KnownEntity("Noor", source="prepass")
     assert hint.visible_to("a") and hint.visible_to("b")
+
+
+# --- DS-12: the bounded, incremental refresh -----------------------------------------------------
+
+
+async def _people(log: _Log, make_record: Callable[..., MemoryRecord], *names: str) -> list[str]:
+    return [(await log.write(_rec(make_record, name)))[0] for name in names]
+
+
+async def test_refresh_is_incremental_past_its_cursor(
+    make_record: Callable[..., MemoryRecord],
+) -> None:
+    log = _Log()
+    await _people(log, make_record, "Alex", "Brin", "Cato")
+    cursor = KnownEntityCursor(lambda: log.storage, lookback=0)
+    first = await cursor("a", "")
+    assert cursor.rows_read == 3 and not first.deferred
+    assert {k.name for k in first} == {"Alex", "Brin", "Cato"}
+    await cursor("a", "")
+    assert cursor.rows_read == 0  # nothing new: no walk of the index
+    await _people(log, make_record, "Dara")
+    again = await cursor("a", "")
+    assert cursor.rows_read == 1 and "Dara" in {k.name for k in again}
+
+
+async def test_a_partly_read_set_is_deferred_until_the_cursor_catches_up(
+    make_record: Callable[..., MemoryRecord],
+) -> None:
+    log = _Log()
+    await _people(log, make_record, "Alex", "Brin", "Cato", "Dara", "Emil")
+    cursor = KnownEntityCursor(lambda: log.storage, page=2, max_pages=1, lookback=0)
+    first = await cursor("a", "")
+    assert cursor.rows_read == 2
+    assert first.deferred and first.reason == "behind" and not first.supports_auto_link
+    second = await cursor("a", "")
+    assert second.deferred and cursor.rows_read == 2
+    third = await cursor("a", "")
+    assert not third.deferred and third.supports_auto_link
+    assert {k.name for k in third} == {"Alex", "Brin", "Cato", "Dara", "Emil"}
+
+
+async def test_a_capped_set_is_deferred_and_mentioned_names_come_first(
+    make_record: Callable[..., MemoryRecord],
+) -> None:
+    log = _Log()
+    await _people(log, make_record, "Alex", "Brin", "Cato")
+    capped = await KnownEntityCursor(lambda: log.storage, max_entities=2)("a", "")
+    assert capped.deferred and capped.reason == "capped" and len(capped) == 2
+    assert not capped.supports_auto_link  # ADR-089: a capped set never supports auto-link
+    one = await KnownEntityCursor(lambda: log.storage, limit=1)("a", "[1] I saw alex")
+    assert [k.name for k in one] == ["Alex"]
+
+
+async def test_an_alias_erased_after_it_was_read_is_dropped(
+    make_record: Callable[..., MemoryRecord],
+) -> None:
+    log = _Log()
+    entity_id, _ = await log.write(_rec(make_record, "Alex"))
+    evidence = _rec(make_record, "Alex")
+    await log.write(evidence)
+    await log.alias("a", entity_id, "Lexi", evidence.record_id)
+    cursor = KnownEntityCursor(lambda: log.storage)
+    [known] = await cursor("a", "")
+    assert known.aliases == ("Lexi",)
+    await log.forget("a", evidence.record_id, hard=True)
+    [known] = await cursor("a", "")
+    assert known.aliases == ()
+
+
+async def test_the_builder_reports_a_deferred_source() -> None:
+    async def store(_ns: str, _text: str) -> Sequence[KnownEntity]:
+        return KnownSet([KnownEntity("Alex")], deferred=True, reason="capped")
+
+    built = await PromptContextBuilder(store).build("a", "x", [])
+    assert built.deferred == ("store",) and not built.known_complete
+    full = await PromptContextBuilder(None).build("a", "x", [])
+    assert full.known_complete
+
+
+async def test_sql_store_pages_in_keyset_order() -> None:
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from memspine.services.storage.entity_index_tables import (
+        EntityIndexRow,
+        SqlEntityIndexStore,
+        entity_index_metadata,
+        row_cursor,
+    )
+
+    engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+    async with engine.begin() as conn:
+        await conn.run_sync(entity_index_metadata.create_all)
+    store = SqlEntityIndexStore(engine)
+    rows = [EntityIndexRow("a", "name", f"n{i}", f"e{i % 3}", "name", seq=i // 2) for i in range(7)]
+    await store.put([*rows, EntityIndexRow("b", "name", "other", "x", "name", seq=0)])
+    seen: list[str] = []
+    after = None
+    while True:
+        page = await store.select_after("a", "name", after=after, limit=3)
+        seen.extend(r.key for r in page)
+        if len(page) < 3:
+            break
+        after = row_cursor(page[-1])
+    assert seen == [r.key for r in sorted(rows, key=row_cursor)]
+    await engine.dispose()

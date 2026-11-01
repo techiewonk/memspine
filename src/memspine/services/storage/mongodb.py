@@ -317,6 +317,42 @@ class MongoEntityIndexStore:
     async def clear(self) -> None:
         await self._rows.delete_many({})
 
+    async def select_after(
+        self, namespace: str, kind: str, *, after: tuple[int, str, str, str] | None, limit: int
+    ) -> list[Any]:
+        """DS-12: one keyset page in ``(seq, key, entity_id, ref)`` order."""
+        from memspine.services.storage.entity_index_tables import EntityIndexRow
+
+        if limit <= 0:
+            return []
+        query: Doc = {"namespace": namespace, "kind": kind}
+        if after is not None:
+            seq, key, entity_id, ref = after
+            query["$or"] = [
+                {"seq": {"$gt": seq}},
+                {"seq": seq, "key": {"$gt": key}},
+                {"seq": seq, "key": key, "entity_id": {"$gt": entity_id}},
+                {"seq": seq, "key": key, "entity_id": entity_id, "ref": {"$gt": ref}},
+            ]
+        found = (
+            self._rows.find(query)
+            .sort([("seq", 1), ("key", 1), ("entity_id", 1), ("ref", 1)])
+            .limit(limit)
+        )
+        return [
+            EntityIndexRow(
+                namespace=str(d["namespace"]),
+                kind=str(d["kind"]),
+                key=str(d["key"]),
+                entity_id=str(d["entity_id"]),
+                ref=str(d["ref"]),
+                match=str(d.get("match", "")),
+                data=dict(d.get("data") or {}),
+                seq=int(d.get("seq", 0)),
+            )
+            async for d in found
+        ]
+
 
 class MongoProjectionBindingStore:
     """The :class:`~memspine.services.storage.records_port.ProjectionBindingPort` on MongoDB.

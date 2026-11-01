@@ -168,7 +168,7 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
     pre = _prepass(eng, config)
     resolve = getattr(eng, "_entity_resolve_stage", None)
     context_builder = PromptContextBuilder(
-        _known_from_store(eng),
+        _known_from_store(eng, config.write.prompt_known_cap),
         cap=config.write.prompt_known_cap,
         context_turns=config.write.prompt_context_turns,
         prepass=prepass_known(pre) if pre is not None else None,
@@ -307,30 +307,20 @@ def _mark_disputed(eng: Any) -> Any:
     return mark
 
 
-#: W2-06b: the entity list is rebuilt from the graph every this many windows (it is a scan).
-_KNOWN_REFRESH_EVERY = 4
-
-
-def _known_from_store(eng: Any) -> KnownSource:
+def _known_from_store(eng: Any, cap: int) -> KnownSource:
     """KNOWN from the RM-130 entity index (W2-06b; DS-11): canonical names and evidence-cited
-    aliases with their provenance and visibility. The P-23 pre-pass (W2-13) and the online
-    resolver (W2-09) plug in through the builder's ``prepass`` / ``resolver`` hooks and are not
-    read here."""
-    from memspine.memories.associative.known_entities import index_known_entities
+    aliases with their provenance and visibility, refreshed incrementally with a bounded
+    cursor (DS-12; a capped or partly read set comes back deferred). The P-23 pre-pass (W2-13)
+    and the online resolver (W2-09) plug in through the builder's ``prepass`` / ``resolver``
+    hooks and are not read here."""
+    from memspine.memories.associative.known_entities import KnownEntityCursor
 
-    cache: dict[str, tuple[int, list[KnownEntity]]] = {}
+    cursor = KnownEntityCursor(lambda: eng._storage, limit=max(cap, 1))
 
-    async def source(ns: str, _text: str) -> list[KnownEntity]:
-        age, known = cache.get(ns, (_KNOWN_REFRESH_EVERY, []))
-        if age < _KNOWN_REFRESH_EVERY:
-            cache[ns] = (age + 1, known)
-            return known
-        assoc = getattr(eng, "_associative", None)
-        if assoc is None:
+    async def source(ns: str, text: str) -> Sequence[KnownEntity]:
+        if getattr(eng, "_associative", None) is None:
             return []
-        known = await index_known_entities(eng._storage, ns)
-        cache[ns] = (1, known)
-        return known
+        return await cursor(ns, text)
 
     return source
 
@@ -413,7 +403,7 @@ def _coverage_stage(eng: Any, config: MemspineConfig, earlier: tuple[Any, ...]) 
         threshold=w.coverage_threshold,
         max_targets=w.coverage_max_targets,
         context_lines=w.coverage_context_lines,
-        known=_known_from_store(eng),
+        known=_known_from_store(eng, w.prompt_known_cap),
         known_cap=w.prompt_known_cap,
         scope=scope,
         partial=getattr(eng._prompts, "partial", None),

@@ -2672,6 +2672,8 @@ class WindowPipeline:
         tail = store.tails.get(conversation_id, [])
         built = await self._ctx.build(ns, "\n".join(texts), tail)
         store.tails[conversation_id] = self._ctx.tail(texts)
+        if built.deferred:  # DS-12: KNOWN was capped or partly read (a hint, never complete)
+            self._counts["known_deferred"] += 1
         out = {
             **variables,
             "context": built.context,
