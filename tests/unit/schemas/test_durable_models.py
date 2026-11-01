@@ -11,7 +11,6 @@ from pydantic import ValidationError
 
 from memspine.schemas import collect_models, kind_id, latest_version, validate_payload
 from memspine.schemas.durable import (
-    AssertionEnvelope,
     AssertionKey,
     Assessment,
     ErasedIds,
@@ -25,6 +24,7 @@ from memspine.schemas.durable import (
     OwnerScope,
     Progress,
     RetentionBoundary,
+    SemanticEnvelope,
     Span,
     Support,
     TemporalRef,
@@ -38,7 +38,7 @@ from memspine.schemas.durable import (
     occurrence_id,
     write_id,
 )
-from memspine.schemas.durable.assertion import Mention
+from memspine.schemas.durable.semantic import Mention
 
 FIXTURES = Path(__file__).parent / "fixtures" / "durable"
 UTC = UTC
@@ -59,7 +59,7 @@ def test_every_durable_kind_has_a_frozen_fixture_per_version():
     kinds = _durable_kinds()
     assert {kind_id(c) for c in kinds} >= {
         "memory_event",
-        "assertion_envelope",
+        "semantic_envelope",
         "lineage_edge",
         "outbox_row",
         "job_lease",
@@ -91,11 +91,11 @@ def test_fixture_round_trips_unchanged(cls):
 
 
 def test_unknown_field_fixture_keeps_the_field_verbatim():
-    raw = json.loads((FIXTURES / "assertion_envelope.v1.json").read_text(encoding="utf-8"))
+    raw = json.loads((FIXTURES / "semantic_envelope.v1.json").read_text(encoding="utf-8"))
     assert raw["novel_field"] == {"added_by": "a-future-release", "n": [1, 2]}
-    obj = AssertionEnvelope.model_validate(raw)
+    obj = SemanticEnvelope.model_validate(raw)
     assert obj.model_dump(mode="json")["novel_field"] == raw["novel_field"]
-    assert validate_payload("assertion_envelope", raw)["novel_field"] == raw["novel_field"]
+    assert validate_payload("semantic_envelope", raw)["novel_field"] == raw["novel_field"]
 
 
 # --- temporal (S6) -----------------------------------------------------------------------------------------
@@ -216,8 +216,8 @@ def test_integration_outcome_and_tentative():
 
 
 def test_can_supersede_accepts_envelopes():
-    env = AssertionEnvelope.model_validate_json(
-        (FIXTURES / "assertion_envelope.v1.json").read_text(encoding="utf-8")
+    env = SemanticEnvelope.model_validate_json(
+        (FIXTURES / "semantic_envelope.v1.json").read_text(encoding="utf-8")
     )
     assert can_supersede(env, env)
     with pytest.raises(TypeError):
@@ -258,7 +258,7 @@ def _envelope(**over):
         "src_class": "user_stated",
     }
     base.update(over)
-    return AssertionEnvelope(**base)
+    return SemanticEnvelope(**base)
 
 
 def test_asserted_item_requires_support_evidence():
@@ -463,8 +463,8 @@ def test_negated_flag_invalid_with_asserted_or_negated(modality: str) -> None:
 
 
 def test_change_hint_defaults_false_on_envelope() -> None:
-    assert "change_hint" in AssertionEnvelope.model_fields
-    assert AssertionEnvelope.model_fields["change_hint"].default is False
+    assert "change_hint" in SemanticEnvelope.model_fields
+    assert SemanticEnvelope.model_fields["change_hint"].default is False
 
 
 @pytest.mark.parametrize(
@@ -491,3 +491,99 @@ def test_negation_never_supersedes() -> None:
     cur = Assessment(source_trust=0.5, binding="bound", modality="asserted")
     neg = Assessment(source_trust=0.9, binding="bound", modality="negated")
     assert can_supersede(neg, cur) is False
+
+
+# --- ADR-088: SemanticEnvelope is the one canonical claim ------------------------------------------
+
+
+@pytest.mark.parametrize("outcome", ["none", "done", "missed", "failed", "declined"])
+def test_claim_outcome_uses_the_rm57_vocabulary(outcome: str) -> None:
+    env = _envelope(
+        evidence=[Evidence(role="binding", turn=TURN, source_family="spk")],
+        assessment=_assess(modality="planned"),
+        outcome=outcome,
+    )
+    assert env.outcome == outcome
+    back = SemanticEnvelope.model_validate_json(env.model_dump_json())
+    assert (back.assessment.modality, back.status, back.outcome) == ("planned", "active", outcome)
+
+
+def test_claim_outcome_mirrors_the_lifecycle_outcomes() -> None:
+    from memspine.schemas.durable.semantic import CLAIM_OUTCOMES
+    from memspine.semantics.lifecycle import LIFECYCLE_OUTCOMES
+
+    assert CLAIM_OUTCOMES == ("none", *LIFECYCLE_OUTCOMES)
+
+
+def test_claim_axes_reject_other_vocabularies() -> None:
+    planned = _assess(modality="planned")
+    for bad in ("fulfilled", "closed", "unknown"):
+        with pytest.raises(ValidationError):
+            _envelope(assessment=planned, outcome=bad)
+    with pytest.raises(ValidationError):
+        _envelope(status="asserted")  # status is the claim status vocabulary, not modality
+
+
+@pytest.mark.parametrize("modality", ["hypothetical", "question"])
+def test_hypothetical_or_question_claims_carry_no_outcome(modality: str) -> None:
+    with pytest.raises(ValidationError, match="carries no outcome"):
+        _envelope(assessment=_assess(modality=modality), outcome="done")
+    assert _envelope(assessment=_assess(modality="asserted"), outcome="done").outcome == "done"
+
+
+@pytest.mark.parametrize(
+    ("modality", "status", "fact"),
+    [
+        ("asserted", "active", True),
+        ("asserted", "superseded", True),
+        ("asserted", "hidden", False),
+        ("planned", "active", False),
+        ("negated", "active", False),
+        ("hypothetical", "active", False),
+        ("question", "active", False),
+        ("reported", "active", False),
+    ],
+)
+def test_only_asserted_claims_read_as_asserted_facts(
+    modality: str, status: str, fact: bool
+) -> None:
+    env = _envelope(assessment=_assess(modality=modality), status=status)
+    assert env.asserts_fact is fact
+
+
+def test_registry_typing_and_role_bindings_live_on_the_claim() -> None:
+    from memspine.schemas.durable import ClaimProducer, PredicateTyping, RoleBinding
+
+    typing = PredicateTyping(
+        predicate="likes",
+        predicate_version=1,
+        registry_digest="0" * 64,
+        subject_type="person",
+        object_kind="entity",
+        object_entity_type="concept",
+        cardinality="many",
+    )
+    binding = RoleBinding(
+        binding_id="b1",
+        role_name="object",
+        role_version=1,
+        value_kind="entity",
+        value="B",
+        evidence=[Evidence(role="support", turn=TURN, source_family="spk")],
+    )
+    producer = ClaimProducer(kind="rules", revision="rules:1")
+    env = _envelope(attribute="likes", registry=typing, role_bindings=[binding], producer=producer)
+    back = SemanticEnvelope.model_validate_json(env.model_dump_json())
+    assert back.registry == typing
+    assert back.role_bindings == [binding]
+    assert back.producer == producer
+    with pytest.raises(ValidationError, match="registry predicate must equal"):
+        _envelope(attribute="hates", registry=typing)
+    other = TurnRef(source_id="elsewhere", source_version=1, seg_index=0)
+    stray = binding.model_copy(
+        update={"evidence": [Evidence(role="support", turn=other, source_family="spk")]}
+    )
+    with pytest.raises(ValidationError, match="not cited by the claim"):
+        _envelope(attribute="likes", role_bindings=[stray])
+    with pytest.raises(ValidationError, match="unique"):
+        _envelope(attribute="likes", role_bindings=[binding, binding])

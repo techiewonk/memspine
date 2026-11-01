@@ -24,12 +24,12 @@ from memspine.read.tiers import (
     unit_of,
     unit_tokens,
 )
-from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.schemas.public.read import EvidenceBundle, ReadRequest
 
 SCOPE = {"tenant": "acme", "owner": "ilse"}
 GROUP = {"tenant": "acme", "owner": "household", "owner_kind": "group"}
-FIX = Path(__file__).parents[1] / "schemas" / "fixtures" / "durable" / "assertion_envelope.v1.json"
+FIX = Path(__file__).parents[1] / "schemas" / "fixtures" / "durable" / "semantic_envelope.v1.json"
 
 WITH_WORKER = LayerState(services=ServiceState(worker_model=True))
 NO_WORKER = LayerState(services=ServiceState(worker_model=False))
@@ -330,8 +330,8 @@ def test_custom_tier_table_respected():
 # ------------------------------------------------------------------ evidence unit
 
 
-def env() -> AssertionEnvelope:
-    return AssertionEnvelope.model_validate_json(FIX.read_text(encoding="utf-8"))
+def env() -> SemanticEnvelope:
+    return SemanticEnvelope.model_validate_json(FIX.read_text(encoding="utf-8"))
 
 
 def bundle(rid="rec-1", tokens=0) -> EvidenceBundle:

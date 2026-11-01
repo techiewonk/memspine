@@ -10,7 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from memspine.schemas import collect_models
-from memspine.schemas.durable import AssertionEnvelope, Evidence, OwnerScope
+from memspine.schemas.durable import Evidence, OwnerScope, SemanticEnvelope
 from memspine.schemas.public import (
     CacheKey,
     CapabilityManifest,
@@ -179,8 +179,8 @@ def test_read_request_viewer_rules():
 
 
 def _env():
-    return AssertionEnvelope.model_validate_json(
-        (FIXTURES / "assertion_envelope.v1.json").read_text(encoding="utf-8")
+    return SemanticEnvelope.model_validate_json(
+        (FIXTURES / "semantic_envelope.v1.json").read_text(encoding="utf-8")
     )
 
 

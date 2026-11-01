@@ -1,12 +1,6 @@
 """Durable tier: persisted kinds with an integer ``schema_version``, current-format validation, frozen fixtures."""
 
-from memspine.schemas.durable.assertion import (
-    AssertionEnvelope,
-    GroundingChecks,
-    IntegrationVerdict,
-    Mention,
-    inherit_trust,
-)
+from memspine.schemas.durable.assertion import AssertionEnvelope  # transitional, next commit
 from memspine.schemas.durable.assessment import (
     Assessment,
     Support,
@@ -37,7 +31,16 @@ from memspine.schemas.durable.jobs import (
     commit_allowed,
 )
 from memspine.schemas.durable.lineage import LineageEdge
-from memspine.schemas.durable.semantic import RoleBinding, SemanticEnvelope
+from memspine.schemas.durable.semantic import (
+    ClaimProducer,
+    GroundingChecks,
+    IntegrationVerdict,
+    Mention,
+    PredicateTyping,
+    RoleBinding,
+    SemanticEnvelope,
+    inherit_trust,
+)
 from memspine.schemas.durable.temporal import (
     Duration,
     Interval,
@@ -52,6 +55,7 @@ __all__ = [
     "AssertionEnvelope",
     "AssertionKey",
     "Assessment",
+    "ClaimProducer",
     "DerivationFailure",
     "Duration",
     "EffectCommitState",
@@ -72,6 +76,7 @@ __all__ = [
     "Mention",
     "OutboxRow",
     "OwnerScope",
+    "PredicateTyping",
     "Progress",
     "Provenance",
     "RequiredDerivation",

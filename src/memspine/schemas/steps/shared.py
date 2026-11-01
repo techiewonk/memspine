@@ -15,7 +15,7 @@ from typing import Any, Literal
 from pydantic import Field
 
 from memspine.schemas.base import InternalModel
-from memspine.schemas.durable import AssertionEnvelope, Fingerprint
+from memspine.schemas.durable import Fingerprint, SemanticEnvelope
 from memspine.schemas.durable.common import SrcClass
 from memspine.schemas.public import ContextBlock, EvidenceBundle
 
@@ -142,7 +142,7 @@ class ExtractionItem(InternalModel):
 class Record(InternalModel):
     """One record shape for all layers (M-02..M-10).
 
-    Internal for now: the record envelope (:class:`~memspine.schemas.durable.AssertionEnvelope`) is durable,
+    Internal for now: the record envelope (:class:`~memspine.schemas.durable.SemanticEnvelope`) is durable,
     the row around it becomes a durable kind with the kind registry (MOD-02).
     """
 
@@ -180,7 +180,7 @@ class Record(InternalModel):
     support_count: int | None = None
     derivation: Fingerprint | None = None
     covers_seq: int | None = None
-    envelope: AssertionEnvelope | None = None
+    envelope: SemanticEnvelope | None = None
     status: str | None = None
     version: int | None = None
     pii_tier: str | None = None

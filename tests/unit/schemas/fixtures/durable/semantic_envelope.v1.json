@@ -81,7 +81,12 @@
     "surface": "Lisbon"
   },
   "occurrence_id": "oc_f6669fa91308f9b9c3ef942f5bcdb62e",
+  "outcome": "none",
   "parents": [],
+  "producer": {
+    "kind": "model",
+    "revision": "ph-1"
+  },
   "prompt_hash": "ph-1",
   "provenance": {
     "agent_id": "agent-x",
@@ -91,13 +96,14 @@
     "source_version": 1
   },
   "record_id": "rec-1",
+  "registry": null,
+  "role_bindings": [],
   "schema_version": 1,
   "scope": {
     "owner": "owner-1",
     "owner_kind": "user",
     "tenant": "tenant-a"
   },
-  "semantic": null,
   "speaker": "speaker:alice",
   "src_class": "user_stated",
   "status": "active",

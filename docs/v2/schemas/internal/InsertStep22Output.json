@@ -1,310 +1,5 @@
 {
   "$defs": {
-    "AssertionEnvelope": {
-      "additionalProperties": true,
-      "description": "One stored assertion.\n\nIdentities are separate fields (ER-13, S3): ``write_id`` (retry id of the write that produced it),\nmention ids (on :class:`Mention`), ``assertion_key``, ``occurrence_id`` and ``record_id`` (``None``\nonly until the write door assigns it). ``scope`` is tenant plus owner; the session is provenance.",
-      "properties": {
-        "assertion_key": {
-          "$ref": "#/$defs/AssertionKey"
-        },
-        "assessment": {
-          "$ref": "#/$defs/Assessment"
-        },
-        "attribute": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Attribute"
-        },
-        "change_hint": {
-          "default": false,
-          "title": "Change Hint",
-          "type": "boolean"
-        },
-        "checks": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/GroundingChecks"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "derivation": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Fingerprint"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "epoch": {
-          "anyOf": [
-            {
-              "minimum": 1,
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Epoch"
-        },
-        "erasure_generation": {
-          "default": 0,
-          "minimum": 0,
-          "title": "Erasure Generation",
-          "type": "integer"
-        },
-        "evidence": {
-          "items": {
-            "$ref": "#/$defs/Evidence"
-          },
-          "title": "Evidence",
-          "type": "array"
-        },
-        "extras": {
-          "additionalProperties": true,
-          "title": "Extras",
-          "type": "object"
-        },
-        "graph": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Graph"
-        },
-        "grounding": {
-          "anyOf": [
-            {
-              "enum": [
-                "grounded",
-                "uncertain",
-                "rejected"
-              ],
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Grounding"
-        },
-        "key_aliases": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Key Aliases",
-          "type": "array"
-        },
-        "kind": {
-          "minLength": 1,
-          "title": "Kind",
-          "type": "string"
-        },
-        "object": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Mention"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "occurrence_id": {
-          "minLength": 1,
-          "title": "Occurrence Id",
-          "type": "string"
-        },
-        "parents": {
-          "items": {
-            "type": "string"
-          },
-          "title": "Parents",
-          "type": "array"
-        },
-        "prompt_hash": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Prompt Hash"
-        },
-        "provenance": {
-          "$ref": "#/$defs/Provenance"
-        },
-        "record_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Record Id"
-        },
-        "schema_version": {
-          "default": 1,
-          "maximum": 1,
-          "minimum": 1,
-          "title": "Schema Version",
-          "type": "integer"
-        },
-        "scope": {
-          "$ref": "#/$defs/OwnerScope"
-        },
-        "semantic": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/SemanticEnvelope"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "speaker": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Speaker"
-        },
-        "src_class": {
-          "enum": [
-            "user_stated",
-            "assistant_proposed",
-            "user_confirmed",
-            "tool",
-            "document",
-            "external",
-            "derived"
-          ],
-          "title": "Src Class",
-          "type": "string"
-        },
-        "status": {
-          "default": "active",
-          "enum": [
-            "active",
-            "tentative",
-            "contested",
-            "superseded",
-            "hidden"
-          ],
-          "title": "Status",
-          "type": "string"
-        },
-        "subject": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Mention"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "text": {
-          "minLength": 1,
-          "title": "Text",
-          "type": "string"
-        },
-        "time": {
-          "$ref": "#/$defs/TimeAxes"
-        },
-        "value": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "integer"
-            },
-            {
-              "type": "number"
-            },
-            {
-              "type": "boolean"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "title": "Value"
-        },
-        "verdict": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/IntegrationVerdict"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "verified": {
-          "default": false,
-          "title": "Verified",
-          "type": "boolean"
-        },
-        "write_id": {
-          "minLength": 1,
-          "title": "Write Id",
-          "type": "string"
-        }
-      },
-      "required": [
-        "write_id",
-        "assertion_key",
-        "occurrence_id",
-        "scope",
-        "text",
-        "kind",
-        "assessment",
-        "src_class"
-      ],
-      "title": "AssertionEnvelope",
-      "type": "object"
-    },
     "AssertionKey": {
       "additionalProperties": true,
       "description": "What an assertion is about: ``(src, rel, dst, kind)`` under the envelope's owner scope (M-17).\n\n``key_v`` versions the normalisation rules. The scope lives on the envelope, not here.",
@@ -421,6 +116,32 @@
         "modality"
       ],
       "title": "Assessment",
+      "type": "object"
+    },
+    "ClaimProducer": {
+      "additionalProperties": true,
+      "description": "Which producer wrote the claim: the rules-only miner, the model path, or a record projection.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "rules",
+            "model",
+            "record"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "revision": {
+          "minLength": 1,
+          "title": "Revision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "revision"
+      ],
+      "title": "ClaimProducer",
       "type": "object"
     },
     "Duration": {
@@ -629,7 +350,7 @@
     },
     "IntegrationVerdict": {
       "additionalProperties": true,
-      "description": "How the conflict ladder integrated this assertion (G0 operator split), set at integration.",
+      "description": "How the conflict ladder integrated this claim (G0 operator split), set at integration.",
       "properties": {
         "hint": {
           "anyOf": [
@@ -1202,6 +923,114 @@
       "title": "OwnerScope",
       "type": "object"
     },
+    "PredicateTyping": {
+      "additionalProperties": true,
+      "description": "The registry interpretation of the claim's predicate (pinned version and digest).",
+      "properties": {
+        "cardinality": {
+          "enum": [
+            "one",
+            "many",
+            "contextual",
+            "unknown"
+          ],
+          "title": "Cardinality",
+          "type": "string"
+        },
+        "cardinality_scope": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Cardinality Scope",
+          "type": "object"
+        },
+        "object_entity_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "person",
+                "agent",
+                "group",
+                "organisation",
+                "place",
+                "object",
+                "work",
+                "project",
+                "species",
+                "concept",
+                "document",
+                "software",
+                "event",
+                "other"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Object Entity Type"
+        },
+        "object_kind": {
+          "enum": [
+            "entity",
+            "text",
+            "number",
+            "boolean",
+            "temporal"
+          ],
+          "title": "Object Kind",
+          "type": "string"
+        },
+        "predicate": {
+          "minLength": 1,
+          "title": "Predicate",
+          "type": "string"
+        },
+        "predicate_version": {
+          "minimum": 1,
+          "title": "Predicate Version",
+          "type": "integer"
+        },
+        "registry_digest": {
+          "maxLength": 64,
+          "minLength": 64,
+          "title": "Registry Digest",
+          "type": "string"
+        },
+        "subject_type": {
+          "enum": [
+            "person",
+            "agent",
+            "group",
+            "organisation",
+            "place",
+            "object",
+            "work",
+            "project",
+            "species",
+            "concept",
+            "document",
+            "software",
+            "event",
+            "other"
+          ],
+          "title": "Subject Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "predicate",
+        "predicate_version",
+        "registry_digest",
+        "subject_type",
+        "object_kind",
+        "cardinality"
+      ],
+      "title": "PredicateTyping",
+      "type": "object"
+    },
     "Provenance": {
       "additionalProperties": true,
       "description": "Where a write came from. Provenance only: never part of identity or entity keys (S3-1).",
@@ -1273,7 +1102,7 @@
     },
     "Record": {
       "additionalProperties": true,
-      "description": "One record shape for all layers (M-02..M-10).\n\nInternal for now: the record envelope (:class:`~memspine.schemas.durable.AssertionEnvelope`) is durable,\nthe row around it becomes a durable kind with the kind registry (MOD-02).",
+      "description": "One record shape for all layers (M-02..M-10).\n\nInternal for now: the record envelope (:class:`~memspine.schemas.durable.SemanticEnvelope`) is durable,\nthe row around it becomes a durable kind with the kind registry (MOD-02).",
       "properties": {
         "addr": {
           "anyOf": [
@@ -1371,7 +1200,7 @@
         "envelope": {
           "anyOf": [
             {
-              "$ref": "#/$defs/AssertionEnvelope"
+              "$ref": "#/$defs/SemanticEnvelope"
             },
             {
               "type": "null"
@@ -1910,48 +1739,104 @@
     },
     "SemanticEnvelope": {
       "additionalProperties": true,
-      "description": "Registry interpretation of an assertion, never an alternate writer.",
+      "description": "One stored claim (ADR-088).\n\nIdentities are separate fields (ER-13, S3): ``write_id`` (retry id of the write that produced it),\nmention ids (on :class:`Mention`), ``assertion_key``, ``occurrence_id`` and ``record_id`` (``None``\nonly until the write door assigns it). ``scope`` is tenant plus owner; the session is provenance.\nModality lives on ``assessment`` (with binding and trust); ``status`` and ``outcome`` are\nclaim fields.",
       "properties": {
-        "assertion_owner": {
-          "minLength": 1,
-          "title": "Assertion Owner",
-          "type": "string"
+        "assertion_key": {
+          "$ref": "#/$defs/AssertionKey"
         },
-        "cardinality": {
-          "enum": [
-            "one",
-            "many",
-            "contextual",
-            "unknown"
+        "assessment": {
+          "$ref": "#/$defs/Assessment"
+        },
+        "attribute": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Cardinality",
-          "type": "string"
+          "default": null,
+          "title": "Attribute"
         },
-        "cardinality_scope": {
-          "additionalProperties": {
-            "type": "string"
+        "change_hint": {
+          "default": false,
+          "title": "Change Hint",
+          "type": "boolean"
+        },
+        "checks": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GroundingChecks"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "derivation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Fingerprint"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "epoch": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epoch"
+        },
+        "erasure_generation": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Erasure Generation",
+          "type": "integer"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/Evidence"
           },
-          "title": "Cardinality Scope",
+          "title": "Evidence",
+          "type": "array"
+        },
+        "extras": {
+          "additionalProperties": true,
+          "title": "Extras",
           "type": "object"
         },
-        "object_entity_type": {
+        "graph": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Graph"
+        },
+        "grounding": {
           "anyOf": [
             {
               "enum": [
-                "person",
-                "agent",
-                "group",
-                "organisation",
-                "place",
-                "object",
-                "work",
-                "project",
-                "species",
-                "concept",
-                "document",
-                "software",
-                "event",
-                "other"
+                "grounded",
+                "uncertain",
+                "rejected"
               ],
               "type": "string"
             },
@@ -1960,39 +1845,103 @@
             }
           ],
           "default": null,
-          "title": "Object Entity Type"
+          "title": "Grounding"
         },
-        "object_kind": {
-          "enum": [
-            "entity",
-            "text",
-            "number",
-            "boolean",
-            "temporal"
+        "key_aliases": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Key Aliases",
+          "type": "array"
+        },
+        "kind": {
+          "minLength": 1,
+          "title": "Kind",
+          "type": "string"
+        },
+        "object": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Mention"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Object Kind",
-          "type": "string"
+          "default": null
         },
-        "predicate": {
+        "occurrence_id": {
           "minLength": 1,
-          "title": "Predicate",
+          "title": "Occurrence Id",
           "type": "string"
         },
-        "predicate_version": {
-          "minimum": 1,
-          "title": "Predicate Version",
-          "type": "integer"
-        },
-        "producer_revision": {
-          "minLength": 1,
-          "title": "Producer Revision",
+        "outcome": {
+          "default": "none",
+          "enum": [
+            "none",
+            "done",
+            "missed",
+            "failed",
+            "declined"
+          ],
+          "title": "Outcome",
           "type": "string"
         },
-        "registry_digest": {
-          "maxLength": 64,
-          "minLength": 64,
-          "title": "Registry Digest",
-          "type": "string"
+        "parents": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Parents",
+          "type": "array"
+        },
+        "producer": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClaimProducer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "prompt_hash": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Hash"
+        },
+        "provenance": {
+          "$ref": "#/$defs/Provenance"
+        },
+        "record_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Record Id"
+        },
+        "registry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PredicateTyping"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "role_bindings": {
           "items": {
@@ -2001,36 +1950,124 @@
           "title": "Role Bindings",
           "type": "array"
         },
-        "subject_type": {
-          "enum": [
-            "person",
-            "agent",
-            "group",
-            "organisation",
-            "place",
-            "object",
-            "work",
-            "project",
-            "species",
-            "concept",
-            "document",
-            "software",
-            "event",
-            "other"
+        "schema_version": {
+          "default": 1,
+          "maximum": 1,
+          "minimum": 1,
+          "title": "Schema Version",
+          "type": "integer"
+        },
+        "scope": {
+          "$ref": "#/$defs/OwnerScope"
+        },
+        "speaker": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Subject Type",
+          "default": null,
+          "title": "Speaker"
+        },
+        "src_class": {
+          "enum": [
+            "user_stated",
+            "assistant_proposed",
+            "user_confirmed",
+            "tool",
+            "document",
+            "external",
+            "derived"
+          ],
+          "title": "Src Class",
+          "type": "string"
+        },
+        "status": {
+          "default": "active",
+          "enum": [
+            "active",
+            "tentative",
+            "contested",
+            "superseded",
+            "hidden"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "subject": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Mention"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "time": {
+          "$ref": "#/$defs/TimeAxes"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Value"
+        },
+        "verdict": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/IntegrationVerdict"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "verified": {
+          "default": false,
+          "title": "Verified",
+          "type": "boolean"
+        },
+        "write_id": {
+          "minLength": 1,
+          "title": "Write Id",
           "type": "string"
         }
       },
       "required": [
-        "predicate",
-        "predicate_version",
-        "registry_digest",
-        "subject_type",
-        "object_kind",
-        "cardinality",
-        "assertion_owner",
-        "producer_revision"
+        "write_id",
+        "assertion_key",
+        "occurrence_id",
+        "scope",
+        "text",
+        "kind",
+        "assessment",
+        "src_class"
       ],
       "title": "SemanticEnvelope",
       "type": "object"

@@ -1,0 +1,108 @@
+{
+  "additionalProperties": true,
+  "description": "The registry interpretation of the claim's predicate (pinned version and digest).",
+  "properties": {
+    "cardinality": {
+      "enum": [
+        "one",
+        "many",
+        "contextual",
+        "unknown"
+      ],
+      "title": "Cardinality",
+      "type": "string"
+    },
+    "cardinality_scope": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Cardinality Scope",
+      "type": "object"
+    },
+    "object_entity_type": {
+      "anyOf": [
+        {
+          "enum": [
+            "person",
+            "agent",
+            "group",
+            "organisation",
+            "place",
+            "object",
+            "work",
+            "project",
+            "species",
+            "concept",
+            "document",
+            "software",
+            "event",
+            "other"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Object Entity Type"
+    },
+    "object_kind": {
+      "enum": [
+        "entity",
+        "text",
+        "number",
+        "boolean",
+        "temporal"
+      ],
+      "title": "Object Kind",
+      "type": "string"
+    },
+    "predicate": {
+      "minLength": 1,
+      "title": "Predicate",
+      "type": "string"
+    },
+    "predicate_version": {
+      "minimum": 1,
+      "title": "Predicate Version",
+      "type": "integer"
+    },
+    "registry_digest": {
+      "maxLength": 64,
+      "minLength": 64,
+      "title": "Registry Digest",
+      "type": "string"
+    },
+    "subject_type": {
+      "enum": [
+        "person",
+        "agent",
+        "group",
+        "organisation",
+        "place",
+        "object",
+        "work",
+        "project",
+        "species",
+        "concept",
+        "document",
+        "software",
+        "event",
+        "other"
+      ],
+      "title": "Subject Type",
+      "type": "string"
+    }
+  },
+  "required": [
+    "predicate",
+    "predicate_version",
+    "registry_digest",
+    "subject_type",
+    "object_kind",
+    "cardinality"
+  ],
+  "title": "PredicateTyping",
+  "type": "object"
+}

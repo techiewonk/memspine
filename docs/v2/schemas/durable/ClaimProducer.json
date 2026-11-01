@@ -1,0 +1,26 @@
+{
+  "additionalProperties": true,
+  "description": "Which producer wrote the claim: the rules-only miner, the model path, or a record projection.",
+  "properties": {
+    "kind": {
+      "enum": [
+        "rules",
+        "model",
+        "record"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "revision": {
+      "minLength": 1,
+      "title": "Revision",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kind",
+    "revision"
+  ],
+  "title": "ClaimProducer",
+  "type": "object"
+}

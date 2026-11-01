@@ -9,14 +9,6 @@
       "tier": "durable"
     },
     {
-      "file": "durable/AssertionEnvelope.json",
-      "kind": "assertion_envelope",
-      "module": "memspine.schemas.durable.assertion",
-      "name": "AssertionEnvelope",
-      "schema_version": 1,
-      "tier": "durable"
-    },
-    {
       "file": "durable/AssertionKey.json",
       "kind": null,
       "module": "memspine.schemas.durable.identity",
@@ -29,6 +21,14 @@
       "kind": null,
       "module": "memspine.schemas.durable.assessment",
       "name": "Assessment",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/ClaimProducer.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.semantic",
+      "name": "ClaimProducer",
       "schema_version": null,
       "tier": "durable"
     },
@@ -99,7 +99,7 @@
     {
       "file": "durable/GroundingChecks.json",
       "kind": null,
-      "module": "memspine.schemas.durable.assertion",
+      "module": "memspine.schemas.durable.semantic",
       "name": "GroundingChecks",
       "schema_version": null,
       "tier": "durable"
@@ -123,7 +123,7 @@
     {
       "file": "durable/IntegrationVerdict.json",
       "kind": null,
-      "module": "memspine.schemas.durable.assertion",
+      "module": "memspine.schemas.durable.semantic",
       "name": "IntegrationVerdict",
       "schema_version": null,
       "tier": "durable"
@@ -163,7 +163,7 @@
     {
       "file": "durable/Mention.json",
       "kind": null,
-      "module": "memspine.schemas.durable.assertion",
+      "module": "memspine.schemas.durable.semantic",
       "name": "Mention",
       "schema_version": null,
       "tier": "durable"
@@ -181,6 +181,14 @@
       "kind": null,
       "module": "memspine.schemas.durable.common",
       "name": "OwnerScope",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
+      "file": "durable/PredicateTyping.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.semantic",
+      "name": "PredicateTyping",
       "schema_version": null,
       "tier": "durable"
     },
@@ -226,10 +234,10 @@
     },
     {
       "file": "durable/SemanticEnvelope.json",
-      "kind": null,
+      "kind": "semantic_envelope",
       "module": "memspine.schemas.durable.semantic",
       "name": "SemanticEnvelope",
-      "schema_version": null,
+      "schema_version": 1,
       "tier": "durable"
     },
     {

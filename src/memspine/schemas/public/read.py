@@ -7,9 +7,9 @@ from typing import Any, ClassVar, Literal
 from pydantic import AwareDatetime, Field, model_validator
 
 from memspine.schemas.base import PublicModel
-from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.schemas.durable.temporal import TemporalRef
 from memspine.schemas.public.receipt import Capability
 
@@ -65,7 +65,7 @@ class EvidenceBundle(PublicModel):
     __semver__: ClassVar[str] = "1.0.0"
 
     record_id: str = Field(min_length=1)
-    assertion: AssertionEnvelope
+    assertion: SemanticEnvelope
     support: list[Evidence] = Field(default_factory=list)
     binding: list[Evidence] = Field(default_factory=list)
     time_anchors: list[TemporalRef] = Field(default_factory=list)

@@ -13,12 +13,12 @@ from pydantic import Field
 
 from memspine.schemas.base import InternalModel
 from memspine.schemas.durable import (
-    AssertionEnvelope,
     AssertionKey,
     JobLease,
     MemoryEvent,
     OutboxRow,
     Progress,
+    SemanticEnvelope,
 )
 from memspine.schemas.steps.shared import (
     DerivationBudget,
@@ -370,7 +370,7 @@ class OfflineStep05Input(InternalModel):
 
 
 class OfflineStep05Output(InternalModel):
-    assertions: list[AssertionEnvelope] = Field(default_factory=list)
+    assertions: list[SemanticEnvelope] = Field(default_factory=list)
     pending_merges: list[PendingMerge] = Field(default_factory=list)
     still_underived: int = 0
 

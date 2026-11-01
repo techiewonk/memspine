@@ -13,12 +13,12 @@ from pydantic import Field
 
 from memspine.schemas.base import InternalModel
 from memspine.schemas.durable import (
-    AssertionEnvelope,
     AssertionKey,
     IntegrationVerdict,
     LineageEdge,
     MemoryEvent,
     OutboxRow,
+    SemanticEnvelope,
 )
 from memspine.schemas.public import Receipt, WaitResult
 from memspine.schemas.steps.shared import (  # type: ignore[attr-defined]  # CI-GREEN: pre-existing typing debt
@@ -393,11 +393,11 @@ class InsertStep16Input(InternalModel):
 
 
 class InsertStep16Output(InternalModel):
-    envelope: AssertionEnvelope
+    envelope: SemanticEnvelope
 
 
 class InsertStep17Input(InternalModel):
-    envelope: AssertionEnvelope
+    envelope: SemanticEnvelope
     cited_lines: list[str] = Field(default_factory=list)
     context_lines: list[str] = Field(
         default_factory=list
@@ -415,7 +415,7 @@ class InsertStep17Output(InternalModel):
 
 
 class InsertStep18Input(InternalModel):
-    envelope: AssertionEnvelope
+    envelope: SemanticEnvelope
     parents: list[ParentState] = Field(default_factory=list)
 
 
@@ -434,7 +434,7 @@ class InsertStep19Output(InternalModel):
 
 
 class InsertStep20Input(InternalModel):
-    envelope: AssertionEnvelope
+    envelope: SemanticEnvelope
     resolutions: list[Resolution]
 
 
@@ -445,7 +445,7 @@ class InsertStep20Output(InternalModel):
 
 
 class InsertStep21Input(InternalModel):
-    envelope: AssertionEnvelope
+    envelope: SemanticEnvelope
     incumbents: list[Incumbent] = Field(default_factory=list)
     registry_entry: RegistryEntry | None = None
 
@@ -457,7 +457,7 @@ class InsertStep21Output(InternalModel):
 class DeposableEnvelope(InternalModel):
     """An envelope with its verdict, key and resolutions, as step 22 consumes it."""
 
-    envelope: AssertionEnvelope
+    envelope: SemanticEnvelope
     verdict: IntegrationVerdict
     key: AssertionKey
     resolutions: list[Resolution] = Field(default_factory=list)
