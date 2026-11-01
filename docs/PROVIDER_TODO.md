@@ -15,7 +15,7 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | EXCLUDED | 4 |
 | IN_PROGRESS | 24 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 52 |
+| OPEN | 55 |
 | PROPOSED | 1 |
 | REVIEW | 1 |
 
@@ -24,10 +24,10 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BI | 12 |
 | DS | 21 |
 | PA | 136 |
-| RM | 143 |
+| RM | 146 |
 | RS | 9 |
 
-Total: **321 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
+Total: **324 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
 <!-- CURRENT_SUMMARY_END -->
 
 ## Status and column legend
@@ -384,6 +384,9 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-141 | OPEN | P1 | Runtime maintainer | Outbox fence and runner fixes: hold the fence through projection, generation-check mark_sources, fence is not a retryable hole, failure path honours authorize result | Code review 2026-11-01 (verified against code): outbox.py lease/erasure checks are unlocked SELECTs at authorize and finalize only, so a forget during runner.py projection writes erased facts; mark_sources reactivates erased rows without a generation check; runner _Fenced subclasses Exception and becomes a retryable hole; failure path ignores authorize complete and raises effect replay result differs | Fence with row locks or a generation compare-and-set at commit with rollback of uncommitted projection; generation check in mark_sources; _Fenced handled before generic exceptions; failure path keeps the original error; tests for each race | Prereq: none |
 | RM-142 | OPEN | P1 | Ingestion maintainer | Discovery cursor fixes: out-of-order apply, empty source_record_ids stall, policy supersession readers | Code review 2026-11-01 (verified against code): ingest/discovery.py advances the cursor by created_at of applied intents, so an intent applied late is never discovered; an applied intent with empty source_record_ids breaks without advancing and stalls the scope; cancelled_by_policy_revision and supersedes_offset have no reader, so old and new policy items both run | Cursor over apply order (or rescan unapplied below the cursor); skip and record empty intents; runner honours cancellation and supersession; tests per scenario | Prereq: RM-131 merge |
 | RM-143 | OPEN | P1 | Ingestion / window maintainers | Window crash-safety fixes: membership before staging, draft restore flag, annotation source mismatch, fact count | Code review 2026-11-01 (verified against code): workers/windows.py observe writes mark_sources before staging/draft, so a crash between them makes has_source skip replay and lose the turn; _restore_draft marks restored before load succeeds, losing open turns on a transient error; annotation batches use live turns while effect identity uses all record_ids, so a role-blocked turn turns the offset into a permanent hole with repeated deposits; reported fact count exceeds stored facts | Stage and draft in the same transaction as membership (or membership last); set the restore flag only on success; build annotation identity from the same live set; count stored facts; crash-injection tests | Prereq: RM-129 and RM-131 merges |
+| RM-144 | OPEN | P3 | Graph / test maintainers | Intermittent score drift in test_rm104_graph_leg_frontier::test_search_results_identical_with_and_without_frontier | Seen 2026-11-01 on d61cd78b and later: about 1 run in 3, scores differ by about 1e-6 between the frontier and scan legs; quarantined in tests/quarantine.txt | Find the float-order source (summation order or set iteration) and make it deterministic, or compare with a tolerance where exact equality is not the contract; remove the quarantine entry | Prereq: none |
+| RM-145 | OPEN | P2 | Entity maintainer | RM-130 follow-ups: public merge/alias/pin API, duplicate-entity race, registry unification, alias text erasure | RM-130 report 2026-11-01: merges and aliases only via AssociativeMemory; entity_ref tag pins a subject; two unlocked writers can mint two entities for one new name; W2-09 EntityRegistry and GP-7 alias table are not unified with the entity index; alias marker payloads keep alias text after hard erasure; pending_merge unset | Engine and REST methods for merge, alias and pin; namespace-scoped lock or unique key for new entities; fold the registry and alias table into the index; redact alias text on erasure (also an RM-135 gate case) | Prereq: RM-130 |
+| RM-146 | OPEN | P2 | Ingestion / eval maintainers | RM-131 follow-ups: eval harness passes dataset tz, drop intake_derivation_cursor, claim known_at and binding hash | RM-131 and RM-129 reports 2026-11-01: 10 eval tests fail because date-only dataset stamps are now civil text; intake_derivation_cursor is unused after the RM-142 discovery rewrite; ADR-088 binding hash and known_at are not claim fields yet | Eval adapters pass the configured dataset tz; remove the unused table from the baseline; add binding hash and known_at to SemanticEnvelope | Prereq: RM-129, RM-131 |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)

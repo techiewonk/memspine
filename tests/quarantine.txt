@@ -6,3 +6,4 @@
 # is a collection error. A quarantined test still runs; a failure reports as xfail
 # (strict=False) and the session summary lists every quarantined test that ran.
 # Remove the entry when the row closes.
+tests/unit/wiring/test_rm104_graph_leg_frontier.py::test_search_results_identical_with_and_without_frontier  # RM-144 scores drift ~1e-6 about 1 run in 3 (also at d61cd78b)
