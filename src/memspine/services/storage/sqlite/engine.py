@@ -63,6 +63,10 @@ class SQLiteStorage(SqlStorage):
                 # ADR-081 records port: the outbox item table commits with the log (the file
                 # path gets it from Alembic revision 0008).
                 await conn.run_sync(outbox_metadata.create_all)
+                # RM-130: the entity name index projection (file path: the baseline).
+                from memspine.services.storage.entity_index_tables import entity_index_metadata
+
+                await conn.run_sync(entity_index_metadata.create_all)
         else:
             # RM-113: Alembic runs over a connection the connector lends (#52: keyed under
             # SQLCipher).

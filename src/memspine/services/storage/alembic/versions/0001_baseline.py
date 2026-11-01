@@ -11,6 +11,11 @@ down_revision = None
 branch_labels = None
 depends_on = None
 
+# ── RM-130 (ADR-089) entity name index ──────────────────────────────────────────────
+# The ``entity_index`` table (services/storage/entity_index_tables.py) is created by
+# ``create_schema`` through ``schema_metadata()``: a rebuildable projection of the entity,
+# alias, link and merge events, cleared and replayed by the ``entity_index`` projector.
+
 
 def upgrade() -> None:
     create_schema(op.get_bind())

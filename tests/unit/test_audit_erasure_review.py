@@ -188,7 +188,16 @@ def _graph_engine() -> Engine:
     )
 
 
-async def _partition_marker(eng: Engine, ns: str = "a") -> None:
+async def _ids(eng: Engine, *names: str) -> list[str]:
+    """RM-130: the opaque entity ids the name index holds for ``names`` (one each)."""
+    assert eng._associative is not None
+    lookup = await eng._associative.entity_lookup("a")
+    return [(await lookup.get(n))[0] for n in names]
+
+
+async def _partition_marker(eng: Engine, ns: str = "a") -> dict[str, str]:
+    alice, paris, bob = await _ids(eng, "alice", "paris", "bob")
+    partition = {alice: alice, paris: alice, bob: bob}
     await eng._append_and_project(
         MemoryEvent(
             kind=EventKind.MARKER,
@@ -198,17 +207,14 @@ async def _partition_marker(eng: Engine, ns: str = "a") -> None:
                 "marker": PARTITION_MARKER,
                 "stage": "reorganize",
                 "mode": "full",
-                "set": {
-                    "ent:a:alice": "ent:a:alice",
-                    "ent:a:paris": "ent:a:alice",
-                    "ent:a:bob": "ent:a:bob",
-                },
+                "set": partition,
                 "drop": [],
                 "sleeps_since_refresh": 0,
                 "placed_since_refresh": 0,
             },
         )
     )
+    return partition
 
 
 async def _partition_payloads(eng: Engine) -> list[dict[str, Any]]:
@@ -219,34 +225,34 @@ async def _partition_payloads(eng: Engine) -> list[dict[str, Any]]:
     ]
 
 
-async def test_erase_subject_renames_the_subject_node_in_partitions() -> None:
+async def test_erase_subject_leaves_no_name_in_partitions() -> None:
+    """RM-130: partition markers hold opaque entity ids, which never spell a name, so erasing
+    a subject has nothing to rename there and the history keeps its structure."""
     eng = await _graph_engine().start()
     try:
         await eng.write("Alice lives in Paris", namespace="a", entity="Alice", tags=["dst:Paris"])
         await eng.write("Bob lives in Rome", namespace="a", entity="Bob", tags=["dst:Rome"])
-        await _partition_marker(eng)
+        partition = await _partition_marker(eng)
         await eng.erase_subject("Alice", namespace="a")
         [payload] = await _partition_payloads(eng)
         assert "alice" not in orjson.dumps(payload).decode().lower()
-        renamed = next(n for n in payload["set"] if n.startswith("ent:a:#erased-"))
-        assert payload["set"][renamed] == renamed and payload["set"]["ent:a:paris"] == renamed
-        assert payload["set"]["ent:a:bob"] == "ent:a:bob"  # untouched
+        assert payload["set"] == partition  # nothing to rename: ids are opaque
     finally:
         await eng.stop()
 
 
-async def test_hard_forget_renames_only_orphaned_entity_nodes() -> None:
+async def test_hard_forget_leaves_partitions_unchanged_and_nameless() -> None:
     eng = await _graph_engine().start()
     try:
         first = await eng.write("Bob likes tea", namespace="a", entity="Bob", attribute="drink")
         await eng.write("Bob lives in Rome", namespace="a", entity="Bob", attribute="city")
         alice = await eng.write("Alice likes jam", namespace="a", entity="Alice")
-        await _partition_marker(eng)
+        await eng.write("Paris is big", namespace="a", entity="Paris")
+        partition = await _partition_marker(eng)
         await eng.forget(first.record_id, namespace="a", hard=True)
-        [payload] = await _partition_payloads(eng)
-        assert "ent:a:bob" in payload["set"]  # Bob is still mentioned: kept
         await eng.forget(alice.record_id, namespace="a", hard=True)
         [payload] = await _partition_payloads(eng)
+        assert payload["set"] == partition
         assert "alice" not in orjson.dumps(payload).decode().lower()
     finally:
         await eng.stop()

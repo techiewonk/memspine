@@ -15,6 +15,7 @@ from typing import Any, ClassVar, Protocol
 from memspine.config.constants import LINK_BUDGET, SEARCH_TOP_K
 from memspine.exceptions import ConfigError, ConflictError
 from memspine.memories.associative import entity_cache
+from memspine.memories.associative import entity_index as names_index
 from memspine.memories.associative import links as link_rules
 from memspine.memories.associative.entities import (
     MENTIONS_REL,
@@ -28,6 +29,7 @@ from memspine.observability.logging import EVENT_LINK, EVENT_RETRIEVE, get_logge
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.graph.base import GraphEdge, GraphStore, capped_neighbors
 from memspine.services.lexical.base import LexicalHit, rrf_fuse
+from memspine.services.storage.entity_index_tables import entity_index_store_of
 from memspine.services.vector.base import VectorStore
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -252,29 +254,83 @@ class AssociativeMemory(BaseMemory):
     # -- GP-2/GP-3: the entity layer, read side ---------------------------------
 
     async def entity_index(self, namespace: str) -> dict[str, list[str]]:
-        """``match_key(name)`` -> the entity node ids that a live ``mentions`` edge
-        in ``namespace`` points at."""
-        index: dict[str, list[str]] = {}
+        """The reference scan: ``match_key(name or alias)`` -> the entity node ids that a live
+        ``mentions`` edge in ``namespace`` points at, their names from the name index (RM-130:
+        an id carries no name). Each key's ids sorted."""
+        live: list[str] = []
         for edge in await self._graph.edge_list(namespace):
             if edge.rel_type != MENTIONS_REL or edge.weight <= 0:
                 continue
             parsed = parse_entity_node(edge.dst)
-            if parsed is None or parsed[0] != namespace:
-                continue
-            nodes = index.setdefault(match_key(parsed[1]), [])
-            if edge.dst not in nodes:
-                nodes.append(edge.dst)
-        return index
+            if parsed is not None and parsed[0] == namespace and edge.dst not in live:
+                live.append(edge.dst)
+        store = entity_index_store_of(self._storage)
+        index: dict[str, list[str]] = {}
+        for node in live:
+            for row in await store.select(namespace, "name", entity_id=node):
+                nodes = index.setdefault(row.match or match_key(row.key), [])
+                if node not in nodes:
+                    nodes.append(node)
+        return {k: sorted(v) for k, v in index.items()}
 
     async def entity_lookup(self, namespace: str) -> entity_cache.EntityLookup:
-        """RM-110: :meth:`entity_index` served from the maintained per-namespace index
-        (:mod:`.entity_cache`) instead of a scan of every edge of the namespace on each
-        call; ``await lookup.get(match_key)`` gives one key's nodes. Same keys and nodes as
-        :meth:`entity_index` while the cache is fresh (a key's nodes sorted by node id); an entity whose last live
-        mention was removed is re-checked before it is returned, so it never comes back."""
-        return await entity_cache.entity_lookup(
-            self._graph, self._storage, namespace, lambda: self.entity_index(namespace)
+        """RM-110 / RM-130: the namespace's name index (names and aliases -> entity ids) from
+        the durable index projection, cached in process (:mod:`.entity_cache`);
+        ``await lookup.get(match_key)`` gives one key's ids."""
+        return await entity_cache.entity_lookup(self._storage, namespace)
+
+    async def entity_names(self, namespace: str, entities: Sequence[str]) -> dict[str, str]:
+        """RM-130: entity id -> canonical name, from the name index (never from the id)."""
+        return await names_index.entity_names(self._storage, namespace, entities)
+
+    async def merge_entities(
+        self,
+        namespace: str,
+        keep: str,
+        absorb: str,
+        evidence: Sequence[str],
+        *,
+        actor: str = "user",
+    ) -> None:
+        """ADR-089: merge entity ``absorb`` into ``keep``, citing ``evidence`` record ids (live
+        records of ``namespace``). Forgetting or erasing the cited evidence undoes it."""
+        await self._identity_checks(namespace, [keep, absorb], evidence)
+        if keep == absorb:
+            raise ConflictError("cannot merge an entity with itself")
+        await self._append_event(
+            names_index.merge_event(namespace, keep, absorb, evidence, actor=actor)
         )
+
+    async def add_entity_alias(
+        self,
+        namespace: str,
+        entity: str,
+        alias: str,
+        evidence: Sequence[str],
+        *,
+        actor: str = "user",
+    ) -> None:
+        """ADR-089: an evidence-cited alias name for ``entity`` (undone with its evidence)."""
+        await self._identity_checks(namespace, [entity], evidence)
+        if not alias.strip():
+            raise ConflictError("an alias needs a name")
+        await self._append_event(
+            names_index.alias_event(namespace, entity, alias, evidence, actor=actor)
+        )
+
+    async def _identity_checks(
+        self, namespace: str, entities: Sequence[str], evidence: Sequence[str]
+    ) -> None:
+        if not evidence:
+            raise ConflictError("an identity change needs cited evidence (ADR-089)")
+        for record_id in evidence:
+            record = await self._require_record(record_id, namespace)
+            if record.quarantined or record.status is not RecordStatus.ACTIVATED:
+                raise ConflictError(f"evidence {record_id} is not a live record")
+        known = await names_index.entity_names(self._storage, namespace, entities)
+        for entity in entities:
+            if entity not in known:
+                raise ConflictError(f"no such entity {entity!r} in namespace {namespace!r}")
 
     async def mentions_of(self, namespace: str, entities: Sequence[str]) -> dict[str, list[str]]:
         """RM-110: :meth:`entity_mentions` for the given entity nodes only (one query for

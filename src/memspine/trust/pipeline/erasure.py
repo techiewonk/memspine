@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import secrets
 from collections.abc import Sequence
 from typing import Any
 
@@ -11,7 +10,6 @@ from memspine.config import constants
 from memspine.core.forget_request import forget_target
 from memspine.core.policies.retention import RetentionPolicy
 from memspine.exceptions import ConflictError, MemspineError, StorageError
-from memspine.memories.associative.entities import ENTITY_PREFIX, canonical_entity, entity_node_id
 from memspine.models.encoders.query.shape import content_words
 from memspine.models.encoders.query.temporal_query import forget_mentions
 from memspine.observability.logging import EVENT_FORGET, get_logger
@@ -276,23 +274,13 @@ async def _forget_many(
 async def _erased_entity_nodes(
     eng: Any, ns: str, names: Sequence[str], *, forced: Sequence[str] = ()
 ) -> dict[str, str]:
-    """Entity node id -> opaque id for the erased ``names`` (KB-12 partition
-    markers store node ids, which spell the name). A name in ``forced`` (the
-    erased subject) is always renamed; another only once its node has no edge
-    left (no live record mentions it). Empty without a graph store."""
-    if eng._graph is None:
-        return {}
-    forced_keys = {canonical_entity(n) for n in forced}
-    renames: dict[str, str] = {}
-    for name in dict.fromkeys(names):
-        canonical = canonical_entity(name)
-        node = entity_node_id(ns, canonical)
-        if not canonical or node in renames:
-            continue
-        if canonical not in forced_keys and await eng._graph.edges_of(node):
-            continue
-        renames[node] = f"{ENTITY_PREFIX}{ns}:#erased-{secrets.token_hex(8)}"
-    return renames
+    """Entity node id -> replacement id for the erased ``names`` in partition markers (KB-12).
+
+    RM-130 (ADR-089): entity ids are opaque (``ent:<ns>:<uuid7>``) and never spell a name, so a
+    partition marker holds nothing to rename: always empty. The names live in the entity name
+    index, whose rows go with the erased records' links (the ``entity_index`` projector)."""
+    del eng, ns, names, forced
+    return {}
 
 
 async def _forget_target(

@@ -153,7 +153,8 @@ async def test_with_the_graph_leg_admitted_summaries_join_it() -> None:
 async def test_membership_goes_through_mentioned_records(gated: Engine) -> None:
     parents = await _build(gated)
     assert gated._associative is not None
-    found = await gated._associative.entity_communities("a", ["ent:a:melanie"])
+    [melanie] = await (await gated._associative.entity_lookup("a")).get("melanie")  # RM-130
+    found = await gated._associative.entity_communities("a", [melanie])
     assert found == [parents["melanie"].record_id]
     # Entities of another namespace are never entered.
-    assert await gated._associative.entity_communities("b", ["ent:a:melanie"]) == []
+    assert await gated._associative.entity_communities("b", [melanie]) == []

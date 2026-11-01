@@ -11,6 +11,7 @@ from sqlalchemy import MetaData
 from sqlalchemy.engine import Connection
 
 from memspine.services.assets.sql_registry import asset_metadata
+from memspine.services.storage.entity_index_tables import entity_index_metadata
 from memspine.services.storage.intake_tables import intake_metadata
 from memspine.services.storage.outbox_tables import outbox_metadata
 from memspine.services.storage.provider_metadata import DEPLOYMENT_METADATA
@@ -27,6 +28,10 @@ def schema_metadata() -> list[MetaData]:
         side_metadata,
         asset_metadata,
         intake_metadata,
+        # ── RM-130 (ADR-089) entity name index ────────────────────────────────────────
+        # One ``entity_index`` table: the rebuildable projection of entity, alias, link
+        # and merge events (never a second source of truth; ``entity_index`` projector).
+        entity_index_metadata,
     ]
 
 

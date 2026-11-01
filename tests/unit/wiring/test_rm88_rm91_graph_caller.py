@@ -119,6 +119,13 @@ class _Spy:
         return found[-1]
 
 
+async def _ent(eng: Engine, ns: str, name: str) -> str:
+    """RM-130: the one opaque entity id ``ns``'s name index holds for ``name``."""
+    assert eng._associative is not None
+    [node] = await (await eng._associative.entity_lookup(ns)).get(name.lower())
+    return node
+
+
 async def _put_edge(eng: Engine, ns: str, src: str, dst: str, scope: str, record_id: str) -> None:
     """A compiled-layer edge in ``ns``'s graph with qualifier ``scope`` (a shared-graph row)."""
     assert eng._graph is not None
@@ -160,9 +167,11 @@ async def test_f13_grantee_merge_is_never_visible_to_the_grantor(
         evidence = await eng.write(
             "Bram from a's notes is my cousin Bram", namespace="b", memory_type="semantic"
         )
-        # the merge row is present in both graphs (distinct keys: edges are keyed globally)
-        await _put_edge(eng, "a", "ent:a:bram", "ent:b:bram", "b", evidence.record_id)
-        await _put_edge(eng, "b", "ent:b:bram", "ent:a:bram", "b", evidence.record_id)
+        # the merge row is present in both graphs (distinct keys: edges are keyed globally);
+        # b names no Bram of its own, so its side is a foreign placeholder id
+        bram_a, bram_b = await _ent(eng, "a", "Bram"), "ent:b:bram-placeholder"
+        await _put_edge(eng, "a", bram_a, bram_b, "b", evidence.record_id)
+        await _put_edge(eng, "b", bram_b, bram_a, "b", evidence.record_id)
         await eng.search(QUERY, namespace="a", top_k=4, graph_filter=_flt())
         grantor = spy.last()
         await eng.search("Bram cousin", namespace="b", top_k=4, graph_filter=_flt())
@@ -181,7 +190,9 @@ async def test_grant_admits_and_revocation_hides_at_once(
     try:
         ids = await _build(eng, "a")
         # a row scoped to a, sourced from a's record, present in b's graph
-        await _put_edge(eng, "b", "ent:b:ilse", "ent:a:bram", "a", ids["f_ilse"])
+        await _put_edge(
+            eng, "b", "ent:b:ilse-placeholder", await _ent(eng, "a", "Bram"), "a", ids["f_ilse"]
+        )
         await eng.write("Ilse plays chess", namespace="b", memory_type="semantic")
         await eng.search(QUERY, namespace="b", top_k=4, graph_filter=_flt())
         before = spy.last()

@@ -293,7 +293,7 @@ def _known_from_store(eng: Any) -> KnownSource:
     """KNOWN from the entity records and the alias table already in the store (W2-06b). The P-23
     pre-pass (W2-13) and the online resolver (W2-09) plug in through the builder's ``prepass`` /
     ``resolver`` hooks and are not read here."""
-    from memspine.memories.associative.entities import parse_entity_node
+    from memspine.memories.associative.entity_index import namespace_entity_names
 
     index = SessionIndex()
     cache: dict[str, tuple[int, list[KnownEntity]]] = {}
@@ -310,12 +310,8 @@ def _known_from_store(eng: Any) -> KnownSource:
         by_target: dict[str, list[str]] = {}
         for alias, target in index.entity_aliases.get(ns, {}).items():
             by_target.setdefault(target, []).append(alias)
-        names: dict[str, None] = {}
-        for nodes in (await assoc.entity_index(ns)).values():
-            for node in nodes:
-                parsed = parse_entity_node(node)
-                if parsed is not None:
-                    names.setdefault(parsed[1], None)
+        # RM-130: names come from the entity name index (an entity id carries no name).
+        names = dict.fromkeys(await namespace_entity_names(eng._storage, ns))
         known = [
             KnownEntity(canon.title(), tuple(a.title() for a in by_target.get(canon, ())))
             for canon in names

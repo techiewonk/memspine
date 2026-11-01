@@ -37,10 +37,9 @@ from memspine.core.ties import settle_ties
 from memspine.memories.associative.entities import (
     MENTIONS_REL,
     canonical_entity,
-    entity_node_id,
     is_entity_node,
-    parse_entity_node,
 )
+from memspine.memories.associative.entity_index import record_entity_ids
 from memspine.memories.associative.store import match_key
 from memspine.models.encoders.query import CueQueryEncoder, NoopQueryEncoder, QueryEncoder
 from memspine.models.encoders.query.perspective import (
@@ -564,11 +563,17 @@ async def _graph_hop_leg(
     seeds: list[str] = []
     if eng._associative is not None:
         seeds = list(await eng._graph_seeds(ns, query))
-    for hit in list(vector_hits)[: read.graph_leg_seed_hits]:
-        rec = by_id.get(hit.record_id)
-        if rec is not None and rec.entity:
-            node = entity_node_id(ns, canonical_entity(rec.entity))
-            if node not in seeds:
+    top = [
+        rec
+        for hit in list(vector_hits)[: read.graph_leg_seed_hits]
+        if (rec := by_id.get(hit.record_id)) is not None and rec.entity
+    ]
+    if top:
+        # RM-130: a hit's subject entity is its recorded link (the id carries no name)
+        links = await record_entity_ids(eng._storage, ns, [r.record_id for r in top])
+        for rec in top:
+            node = links.get(rec.record_id, {}).get(canonical_entity(rec.entity or ""))
+            if node is not None and node not in seeds:
                 seeds.append(node)
     edges: list[Any] = []
     if eng._graph is not None:
@@ -634,10 +639,10 @@ async def _entity_leg(
         return []
     by_id = {r.record_id: r for r in live}
     mentions = await eng._associative.mentions_of(ns, seeds)  # RM-110: the seeds' edges only
+    names = await eng._associative.entity_names(ns, seeds)  # RM-130: names from the index
     index: dict[str, list[EntityMention]] = {}
     for node in seeds:
-        parsed = parse_entity_node(node)
-        name = parsed[1] if parsed else node
+        name = names.get(node, node)
         for rid in mentions.get(node, ()):
             rec = by_id.get(rid)
             if rec is None:  # not live: quarantined, archived, another type
@@ -775,7 +780,8 @@ async def _graph_seeds(
             _log.warning("read.graph_seed_ner_failed", namespace=ns, error=str(exc))
     if not seeds and fallback_ids:
         seeds = await eng._associative.entities_of(ns, fallback_ids)
-    return seeds
+    expanded: list[str] = index.expand(seeds)  # RM-130: a cited merge seeds its partners too
+    return expanded
 
 
 async def _graph_walk(

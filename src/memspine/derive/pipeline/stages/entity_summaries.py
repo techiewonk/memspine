@@ -22,9 +22,9 @@ from memspine.derive.pipeline.stages.offline_door import is_live, write_summary_
 from memspine.memories.associative.entities import (
     MENTIONS_REL,
     canonical_entity,
-    entity_node_id,
     parse_entity_node,
 )
+from memspine.memories.associative.entity_index import entity_names
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
@@ -42,12 +42,15 @@ def _entity_summary_options(ctx: PipelineContext) -> dict[str, object] | None:
     return dict(raw) if isinstance(raw, dict) else {}
 
 
+#: RM-130: the tag naming the entity id a summary is about (an id carries no name).
+ABOUT_ID_PREFIX = "about_id:"
+
+
 def entity_summary_node(record: MemoryRecord) -> str | None:
-    """The entity node an entity summary record is about (its ``about:`` tag)."""
-    prefix = constants.ENTITY_SUMMARY_ABOUT_PREFIX
+    """The entity node an entity summary record is about (its ``about_id:`` tag)."""
     for tag in record.tags:
-        if tag.startswith(prefix) and tag[len(prefix) :].strip():
-            return entity_node_id(record.namespace, canonical_entity(tag[len(prefix) :]))
+        if tag.startswith(ABOUT_ID_PREFIX) and parse_entity_node(tag[len(ABOUT_ID_PREFIX) :]):
+            return tag[len(ABOUT_ID_PREFIX) :]
     return None
 
 
@@ -272,6 +275,7 @@ async def _gather(
         if node is not None:
             live.setdefault(node, []).append(record)
     work: list[_EntityWork] = []
+    names = await entity_names(ctx.storage, namespace, sorted(members_of))  # RM-130
     for node in sorted(members_of):
         members: list[MemoryRecord] = []
         for record_id in sorted(members_of[node]):
@@ -296,11 +300,10 @@ async def _gather(
         ):
             counts["unchanged"] += 1
             continue
-        parsed = parse_entity_node(node)
-        assert parsed is not None
+        canonical = names.get(node, "")
         work.append(
             _EntityWork(
-                node, _display_name(parsed[1], members), members, fp, old, _fact_lines(members)
+                node, _display_name(canonical, members), members, fp, old, _fact_lines(members)
             )
         )
         counts["changed"] += 1
@@ -328,6 +331,7 @@ def _summary_record(namespace: str, item: _EntityWork, member_ids: list[str]) ->
         tags=[
             constants.ENTITY_SUMMARY_TAG,
             f"{constants.ENTITY_SUMMARY_ABOUT_PREFIX}{item.display}",
+            f"{ABOUT_ID_PREFIX}{item.node}",
         ],
         valid_from=max(m.valid_from for m in item.members),
         source=SourceInfo(

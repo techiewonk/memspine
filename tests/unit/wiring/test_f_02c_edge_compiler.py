@@ -15,7 +15,7 @@ from memspine.derive.pipeline.stages.edge_compiler import (
     LinkProjection,
     compile_graph_edges,
 )
-from memspine.memories.associative.entities import entity_node_id
+from memspine.memories.associative.entities import match_key
 from memspine.observability import tap
 from memspine.store.records import MemoryRecord
 from memspine.workers.schedule import COMPILE_EDGES_STAGE, SLEEP_CYCLE_ORDER
@@ -80,6 +80,23 @@ async def _compiled(eng: Engine, ns: str = NS):
     return [e for e in await eng._graph.edge_list(ns) if e.properties.get("compiled") == COMPILED]
 
 
+async def _entity(eng: Engine, name: str, ns: str = NS) -> str:
+    """RM-130: the opaque id the name index holds for ``name`` (exactly one)."""
+    assert eng._associative is not None
+    [node] = await (await eng._associative.entity_lookup(ns)).get(match_key(name))
+    return node
+
+
+def _ids(*records: MemoryRecord) -> dict[str, dict[str, str]]:
+    """RM-130: fake recorded entity links for the pure compiler (name -> opaque id)."""
+    return {
+        r.record_id: {
+            n: f"ent:{r.namespace}:id-{n.replace(' ', '-')}" for n in ("alice", "acme", "it")
+        }
+        for r in records
+    }
+
+
 def _projection(edges):
     return [e for e in edges if e.properties.get("edge_kind") == "projection"]
 
@@ -112,7 +129,7 @@ async def test_compiles_assertions_to_typed_edges() -> None:
         stats = await _run(eng)
         assert stats["status"] == "ok" and stats["written"] >= 2
         edges = await _compiled(eng)
-        alice, acme = entity_node_id(NS, "alice"), entity_node_id(NS, "acme")
+        alice, acme = await _entity(eng, "alice"), await _entity(eng, "acme")
         proj = _projection(edges)
         assert [(e.src, e.dst, e.rel_type) for e in proj] == [(alice, acme, "works_at")]
         p = proj[0].properties
@@ -193,8 +210,10 @@ def test_compiler_is_pure_and_tags_unbound_and_assistant_content() -> None:
         entity="Alice",
         tags=["kind:event", "rel:likes", "dst:it"],
     )
-    a = comp.compile([good, junk], NS)
-    b = comp.compile([junk, good], NS)
+    ids = _ids(good, junk)
+    del ids[junk.record_id]["it"]  # a rejected name has no link
+    a = comp.compile([good, junk], NS, entity_ids=ids)
+    b = comp.compile([junk, good], NS, entity_ids=ids)
     assert a.delta == b.delta  # order independent
     by_rec = {e.record_id: e.tentative for e in a.delta.edges}
     assert by_rec[good.record_id] is False and by_rec[junk.record_id] is True
@@ -267,11 +286,16 @@ async def test_scope_keyed_edges_use_tenant_and_owner() -> None:
     )
     twin = rec.model_copy(update={"namespace": "acme/alice/s2", "record_id": rec.record_id})
     on = EdgeCompiler()
-    envelope = on.envelope(rec)
+    envelope = on.envelope(rec, _ids(rec)[rec.record_id])
     assert (envelope.scope.tenant, envelope.scope.owner) == ("acme", "alice/s1")
     other_tenant = rec.model_copy(update={"namespace": "globex/alice/s1"})
-    k_on = {e.key for e in on.compile([rec], rec.namespace).delta.edges}
-    k_other = {e.key for e in on.compile([other_tenant], other_tenant.namespace).delta.edges}
+    k_on = {e.key for e in on.compile([rec], rec.namespace, entity_ids=_ids(rec)).delta.edges}
+    k_other = {
+        e.key
+        for e in on.compile(
+            [other_tenant], other_tenant.namespace, entity_ids=_ids(other_tenant)
+        ).delta.edges
+    }
     assert k_on and k_on.isdisjoint(k_other)  # tenants never share a key
     assert twin.namespace != rec.namespace
 

@@ -1,4 +1,7 @@
-"""GP-2 (#13): entity nodes + ``mentions`` edges, derived in the graph projector."""
+"""GP-2 (#13): entity nodes + ``mentions`` edges, derived in the graph projector.
+
+RM-130: entity ids are opaque and minted on the write path (``with_entity_links``); the
+projectors read them from the WRITE event's ``entity_links``."""
 
 from __future__ import annotations
 
@@ -11,9 +14,15 @@ from memspine.memories.associative.entities import (
     MENTIONS_REL,
     EntityPolicy,
     canonical_entity,
-    entity_node_id,
+    new_entity_id,
     parse_entity_node,
     record_entity_names,
+    surface_node_id,
+)
+from memspine.memories.associative.entity_index import (
+    EntityIndexProjector,
+    entity_names,
+    with_entity_links,
 )
 from memspine.memories.associative.links import RESERVED_RELS, link_event
 from memspine.memories.associative.projector import GraphProjector
@@ -23,6 +32,31 @@ from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
 
 ON = EntityPolicy.from_policy(True)
+
+
+class _Writer:
+    """The write door's entity step: links minted into the event, then every projector."""
+
+    def __init__(self, graph: SqlAdjacencyGraph, policy: EntityPolicy | None = ON) -> None:
+        self.storage = object()
+        self.index = EntityIndexProjector(self.storage)
+        self.graph = GraphProjector(graph, policy)
+        self.policy = policy
+        self.log: list[MemoryEvent] = []
+
+    async def apply(self, event: MemoryEvent) -> MemoryEvent:
+        event = await with_entity_links(
+            self.storage, event, self.policy, applied=self.index.applied
+        )
+        event = event.model_copy(update={"seq": len(self.log) + 1})
+        self.log.append(event)
+        await self.index.apply(event)
+        await self.graph.apply(event)
+        return event
+
+    async def name(self, node: str) -> str:
+        ns = node.split(":")[1]
+        return (await entity_names(self.storage, ns, [node]))[node]
 
 
 def _fact(
@@ -49,14 +83,18 @@ async def _state(graph: SqlAdjacencyGraph) -> tuple[list[tuple[object, ...]], in
     return edges, await graph.node_count()
 
 
-def test_canonical_names_and_the_node_id() -> None:
+def test_canonical_names_and_the_opaque_node_id() -> None:
     assert canonical_entity("  MELANIE\t Smith ") == "melanie smith"
     full_width = "".join(chr(ord(c) + 0xFEE0) for c in "Melanie")
     assert canonical_entity(full_width) == "melanie"  # NFKC folds full-width
-    node = entity_node_id("org/a", "charlotte's web")
-    assert node == "ent:org/a:charlotte's web"
-    assert parse_entity_node(node) == ("org/a", "charlotte's web")
+    node = new_entity_id("org/a")
+    ns, local = parse_entity_node(node) or ("", "")
+    assert ns == "org/a" and len(local) == 36 and local[14] == "7"  # a uuid7
+    assert new_entity_id("org/a") != node
     assert parse_entity_node("some-record-id") is None
+    # RM-130: a surface node never parses as a canonical entity
+    assert parse_entity_node(surface_node_id("org/a", "person", "melanie")) is None
+    assert parse_entity_node("ent:org/a:person:melanie") is None
 
 
 def test_policy_rejects_junk_names_and_honours_the_allowed_list(
@@ -85,28 +123,26 @@ async def test_write_projects_entity_nodes_and_trust_weighted_mentions(
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
 ) -> None:
-    projector = GraphProjector(graph, ON)
+    writer = _Writer(graph)
     record = _fact(make_record, "Melanie", "Charlotte's Web", trust=0.6)
-    await projector.apply(write_event(record))
+    await writer.apply(write_event(record))
     mentions = {
-        (e.dst, e.weight)
+        (await writer.name(e.dst), e.weight)
         for e in await graph.edges_of(record.record_id)
         if e.rel_type == MENTIONS_REL
     }
-    assert mentions == {
-        ("ent:default:melanie", 0.6),
-        ("ent:default:charlotte's web", 0.6),
-    }
+    assert mentions == {("melanie", 0.6), ("charlotte's web", 0.6)}
     assert await graph.node_count() == 3
 
 
 async def test_policy_off_projects_no_entities(
     graph: SqlAdjacencyGraph,
-    projector: GraphProjector,
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
 ) -> None:
-    await projector.apply(write_event(_fact(make_record, "Melanie", "Dune")))
+    writer = _Writer(graph, None)
+    event = await writer.apply(write_event(_fact(make_record, "Melanie", "Dune")))
+    assert "entity_links" not in event.payload
     assert await graph.node_count() == 1 and await graph.edge_count() == 0
 
 
@@ -115,18 +151,21 @@ async def test_forget_cascades_mentions_and_orphaned_entities(
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
 ) -> None:
-    projector = GraphProjector(graph, ON)
+    writer = _Writer(graph)
     first = _fact(make_record, "Melanie", "Dune")
     second = _fact(make_record, "Melanie", "Emma")
     for record in (first, second):
-        await projector.apply(write_event(record))
-    await projector.apply(_forget(first))
-    nodes = {n.node_id for n in await graph.neighbors(second.record_id)}
-    assert nodes == {"ent:default:melanie", "ent:default:emma"}
+        await writer.apply(write_event(record))
+    mentioned = [e.dst for e in await graph.edges_of(first.record_id) if e.rel_type == MENTIONS_REL]
+    [dune] = [node for node in mentioned if await writer.name(node) == "dune"]
+    await writer.apply(_forget(first))
+    nodes = {await writer.name(n.node_id) for n in await graph.neighbors(second.record_id)}
+    assert nodes == {"melanie", "emma"}  # one "melanie" entity: a unique-name link
     # "dune" lost its only mention and is gone; "melanie" is still mentioned.
-    assert await graph.edges_of("ent:default:dune") == []
+    assert await graph.edges_of(dune) == []
+    assert await entity_names(writer.storage, "default", [dune]) == {}
     assert await graph.node_count() == 3
-    await projector.apply(_forget(second))
+    await writer.apply(_forget(second))
     assert await graph.node_count() == 0 and await graph.edge_count() == 0
 
 
@@ -135,26 +174,26 @@ async def test_rebuild_equals_incremental(
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
 ) -> None:
-    projector = GraphProjector(graph, ON)
+    writer = _Writer(graph)
     a = _fact(make_record, "Melanie", "Dune")
     b = _fact(make_record, "Caroline", "Denver")
     c = _fact(make_record, "Melanie", "Emma", trust=0.0)  # trust 0: no mention at all
     renamed = a.model_copy(update={"tags": ["kind:event", "rel:read", "dst:Persuasion"]})
-    events = [
+    for event in [
         write_event(a),
         write_event(b),
         write_event(c),
         link_event("default", a.record_id, b.record_id, "related", 0.7, "manual"),
         write_event(renamed),  # re-projected with another dst: "dune" goes stale
         _forget(b),
-    ]
-    for event in events:
-        await projector.apply(event)
+    ]:
+        await writer.apply(event)
     incremental = await _state(graph)
-    assert "ent:default:dune" not in {e[1] for e in incremental[0] if e[3] > 0}
-    await projector.reset()
-    for event in events:
-        await projector.apply(event)
+    names = {await writer.name(e[1]) for e in incremental[0] if e[3] > 0 and e[2] == MENTIONS_REL}
+    assert names == {"melanie", "persuasion"}
+    await writer.graph.reset()
+    for event in writer.log:  # replay never mints: the logged links are reused
+        await writer.graph.apply(event)
     assert await _state(graph) == incremental
 
 
@@ -163,16 +202,17 @@ async def test_namespaces_get_their_own_entity_nodes(
     make_record: Callable[..., MemoryRecord],
     write_event: Callable[..., MemoryEvent],
 ) -> None:
-    projector = GraphProjector(graph, ON)
+    writer = _Writer(graph)
     in_a = _fact(make_record, "Melanie", None, namespace="a")
     in_b = _fact(make_record, "Melanie", None, namespace="b")
     for record in (in_a, in_b):
-        await projector.apply(write_event(record))
-    assert {e.dst for e in await graph.edge_list("a")} == {"ent:a:melanie"}
-    assert {e.dst for e in await graph.edge_list("b")} == {"ent:b:melanie"}
-    await projector.apply(_forget(in_a))
-    assert [e.dst for e in await graph.edge_list("b")] == ["ent:b:melanie"]
-    assert await graph.edges_of("ent:a:melanie") == []
+        await writer.apply(write_event(record))
+    [node_a] = {e.dst for e in await graph.edge_list("a")}
+    [node_b] = {e.dst for e in await graph.edge_list("b")}
+    assert node_a.startswith("ent:a:") and node_b.startswith("ent:b:")
+    await writer.apply(_forget(in_a))
+    assert [e.dst for e in await graph.edge_list("b")] == [node_b]
+    assert await graph.edges_of(node_a) == []
 
 
 async def test_mentions_is_a_reserved_rel(

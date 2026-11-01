@@ -54,11 +54,11 @@ from memspine.derive.pipeline.stages.offline_door import (
 from memspine.memories.associative.entities import (
     MENTIONS_REL,
     canonical_entity,
-    entity_node_id,
     parse_entity_node,
 )
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
+from memspine.services.storage.entity_index_tables import entity_index_store_of
 from memspine.store.records import MemoryRecord, SourceInfo, chrono_key
 from memspine.trust.firewall import instruction_shaped
 
@@ -142,10 +142,21 @@ async def _entity_edges(
     return edges, live, wide
 
 
-def _hubs(
-    namespace: str, edges: list[CommunityEdge], names: list[str], fraction: float
-) -> frozenset[str]:
-    hubs = {entity_node_id(namespace, canonical_entity(n)) for n in names if n.strip()}
+async def _hub_ids(ctx: PipelineContext, namespace: str, names: list[str]) -> set[str]:
+    """The entity ids the configured hub names name (RM-130: from the name index)."""
+    store = entity_index_store_of(ctx.storage)
+    out: set[str] = set()
+    for name in names:
+        if name.strip():
+            out.update(
+                r.entity_id
+                for r in await store.select(namespace, "name", key=canonical_entity(name))
+            )
+    return out
+
+
+def _hubs(named: set[str], edges: list[CommunityEdge], fraction: float) -> frozenset[str]:
+    hubs = set(named)
     neighbours: dict[str, set[str]] = {}
     for e in edges:
         neighbours.setdefault(e.src, set()).add(e.dst)
@@ -183,7 +194,8 @@ async def _namespace(ctx: PipelineContext, namespace: str, totals: Counter[str])
     cfg = ctx.config.offline
     inflate = CompressionPolicy.bind()
     edges, live, wide = await _entity_edges(ctx, namespace, cfg.community_max_entities_per_record)
-    hubs = _hubs(namespace, edges, cfg.community_hubs, cfg.community_hub_fraction)
+    named = await _hub_ids(ctx, namespace, list(cfg.community_hubs))
+    hubs = _hubs(named, edges, cfg.community_hub_fraction)
     prev, prev_records = await _previous(ctx, namespace)
     removed_assertions = {a for p in prev for a in p.assertion_ids} - set(live)
     ccfg = CommunityConfig(

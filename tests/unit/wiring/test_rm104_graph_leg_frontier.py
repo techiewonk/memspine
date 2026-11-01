@@ -18,7 +18,7 @@ from typing import Any
 
 import pytest
 import test_rm88_rm91_graph_caller as caller_tests
-from test_rm93_graph_filter import NS, QUERY, _build, _engine, _Spy
+from test_rm93_graph_filter import NS, QUERY, _build, _engine, _node, _Spy
 
 from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.derive.pipeline.stages.edge_compiler import compile_graph_edges
@@ -161,12 +161,12 @@ async def test_filtered_leg_uses_frontier_and_reports_seed_scope(
     # so the second read's only edge_list is the unfiltered leg's own namespace scan.
     assert filtered_calls.count("frontier_edges") == 1
     assert "frontier_edges" not in calls  # unfiltered: unchanged
-    assert filtered_calls.count("edge_list") == 1  # the entity index build (first read)
-    assert calls.count("edge_list") == 1  # the unfiltered leg; the index is cached
+    assert filtered_calls.count("edge_list") == 0  # RM-130: the name index is not a graph scan
+    assert calls.count("edge_list") == 1  # the unfiltered leg
     (seen,) = spy.of("read.graph_filter")
     assert seen["scope"] == "seeds" and 0 < seen["admitted"] < seen["edges"]
     hop = spy.of("read.graph_hop")
-    assert hop and hop[0]["convergent"] == [f"ent:{NS}:bram"]
+    assert hop and hop[0]["convergent"] == [_node("Bram")]
 
 
 async def test_frontier_edges_missing_from_the_read_are_looked_up() -> None:
@@ -195,8 +195,11 @@ async def test_frontier_caller_scope_grant_and_revoke(monkeypatch: pytest.Monkey
     try:
         await caller_tests._build(eng, "a")
         evidence = await eng.write("Ilse is Bram's cousin", namespace="b", memory_type="semantic")
-        # touches the seed ent:a:ilse; scoped to b
-        await caller_tests._put_edge(eng, "a", "ent:a:ilse", "ent:b:bram", "b", evidence.record_id)
+        # touches the seed (a's Ilse); scoped to b
+        ilse = await caller_tests._ent(eng, "a", "Ilse")
+        await caller_tests._put_edge(
+            eng, "a", ilse, "ent:b:bram-placeholder", "b", evidence.record_id
+        )
         await eng.search(QUERY, namespace="a", top_k=4, graph_filter=caller_tests._flt())
         before = spy.last()
         await eng.grant("a", namespace="b")  # b lets a read it
@@ -236,7 +239,9 @@ async def test_frontier_record_viewer_layer(monkeypatch: pytest.MonkeyPatch) -> 
         assert eng._graph is not None
         private_edges = sum(
             1
-            for e in await eng._graph.frontier_edges(["ent:a:ilse", "ent:a:tomasz"], namespace="a")
+            for e in await eng._graph.frontier_edges(
+                [await caller_tests._ent(eng, "a", n) for n in ("Ilse", "Tomasz")], namespace="a"
+            )
             if e.properties.get("record_id") == private
         )
         flt = caller_tests._flt()

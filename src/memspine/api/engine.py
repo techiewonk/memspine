@@ -110,6 +110,7 @@ from memspine.ingest.write import (
 from memspine.memories.associative.entities import (
     EntityPolicy,
 )
+from memspine.memories.associative.entity_index import EntityIndexProjector, with_entity_links
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.resolution import ResolveBatch
 from memspine.memories.associative.store import AssociativeMemory
@@ -423,6 +424,9 @@ class Engine:
         self._cached_extractor: CachedExtractor | None = None
         self._storage: RecordsStore | None = None
         self._projectors: list[Projector] = []
+        #: RM-130: the entity name index projector and the entity policy of the write path
+        self._entity_index: EntityIndexProjector | None = None
+        self._entity_policy: EntityPolicy | None = None
         self._embedder: EmbeddingService | None = None
         self._vector: VectorStore | None = None
         self._lexical: LexicalStore | None = None
@@ -844,6 +848,7 @@ class Engine:
         except ValueError as exc:
             raise ConfigError(str(exc)) from exc
         self._cached_extractor = wiring.cached_extractor  # #43
+        self._entity_index, self._entity_policy = None, None  # RM-130: set below when on
         self._projectors = [
             RecordProjector(self._storage),
             VectorProjector(self._vector, self._embedder),  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
@@ -861,6 +866,11 @@ class Engine:
             entities = EntityPolicy.from_policy(
                 self._memory_policy(config, "associative").get("entity_nodes")
             )
+            if entities is not None:
+                # RM-130: the entity name index (ids are minted on the write path).
+                self._entity_policy = entities
+                self._entity_index = EntityIndexProjector(self._storage)
+                self._projectors.append(self._entity_index)
             self._projectors.append(
                 GraphProjector(
                     self._graph,
@@ -5460,9 +5470,9 @@ class Engine:
             if lost is not None and lost.lost:
                 for rid in lost.lost:
                     await self._graph.delete_node(rid)
-                from memspine.memories.associative import entity_cache
-
-                entity_cache.invalidate(self._graph)
+                if self._entity_index is not None:  # RM-130: their entity links go too
+                    for ns in await storage.list_namespaces():
+                        await self._entity_index.purge_records(ns, lost.lost)
         _log.info(EVENT_REBUILD, counts=counts)
         return counts
 
@@ -5726,6 +5736,11 @@ class Engine:
         if snapshot:  # I2: a write inside a read: later listings must see it
             snapshot.clear()
         event = await self._inherit_governance(event)
+        if self._entity_index is not None and event.kind is EventKind.WRITE:
+            # RM-130: entity ids are minted here, once, into the event (never by a projector).
+            event = await with_entity_links(
+                self._storage, event, self._entity_policy, applied=self._entity_index.applied
+            )
         appended = await self._storage.append_event(event)
         if self._freshness_tracker is not None:  # O4-01b: the raw-turn seq the derived layers cover
             read_freshness.note_event(self._freshness_tracker, appended)

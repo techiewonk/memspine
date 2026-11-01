@@ -247,6 +247,77 @@ class MongoLeaseTable:
         """Nothing to release: the connector owns the sync client."""
 
 
+class MongoEntityIndexStore:
+    """RM-130: the entity name index (:mod:`~memspine.services.storage.entity_index_tables`) as one
+    MongoDB collection, one document per row keyed by the row's primary key."""
+
+    _COLS = ("namespace", "kind", "key", "entity_id", "ref")
+
+    def __init__(self, rows: AsyncCollection[Doc]) -> None:
+        self._rows = rows
+
+    async def put(self, rows: Sequence[Any]) -> None:
+        for row in rows:
+            doc: Doc = {c: getattr(row, c) for c in self._COLS}
+            await self._rows.replace_one(
+                {"_id": dict(doc)},
+                {**doc, "match": row.match, "data": dict(row.data), "seq": int(row.seq)},
+                upsert=True,
+            )
+
+    @staticmethod
+    def _filter(namespace: str, kind: str, **cols: str | None) -> Doc:
+        out: Doc = {"namespace": namespace, "kind": kind}
+        out.update({k: v for k, v in cols.items() if v is not None})
+        return out
+
+    async def select(
+        self,
+        namespace: str,
+        kind: str,
+        *,
+        key: str | None = None,
+        entity_id: str | None = None,
+        ref: str | None = None,
+        match: str | None = None,
+    ) -> list[Any]:
+        from memspine.services.storage.entity_index_tables import EntityIndexRow
+
+        found = self._rows.find(
+            self._filter(namespace, kind, key=key, entity_id=entity_id, ref=ref, match=match)
+        )
+        rows = [
+            EntityIndexRow(
+                namespace=str(d["namespace"]),
+                kind=str(d["kind"]),
+                key=str(d["key"]),
+                entity_id=str(d["entity_id"]),
+                ref=str(d["ref"]),
+                match=str(d.get("match", "")),
+                data=dict(d.get("data") or {}),
+                seq=int(d.get("seq", 0)),
+            )
+            async for d in found
+        ]
+        return sorted(rows, key=lambda r: r.pk)
+
+    async def delete(
+        self,
+        namespace: str,
+        kind: str,
+        *,
+        key: str | None = None,
+        entity_id: str | None = None,
+        ref: str | None = None,
+    ) -> None:
+        await self._rows.delete_many(
+            self._filter(namespace, kind, key=key, entity_id=entity_id, ref=ref)
+        )
+
+    async def clear(self) -> None:
+        await self._rows.delete_many({})
+
+
 class MongoProjectionBindingStore:
     """The :class:`~memspine.services.storage.records_port.ProjectionBindingPort` on MongoDB.
 
@@ -518,6 +589,15 @@ class MongoRecordsStore(ServiceAdapter):
 
     def projection_bindings(self) -> MongoProjectionBindingStore:
         return MongoProjectionBindingStore(self._c("projector_bindings"), self._c("offsets"))
+
+    def entity_index_store(self) -> MongoEntityIndexStore:
+        """RM-130: the entity name index projection (``entity_index`` collection)."""
+        store = self.__dict__.get("_entity_index_store")
+        if store is None:
+            store = self.__dict__["_entity_index_store"] = MongoEntityIndexStore(
+                self._c("entity_index")
+            )
+        return store
 
     # ---------------------------------------------------------------- event log
     def _event_doc(self, event: MemoryEvent, seq: int) -> Doc:

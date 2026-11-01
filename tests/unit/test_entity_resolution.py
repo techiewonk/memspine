@@ -231,7 +231,9 @@ async def test_mel_is_melanie_with_one_call_then_none(engine: Engine) -> None:
     mentions = {
         e.dst for e in await engine._graph.edges_of(fact.record_id) if e.rel_type == "mentions"
     }
-    assert "ent:a:melanie" in mentions and "ent:a:mel" not in mentions
+    assert engine._associative is not None  # RM-130: ids are opaque, names in the index
+    names = set((await engine._associative.entity_names("a", sorted(mentions))).values())
+    assert "melanie" in names and "mel" not in names
     # The decision is an event: a later sweep reads the alias table, no LLM call.
     await engine.write(
         "Mel baked a cake", namespace="a", memory_type="episodic", valid_from=T0 + timedelta(2)

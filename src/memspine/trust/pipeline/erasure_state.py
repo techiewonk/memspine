@@ -424,10 +424,10 @@ async def _purge_step(eng: Any, ns: str, step: Any, texts: Sequence[str]) -> Non
         if eng._graph is not None:
             for rid in step.ids:
                 await eng._graph.delete_node(rid)
-            # RM-110: the purged records' mentions went with them; rebuild the entity index.
-            from memspine.memories.associative import entity_cache
-
-            entity_cache.invalidate(eng._graph)
+            # RM-130: the purged records' entity links go from the name index too.
+            index = getattr(eng, "_entity_index", None)
+            if index is not None:
+                await index.purge_records(ns, step.ids)
         if eng._graph is not None and eng._config().graph.edge_compiler:
             await eng._retract_compiled_edges(ns, list(step.ids))  # F-02c: edges sourced from them
     elif step.kind == "bump_generation":

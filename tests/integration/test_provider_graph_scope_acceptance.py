@@ -16,7 +16,7 @@ import pytest
 
 from memspine import Engine
 from memspine.exceptions import ConflictError
-from memspine.memories.associative.entities import entity_node_id
+from memspine.memories.associative.entities import new_entity_id
 
 NOW = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
@@ -91,8 +91,8 @@ async def test_graph_endpoint_identity_direction_and_record_time_filters(tmp_pat
         # distinct projection endpoints. The provider still scopes edge rows.
         graph = engine._graph
         assert graph is not None
-        entity_a = entity_node_id("team-a", "acme")
-        entity_b = entity_node_id("team-b", "acme")
+        entity_a = new_entity_id("team-a")
+        entity_b = new_entity_id("team-b")
         await graph.upsert_node(entity_a, namespace="team-a")
         await graph.upsert_node(entity_b, namespace="team-b")
         await graph.upsert_edge(alpha.record_id, entity_a, "mentions", namespace="team-a")

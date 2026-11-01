@@ -26,6 +26,13 @@ async def _started(**read: Any) -> Engine:
     return eng
 
 
+async def _names(eng: Engine, nodes: list[str]) -> list[str]:
+    """RM-130: the index names of entity ids, in order (an id carries no name)."""
+    assert eng._associative is not None
+    names = await eng._associative.entity_names("a", nodes)
+    return [names[n] for n in nodes]
+
+
 def _contents(pairs: list[Any]) -> list[str]:
     return [r.content for r, *_ in pairs]
 
@@ -38,7 +45,7 @@ async def test_seeds_are_the_entities_the_query_names() -> None:
     try:
         await seed(eng)
         seeds = await eng._graph_seeds("a", "Did Melanie like Charlotte's Web?")
-        assert seeds == ["ent:a:charlotte's web", "ent:a:melanie"]  # longest n-gram first
+        assert await _names(eng, seeds) == ["charlotte's web", "melanie"]  # longest n-gram first
         assert await eng._graph_seeds("a", "what did she read") == []
     finally:
         await eng.stop()
@@ -50,7 +57,7 @@ async def test_seedless_query_falls_back_to_the_entities_of_the_top_hits() -> No
         ids = await seed(eng)
         fact = ids["Caroline lives in Denver"]
         seeds = await eng._graph_seeds("a", "where does she live", [fact])
-        assert seeds == ["ent:a:caroline", "ent:a:denver"]
+        assert await _names(eng, seeds) == ["caroline", "denver"]
     finally:
         await eng.stop()
 
@@ -136,7 +143,8 @@ async def test_mentions_edges_are_weighted_by_record_trust() -> None:
             for e in await eng._graph.edges_of(ids["low"])
             if e.rel_type == "mentions"
         }
-        assert weights == {"ent:a:melanie": low.trust, "ent:a:stranger": low.trust}
+        named = dict(zip(await _names(eng, list(weights)), weights.values(), strict=True))
+        assert named == {"melanie": low.trust, "stranger": low.trust}
     finally:
         await eng.stop()
 

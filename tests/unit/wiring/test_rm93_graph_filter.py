@@ -38,8 +38,20 @@ TURNS = {
 }
 
 
+#: RM-130: entity ids are opaque; ``_build`` records the world's name -> id from the index.
+_IDS: dict[str, str] = {}
+
+
 def _node(name: str) -> str:
-    return f"ent:{NS}:{name.lower()}"
+    return _IDS[name.lower()]
+
+
+async def _remember_ids(eng: Engine) -> None:
+    assert eng._associative is not None
+    _IDS.clear()
+    for key, nodes in (await (await eng._associative.entity_lookup(NS)).as_dict()).items():
+        assert len(nodes) == 1, (key, nodes)  # every name of these worlds is one entity
+        _IDS[key] = nodes[0]
 
 
 async def _engine(**read: Any) -> Engine:
@@ -95,6 +107,7 @@ async def _build(eng: Engine) -> dict[str, str]:
     await fact("f_dana_t", "Tomasz", "may_hire", "Dana", "dana_t", "hypothetical")
     stats = await compile_graph_edges(eng._pipeline_ctx())
     assert stats["status"] == "ok"
+    await _remember_ids(eng)
     return ids
 
 

@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
-from test_rm93_graph_filter import NS, QUERY, _build, _engine
+from test_rm93_graph_filter import NS, QUERY, _build, _engine, _node
 
 from memspine import Engine
 from memspine.config import constants
@@ -31,6 +31,13 @@ async def _scan_index(eng: Engine, ns: str) -> dict[str, list[str]]:
     record's random id), so only that within-key order is normalised, nothing else."""
     assert eng._associative is not None
     return {k: sorted(v) for k, v in (await eng._associative.entity_index(ns)).items()}
+
+
+async def _ent(eng: Engine, name: str, ns: str = NS) -> str:
+    """RM-130: the one opaque id the name index holds for ``name``."""
+    assert eng._associative is not None
+    [node] = await (await eng._associative.entity_lookup(ns)).get(match_key(name))
+    return node
 
 
 async def _reference_seeds(eng: Engine, ns: str, query: str) -> list[str]:
@@ -103,12 +110,12 @@ async def test_rm93_world_seeds_identical_and_no_rescan(monkeypatch: pytest.Monk
             await eng._graph_seeds(NS, query)
         assert calls == []  # the index is maintained: no namespace scan per read
         seeds = await eng._graph_seeds(NS, QUERY)
-        assert seeds == [f"ent:{NS}:ilse", f"ent:{NS}:tomasz"]
+        assert seeds == [_node("Ilse"), _node("Tomasz")]
         # a new mention lands in the cached index without a rescan
         await eng.write(
             "Ilse visited Quentin", namespace=NS, memory_type="semantic", entity="Quentin"
         )
-        assert await eng._graph_seeds(NS, "who is Quentin") == [f"ent:{NS}:quentin"]
+        assert await eng._graph_seeds(NS, "who is Quentin") == [await _ent(eng, "Quentin")]
         assert calls == []
     finally:
         await eng.stop()
@@ -123,11 +130,9 @@ async def test_engine_search_identical_with_cache_and_scan(monkeypatch: pytest.M
         assert eng._associative is not None
         assoc = eng._associative
 
-        async def scan_lookup(ns: str) -> Any:  # every read rebuilds from the scan
-            entity_cache.invalidate(assoc._graph)
-            return await entity_cache.entity_lookup(
-                assoc._graph, None, ns, lambda: assoc.entity_index(ns)
-            )
+        async def scan_lookup(ns: str) -> Any:  # every read reloads the index
+            entity_cache.invalidate(assoc._storage)
+            return await entity_cache.entity_lookup(assoc._storage, ns)
 
         monkeypatch.setattr(assoc, "entity_lookup", scan_lookup)
         scanned = [(r.record_id, round(s, 6)) for r, s in await eng.search(QUERY, namespace=NS)]
@@ -203,7 +208,7 @@ async def test_forgotten_entity_never_seeds() -> None:
     eng = await _entity_engine()
     try:
         rec = await eng.write("Zelda plays", namespace=NS, memory_type="semantic", entity="Zelda")
-        assert await eng._graph_seeds(NS, "zelda") == [f"ent:{NS}:zelda"]
+        assert await eng._graph_seeds(NS, "zelda") == [await _ent(eng, "zelda")]
         await eng.forget(rec.record_id, namespace=NS)
         assert await eng._graph_seeds(NS, "zelda") == []
         await _assert_same(eng, NS, ["zelda"])
@@ -218,12 +223,10 @@ async def test_erased_entity_never_seeds() -> None:
     try:
         keep = await eng.write("Yusuf cooks", namespace=NS, memory_type="semantic", entity="Yusuf")
         gone = await eng.write("Zelda plays", namespace=NS, memory_type="semantic", entity="Zelda")
-        assert await eng._graph_seeds(NS, "zelda and yusuf") == [
-            f"ent:{NS}:zelda",
-            f"ent:{NS}:yusuf",
-        ]
+        zelda, yusuf = await _ent(eng, "zelda"), await _ent(eng, "yusuf")
+        assert await eng._graph_seeds(NS, "zelda and yusuf") == [zelda, yusuf]
         await eng.forget(gone.record_id, namespace=NS, hard=True)
-        assert await eng._graph_seeds(NS, "zelda and yusuf") == [f"ent:{NS}:yusuf"]
+        assert await eng._graph_seeds(NS, "zelda and yusuf") == [yusuf]
         await _assert_same(eng, NS, ["zelda and yusuf"])
         assert keep.record_id
     finally:
@@ -236,10 +239,11 @@ async def test_removed_mention_is_rechecked_not_rescanned(monkeypatch: pytest.Mo
     try:
         one = await eng.write("Ada codes", namespace=NS, memory_type="semantic", entity="Ada")
         await eng.write("Ada sings", namespace=NS, memory_type="semantic", entity="Ada")
-        assert await eng._graph_seeds(NS, "ada") == [f"ent:{NS}:ada"]
+        ada = await _ent(eng, "ada")
+        assert await eng._graph_seeds(NS, "ada") == [ada]  # "Ada" twice: one unique-name entity
         calls = _count_edge_list(monkeypatch, eng._graph)
         await eng.forget(one.record_id, namespace=NS)
-        assert await eng._graph_seeds(NS, "ada") == [f"ent:{NS}:ada"]  # one live mention left
+        assert await eng._graph_seeds(NS, "ada") == [ada]  # one live mention left
         assert calls == []
     finally:
         await eng.stop()
@@ -253,14 +257,13 @@ async def test_second_engine_on_the_store_is_seen(tmp_path: Path) -> None:
     writer = await _entity_engine(path)
     try:
         rec = await writer.write("Pia rows", namespace=NS, memory_type="semantic", entity="Pia")
-        assert await reader._graph_seeds(NS, "pia and quinn") == [f"ent:{NS}:pia"]
+        pia = await _ent(writer, "pia")
+        assert await reader._graph_seeds(NS, "pia and quinn") == [pia]
         await writer.write("Quinn rows", namespace=NS, memory_type="semantic", entity="Quinn")
-        assert await reader._graph_seeds(NS, "pia and quinn") == [
-            f"ent:{NS}:pia",
-            f"ent:{NS}:quinn",
-        ]
+        quinn = await _ent(writer, "quinn")
+        assert await reader._graph_seeds(NS, "pia and quinn") == [pia, quinn]
         await writer.forget(rec.record_id, namespace=NS)
-        assert await reader._graph_seeds(NS, "pia and quinn") == [f"ent:{NS}:quinn"]
+        assert await reader._graph_seeds(NS, "pia and quinn") == [quinn]
         await _assert_same(reader, NS, ["pia and quinn"])
     finally:
         await writer.stop()
@@ -274,11 +277,12 @@ async def test_entity_leg_mentions_match_namespace_scan() -> None:
         for i, name in enumerate(["Ada", "Ada", "Bo", "Cy", "Ada"]):
             await eng.write(f"note {i}", namespace=NS, memory_type="semantic", entity=name)
         assert eng._associative is not None
-        seeds = [f"ent:{NS}:ada", f"ent:{NS}:bo", f"ent:{NS}:nobody", "ent:b:ada"]
+        ada, bo = await _ent(eng, "ada"), await _ent(eng, "bo")
+        seeds = [ada, bo, f"ent:{NS}:nobody", "ent:b:ada"]
         full = await eng._associative.entity_mentions(NS)
         got = await eng._associative.mentions_of(NS, seeds)
     finally:
         await eng.stop()
     want = {s: sorted(full[s]) for s in seeds if s in full}
     assert {k: sorted(v) for k, v in got.items()} == want
-    assert len(want[f"ent:{NS}:ada"]) == 3
+    assert len(want[ada]) == 3

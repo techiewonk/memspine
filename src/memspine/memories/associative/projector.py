@@ -15,9 +15,10 @@ Projected kinds:
 - ``FORGET`` — ``delete_node`` cascades every touching edge (M7).
 
 GP-2 (``memories.associative.policies.entity_nodes``, off by default): a WRITE
-also projects one ``ent:<namespace>:<canonical>`` node per entity the record
-names and a ``mentions`` edge record -> entity weighted by the record's trust
-(:mod:`memspine.memories.associative.entities`). A re-projected record whose
+also projects one ``ent:<namespace>:<uuid7>`` node per entity link the event
+records (RM-130: the ids are minted on the write path and read from the WRITE's
+``entity_links``, never minted here) and a ``mentions`` edge record -> entity
+weighted by the record's trust (:mod:`memspine.memories.associative.entities`). A re-projected record whose
 names changed tombstones its stale mentions; a FORGET removes the record's
 mentions with its node, and an entity left with no live mention is removed.
 Everything is derived from the event alone, so rebuild == incremental.
@@ -33,7 +34,6 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 
 from memspine.derive.gliner_mentions import MentionSpan, bind_gliner_mentions
-from memspine.memories.associative import entity_cache
 from memspine.memories.associative.entities import (
     ENTITY_LABEL,
     ENTITY_SURFACE_LABEL,
@@ -43,10 +43,10 @@ from memspine.memories.associative.entities import (
     REFERS_TO_REL,
     EntityPolicy,
     canonical_entity,
-    entity_node_id,
     is_entity_node,
-    record_entity_names,
+    surface_node_id,
 )
+from memspine.memories.associative.entity_index import LINKS_KEY, link_names
 from memspine.observability.logging import get_logger
 from memspine.services.graph.base import GraphStore
 from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
@@ -80,7 +80,6 @@ class GraphProjector(Projector):
 
     async def apply(self, event: MemoryEvent) -> None:
         await self._apply(event)
-        entity_cache.note_applied(self._store, event.seq)  # RM-110: own-process events
 
     async def _apply(self, event: MemoryEvent) -> None:
         if event.kind is EventKind.WRITE:
@@ -94,7 +93,10 @@ class GraphProjector(Projector):
             )
             await self._project_bound_mentions(record)
             if self._entities is not None:
-                await self._project_mentions(record, self._entities)
+                raw_links = event.payload.get(LINKS_KEY)
+                await self._project_mentions(
+                    record, raw_links if isinstance(raw_links, list) else []
+                )
             for key in _DERIVATION_KEYS:
                 derivation = event.payload.get(key)
                 if derivation is None:
@@ -156,12 +158,6 @@ class GraphProjector(Projector):
                 properties,
                 namespace=event.namespace,
             )
-            if rel == MENTIONS_REL:  # RM-110: a system-written mention keeps the index current
-                dst = str(payload["dst"])
-                if float(payload.get("weight", 1.0)) > 0:
-                    entity_cache.note_mentioned(self._store, dst)
-                else:
-                    entity_cache.note_unmentioned(self._store, [dst])
         elif event.kind is EventKind.FORGET:
             # A forgotten memory must stop being reachable (M7): the node and
             # every touching edge go, both soft and hard forget.
@@ -178,11 +174,6 @@ class GraphProjector(Projector):
             await self._store.delete_node(record_id)
             for occurrence in occurrences:
                 await self._store.delete_node(occurrence)
-            if self._entities is None:
-                # RM-110: the record's mentions (from an earlier policy) are unknown here.
-                entity_cache.invalidate(self._store)
-            else:
-                entity_cache.note_unmentioned(self._store, mentioned)
             await self._drop_orphans(mentioned)
             await self._drop_surface_orphans(surfaces)
 
@@ -246,7 +237,7 @@ class GraphProjector(Projector):
             }
             occurrence_id = f"mention:{mention.source_namespace}:{fingerprint_payload(identity)}"
             surface = canonical_entity(mention.text)
-            surface_id = f"ent:{mention.source_namespace}:{mention.label}:{surface}"
+            surface_id = surface_node_id(mention.source_namespace, mention.label, surface)
             wanted[occurrence_id] = (mention, surface_id)
 
         stale = [node_id for node_id in existing if node_id not in wanted]
@@ -338,20 +329,25 @@ class GraphProjector(Projector):
             and (edge.weight > 0 or not live_only)
         ]
 
-    async def _project_mentions(self, record: MemoryRecord, policy: EntityPolicy) -> None:
-        """GP-2: entity nodes + ``mentions`` edges for one WRITE (idempotent)."""
+    async def _project_mentions(self, record: MemoryRecord, links: list[object]) -> None:
+        """GP-2: entity nodes + ``mentions`` edges for one WRITE (idempotent). The entity ids
+        are the event's recorded links (RM-130); a record whose links name nothing it still
+        carries (a redacted record) projects none."""
         weight = max(0.0, min(1.0, record.trust))
-        wanted = (
-            [entity_node_id(record.namespace, name) for name in record_entity_names(record, policy)]
+        pairs = (
+            [
+                (str(link["entity_id"]), name)
+                for name, link in link_names(record, [x for x in links if isinstance(x, dict)])
+            ]
             if weight > 0
             else []
         )
+        wanted = list(dict.fromkeys(node for node, _ in pairs))
         stale = [
             node
             for node in await self._mentioned(record.record_id, live_only=True)
             if node not in wanted
         ]
-        names = record_entity_names(record, policy) if weight > 0 else []
         for node_id in wanted:
             await self._store.upsert_node(
                 node_id,
@@ -359,8 +355,8 @@ class GraphProjector(Projector):
                 properties={"namespace": record.namespace},
                 namespace=record.namespace,
             )
-        if self._embed is not None and wanted:
-            await self._embed_entities(record.namespace, list(zip(wanted, names, strict=False)))
+        if self._embed is not None and pairs:
+            await self._embed_entities(record.namespace, pairs)
         for node_id in wanted:
             await self._store.upsert_edge(
                 record.record_id,
@@ -369,9 +365,7 @@ class GraphProjector(Projector):
                 {"weight": weight, "reason": "entity"},
                 namespace=record.namespace,
             )
-            entity_cache.note_mentioned(self._store, node_id)  # RM-110
         self.last_edges += len(wanted)
-        entity_cache.note_unmentioned(self._store, stale)
         for node_id in stale:
             # The port has no single-edge delete: a weight-0 tombstone (ADR-015).
             await self._store.upsert_edge(
@@ -405,4 +399,3 @@ class GraphProjector(Projector):
 
     async def reset(self) -> None:
         await self._store.clear()
-        entity_cache.invalidate(self._store)  # RM-110

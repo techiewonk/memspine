@@ -156,7 +156,9 @@ async def test_grant_and_viewer_layers_unchanged_with_batch(
         assert eng._graph is not None
         private_edges = sum(
             1
-            for e in await eng._graph.frontier_edges(["ent:a:ilse", "ent:a:tomasz"], namespace="a")
+            for e in await eng._graph.frontier_edges(
+                [await caller_tests._ent(eng, "a", n) for n in ("Ilse", "Tomasz")], namespace="a"
+            )
             if e.properties.get("record_id") == private
         )
         flt = caller_tests._flt()

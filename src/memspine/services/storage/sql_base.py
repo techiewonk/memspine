@@ -285,6 +285,15 @@ class SqlStorage(ServiceAdapter):
     async def claim_deployment_id(self, candidate: str) -> str:
         return await sql_claim_deployment_id(self._client.engine, candidate)
 
+    def entity_index_store(self) -> Any:
+        """RM-130: the entity name index projection (the ``entity_index`` table)."""
+        from memspine.services.storage.entity_index_tables import SqlEntityIndexStore
+
+        store = self.__dict__.get("_entity_index_store")
+        if store is None:
+            store = self.__dict__["_entity_index_store"] = SqlEntityIndexStore(self._client.engine)
+        return store
+
     def projection_bindings(self) -> ProjectionBindingPort:
         return SqlProjectionBindingStore(self._client.engine)
 

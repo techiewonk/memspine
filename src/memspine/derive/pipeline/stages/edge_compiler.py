@@ -61,9 +61,9 @@ from memspine.derive.sensitivity import (
 from memspine.memories.associative.entities import (
     EntityPolicy,
     canonical_entity,
-    entity_node_id,
     is_entity_node,
 )
+from memspine.memories.associative.entity_index import record_entity_ids
 from memspine.memories.associative.links import RESERVED_RELS
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
@@ -271,8 +271,14 @@ class EdgeCompiler:
         """A semantic fact with a subject entity, live or superseded with a successor."""
         return is_fact(record, include_history=True, purpose=FactPurpose.EDGES)
 
-    def envelope(self, record: MemoryRecord) -> SemanticEnvelope:
-        """The enriched assertion envelope of ``record`` (the F-02a envelope plus code-resolved roles)."""
+    def envelope(
+        self, record: MemoryRecord, ids: Mapping[str, str] | None = None
+    ) -> SemanticEnvelope:
+        """The enriched assertion envelope of ``record`` (the F-02a envelope plus code-resolved roles).
+
+        ``ids`` (RM-130): the record's entity links, canonical name -> opaque entity id, as the
+        name index holds them; a name without a link stays unbound."""
+        links = ids or {}
         env = to_envelope(record)
         ns = record.namespace
         scope = Scope.from_namespace(ns).to_owner_scope()
@@ -282,14 +288,14 @@ class EdgeCompiler:
         dst_raw = _tag(record, "dst:")
         subj = canonical_entity(record.entity or "")
         subj_ok = bool(subj) and self.policy.accepts(subj)  # type: ignore[union-attr]
-        subj_node = entity_node_id(ns, subj) if subj_ok else None
+        subj_node = links.get(subj) if subj_ok else None
         obj_node: str | None = None
         obj_rejected = False
         if dst_raw:
             dst = canonical_entity(dst_raw)
             if dst and dst != subj:
                 if self.policy.accepts(dst):  # type: ignore[union-attr]
-                    obj_node = entity_node_id(ns, dst)
+                    obj_node = links.get(dst)
                 else:
                     obj_rejected = True
         key = AssertionKey(
@@ -357,10 +363,12 @@ class EdgeCompiler:
         *,
         sensitivity: Mapping[str, SensitivityResult] | None = None,
         topics: Mapping[str, str] | None = None,
+        entity_ids: Mapping[str, Mapping[str, str]] | None = None,
     ) -> CompiledEdges:
         """``sensitivity``: precomputed labels per record id (the async model path); a record
         without one is labelled here by the deterministic detectors. ``topics`` (RM-106):
-        precomputed topic-tagger domains per record id (the ``gliner_topic`` source)."""
+        precomputed topic-tagger domains per record id (the ``gliner_topic`` source).
+        ``entity_ids`` (RM-130): per record id, its entity links (name -> entity id)."""
         envs: list[SemanticEnvelope] = []
         meta: dict[str, dict[str, Any]] = {}
         skipped: dict[str, str] = {}
@@ -368,7 +376,7 @@ class EdgeCompiler:
             if not self.eligible(record):
                 skipped[record.record_id] = "not_an_assertion"
                 continue
-            env = self.envelope(record)
+            env = self.envelope(record, (entity_ids or {}).get(record.record_id))
             envs.append(env)
             roles = Counter(e.role for e in env.evidence)
             ids = {e.turn.source_id for e in env.evidence if e.turn is not None}
@@ -912,7 +920,13 @@ async def _compile_namespace(
             found = await atopic_domains(r.content, compiler.topic_tagger)
             if found:
                 topics[r.record_id] = found[0]
-    compiled = compiler.compile(records, namespace, sensitivity=labels, topics=topics)
+    # RM-130: subjects and objects bind to the records' recorded entity links (the index)
+    ids = await record_entity_ids(
+        ctx.storage, namespace, [r.record_id for r in records if compiler.eligible(r)]
+    )
+    compiled = compiler.compile(
+        records, namespace, sensitivity=labels, topics=topics, entity_ids=ids
+    )
     evidence = (str(e) for m in compiled.meta.values() for e in m.get("evidence_ids", ()))
     return records, attach_lineage(compiled, await _lineage_roots(ctx, evidence))
 
