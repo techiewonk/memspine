@@ -800,6 +800,7 @@ class Engine:
                     config.integrity.enabled and config.integrity.merge_reinforcement_gate
                 ),
                 screen_derived=self._screen_derived,
+                is_visible=lambda record_id: trust_erasure_state.visible_id(self, record_id),
             )
         # Memory Firewall (E1/M17): trust matrix binds from the semantic
         # policy block (D-14 channel); the gate itself covers every type.

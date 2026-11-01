@@ -70,8 +70,12 @@ class SemanticMemory(BaseMemory):
         write_pipeline: WritePipeline | None = None,
         merge_reinforcement_gate: bool = False,
         screen_derived: ScreenDerived | None = None,
+        is_visible: Callable[[str], bool] | None = None,
     ) -> None:
         self._storage = storage
+        # POL-1 (RM-22 F1): erasure-hidden ids are invisible to every reader, the dedup merge
+        # included; None (no erasure state wired) treats every id as visible.
+        self._is_visible = is_visible
         # MTI (integrity.merge_reinforcement_gate): a less-trusted duplicate must
         # not reinforce a record. Off = pre-MTI behaviour (every merge reinforces).
         self._merge_reinforcement_gate = merge_reinforcement_gate
@@ -305,6 +309,9 @@ class SemanticMemory(BaseMemory):
                 candidate is None
                 or candidate.status is not RecordStatus.ACTIVATED
                 or CUE_TAG in candidate.tags
+                # An erasure-hidden record must not absorb a newly cited statement: the new
+                # claim would stay invisible with the erased evidence (re-authorisation).
+                or (self._is_visible is not None and not self._is_visible(candidate_id))
             ):
                 _log.debug(
                     "dedup.stale_candidate_skipped",

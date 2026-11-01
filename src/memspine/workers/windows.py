@@ -268,6 +268,21 @@ def _evidence_sources(envelope: Any) -> list[str]:
     )
 
 
+def _claim_object_tags(envelope: Any) -> list[str]:
+    """ADR-088/089 (RM-22 F1): the graph-edge tags of a rules claim whose registry object is
+    an entity (``rel:``, ``dst:``, ``dst_type:``, ``entity_type:``), so the entity index links
+    the object and the edge compiler binds the object role from the claim. A text, number or
+    temporal object, or a claim without registry typing, adds none."""
+    typing = envelope.registry
+    obj = envelope.object
+    if typing is None or typing.object_kind != "entity" or obj is None or not obj.surface.strip():
+        return []
+    tags = [f"rel:{typing.predicate}", f"dst:{obj.surface}", f"entity_type:{typing.subject_type}"]
+    if typing.object_entity_type is not None:
+        tags.append(f"dst_type:{typing.object_entity_type}")
+    return tags
+
+
 def _snapshot_matches(snapshot: Mapping[str, Any] | None, record: MemoryRecord) -> bool:
     """Whether a live record is still exactly the version its membership snapshot pinned."""
     return snapshot is not None and (
@@ -2982,6 +2997,7 @@ class WindowPipeline:
                     f"window:{prepared.window_id}",
                     "non_generative",
                     f"predicate:{predicate}",
+                    *_claim_object_tags(envelope),
                 ],
                 require_live=source_ids,
                 trust_cap=envelope.assessment.source_trust,
