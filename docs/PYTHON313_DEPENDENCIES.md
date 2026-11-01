@@ -42,7 +42,7 @@ not an assertion that every transitive package can use its standalone latest.
 | Package / area | Decision | Reason / evidence |
 |---|---|---|
 | Hugging Face Hub | 2.3.0; core and decider permit `<3` | The former fastembed/litellm `<2` blockers were removed by ADR-084/085. Universal lock and installed consistency checks pass; offline/cache and regression evidence is recorded with the provider replacement verification. |
-| Ladybug | Latest 0.21.2 within `<0.22` | Preserve the agreed graph storage-format compatibility boundary |
+| Ladybug | Latest 0.22.1 within `<0.23` | Preserve the agreed graph storage-format compatibility boundary |
 | DBOS | Upgrade to 3.3.0, `<4` | Fresh-environment durable resume and runner parity passed; existing whole-pipeline recovery semantics remain |
 | GLiNER2 | Upgrade to 2.1.0 with `[local]`, `<3` | Publisher metadata permits 3.13 and Transformers 5.x; weights/inference were not run |
 | GLiNER2 base-only package | Base-only import reached a torch import | An isolated base-only smoke check failed without torch; our selected `[local]` includes torch. This is not proof of the full local-inference stack |
@@ -143,7 +143,7 @@ query time and manifest/lock hashes: [dependency-audit.json](provider_verificati
 | import-linter | 2.15 | 2.15 | 2.15 | Yes |
 | jinja2 | 3.1.6 | 3.1.6 | 3.1.6 | Yes |
 | json-repair | 0.64.2 | 0.64.2 | 0.64.2 | Yes |
-| ladybug | 0.21.2 | 0.21.2 | 0.21.2 | Yes |
+| ladybug | 0.22.1 | 0.22.1 | 0.22.1 | Yes |
 | lancedb | 0.40.0 | 0.40.0 | 0.40.0 | Yes |
 | langmem | 0.0.30 | 0.0.30 | 0.0.30 | Yes |
 | llama-cpp-python | 0.3.36 | 0.3.36 | 0.3.36 | No |
