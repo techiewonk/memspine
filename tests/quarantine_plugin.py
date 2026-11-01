@@ -7,7 +7,9 @@ terminal summary lists every quarantined test that ran. An entry without a row i
 collection error, so quarantine is always visible, owned debt.
 
 An entry matches the exact node id, or every parametrisation of it when the entry omits
-the ``[...]`` suffix.
+the ``[...]`` suffix. An entry that matches no collected test although the run collected its
+file (a renamed or deleted test) is warned about in the terminal summary, and a quarantined
+test whose teardown fails is recorded as ``teardown-failed``.
 """
 
 from __future__ import annotations
@@ -62,6 +64,8 @@ class QuarantinePlugin:
         self.entries: dict[str, QuarantineEntry] = {}
         self.items: dict[str, QuarantineEntry] = {}
         self.outcomes: dict[str, str] = {}
+        self.collected_files: set[str] = set()
+        self.matched: set[str] = set()
 
     def _lookup(self, nodeid: str) -> QuarantineEntry | None:
         return self.entries.get(nodeid) or self.entries.get(nodeid.split("[", 1)[0])
@@ -72,16 +76,28 @@ class QuarantinePlugin:
         if self.path.is_file():
             self.entries = parse_quarantine(self.path.read_text(encoding="utf-8"), self.path.name)
 
+    @pytest.hookimpl(tryfirst=True)
     def pytest_collection_modifyitems(self, items: list[pytest.Item]) -> None:
+        # tryfirst: see every collected item before ``-k``/``-m`` deselect any, so a
+        # deselected entry is not mistaken for a stale one.
         for item in items:
+            self.collected_files.add(item.nodeid.split("::", 1)[0])
             entry = self._lookup(item.nodeid)
             if entry is None:
                 continue
+            self.matched.add(entry.nodeid)
             self.items[item.nodeid] = entry
             item.add_marker(pytest.mark.xfail(reason=entry.label, strict=False))
 
     def pytest_runtest_logreport(self, report: pytest.TestReport) -> None:
         if report.nodeid not in self.items:
+            return
+        if report.when == "teardown":
+            # xfail turns a teardown error into a skipped report carrying ``wasxfail``.
+            if report.failed or (report.skipped and hasattr(report, "wasxfail")):
+                previous = self.outcomes.get(report.nodeid)
+                failed = "teardown-failed"
+                self.outcomes[report.nodeid] = f"{previous}+{failed}" if previous else failed
             return
         if report.when == "call" or (report.when == "setup" and not report.passed):
             if hasattr(report, "wasxfail"):
@@ -90,7 +106,27 @@ class QuarantinePlugin:
                 outcome = report.outcome
             self.outcomes[report.nodeid] = outcome
 
+    def unmatched(self) -> list[QuarantineEntry]:
+        """Entries whose file this run collected but which matched no collected test."""
+        return [
+            entry
+            for nodeid, entry in self.entries.items()
+            if nodeid not in self.matched and nodeid.split("::", 1)[0] in self.collected_files
+        ]
+
     def pytest_terminal_summary(self, terminalreporter: pytest.TerminalReporter) -> None:
+        stale = self.unmatched()
+        if stale:
+            noun = "entry" if len(stale) == 1 else "entries"
+            terminalreporter.write_sep(
+                "=", f"quarantine: {len(stale)} {noun} matched no collected test", yellow=True
+            )
+            for entry in stale:
+                terminalreporter.write_line(
+                    f"QUARANTINE UNMATCHED {entry.nodeid} ({entry.row}): its file was "
+                    "collected but no test has this node id; fix or remove the entry",
+                    yellow=True,
+                )
         if not self.outcomes:
             return
         terminalreporter.write_sep("=", f"quarantine: {len(self.outcomes)} quarantined test(s) ran")

@@ -20,6 +20,18 @@ call is one short transaction. Under the inline runner all book calls run on the
 which makes a multi-call book operation atomic inside the process; cross-process safety is the
 fenced commit, and a transport with real concurrency (RT-01) brings its own claim query.
 SQLite and Postgres share the SQL: only the engine differs.
+
+The effect door (``authorize_effects`` / ``finalize_effects`` against ``erase_source`` and
+``mark_sources``) is a fenced read-check-write: each of those calls runs in ``_fenced_tx``,
+which takes the database write lock BEFORE its first read (SQLite ``BEGIN IMMEDIATE``) or
+row-locks what it reads (Postgres ``SELECT ... FOR UPDATE`` on the job row and each source row,
+sources in record-id order and always before any effect row, so two doors never deadlock). An
+erase therefore commits either wholly before a door's check (the door sees the new generation
+and refuses) or wholly after its write (the erase then deletes the effect rows the door wrote).
+The provider projection between authorize and finalize cannot hold a database lock (on SQLite
+it writes the same file), so it is optimistic: finalize re-checks the fence and, when a source
+changed or was erased meanwhile, answers ``EffectFence.STALE_SOURCE`` so the runner removes the
+projected effects (rebuildable projections) instead of acknowledging them.
 """
 
 from __future__ import annotations
@@ -27,8 +39,9 @@ from __future__ import annotations
 import json
 import threading
 from collections.abc import Iterator, Sequence
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 from sqlalchemy import (
@@ -61,6 +74,7 @@ from memspine.services.storage.outbox_tables import (
 
 __all__ = [
     "OUTBOX_TABLES",
+    "EffectFence",
     "SqlJobStore",
     "outbox_metadata",
 ]
@@ -70,6 +84,37 @@ __all__ = [
 
 # Sync engines are lent by the storage connector (RM-113): clients/sqlite/sync.py and
 # clients/postgres/sync.py; the job store only receives one.
+
+
+class EffectFence(StrEnum):
+    """What the effect door answered (``authorize_effects`` / ``finalize_effects``).
+
+    Truthy only when the door is open (``AUTHORIZED``, ``COMPLETE``, ``OK``), so
+    ``if store.finalize_effects(...)`` reads as "acknowledged"."""
+
+    AUTHORIZED = "authorized"  # the idempotent provider consumer must run
+    COMPLETE = "complete"  # every effect was already acknowledged: skip the projection
+    OK = "ok"  # finalize acknowledged the outcome
+    BUSY = "busy"  # another consumer of this job and epoch is mid-projection
+    STALE_LEASE = "stale_lease"  # this worker no longer owns the job
+    STALE_SOURCE = "stale_source"  # a source changed or was erased: acknowledge nothing
+    REPLAY_DIVERGED = "replay_diverged"  # a replay planned a different layer set or result
+
+    def __bool__(self) -> bool:
+        return self in (EffectFence.AUTHORIZED, EffectFence.COMPLETE, EffectFence.OK)
+
+
+def _source_matches(row: Any, source: dict[str, Any], scope: OwnerScope) -> bool:
+    """Whether a membership ``row`` is still exactly the snapshot ``source`` (the fence)."""
+    return not (
+        row is None
+        or source.get("namespace") != scope.owner
+        or not row.active
+        or row.source_id != source.get("source_id")
+        or int(row.source_version) != int(source.get("source_version", -1))
+        or row.content_hash != source.get("content_hash")
+        or int(row.erasure_generation) != int(source.get("erasure_generation", 0))
+    )
 
 
 # ---------------------------------------------------------------------------- codecs
@@ -107,19 +152,17 @@ def _effect_artifact_json(effect: dict[str, Any]) -> str | None:
             raise ValueError("annotation artifact must contain at least one annotation batch")
         identity_sources = effect.get("identity", {}).get("sources", [])
         authorized_sources = {
-            _source_fence_key(source)
-            for source in identity_sources
-            if isinstance(source, dict)
+            _source_fence_key(source) for source in identity_sources if isinstance(source, dict)
         }
         batches = [AnnotationBatch.model_validate(batch) for batch in raw_batches]
-        batch_sources = [_source_fence_key(batch.source.model_dump(mode="json")) for batch in batches]
+        batch_sources = [
+            _source_fence_key(batch.source.model_dump(mode="json")) for batch in batches
+        ]
         if len(batch_sources) != len(set(batch_sources)):
             raise ValueError("annotation artifact contains duplicate source batches")
         if set(batch_sources) != authorized_sources:
             raise ValueError("annotation artifact sources differ from effect identity")
-        artifact = {
-            "annotation_batches": [batch.model_dump(mode="json") for batch in batches]
-        }
+        artifact = {"annotation_batches": [batch.model_dump(mode="json") for batch in batches]}
     if not isinstance(artifact, dict):
         raise ValueError("effect artifact must be an object")
     return json.dumps(artifact, sort_keys=True, separators=(",", ":"), default=str)
@@ -216,6 +259,66 @@ class SqlJobStore:
         else:
             with self.engine.begin() as conn:
                 yield conn
+
+    @contextmanager
+    def _fenced_tx(self) -> Iterator[Connection]:
+        """A transaction that holds the fence from its first read (see the module docstring).
+
+        SQLite: the driver opens its transaction lazily at the first write, so a plain
+        ``begin()`` reads outside any lock. Here the connection runs in driver autocommit and
+        issues ``BEGIN IMMEDIATE`` itself, taking the single write lock before any read.
+        Postgres: an ordinary transaction; the callers' ``with_for_update()`` reads lock the
+        rows they check (the clause compiles to nothing on SQLite)."""
+        if self.engine.dialect.name != "sqlite":
+            with self._tx() as conn:
+                yield conn
+            return
+        guard: AbstractContextManager[Any] = self._lock if self._shared else nullcontext()
+        with guard, self.engine.connect() as raw:
+            conn = raw.execution_options(isolation_level="AUTOCOMMIT")
+            conn.exec_driver_sql("BEGIN IMMEDIATE")
+            try:
+                yield conn
+            except BaseException:
+                conn.exec_driver_sql("ROLLBACK")
+                raise
+            conn.exec_driver_sql("COMMIT")
+
+    @staticmethod
+    def _lease_live(c: Connection, job_id: str, epoch: int, at: datetime) -> bool:
+        """Lock the job row and say whether ``epoch`` still holds a live lease on it."""
+        job = c.execute(
+            select(outbox.c.epoch, outbox.c.state, outbox.c.lease_until)
+            .where(outbox.c.job_id == job_id)
+            .with_for_update()
+        ).first()
+        lease_until = None if job is None else _dt(job.lease_until)
+        return not (
+            job is None
+            or int(job.epoch) != epoch
+            or job.state != "running"
+            or lease_until is None
+            or lease_until <= at
+        )
+
+    @staticmethod
+    def _sources_current(
+        c: Connection, scope: OwnerScope, stage: str, sources: Sequence[dict[str, Any]]
+    ) -> bool:
+        """Lock each source row (record-id order) and check it still matches its snapshot."""
+        for source in sorted(sources, key=lambda s: str(s.get("record_id"))):
+            row = c.execute(
+                select(outbox_source_membership)
+                .where(
+                    *_scope_where(outbox_source_membership, scope),
+                    outbox_source_membership.c.stage == stage,
+                    outbox_source_membership.c.record_id == source.get("record_id"),
+                )
+                .with_for_update()
+            ).first()
+            if not _source_matches(row, source, scope):
+                return False
+        return True
 
     # ------------------------------------------------------------------ JobStore
     def next_seq(self) -> int:
@@ -479,23 +582,31 @@ class SqlJobStore:
 
     def mark_sources(
         self, scope: OwnerScope, stage: str, sources: Sequence[dict[str, Any]], at: datetime
-    ) -> None:
+    ) -> list[str]:
         """Persist the source state against which derivation effects are fenced.
 
         This is the outbox-side source authority.  It is deliberately richer
         than queued item membership: a worker snapshots it before inference,
         then the transactional effect door compares that snapshot with the
         current row while it also checks the lease and appends effect events.
-        """
-        with self._tx() as c:
-            for source in sources:
+
+        An erased (inactive) source is never reactivated by a plain acceptance: that would
+        undo the erasure fence for a worker still holding a pre-erasure snapshot. A caller
+        may re-accept it only by presenting the row's current ``erasure_generation`` (proof it
+        observed the erasure); a source presenting any other generation is refused. Returns
+        the refused record ids."""
+        refused: list[str] = []
+        with self._fenced_tx() as c:
+            for source in sorted(sources, key=lambda s: str(s["record_id"])):
                 record_id = str(source["record_id"])
                 key = [
                     *_scope_where(outbox_source_membership, scope),
                     outbox_source_membership.c.stage == stage,
                     outbox_source_membership.c.record_id == record_id,
                 ]
-                existing = c.execute(select(outbox_source_membership).where(*key)).first()
+                existing = c.execute(
+                    select(outbox_source_membership).where(*key).with_for_update()
+                ).first()
                 values = {
                     "source_id": str(source.get("source_id") or record_id),
                     "source_version": int(source["source_version"]),
@@ -504,6 +615,13 @@ class SqlJobStore:
                     "accepted_at": _ts(at),
                 }
                 if existing is not None:
+                    presented = source.get("erasure_generation")
+                    current = int(existing.erasure_generation)
+                    if (not existing.active and presented is None) or (
+                        presented is not None and int(presented) != current
+                    ):
+                        refused.append(record_id)
+                        continue
                     if (
                         int(existing.source_version) != values["source_version"]
                         or existing.content_hash != values["content_hash"]
@@ -523,6 +641,9 @@ class SqlJobStore:
                         **values,
                     )
                 )
+        if refused:
+            tap.event("runtime.outbox.source_refused", stage=stage, refused=len(refused))
+        return refused
 
     def source_snapshots(
         self, scope: OwnerScope, stage: str, record_ids: Sequence[str]
@@ -553,25 +674,28 @@ class SqlJobStore:
         return snapshots
 
     def erase_source(self, scope: OwnerScope, stage: str, record_id: str) -> bool:
-        """Invalidate snapshots and remove immutable effects bound to ``record_id``."""
-        with self._tx() as c:
+        """Invalidate snapshots and remove immutable effects bound to ``record_id``.
+
+        Fenced (``_fenced_tx``): the generation bump, the deactivation and the effect removal
+        commit together, serialised against every effect door."""
+        key = [
+            *_scope_where(outbox_source_membership, scope),
+            outbox_source_membership.c.stage == stage,
+            outbox_source_membership.c.record_id == record_id,
+        ]
+        with self._fenced_tx() as c:
             row = c.execute(
-                select(outbox_source_membership.c.erasure_generation).where(
-                    *_scope_where(outbox_source_membership, scope),
-                    outbox_source_membership.c.stage == stage,
-                    outbox_source_membership.c.record_id == record_id,
-                )
+                select(outbox_source_membership.c.erasure_generation).where(*key).with_for_update()
             ).first()
             if row is None:
                 return False
             c.execute(
                 update(outbox_source_membership)
-                .where(
-                    *_scope_where(outbox_source_membership, scope),
-                    outbox_source_membership.c.stage == stage,
-                    outbox_source_membership.c.record_id == record_id,
+                .where(*key)
+                .values(
+                    erasure_generation=outbox_source_membership.c.erasure_generation + 1,
+                    active=False,
                 )
-                .values(erasure_generation=int(row.erasure_generation) + 1, active=False)
             )
             self._delete_source_effects(c, scope, stage, record_id)
         return True
@@ -600,47 +724,24 @@ class SqlJobStore:
         effects: Sequence[dict[str, Any]],
         sources: Sequence[dict[str, Any]],
         at: datetime,
-    ) -> str | None:
+    ) -> EffectFence:
         """Atomically fence inputs and append immutable effect authorization events.
 
-        ``None`` means the lease or a source snapshot is stale. ``complete``
-        means every effect was already projected and acknowledged, so replay
-        can skip provider writes. ``authorized`` means the idempotent provider
-        consumer must run (including recovery after a partial projection).
-        """
-        with self._tx() as c:
-            job = c.execute(
-                select(outbox.c.epoch, outbox.c.state, outbox.c.lease_until).where(
-                    outbox.c.job_id == job_id
-                )
-            ).first()
-            lease_until = None if job is None else _dt(job.lease_until)
-            if (
-                job is None
-                or int(job.epoch) != epoch
-                or job.state != "running"
-                or lease_until is None
-                or lease_until <= at
-            ):
-                return None
-            for source in sources:
-                row = c.execute(
-                    select(outbox_source_membership).where(
-                        *_scope_where(outbox_source_membership, scope),
-                        outbox_source_membership.c.stage == stage,
-                        outbox_source_membership.c.record_id == source["record_id"],
-                    )
-                ).first()
-                if (
-                    row is None
-                    or source.get("namespace") != scope.owner
-                    or not row.active
-                    or row.source_id != source["source_id"]
-                    or int(row.source_version) != int(source["source_version"])
-                    or row.content_hash != source["content_hash"]
-                    or int(row.erasure_generation) != int(source["erasure_generation"])
-                ):
-                    return None
+        One fenced transaction (``_fenced_tx``) checks the lease and every source snapshot and
+        writes the authorization rows, so an erase cannot commit between the check and the
+        write. Answers: ``STALE_SOURCE`` / ``STALE_LEASE`` (refused, nothing written),
+        ``BUSY`` (another consumer of this job and epoch holds the events), ``COMPLETE``
+        (every effect was already acknowledged: replay skips provider writes),
+        ``REPLAY_DIVERGED`` (some effects of this item were acknowledged and the replay planned
+        others: a non-deterministic replay changed the layer set, so nothing is projected), or
+        ``AUTHORIZED`` (the idempotent provider consumer must run, including recovery after a
+        partial projection)."""
+        with self._fenced_tx() as c:
+            lease_ok = self._lease_live(c, job_id, epoch, at)
+            if not self._sources_current(c, scope, stage, sources):
+                return EffectFence.STALE_SOURCE
+            if not lease_ok:
+                return EffectFence.STALE_LEASE
             existing_effects: list[tuple[dict[str, Any], Any]] = []
             for effect in effects:
                 existing = c.execute(
@@ -660,16 +761,17 @@ class SqlJobStore:
                         and existing.job_id == job_id
                         and int(existing.epoch) == epoch
                     ):
-                        return "busy"
+                        return EffectFence.BUSY
                 existing_effects.append((effect, existing))
-            if all(
+            done = [
                 existing is not None and existing.state == "complete"
                 for _, existing in existing_effects
-            ):
-                return "complete"
+            ]
+            if all(done):
+                return EffectFence.COMPLETE
+            if any(done):
+                return EffectFence.REPLAY_DIVERGED
             for effect, existing in existing_effects:
-                if existing is not None and existing.state == "complete":
-                    continue
                 if existing is not None:
                     c.execute(
                         update(outbox_effect)
@@ -702,7 +804,7 @@ class SqlJobStore:
                         committed_at=_ts(at),
                     )
                 )
-        return "authorized"
+        return EffectFence.AUTHORIZED
 
     def finalize_effects(
         self,
@@ -712,70 +814,55 @@ class SqlJobStore:
         effects: Sequence[dict[str, Any]],
         failure: dict[str, Any] | None,
         at: datetime,
-    ) -> bool:
-        """Acknowledge projection outcomes, fenced by the same live lease."""
+    ) -> EffectFence:
+        """Acknowledge projection outcomes, fenced by the same live lease and source state.
+
+        Runs in one fenced transaction that first locks the job row and every source row, then
+        writes the outcome rows. Answers ``OK`` (acknowledged), ``STALE_SOURCE`` (a source
+        changed or was erased after authorization, or the erase already removed the effect
+        row: the caller must compensate whatever it projected), ``STALE_LEASE`` (the job is no
+        longer this worker's; its projection is valid and the new owner replays it), or
+        ``REPLAY_DIVERGED`` (an already acknowledged effect is being acknowledged with a
+        different result)."""
         artifacts = {str(effect["effect_id"]): _effect_artifact_json(effect) for effect in effects}
-        with self._tx() as c:
-            job = c.execute(
-                select(outbox.c.epoch, outbox.c.state, outbox.c.lease_until).where(
-                    outbox.c.job_id == job_id
-                )
-            ).first()
-            lease_until = None if job is None else _dt(job.lease_until)
-            if (
-                job is None
-                or int(job.epoch) != epoch
-                or job.state != "running"
-                or lease_until is None
-                or lease_until <= at
-            ):
-                return False
+        with self._fenced_tx() as c:
+            lease_ok = self._lease_live(c, job_id, epoch, at)
+            rows: list[tuple[dict[str, Any], Any]] = []
             for effect in effects:
                 row = c.execute(
-                    select(outbox_effect).where(
-                        outbox_effect.c.effect_id == effect["effect_id"]
-                    )
+                    select(outbox_effect).where(outbox_effect.c.effect_id == effect["effect_id"])
                 ).first()
-                if (
-                    row is None
-                    or row.job_id != job_id
-                    or int(row.epoch) != epoch
-                    or row.identity
-                    != json.dumps(effect["identity"], sort_keys=True, default=str)
-                ):
-                    return False
-                scope = OwnerScope(
-                    tenant=row.tenant, owner=row.owner, owner_kind=row.owner_kind
-                )
+                if row is None:  # an erase or a source change removed it: fail closed
+                    return EffectFence.STALE_SOURCE
                 try:
                     identity_sources = json.loads(row.identity).get("sources", [])
                 except (AttributeError, TypeError, ValueError):
-                    return False
-                for source in identity_sources:
-                    if not isinstance(source, dict) or "record_id" not in source:
-                        continue
-                    current = c.execute(
-                        select(outbox_source_membership).where(
-                            *_scope_where(outbox_source_membership, scope),
-                            outbox_source_membership.c.stage == row.stage,
-                            outbox_source_membership.c.record_id == source["record_id"],
-                        )
-                    ).first()
-                    if (
-                        current is None
-                        or source.get("namespace") != scope.owner
-                        or not current.active
-                        or current.source_id != source["source_id"]
-                        or int(current.source_version) != int(source["source_version"])
-                        or current.content_hash != source["content_hash"]
-                        or int(current.erasure_generation)
-                        != int(source.get("erasure_generation", 0))
-                    ):
-                        return False
+                    return EffectFence.STALE_SOURCE
+                scope = OwnerScope(tenant=row.tenant, owner=row.owner, owner_kind=row.owner_kind)
+                checked = [
+                    source
+                    for source in identity_sources
+                    if isinstance(source, dict) and "record_id" in source
+                ]
+                if not self._sources_current(c, scope, row.stage, checked):
+                    return EffectFence.STALE_SOURCE
+                rows.append((effect, row))
+            if not lease_ok:
+                return EffectFence.STALE_LEASE
+            for effect, row in rows:
+                if (
+                    row.job_id != job_id
+                    or int(row.epoch) != epoch
+                    or row.identity != json.dumps(effect["identity"], sort_keys=True, default=str)
+                ):
+                    return EffectFence.STALE_LEASE
                 artifact = artifacts[str(effect["effect_id"])]
+                if row.state == "complete" and (
+                    int(row.result_count) != int(effect["count"]) or row.artifact != artifact
+                ):
+                    return EffectFence.REPLAY_DIVERGED
+            for effect, row in rows:
                 if row.state == "complete":
-                    if int(row.result_count) != int(effect["count"]) or row.artifact != artifact:
-                        raise ValueError("effect replay result differs from persisted result")
                     continue
                 c.execute(
                     update(outbox_effect)
@@ -786,11 +873,11 @@ class SqlJobStore:
                         state="failed" if failure is not None else "complete",
                         result_count=int(effect["count"]),
                         failure=None if failure is None else json.dumps(failure, sort_keys=True),
-                        artifact=artifact,
+                        artifact=artifacts[str(effect["effect_id"])],
                         committed_at=_ts(at),
                     )
                 )
-        return True
+        return EffectFence.OK
 
     def effect_status(self, scope: OwnerScope) -> list[dict[str, Any]]:
         """Return persisted layer outcomes for one namespace scope."""

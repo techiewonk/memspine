@@ -10,7 +10,7 @@ import pytest
 from pydantic import ValidationError
 
 from memspine.clients.sqlite.sync import sqlite_sync_engine
-from memspine.runtime.outbox import SqlJobStore
+from memspine.runtime.outbox import EffectFence, SqlJobStore
 from memspine.runtime.runner import InlineRunner
 from memspine.schemas.durable import AnnotationBatch, IngestionSourceSnapshot, OwnerScope
 
@@ -91,10 +91,13 @@ async def test_empty_annotation_success_survives_restart_and_replay(tmp_path: Pa
             "producer_revision": "gliner:different",
         }
     )
-    with pytest.raises(ValueError, match="replay result differs"):
+    # A differing replay result is a typed fenced outcome, never a ValueError.
+    assert (
         store.finalize_effects(
             job_id=job_id, epoch=epoch, effects=[different], failure=None, at=NOW
         )
+        == EffectFence.REPLAY_DIVERGED
+    )
     store.close()
 
     reopened = SqlJobStore(_engine(db))
@@ -166,9 +169,7 @@ async def test_annotation_artifact_revalidates_binding_and_erasure_removes_it(
     ]
     forged["artifact"] = {"annotation_batches": [forged_batch]}
     with pytest.raises(ValidationError, match="sender differs"):
-        store.finalize_effects(
-            job_id=job_id, epoch=epoch, effects=[forged], failure=None, at=NOW
-        )
+        store.finalize_effects(job_id=job_id, epoch=epoch, effects=[forged], failure=None, at=NOW)
     assert store.effect_status(SCOPE)[0]["state"] == "authorized"
 
     assert store.finalize_effects(
@@ -196,9 +197,7 @@ async def test_annotation_artifact_source_must_belong_to_effect_identity(
     ).model_dump(mode="json")
     forged = {**effect, "artifact": {"annotation_batches": [foreign_batch]}}
     with pytest.raises(ValueError, match="sources differ from effect identity"):
-        store.finalize_effects(
-            job_id=job_id, epoch=epoch, effects=[forged], failure=None, at=NOW
-        )
+        store.finalize_effects(job_id=job_id, epoch=epoch, effects=[forged], failure=None, at=NOW)
     assert store.effect_status(SCOPE)[0]["state"] == "authorized"
     store.close()
 
@@ -234,8 +233,5 @@ async def test_annotation_artifact_cannot_omit_an_authorized_source(tmp_path: Pa
         == "authorized"
     )
     with pytest.raises(ValueError, match="sources differ from effect identity"):
-        store.finalize_effects(
-            job_id=job_id, epoch=epoch, effects=[effect], failure=None, at=NOW
-        )
+        store.finalize_effects(job_id=job_id, epoch=epoch, effects=[effect], failure=None, at=NOW)
     store.close()
-

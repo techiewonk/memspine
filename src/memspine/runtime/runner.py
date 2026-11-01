@@ -10,12 +10,17 @@ the offsets ``(watermark, target]`` in order. Each offset runs in two phases:
 ``commit``     consumes those events through idempotent provider deposits. With
                ``StageHandler.commit_locked`` the runner takes the namespace lock around this
                phase only; the window pipeline's deposits already lock per record.
-``finalize``   acknowledges projection outcomes under the same lease fence.
+``finalize``   acknowledges projection outcomes under the same lease and source fence. When a
+               source was erased or changed while the provider projected (the projection holds
+               no database lock), finalize refuses and the runner calls
+               ``StageHandler.compensate`` to remove what it projected, then fences.
 
 After every offset the watermark is checkpointed under the lease epoch (``JobBook.checkpoint``), so
 a stop or a crash resumes at the next offset. An offset whose handler raised becomes a hole (never
 skipped silently) and is retried on later drains inside the per-hole budget. A stale epoch is
-refused and logged; the stale worker stops without writing.
+refused and logged; the stale worker stops without writing. A fence (stale lease, stale source,
+diverged replay) is never a hole: the offset is not checkpointed, the job is handed back when
+this worker still owns it, and a later drain retries it.
 """
 
 from __future__ import annotations
@@ -43,7 +48,7 @@ from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.runtime.freshness import read_barrier
 from memspine.runtime.jobs import Claim, Clock, Job, JobBook, JobStore, RetryBudget
-from memspine.runtime.outbox import SqlJobStore
+from memspine.runtime.outbox import EffectFence, SqlJobStore
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.ingestion import EffectIdentity, IngestionSourceSnapshot
 from memspine.schemas.public import JobHandle
@@ -75,6 +80,10 @@ class EffectResult:
 
 
 EffectResults = Callable[[Any], Mapping[str, int | EffectResult | Mapping[str, Any]]]
+#: ``compensate(scope, offset, prepared, effects)`` removes what ``commit`` projected for the
+#: given effect plans (each carries ``effect_id``, ``layer`` and ``identity``). Called when the
+#: fence fails after projection because a source was erased or changed meanwhile.
+Compensate = Callable[[OwnerScope, int, Any, Sequence[dict[str, Any]]], Awaitable[None]]
 NamespaceLock = Callable[[str], AbstractAsyncContextManager[Any]]
 Sleeper = Callable[[float], Awaitable[None]]
 
@@ -91,6 +100,7 @@ class StageHandler:
     commit: Commit
     commit_locked: bool = False
     effect_results: EffectResults | None = None
+    compensate: Compensate | None = None
 
 
 @dataclass
@@ -121,8 +131,38 @@ class BarrierOutcome:
         return tuple(sorted({*self.pending, *self.unavailable}))
 
 
+FenceReason = Literal["lease", "source", "busy", "replay"]
+
+
 class _Fenced(Exception):
-    """A commit or checkpoint was refused: this worker no longer owns the job."""
+    """A commit or checkpoint was refused: this worker no longer owns the job (``lease``), a
+    source snapshot is stale (``source``), another consumer holds the effect events
+    (``busy``), or a replay diverged (``replay``). Never a hole."""
+
+    def __init__(self, reason: FenceReason = "lease") -> None:
+        super().__init__(reason)
+        self.reason: FenceReason = reason
+
+
+class _ReplayDiverged(_Fenced):
+    """A replay planned effects that differ from the acknowledged ones (layer set or result)."""
+
+    def __init__(self) -> None:
+        super().__init__("replay")
+
+
+_FENCE_REASONS: dict[EffectFence, FenceReason] = {
+    EffectFence.STALE_LEASE: "lease",
+    EffectFence.STALE_SOURCE: "source",
+    EffectFence.BUSY: "busy",
+    EffectFence.REPLAY_DIVERGED: "replay",
+}
+
+
+def _fence_for(outcome: EffectFence) -> _Fenced:
+    if outcome is EffectFence.REPLAY_DIVERGED:
+        return _ReplayDiverged()
+    return _Fenced(_FENCE_REASONS.get(outcome, "lease"))
 
 
 class _Stop(Exception):
@@ -174,6 +214,7 @@ class InlineRunner:
         commit: Commit | None = None,
         commit_locked: bool = False,
         effect_results: EffectResults | None = None,
+        compensate: Compensate | None = None,
     ) -> None:
         """Register a stage: a ``StageHandler``, or its ``prepare``/``commit`` callables (so callers
         below ``runtime`` in the layering, such as ``workers.windows``, need not import it)."""
@@ -185,6 +226,7 @@ class InlineRunner:
                 commit=commit,
                 commit_locked=commit_locked,
                 effect_results=effect_results,
+                compensate=compensate,
             )
         self._handlers[stage] = handler
 
@@ -499,8 +541,20 @@ class InlineRunner:
             )
             try:
                 await self._run_claim(claim, report)
-            except _Fenced:
+            except _Fenced as fence:
                 report.fenced += 1
+                tap.event(
+                    "runtime.outbox.fenced",
+                    job_id=claim.job.job_id,
+                    stage=stage,
+                    reason=fence.reason,
+                )
+                # Hand the job back when it is still ours (no attempt spent): the fenced offset
+                # was not checkpointed, so a later drain retries it. Only a lost lease lets
+                # this drain go on claiming; any other fence would be re-met at once.
+                report.released += await self._release(claim)
+                if fence.reason != "lease":
+                    return
             except _Stop:
                 report.stopped = True
                 report.released += await self._release(claim)
@@ -619,10 +673,10 @@ class InlineRunner:
         effects: Sequence[dict[str, Any]],
         sources: Sequence[dict[str, Any]],
         effect_stage: str | None = None,
-    ) -> str:
+    ) -> EffectFence:
         if not effects:
-            return "authorized"
-        result = await self._io(
+            return EffectFence.AUTHORIZED
+        result: EffectFence = await self._io(
             self.store.authorize_effects,
             job_id=job.job_id,
             epoch=epoch,
@@ -633,9 +687,7 @@ class InlineRunner:
             sources=sources,
             at=self.clock(),
         )
-        if result is None or result == "busy":
-            raise _Fenced
-        return str(result)
+        return result
 
     async def _finalize_effects(
         self,
@@ -643,18 +695,91 @@ class InlineRunner:
         epoch: int,
         effects: Sequence[dict[str, Any]],
         failure: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> EffectFence:
         if not effects:
-            return
-        if not await self._io(
+            return EffectFence.OK
+        result: EffectFence = await self._io(
             self.store.finalize_effects,
             job_id=job.job_id,
             epoch=epoch,
             effects=effects,
             failure=failure,
             at=self.clock(),
-        ):
-            raise _Fenced
+        )
+        return result
+
+    async def _compensate(
+        self,
+        handler: StageHandler,
+        job: Job,
+        offset: int,
+        prepared: Any,
+        effects: Sequence[dict[str, Any]],
+    ) -> None:
+        """Remove a projection the fence refused after the fact (a source erased mid-commit)."""
+        tap.event(
+            "runtime.outbox.compensate",
+            job_id=job.job_id,
+            stage=job.stage,
+            offset=offset,
+            effects=len(effects),
+            handled=handler.compensate is not None,
+        )
+        if handler.compensate is None:
+            _log.warning(
+                "outbox.uncompensated_projection",
+                job_id=job.job_id,
+                stage=job.stage,
+                offset=offset,
+                layers=sorted({str(e.get("layer")) for e in effects}),
+            )
+            return
+        compensate = handler.compensate
+        if handler.commit_locked and self._commit_lock is not None:
+            async with self._commit_lock(job.scope.owner):
+                await compensate(job.scope, offset, prepared, effects)
+        else:
+            await compensate(job.scope, offset, prepared, effects)
+
+    async def _record_failure(
+        self,
+        handler: StageHandler,
+        job: Job,
+        epoch: int,
+        offset: int,
+        sources: Sequence[dict[str, Any]],
+        source_ids: Sequence[str],
+        effect_stage: str | None,
+        exc: BaseException,
+    ) -> None:
+        """Persist a failed prepare as failed effects. Never hides ``exc``: a fence met here is
+        raised chained to it, and an item whose effects were already acknowledged (``COMPLETE``)
+        or whose replay diverged keeps ``exc`` as the outcome without re-finalizing."""
+        failed_effects = self._effect_plans(handler, job, offset, None, sources, effect_stage)
+        door = await self._authorize_effects(
+            job, epoch, offset, failed_effects, sources, effect_stage
+        )
+        if door is EffectFence.COMPLETE or door is EffectFence.REPLAY_DIVERGED:
+            return
+        if door is not EffectFence.AUTHORIZED:
+            raise _fence_for(door) from exc
+        done = await self._finalize_effects(
+            job, epoch, failed_effects, self._failure(job, effect_stage, exc, source_ids)
+        )
+        if done in (EffectFence.STALE_LEASE, EffectFence.STALE_SOURCE, EffectFence.BUSY):
+            raise _fence_for(done) from exc
+
+    @staticmethod
+    def _failure(
+        job: Job, effect_stage: str | None, exc: BaseException, source_ids: Sequence[str]
+    ) -> dict[str, Any]:
+        return {
+            "stage": effect_stage or job.stage,
+            "error_class": type(exc).__name__,
+            "attempts": job.attempts,
+            "retry_eligible": True,
+            "source_ids": list(source_ids),
+        }
 
     async def _commit(
         self, handler: StageHandler, scope: OwnerScope, offset: int, prepared: Any
@@ -715,7 +840,7 @@ class InlineRunner:
         if handler.effect_results is not None and source_ids:
             sources = await self._io(self.store.source_snapshots, job.scope, stage, source_ids)
             if len(sources) != len(dict.fromkeys(source_ids)):
-                raise _Fenced
+                raise _Fenced("source")
         try:
             if self._backpressure is None and self._ledger is None:
                 prepared = await self._phases(handler, job.scope, offset, payload, stage)
@@ -730,31 +855,18 @@ class InlineRunner:
                         )
         except BaseException as exc:
             if not isinstance(exc, asyncio.CancelledError) and handler.effect_results is not None:
-                failed_effects = self._effect_plans(
-                    handler, job, offset, None, sources, effect_stage
-                )
-                await self._authorize_effects(
-                    job, epoch, offset, failed_effects, sources, effect_stage
-                )
-                await self._finalize_effects(
-                    job,
-                    epoch,
-                    failed_effects,
-                    {
-                        "stage": effect_stage or job.stage,
-                        "error_class": type(exc).__name__,
-                        "attempts": job.attempts,
-                        "retry_eligible": True,
-                        "source_ids": list(source_ids),
-                    },
+                await self._record_failure(
+                    handler, job, epoch, offset, sources, source_ids, effect_stage, exc
                 )
             raise
         effects = self._effect_plans(handler, job, offset, prepared, sources, effect_stage)
         authorization = await self._authorize_effects(
             job, epoch, offset, effects, sources, effect_stage
         )
-        if authorization == "complete":
+        if authorization is EffectFence.COMPLETE:
             return prepared
+        if authorization is not EffectFence.AUTHORIZED:
+            raise _fence_for(authorization)  # nothing projected yet: nothing to compensate
         try:
             if insp.inspect_enabled():
                 with tap.span("runtime.outbox.commit_item", stage=stage, offset=offset):
@@ -763,20 +875,19 @@ class InlineRunner:
                 await self._commit(handler, job.scope, offset, prepared)
         except BaseException as exc:
             if not isinstance(exc, asyncio.CancelledError):
-                await self._finalize_effects(
-                    job,
-                    epoch,
-                    effects,
-                    {
-                        "stage": effect_stage or job.stage,
-                        "error_class": type(exc).__name__,
-                        "attempts": job.attempts,
-                        "retry_eligible": True,
-                        "source_ids": list(source_ids),
-                    },
+                done = await self._finalize_effects(
+                    job, epoch, effects, self._failure(job, effect_stage, exc, source_ids)
                 )
+                if done is EffectFence.STALE_SOURCE:  # a partial projection of erased content
+                    await self._compensate(handler, job, offset, prepared, effects)
+                if done in (EffectFence.STALE_LEASE, EffectFence.STALE_SOURCE):
+                    raise _fence_for(done) from exc
             raise
-        await self._finalize_effects(job, epoch, effects)
+        done = await self._finalize_effects(job, epoch, effects)
+        if done is EffectFence.STALE_SOURCE:
+            await self._compensate(handler, job, offset, prepared, effects)
+        if done is not EffectFence.OK:
+            raise _fence_for(done)
         return prepared
 
     async def _run_claim(self, claim: Claim, report: DrainReport) -> None:
@@ -791,8 +902,8 @@ class InlineRunner:
             failed: dict[int, tuple[str, str | None]] = {}
             try:
                 await self._execute_item(handler, job, epoch, offset)
-            except asyncio.CancelledError:
-                raise
+            except (asyncio.CancelledError, _Fenced):
+                raise  # a fence is not a hole: no checkpoint moves past this offset
             except Exception as exc:
                 failed[offset] = ("raised", f"{type(exc).__name__}: {exc}"[:300])
                 report.holes += 1
@@ -860,6 +971,28 @@ class InlineRunner:
                     )
                 except asyncio.CancelledError:
                     raise
+                except _Fenced as fence:
+                    if fence.reason in ("lease", "busy"):
+                        # The retry job is no longer ours: spend nothing, record nothing.
+                        report.fenced += 1
+                        await self._release(claim)
+                        continue
+                    await self._io(
+                        self.book.fail,
+                        claim.job.job_id,
+                        claim.lease.epoch,
+                        f"fenced: {fence.reason}",
+                        "raised",
+                        retryable=False,
+                    )
+                    await self._io(
+                        self.book.record_hole_result,
+                        sc,
+                        stage,
+                        hole.offset,
+                        False,
+                        f"fenced: {fence.reason}",
+                    )
                 except Exception as exc:
                     await self._io(
                         self.book.fail,

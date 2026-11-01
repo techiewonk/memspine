@@ -50,6 +50,16 @@ def test_broken():
 @pytest.mark.parametrize("n", [1, 2])
 def test_param(n):
     assert n == 1
+
+
+@pytest.fixture
+def broken_teardown():
+    yield
+    raise RuntimeError("teardown boom")
+
+
+def test_teardown(broken_teardown):
+    pass
 """
 
 
@@ -93,6 +103,7 @@ def test_quarantined_failure_reports_xfail_with_row_and_summary(tmp_path: Path) 
     out = result.stdout
     assert result.returncode == 1, out  # test_broken is not quarantined and still fails
     assert "1 failed" in out and "2 xfailed" in out and "2 xpassed" in out, out
+    assert "matched no collected test" not in out
     assert "quarantined (RM-901): timer race on slow runners" in out
     assert "quarantine: 4 quarantined test(s) ran" in out
     assert "QUARANTINED xfailed test_sample.py::test_flaky (RM-901)" in out
@@ -105,7 +116,7 @@ def test_quarantined_failure_reports_xfail_with_row_and_summary(tmp_path: Path) 
 def test_empty_list_changes_nothing(tmp_path: Path) -> None:
     result = _run(tmp_path, "# nothing quarantined\n")
     assert result.returncode == 1
-    assert "3 failed, 2 passed" in result.stdout, result.stdout
+    assert "3 failed, 3 passed, 1 error" in result.stdout, result.stdout
     assert "quarantine:" not in result.stdout
 
 
@@ -123,3 +134,23 @@ def test_parse_rejects_missing_comment_and_duplicates() -> None:
         parse_quarantine("a.py::t  # RM-1 x\na.py::t  # RM-2 y\n")
     entries = parse_quarantine("# c\n\na.py::t  #RM-12\n")
     assert entries["a.py::t"].row == "RM-12" and entries["a.py::t"].reason == ""
+
+
+def test_entry_matching_no_collected_test_is_warned(tmp_path: Path) -> None:
+    result = _run(
+        tmp_path,
+        """\
+        test_sample.py::test_renamed_away  # RM-904 the test was renamed
+        test_other.py::test_elsewhere  # RM-905 its file was not collected
+        """,
+    )
+    out = result.stdout
+    assert "quarantine: 1 entry matched no collected test" in out, out
+    assert "QUARANTINE UNMATCHED test_sample.py::test_renamed_away (RM-904)" in out
+    assert "test_elsewhere" not in out  # a file the run did not collect is not judged
+
+
+def test_teardown_failure_is_recorded(tmp_path: Path) -> None:
+    result = _run(tmp_path, "test_sample.py::test_teardown  # RM-906 teardown flakes\n")
+    out = result.stdout
+    assert "QUARANTINED xpassed+teardown-failed test_sample.py::test_teardown (RM-906)" in out, out

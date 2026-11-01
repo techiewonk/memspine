@@ -17,7 +17,7 @@ from memspine.clients.sqlite.sync import memory_sync_engine, sqlite_sync_engine
 from memspine.config.schema.observability import TapConfig
 from memspine.observability import tap
 from memspine.runtime.jobs import ManualClock, RetryBudget
-from memspine.runtime.outbox import OUTBOX_TABLES, SqlJobStore
+from memspine.runtime.outbox import OUTBOX_TABLES, EffectFence, SqlJobStore
 from memspine.runtime.runner import InlineRunner, StageHandler
 from memspine.schemas.durable.common import OwnerScope
 
@@ -169,7 +169,7 @@ async def test_effect_status_is_idempotent_and_fenced_by_current_lease() -> None
             sources=[],
             at=T0,
         )
-        is None
+        == EffectFence.STALE_LEASE
     )
     assert len(runner.store.effect_status(SCOPE)) == 1
 
@@ -403,7 +403,7 @@ async def test_effect_door_refuses_an_expired_unreclaimed_lease() -> None:
             sources=[],
             at=clock(),
         )
-        is None
+        == EffectFence.STALE_LEASE
     )
 
     # Expiry is also checked at acknowledgement when authorization happened
@@ -495,7 +495,9 @@ async def test_effect_door_refuses_forget_during_inference() -> None:
     assert runner.store.erase_source(SCOPE, "derive", "r1")
     rec.gate.set()
     report = await asyncio.wait_for(task, 5)
-    assert report.holes == 1 and rec.committed == []
+    # RM-141 C: a fence is not a hole and the watermark stays before the fenced offset.
+    assert report.fenced == 1 and report.holes == 0 and rec.committed == []
+    assert runner.book.progress(SCOPE, "derive").watermark == -1
     assert runner.store.effect_status(SCOPE) == []
 
 
