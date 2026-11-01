@@ -110,7 +110,12 @@ from memspine.ingest.write import (
 from memspine.memories.associative.entities import (
     EntityPolicy,
 )
-from memspine.memories.associative.entity_index import EntityIndexProjector, with_entity_links
+from memspine.memories.associative.entity_index import (
+    LINKS_KEY,
+    EntityIndexProjector,
+    relink_events,
+    with_entity_links,
+)
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.resolution import ResolveBatch
 from memspine.memories.associative.store import AssociativeMemory
@@ -832,6 +837,7 @@ class Engine:
                 policies=self._memory_policy(config, "associative"),
                 vector=self._vector,  # E1 rrf strategy: graph-rank ⊕ vector-rank
                 embedder=self._embedder,
+                namespace_lock=self._namespace_lock,  # identity changes serialize with forget
             )
         if "prospective" in self._enabled:
             self._prospective = ProspectiveMemory(self._storage, self._append_and_project)
@@ -5754,11 +5760,19 @@ class Engine:
         if snapshot:  # I2: a write inside a read: later listings must see it
             snapshot.clear()
         event = await self._inherit_governance(event)
+        relink = False
         if self._entity_index is not None and event.kind is EventKind.WRITE:
+            # RM-130: a deferred / raced entity of these names is folded into its unique match
+            # first (an event), so it never splits the names' candidates for this write.
+            for marker in await relink_events(
+                self._storage, event, self._entity_policy, projector=self._entity_index
+            ):
+                await self._append_and_project(marker)
             # RM-130: entity ids are minted here, once, into the event (never by a projector).
             event = await with_entity_links(
-                self._storage, event, self._entity_policy, applied=self._entity_index.applied
+                self._storage, event, self._entity_policy, projector=self._entity_index
             )
+            relink = any(link.get("new") for link in event.payload.get(LINKS_KEY, ()))
         appended = await self._storage.append_event(event)
         if self._freshness_tracker is not None:  # O4-01b: the raw-turn seq the derived layers cover
             read_freshness.note_event(self._freshness_tracker, appended)
@@ -5778,6 +5792,14 @@ class Engine:
                 batch[projector.name] = appended.seq  # checkpointed at the flush
             else:
                 await self._storage.set_offset(projector.name, appended.seq)
+        if relink:
+            # RM-130: re-check after the append. Another process may have minted the same name
+            # between this write's resolution and its append; the newer entity is folded into
+            # the older one by whichever writer sees both.
+            for marker in await relink_events(
+                self._storage, appended, self._entity_policy, projector=self._entity_index
+            ):
+                await self._append_and_project(marker)
         if inspect_obs.inspect_enabled():  # TI-1: per-record index membership, sleep per-item notes
             if appended.kind is EventKind.WRITE:
                 inspect_obs.index_record(

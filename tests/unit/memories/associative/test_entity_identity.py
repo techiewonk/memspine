@@ -33,7 +33,7 @@ class _Log:
         self.events: list[MemoryEvent] = []
 
     async def append(self, event: MemoryEvent) -> MemoryEvent:
-        event = await with_entity_links(self.storage, event, ON, applied=self.index.applied)
+        event = await with_entity_links(self.storage, event, ON, projector=self.index)
         event = event.model_copy(update={"seq": len(self.events) + 1})
         self.events.append(event)
         await self.index.apply(event)
@@ -142,7 +142,7 @@ async def test_deferred_index_never_auto_links(make_record: Callable[..., Memory
     from memspine.memories.associative import entity_index as module
 
     record = _rec(make_record, "Pia")
-    links = await module.resolve_record_links(_Behind(), record, ON, applied=0)  # type: ignore[arg-type]
+    links = await module.resolve_record_links(_Behind(), record, ON)
     assert links[0]["new"] and links[0]["basis"] == "deferred"
     assert links[0]["entity_id"] != first["entity_id"]
 

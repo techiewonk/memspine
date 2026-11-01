@@ -8,6 +8,7 @@ projection this module reads, never writes directly.
 
 from __future__ import annotations
 
+import asyncio
 import math
 from collections.abc import Awaitable, Callable, Collection, Sequence
 from typing import Any, ClassVar, Protocol
@@ -75,10 +76,17 @@ class AssociativeMemory(BaseMemory):
         policies: dict[str, Any] | None = None,
         vector: VectorStore | None = None,
         embedder: EmbeddingService | None = None,
+        namespace_lock: Callable[[str], asyncio.Lock] | None = None,
     ) -> None:
         self._storage = storage
         self._graph = graph
         self._append_event = append_event
+        # The engine's per-namespace write lock (the one forget holds); a private one when
+        # the memory runs without an engine.
+        own_locks: dict[str, asyncio.Lock] = {}
+        self._namespace_lock: Callable[[str], asyncio.Lock] = namespace_lock or (
+            lambda ns: own_locks.setdefault(ns, asyncio.Lock())
+        )
         # E1: memories.associative.policies. ``related`` sub-block selects the
         # traversal strategy + depth. vector/embedder power the ``rrf`` blend;
         # when absent, ``rrf`` degrades to ``ppr`` (graceful, never crashes).
@@ -293,13 +301,18 @@ class AssociativeMemory(BaseMemory):
         actor: str = "user",
     ) -> None:
         """ADR-089: merge entity ``absorb`` into ``keep``, citing ``evidence`` record ids (live
-        records of ``namespace``). Forgetting or erasing the cited evidence undoes it."""
-        await self._identity_checks(namespace, [keep, absorb], evidence)
-        if keep == absorb:
-            raise ConflictError("cannot merge an entity with itself")
-        await self._append_event(
-            names_index.merge_event(namespace, keep, absorb, evidence, actor=actor)
-        )
+        records of ``namespace``). Forgetting or erasing the cited evidence undoes it.
+
+        The evidence check and the append run under the namespace write lock that forget holds,
+        so a forget cannot land between them in this process (the projector also ignores a
+        merge whose evidence is gone by the time it projects: another process's forget)."""
+        async with self._namespace_lock(namespace):
+            await self._identity_checks(namespace, [keep, absorb], evidence)
+            if keep == absorb:
+                raise ConflictError("cannot merge an entity with itself")
+            await self._append_event(
+                names_index.merge_event(namespace, keep, absorb, evidence, actor=actor)
+            )
 
     async def add_entity_alias(
         self,
@@ -310,13 +323,15 @@ class AssociativeMemory(BaseMemory):
         *,
         actor: str = "user",
     ) -> None:
-        """ADR-089: an evidence-cited alias name for ``entity`` (undone with its evidence)."""
-        await self._identity_checks(namespace, [entity], evidence)
-        if not alias.strip():
-            raise ConflictError("an alias needs a name")
-        await self._append_event(
-            names_index.alias_event(namespace, entity, alias, evidence, actor=actor)
-        )
+        """ADR-089: an evidence-cited alias name for ``entity`` (undone with its evidence;
+        checked and appended under the namespace write lock, as :meth:`merge_entities`)."""
+        async with self._namespace_lock(namespace):
+            await self._identity_checks(namespace, [entity], evidence)
+            if not alias.strip():
+                raise ConflictError("an alias needs a name")
+            await self._append_event(
+                names_index.alias_event(namespace, entity, alias, evidence, actor=actor)
+            )
 
     async def _identity_checks(
         self, namespace: str, entities: Sequence[str], evidence: Sequence[str]

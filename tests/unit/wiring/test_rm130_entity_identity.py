@@ -3,6 +3,7 @@ rebuildable projection, evidence-cited merges undone on erasure, seeds and searc
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 
 import pytest
@@ -10,7 +11,12 @@ import pytest
 from memspine import Engine
 from memspine.exceptions import ConflictError
 from memspine.memories.associative.entities import MENTIONS_REL, parse_entity_node
-from memspine.memories.associative.entity_index import LINKS_KEY, entity_status
+from memspine.memories.associative.entity_index import (
+    LINKS_KEY,
+    alias_event,
+    entity_status,
+    merge_event,
+)
 from memspine.services.storage.entity_index_tables import entity_index_store_of
 from memspine.store.events import EventKind
 
@@ -132,5 +138,68 @@ async def test_merge_needs_evidence_and_erasure_of_the_evidence_undoes_it() -> N
         assert await entity_status(eng._storage, NS, mel) == "contested"
         await eng.rebuild()  # the undo is in the log: a rebuild keeps it undone
         assert await eng._graph_seeds(NS, "melanie") == [melanie]
+    finally:
+        await eng.stop()
+
+
+async def test_a_merge_checks_and_appends_under_the_namespace_lock_forget_holds() -> None:
+    """A forget cannot land between a merge's evidence check and its append (in-process)."""
+    eng = await _engine()
+    try:
+        await eng.write("Mel paints", namespace=NS, entity="Mel")
+        await eng.write("Melanie sings", namespace=NS, entity="Melanie")
+        evidence = await eng.write("Mel is what everyone calls Melanie", namespace=NS)
+        assert eng._associative is not None
+        lookup = await eng._associative.entity_lookup(NS)
+        [mel], [melanie] = await lookup.get("mel"), await lookup.get("melanie")
+        checked, release = asyncio.Event(), asyncio.Event()
+        real_checks = eng._associative._identity_checks
+
+        async def slow_checks(*args: Any) -> None:
+            await real_checks(*args)
+            checked.set()
+            await release.wait()  # a forget racing the merge would run here
+
+        eng._associative._identity_checks = slow_checks  # type: ignore[method-assign]
+        merge = asyncio.create_task(
+            eng._associative.merge_entities(NS, melanie, mel, [evidence.record_id])
+        )
+        await checked.wait()
+        forget = asyncio.create_task(eng.forget(evidence.record_id, namespace=NS, hard=True))
+        await asyncio.sleep(0.05)
+        assert not forget.done()  # blocked on the namespace lock the merge holds
+        release.set()
+        await merge
+        await forget
+        # the merge landed first, so the forget undid it
+        assert await eng._graph_seeds(NS, "melanie") == [melanie]
+        assert await entity_status(eng._storage, NS, mel) == "contested"
+    finally:
+        await eng.stop()
+
+
+async def test_a_merge_projected_after_its_evidence_was_forgotten_is_ignored() -> None:
+    """Another process's forget won the race: the projector never applies the dead merge."""
+    eng = await _engine()
+    try:
+        await eng.write("Mel paints", namespace=NS, entity="Mel")
+        await eng.write("Melanie sings", namespace=NS, entity="Melanie")
+        evidence = await eng.write("Mel is what everyone calls Melanie", namespace=NS)
+        assert eng._associative is not None and eng._storage is not None
+        lookup = await eng._associative.entity_lookup(NS)
+        [mel], [melanie] = await lookup.get("mel"), await lookup.get("melanie")
+        await eng.forget(evidence.record_id, namespace=NS)
+        # the merge event as a process that checked before the forget would append it
+        await eng._append_and_project(merge_event(NS, melanie, mel, [evidence.record_id]))
+        store = entity_index_store_of(eng._storage)
+        assert await store.select(NS, "merge") == []
+        assert await eng._graph_seeds(NS, "melanie") == [melanie]
+        assert await entity_status(eng._storage, NS, mel) == "contested"
+        alias = alias_event(NS, melanie, "Mels", [evidence.record_id])
+        await eng._append_and_project(alias)
+        assert await (await eng._associative.entity_lookup(NS)).get("mels") == []
+        rows = await _index_rows(eng)
+        await eng.rebuild()
+        assert await _index_rows(eng) == rows
     finally:
         await eng.stop()

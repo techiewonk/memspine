@@ -243,6 +243,7 @@ async def _forget_many(
         if renames
         else await storage.redact_event_payloads(ids)
     )
+    redacted += await _scrub_alias_markers(storage, ids)
     # D-18: the hard-delete cascade escalates to alert severity.
     _log.error(
         EVENT_FORGET,
@@ -269,6 +270,19 @@ async def _forget_many(
         _log.warning("memory.forget_vector_purge_incomplete", namespace=ns, record_id=ids[0])
     if eng._sql is not None:
         await eng._sql.checkpoint()
+
+
+async def _scrub_alias_markers(storage: RecordsStore, record_ids: Sequence[str]) -> list[int]:
+    """ADR-095 (entity name index copy class): the alias text of every ``entity_index.alias``
+    marker citing an erased record leaves the log (the alias was read from that evidence; the
+    projector undid the alias on the hard FORGET). Returns the rewritten seqs."""
+    from memspine.memories.associative.entity_index import ALIAS_MARKER, scrub_alias_marker
+
+    erased = set(record_ids)
+    seqs: list[int] = await storage.scrub_marker_payloads(
+        ALIAS_MARKER, lambda payload: scrub_alias_marker(payload, erased)
+    )
+    return seqs
 
 
 async def _erased_entity_nodes(
@@ -364,6 +378,7 @@ async def _forget_locked(
         await eng._retract_compiled_edges(ns, [record_id])
     if hard and redact:
         redacted = await storage.redact_event_payloads(record_id)
+        redacted += await _scrub_alias_markers(storage, [record_id])
         # D-18: the hard-delete cascade escalates to alert severity.
         _log.error(
             EVENT_FORGET, namespace=ns, record_id=record_id, hard=True, redacted=len(redacted)

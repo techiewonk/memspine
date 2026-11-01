@@ -45,9 +45,7 @@ class _Writer:
         self.log: list[MemoryEvent] = []
 
     async def apply(self, event: MemoryEvent) -> MemoryEvent:
-        event = await with_entity_links(
-            self.storage, event, self.policy, applied=self.index.applied
-        )
+        event = await with_entity_links(self.storage, event, self.policy, projector=self.index)
         event = event.model_copy(update={"seq": len(self.log) + 1})
         self.log.append(event)
         await self.index.apply(event)
