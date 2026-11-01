@@ -32,3 +32,16 @@ The live packer is not checked against the benchmarked `read/tiers.fit_units` (D
   works for any script.
 - The `incomplete` hit status is the contract's `partial` state; one name is used, as the
   contract spells it.
+
+## Amendment 2026-11-01 (final budget guard)
+
+- The cap applies to the context a read or assemble returns, after every overlay, not only
+  to the packer. One deterministic guard (`compose.pack.enforce_budget`, same counter)
+  trims, until the context fits: retrieved records after the stable prefix from the end
+  (with blocks whose every parent it removed), then header blocks in
+  `LEAD_BLOCK_DROP_ORDER`, then other engine blocks from the end. E5 protected records and
+  the retrieved stable prefix are never removed; when they alone are over, `oversize`.
+- `budget_status` gains `trimmed` (fits because the guard removed something). Manifests stay
+  consistent: a removed hit leaves `hits`; a removed included turn becomes a dropped turn.
+- The routed budget is clamped at zero, so headers larger than the budget never hand the
+  packer a negative budget.

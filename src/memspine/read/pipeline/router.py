@@ -14,6 +14,7 @@ from memspine.compose.pack import (
     estimate_tokens,
 )
 from memspine.compose.pack import ranked as rank_pairs
+from memspine.compose.pipeline.pack import enforce_read_budget
 from memspine.config import constants
 from memspine.core import trace_sink
 from memspine.core.language import language_scope
@@ -1182,7 +1183,9 @@ async def _read_planned(
                         eng, query, validate_namespace(namespace), result.context
                     ),
                 )
-            result = ReadResult(result.mode, eng._consent_context(result.context))
+            # ADR-092: the final budget guard, after every overlay and the typed header.
+            guarded = enforce_read_budget(eng, result.context, eng._reply_budget(budget_tokens))
+            result = ReadResult(result.mode, eng._consent_context(guarded))
             read_request._cache_put(eng, cache_key, result)
         if outer:
             ids = [r.record_id for r in result.context.records]  # type: ignore[union-attr]  # CI-GREEN: pre-existing typing debt
@@ -1219,7 +1222,9 @@ async def _read(
     headers, count_share = eng._cap_lead_blocks(headers, count_share, budget_tokens)
     # ADR-055 addendum: a gated question reads raw turns only, in every mode.
     gated = eng._cards_gated(query, strong=strong)
-    routed_budget = budget_tokens - eng._headers_cost(headers) - count_share
+    # ADR-092: never negative (headers alone can exceed the budget with lead_budget_share
+    # unset); the final guard in read() trims what the headers and later blocks add.
+    routed_budget = max(0, budget_tokens - eng._headers_cost(headers) - count_share)
     hide = eng._header_hide(headers, hide_facts=gated)
     result = await eng._read_routed(
         query,

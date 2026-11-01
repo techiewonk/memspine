@@ -211,4 +211,4 @@ class AssembleResponse(BaseModel):
     #: ADR-092: each packed hit's dependency manifest (``HitManifest.to_dict``), with its
     #: ``complete`` / ``partial`` status, and whether the context fits its budget.
     hits: list[dict[str, Any]] = Field(default_factory=list)
-    budget_status: Literal["within", "oversize"] = "within"
+    budget_status: Literal["within", "trimmed", "oversize"] = "within"

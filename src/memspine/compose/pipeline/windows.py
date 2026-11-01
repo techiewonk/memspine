@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import Any
 
 from memspine.compose.pack import AssembledContext
-from memspine.compose.pipeline.pack import bundle_selected
+from memspine.compose.pipeline.pack import bundle_selected, enforce_read_budget
 from memspine.compose.pipeline.render import _gisted, activate_counter, tok
 from memspine.config import constants
 from memspine.core.concentration import collapse_concentrated
@@ -161,6 +161,7 @@ async def _assemble(
     final = await eng._read_overlay(
         query, ns, eng._attach_headers(rendered, headers), session_id, shared=shared
     )
+    final = enforce_read_budget(eng, final, budget)  # ADR-092: after every overlay
     if tap.enabled():
         tap.event(
             "compose.budget",
@@ -172,7 +173,7 @@ async def _assemble(
             tokenizer=counter.name if counter is not None else "estimate:len//4+1",
             exact_budget=counter is not None,
         )
-    return final  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
+    return final
 
 
 async def _assemble_core(

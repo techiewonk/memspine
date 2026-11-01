@@ -7,8 +7,14 @@ from typing import Any
 
 from memspine.compose.budget import Budget, EstimatingCounter
 from memspine.compose.bundles import TurnKey, TurnText, build_bundles, pack
-from memspine.compose.pack import AssembledContext, HitManifest, truncated_copy
-from memspine.compose.pipeline.render import BUNDLE_TAG, current_counter, record_envelope, tok
+from memspine.compose.pack import AssembledContext, HitManifest, enforce_budget, truncated_copy
+from memspine.compose.pipeline.render import (
+    BUNDLE_TAG,
+    activate_counter,
+    current_counter,
+    record_envelope,
+    tok,
+)
 from memspine.config import constants
 from memspine.core import trace_sink
 from memspine.core.dedupe import dedupe_scored
@@ -319,18 +325,31 @@ def _cap_lead_blocks(
         count_share = cap if cap > tok(constants.COUNT_MARKER) else 0
     room = cap - count_share
     kept = list(headers)
-    # MF-13: the profile-card block leaves right after the reflective profile block
-    drop_order = (
-        constants.PROFILE_TAG,
-        PROFILE_CARD_HEADER_TAG,
-        *constants.LEAD_BLOCK_DROP_ORDER[1:],
-    )
-    for tag in drop_order:
+    for tag in _lead_drop_order():
         for block in [h for h in reversed(kept) if tag in h.tags]:
             if eng._headers_cost(kept) <= room:
                 return kept, count_share
             kept.remove(block)
     return kept, count_share
+
+
+def _lead_drop_order() -> tuple[str, ...]:
+    """:data:`constants.LEAD_BLOCK_DROP_ORDER` with the MF-13 profile-card block right after
+    the reflective profile block."""
+    return (
+        constants.PROFILE_TAG,
+        PROFILE_CARD_HEADER_TAG,
+        *constants.LEAD_BLOCK_DROP_ORDER[1:],
+    )
+
+
+def enforce_read_budget(eng: Any, context: AssembledContext, budget: int) -> AssembledContext:
+    """ADR-092: the final guard on the context a read or assemble returns, after every
+    overlay: cut to ``budget`` (the budget left after the reply reserve) with the packer's own
+    counter (:func:`activate_counter`: the reader tokenizer under ``read.exact_budget``, else
+    ``len // 4 + 1``). See :func:`memspine.compose.pack.enforce_budget` for the trim order."""
+    activate_counter(eng)
+    return enforce_budget(context, budget, tok, header_order=_lead_drop_order())
 
 
 def _headers_cost(headers: list[MemoryRecord]) -> int:

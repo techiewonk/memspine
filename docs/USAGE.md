@@ -334,6 +334,19 @@ stays over the budget that way also reports `"oversize"`. With `read.evidence_bu
 every packed hit has a manifest in `ctx.hits` (`needed_turns`, `included_turns`,
 `dropped_turns`), and `ctx.partial_hits` lists the hits whose `status` is `partial`.
 
+The cap holds for the context `read()` and `assemble()` (and REST `/assemble`) return, not only
+for the packer: blocks added after packing (duration and count lines, the C7 retrieved caption,
+the weak-evidence note, read/asset/external overlays, the typed contract header) are checked
+by one final guard with the same counter. Over budget, it removes, each step only until the
+context fits: (1) retrieved records after the stable prefix, from the end, together with any
+block whose every parent it removed (an asset evidence line, the caption); (2) header blocks
+in `LEAD_BLOCK_DROP_ORDER` (profile, profile card, entity summaries, graph facts, cards; the
+later of two first); (3) any other engine block, from the end. Protected records (persona,
+instruction-flagged, disputed) and the retrieved stable prefix are never removed. A context
+that fits after this says `ctx.budget_status == "trimmed"`; one that cannot (the protected
+part alone is over) says `"oversize"`. A removed record's hit leaves `ctx.hits`, and a hit
+whose included turn was removed lists it in `dropped_turns`, so it becomes `partial`.
+
 ### Episodic — timeline + sessions
 ```python
 await engine.write("build started", namespace="dev", memory_type="episodic")

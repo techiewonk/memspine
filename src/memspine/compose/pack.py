@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import ClassVar, Literal
 
 from memspine.compose.compression import CompressionPolicy
@@ -27,6 +27,7 @@ __all__ = [
     "AssemblyPolicy",
     "BudgetStatus",
     "HitManifest",
+    "enforce_budget",
     "estimate_tokens",
     "truncate_to_fit",
     "truncated_copy",
@@ -84,10 +85,12 @@ class AssemblyOptions(PolicyOptions):
     dedupe_jaccard: float = 1.0
 
 
-#: ADR-092: ``within`` = the context fits its budget; ``oversize`` = it does not: the first
-#: record did not fit even truncated (it was left out), or a documented exception (E5
-#: protected blocks, a stable prefix larger than the budget) left the context over it.
-BudgetStatus = Literal["within", "oversize"]
+#: ADR-092: ``within`` = the context fits its budget as packed; ``trimmed`` = it fits because
+#: the final budget guard (:func:`enforce_budget`) removed records or blocks added after the
+#: packer; ``oversize`` = it does not fit, or the first record did not fit even truncated (it
+#: was left out): a documented exception (E5 protected blocks, a stable prefix larger than the
+#: budget) can leave the context over it.
+BudgetStatus = Literal["within", "trimmed", "oversize"]
 
 
 @dataclass(frozen=True)
@@ -586,3 +589,132 @@ class AssemblyPolicy(BindablePolicy):
             # E5 protected blocks may stay over the budget (documented): oversize too.
             budget_status="oversize" if oversize or tokens_used > budget_tokens else "within",
         )
+
+
+# --- ADR-092: the final budget guard ---------------------------------------------------------
+
+
+def _is_block(record: MemoryRecord) -> bool:
+    """A read-time block the engine built (lead blocks, captions, notes, overlays)."""
+    return record.is_engine_block or constants.LEAD_TAG in record.tags
+
+
+def enforce_budget(
+    context: AssembledContext,
+    budget: int,
+    count: Callable[[str], int],
+    *,
+    header_order: Iterable[str] = constants.LEAD_BLOCK_DROP_ORDER,
+) -> AssembledContext:
+    """ADR-092: the context a read returns, cut to ``budget`` tokens counted with ``count``
+    (the packer's counter). Deterministic; a context that fits is returned unchanged.
+
+    The packer is budgeted, but blocks added after it (duration and count lines, the C7
+    caption, the weak-evidence note, read and asset overlays, the typed contract header) are
+    not, so this runs once on the final context. Over budget, it removes in this order, each
+    tier only until the context fits:
+
+    1. retrieved records after the stable prefix, from the end (the lowest-ranked last);
+       a block whose every parent this guard removed (an asset evidence line, the C7
+       caption, a span line) leaves with them;
+    2. header blocks in ``header_order`` (:data:`constants.LEAD_BLOCK_DROP_ORDER`), the
+       later of two same-kind blocks first;
+    3. every other engine block, from the end.
+
+    Never removed: E5 protected records (persona, instruction-flagged, disputed) and the
+    retrieved records of the stable prefix, which the packer already charged. When those
+    alone exceed the budget the context stays over it and says ``oversize``; otherwise a
+    trimmed context says ``trimmed`` (an ``oversize`` from the packer is kept). Manifests stay
+    consistent: a removed record's hit leaves ``hits``, and a hit whose included turn was
+    removed lists it as dropped, so it is ``partial``.
+    """
+    budget = max(0, budget)
+    records = list(context.records)
+    costs = [count(r.content) for r in records]
+    total = sum(costs)
+    if total <= budget:
+        return context
+    boundary = min(context.boundary_index, len(records))
+    kept = [True] * len(records)
+    tracing = trace_sink.FORENSICS.get() is not None
+    removed_log: list[tuple[str, str]] = []
+
+    def mandatory(i: int) -> bool:
+        record = records[i]
+        return CompressionPolicy.protected(record) or (i < boundary and not _is_block(record))
+
+    def drop(i: int, tier: str) -> None:
+        nonlocal total
+        kept[i] = False
+        total -= costs[i]
+        removed_log.append((records[i].record_id, tier))
+        if tracing:
+            trace_sink.cut("budget_guard", records[i].record_id, tier=tier, cost=costs[i])
+
+    def gone() -> set[str]:
+        present = {records[i].record_id for i in range(len(records)) if kept[i]}
+        return {rid for rid, _ in removed_log} - present
+
+    # 1. retrieved records after the stable prefix, from the end
+    for i in range(len(records) - 1, boundary - 1, -1):
+        if total <= budget:
+            break
+        if not kept[i] or mandatory(i) or _is_block(records[i]):
+            continue
+        drop(i, "retrieved")
+        removed = gone()
+        for j, block in enumerate(records):
+            parents = block.source.parents
+            if (
+                kept[j]
+                and _is_block(block)
+                and not mandatory(j)
+                and parents
+                and all(p in removed for p in parents)
+            ):
+                drop(j, "orphaned")
+    # 2. header blocks in the lead drop order
+    for tag in header_order:
+        for i in range(len(records) - 1, -1, -1):
+            if total <= budget:
+                break
+            if kept[i] and not mandatory(i) and tag in records[i].tags:
+                drop(i, tag)
+    # 3. every other engine block, from the end
+    for i in range(len(records) - 1, -1, -1):
+        if total <= budget:
+            break
+        if kept[i] and not mandatory(i) and _is_block(records[i]):
+            drop(i, "block")
+
+    removed = gone()
+    present = [r for i, r in enumerate(records) if kept[i]]
+    present_ids = {r.record_id for r in present}
+    hits: dict[str, HitManifest] = {}
+    for rid, hit in context.hits.items():
+        if rid not in present_ids:
+            continue
+        moved = tuple(t for t in hit.included_turns if t in removed)
+        if moved:
+            hit = replace(
+                hit,
+                included_turns=tuple(t for t in hit.included_turns if t not in removed),
+                dropped_turns=(*hit.dropped_turns, *moved),
+            )
+        hits[rid] = hit
+    context.records = present
+    context.boundary_index = sum(1 for i in range(boundary) if kept[i])
+    context.tokens_used = total
+    context.hits = hits
+    context.budget_status = (
+        "oversize" if total > budget or context.budget_status == "oversize" else "trimmed"
+    )
+    if tap.enabled():
+        tap.event(
+            "compose.budget.trimmed",
+            budget=budget,
+            tokens=total,
+            removed=[{"id": rid, "tier": tier} for rid, tier in removed_log],
+            status=context.budget_status,
+        )
+    return context
