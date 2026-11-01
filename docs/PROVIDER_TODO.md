@@ -15,7 +15,7 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | EXCLUDED | 4 |
 | IN_PROGRESS | 20 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 32 |
+| OPEN | 33 |
 | PROPOSED | 1 |
 | REVIEW | 1 |
 
@@ -24,10 +24,10 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BI | 12 |
 | DS | 21 |
 | PA | 136 |
-| RM | 153 |
+| RM | 154 |
 | RS | 9 |
 
-Total: **331 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
+Total: **332 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
 <!-- CURRENT_SUMMARY_END -->
 
 ## Status and column legend
@@ -394,6 +394,7 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-151 | OPEN | P2 | Ingestion maintainer | Window follow-ups: unresolved inspect API, re-resolve on policy activation, durable staging under backpressure, compensate undoes supersedes | Windows report 2026-11-01: unresolved annotations visible only through the inspector event and effect status; nothing calls reresolve_unresolved on policy activation; a backpressure-deferred item keeps membership in memory so a crash loses the turn; compensate does not undo a supersede caused by a removed fact | Engine method for unresolved annotations; call reresolve_unresolved from activate_policy; durable staged items; compensate restores superseded facts | Prereq: RM-131, RM-143 |
 | RM-152 | OPEN | P3 | Storage maintainer | MongoDB implementation of the intake ledger port | RM-137 2026-11-01: MongoDB declares intake_ledger unsupported (no replica-set test environment; discovery writes into the SQL outbox job book) | Implement intake ledger and outbox job book on a MongoDB replica set with transactions; conformance suite gated on a Mongo server | Prereq: RM-137, RM-136 |
 | RM-153 | OPEN | P2 | Ingestion / read maintainers | Wave-4 follow-ups: window erasure re-derives other sources, known-entity cache reset on namespace erase, known-time horizon, tokens_used accuracy | Wave-4 reports 2026-11-01: erasing one source deletes the whole window effect including other sources unresolved annotations; cached known-entity names survive namespace erasure in process memory; historical windows do not filter known entities by known sequence; overlays count tokens with the estimator under exact_budget so tokens_used can drift | Re-derive surviving sources after a window effect erase; reset the known-entity cache on namespace erasure (also an RM-135 gate case); add a known-time horizon to the known-entity source; count overlays with the packer counter | Prereq: RM-133 |
+| RM-154 | OPEN | P1 | Read/compose + ingestion maintainers | Wave-4 review defects: truncation can drop untrusted-note closing markers (security), failed truncation empties the context, manifests stale after render fit, gate and consent, token counter mismatch, known-entity completeness, erased names in cursor memory, non-deterministic KNOWN, GLiNER on stale sources, yield-dependent revision | Wave-4 review 2026-11-01 (verified against code): compose/pack.py opening oversize stops the loop; render.py dated prefix hides the untrusted wrapper from _split_wrappers; render fit, read/pipeline/gate.py and api/ops_trust.py drop records without manifest updates and the gate can shift boundary_index; EstimatingCounter vs len//4+1; known_entities.py 64-seq lookback, sticky cap and insertion-order ties; workers/windows.py ahints on unfiltered records and producer_revision tied to yield | Two agents in progress 2026-11-01 (compose items 1-5; known-entity and window items 6-10), each with adversarial and replay tests | Prereq: RM-133 |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)
