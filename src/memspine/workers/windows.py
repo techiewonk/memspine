@@ -2676,6 +2676,9 @@ class WindowPipeline:
             await env.learned.load()
         transcript, _texts, people = build_transcript(records)
         lines = {
+            # TODO(RM-146 merge): set binding_hash=source_binding(rec).binding_hash here
+            # (memspine.store.source_binding, not in this base yet) so model-path claims built
+            # from window lines carry the source binding hash.
             n: WindowLine(
                 turn_id=rec.record_id,
                 source_id=rec.record_id,  # evidence names the turn record: parents come from it
