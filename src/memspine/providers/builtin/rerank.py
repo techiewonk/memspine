@@ -39,8 +39,16 @@ __all__ = ["register"]
 
 def _onnx(settings: OnnxRerankerSettings, registry: ResourceRegistry | None) -> Any:
     from memspine.clients.weights.onnx import rerank_weights
+    from memspine.clients.weights.onnx_catalogue import resolve_model_spec
+    from memspine.clients.weights.onnx_files import require_cached
     from memspine.services.rerank.onnx import OnnxReranker
 
+    if not settings.download:
+        # ADR-093 / D-10: no download during a request. Missing (or differing) weights are a
+        # MissingServiceError naming the fetch command, so the lazy build skip-logs it.
+        require_cached(
+            settings.model, resolve_model_spec(settings.model, settings.model_spec), verify=True
+        )
     return OnnxReranker(
         settings.model,
         batch_size=settings.batch_size,
@@ -50,7 +58,7 @@ def _onnx(settings: OnnxRerankerSettings, registry: ResourceRegistry | None) -> 
             model_spec=settings.model_spec,
             threads=settings.threads,
             providers=settings.providers,
-            local_files_only=settings.local_files_only,
+            local_files_only=not settings.download,
             registry=registry,
         ),
     )

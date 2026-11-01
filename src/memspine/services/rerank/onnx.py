@@ -21,7 +21,7 @@ class OnnxReranker:
         batch_size: int = 64,
         threads: int = 0,
         providers: Sequence[str] | None = None,
-        local_files_only: bool = False,
+        local_files_only: bool = True,
     ) -> None:
         if batch_size < 1:
             raise ValueError("ONNX batch_size must be positive")

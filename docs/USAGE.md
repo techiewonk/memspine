@@ -1944,9 +1944,38 @@ an explicit catalogue of pinned Hugging Face exports. The four embedding models
 are BGE small/base English, all-MiniLM-L6-v2, and the multilingual MiniLM preset;
 the cross-encoder is `Xenova/ms-marco-MiniLM-L-6-v2`. Unsupported models require
 complete `settings.model_spec` metadata; pooling and file choices are not guessed.
-Set `settings.local_files_only: true` for offline loading, `threads` for runtime
-threads, `providers` for installed execution providers, and `batch_size` for
-inference batches. Files live only in the standard Hugging Face cache.
+Loading is offline by default: weights come from the standard Hugging Face cache
+(see "Fetching model weights" below). Set `settings.download: true` only to let a load
+download a missing file. Use `threads` for runtime threads, `providers` for installed
+execution providers, and `batch_size` for inference batches.
+
+### Fetching model weights (ADR-093)
+
+Every file in the ONNX catalogue is pinned by revision, byte size and SHA-256. Fetch
+the weights once, before the first `Engine` start:
+
+```bash
+memspine models fetch --template base            # the template's onnx slots
+memspine models fetch --model Xenova/ms-marco-MiniLM-L-6-v2   # one catalogue model (repeatable)
+memspine models fetch --template base --cache-dir /path/to/hf-cache
+memspine models fetch --template base --check    # verify the cache only, no network
+```
+
+The command resolves `model.embedding`, every `model.rerank.chain` entry and any
+`onnx` extraction slot to catalogue entries. It downloads each file into the Hugging
+Face cache, verifies its digest and prints one line per file
+(`<model> <file> sha256 ok <size> bytes`). It exits non-zero on any failure. A cached
+file with the wrong digest is downloaded once more, and the command fails if the new
+copy is still wrong. `--check` fails on any missing or differing file.
+
+At start, the Engine checks that every cache-only ONNX slot is in the cache. A missing
+file raises `MissingServiceError` naming `memspine models fetch` (D-10). With
+`strict_services: false`, a missing reranker is skipped with a warning, and reranking
+stays off. The embedder still starts, but its first load fails until the weights are
+fetched. Each load checks every pinned file against its digest, and a file that
+differs is never used. Nothing is downloaded during a request unless the slot sets
+`settings.download: true`. The digests are recorded in
+`docs/provider_verification/onnx_catalogue_digests_2026-11-01.json`.
 
 Catalogue models report `embedder:<model>`. Fresh tables, projection bindings and
 versioned spaces use that identity directly. No retired-provider IDs, cache paths,

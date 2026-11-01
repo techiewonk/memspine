@@ -122,6 +122,156 @@ CATALOGUE: dict[str, OnnxModelSpec] = {
 }
 
 
+#: Tokenizer metadata every ONNX load reads beside ``tokenizer_file`` (see ``OnnxModel``).
+TOKENIZER_METADATA_FILES: tuple[str, ...] = ("tokenizer_config.json", "special_tokens_map.json")
+
+
+@dataclass(frozen=True)
+class PinnedFile:
+    """One pinned catalogue file: its repository path, byte size and SHA-256 content digest."""
+
+    filename: str
+    size: int
+    sha256: str
+
+    def __post_init__(self) -> None:
+        if type(self.size) is not int or self.size < 0:
+            raise ValueError("pinned file size must be a nonnegative integer")
+        if len(self.sha256) != 64 or any(c not in "0123456789abcdef" for c in self.sha256):
+            raise ValueError("pinned file sha256 must be 64 lower-case hex characters")
+
+
+def _pins(*rows: tuple[str, int, str]) -> tuple[PinnedFile, ...]:
+    return tuple(PinnedFile(name, size, digest) for name, size, digest in rows)
+
+
+_BERT_UNCASED_TOKENIZER = (
+    ("tokenizer.json", 711396, "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66"),
+    (
+        "tokenizer_config.json",
+        1242,
+        "0b29c7bfc889e53b36d9dd3e686dd4300f6525110eaa98c76a5dafceb2029f53",
+    ),
+)
+_BERT_SPECIAL_TOKENS = (
+    "special_tokens_map.json",
+    695,
+    "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+)
+
+#: ADR-093 (amendment 2026-11-01): every file a catalogue load reads, pinned by size and
+#: SHA-256. Digests were taken from ``hf_hub_download`` at the pinned revision; LFS files
+#: match the Hub's own LFS sha256 (evidence:
+#: docs/provider_verification/onnx_catalogue_digests_2026-11-01.json). An int8 variant would
+#: be its own row. The loader and ``memspine models fetch`` refuse a file that differs.
+CATALOGUE_FILES: dict[str, tuple[PinnedFile, ...]] = {
+    "BAAI/bge-small-en-v1.5": _pins(
+        (
+            "model_optimized.onnx",
+            66465124,
+            "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431",
+        ),
+        *_BERT_UNCASED_TOKENIZER,
+        _BERT_SPECIAL_TOKENS,
+    ),
+    "BAAI/bge-base-en-v1.5": _pins(
+        (
+            "model_optimized.onnx",
+            217824172,
+            "4e556722bc4f65716c544c8a931f1e90fb3f866e5741fd93a96f051d673339c7",
+        ),
+        *_BERT_UNCASED_TOKENIZER,
+        _BERT_SPECIAL_TOKENS,
+    ),
+    "sentence-transformers/all-MiniLM-L6-v2": _pins(
+        (
+            "model.onnx",
+            90387630,
+            "bbd7b466f6d58e646fdc2bd5fd67b2f5e93c0b687011bd4548c420f7bd46f0c5",
+        ),
+        (
+            "tokenizer.json",
+            711649,
+            "851ca67100d372ca3ae031a6abd168f53489eebfd7d89523f35c5c9b4d372c3c",
+        ),
+        (
+            "tokenizer_config.json",
+            1412,
+            "abda01c8c14c5151ae498aceb30db406d6b91242c394fd88d3b6fd5a63a101e6",
+        ),
+        _BERT_SPECIAL_TOKENS,
+    ),
+    "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2": _pins(
+        (
+            "model_optimized.onnx",
+            235052644,
+            "634d0f66c29dc934c8fa72b8a4fe91dd4d420a22f1d82a241058d4316e659a99",
+        ),
+        (
+            "tokenizer.json",
+            17083009,
+            "fa685fc160bbdbab64058d4fc91b60e62d207e8dc60b9af5c002c5ab946ded00",
+        ),
+        (
+            "tokenizer_config.json",
+            1416,
+            "0666eebf692422757e1dddf3c9fb1ded73ba3dc726c5828671fc89e45bf3609f",
+        ),
+        (
+            "special_tokens_map.json",
+            964,
+            "8c785abebea9ae3257b61681b4e6fd8365ceafde980c21970d001e834cf10835",
+        ),
+    ),
+    "Xenova/ms-marco-MiniLM-L-6-v2": _pins(
+        (
+            "onnx/model.onnx",
+            90992115,
+            "c623d0bcb99f4622beb413eaef00cfbe5db20df9f1dd982da4b4f26022881870",
+        ),
+        *_BERT_UNCASED_TOKENIZER,
+        (
+            "special_tokens_map.json",
+            125,
+            "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+        ),
+    ),
+}
+
+_PINNED_BY_SOURCE: dict[tuple[str, str], dict[str, PinnedFile]] = {
+    (CATALOGUE[model].repo, CATALOGUE[model].revision): {pin.filename: pin for pin in pins}
+    for model, pins in CATALOGUE_FILES.items()
+}
+
+
+_ID_BY_SOURCE: dict[tuple[str, str], str] = {
+    (spec.repo, spec.revision): model for model, spec in CATALOGUE.items()
+}
+
+
+def catalogue_id(spec: OnnxModelSpec) -> str | None:
+    """The catalogue model id whose pinned export ``spec`` names, if any."""
+    return _ID_BY_SOURCE.get((spec.repo, spec.revision))
+
+
+def spec_files(spec: OnnxModelSpec) -> tuple[str, ...]:
+    """Every repository file an ONNX load of ``spec`` reads, in load order."""
+    return (
+        spec.model_file,
+        *spec.additional_files,
+        spec.tokenizer_file,
+        *TOKENIZER_METADATA_FILES,
+    )
+
+
+def pinned_file(spec: OnnxModelSpec, filename: str) -> PinnedFile | None:
+    """The pinned digest for ``filename`` of ``spec``'s repo at its revision, if catalogued.
+
+    Keyed by source (repo, revision), so a custom ``model_spec`` naming a catalogued export is
+    verified too; any other custom export has no pin (its integrity is the caller's)."""
+    return _PINNED_BY_SOURCE.get((spec.repo, spec.revision), {}).get(filename)
+
+
 def resolve_model_spec(
     model: str, model_spec: dict[str, Any] | OnnxModelSpec | None = None
 ) -> OnnxModelSpec:

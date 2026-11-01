@@ -185,7 +185,7 @@ def _embed_onnx(settings: OnnxEmbeddingSettings, registry: ResourceRegistry | No
             model_spec=settings.model_spec,
             threads=settings.threads,
             providers=settings.providers,
-            local_files_only=settings.local_files_only,
+            local_files_only=not settings.download,
             registry=registry,
         ),
     )

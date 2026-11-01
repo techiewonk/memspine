@@ -294,7 +294,9 @@ class OnnxEmbeddingSettings(StrictSettings):
     model: str = "BAAI/bge-small-en-v1.5"
     query_instruction: str | None = None
     dim: int | None = Field(default=None, ge=1)
-    local_files_only: bool = False
+    #: ADR-093: weights come from the Hugging Face cache (``memspine models fetch``); only an
+    #: explicit ``true`` lets a load download them.
+    download: bool = False
     threads: int = Field(default=0, ge=0)
     batch_size: int = Field(default=32, ge=1)
     providers: tuple[str, ...] = Field(default=("CPUExecutionProvider",), min_length=1)
@@ -441,7 +443,8 @@ class SentenceTransformersEmbeddingSettings(StrictSettings):
 
 class OnnxRerankerSettings(StrictSettings):
     model: str = Field(default=constants.RERANK_ONNX_MODEL, min_length=1)
-    local_files_only: bool = False
+    #: ADR-093: cache-only unless explicitly ``true`` (see OnnxEmbeddingSettings.download).
+    download: bool = False
     threads: int = Field(default=0, ge=0)
     batch_size: int = Field(default=32, ge=1)
     providers: tuple[str, ...] = Field(default=("CPUExecutionProvider",), min_length=1)

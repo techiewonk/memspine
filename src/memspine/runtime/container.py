@@ -793,6 +793,10 @@ def check_capabilities(config: MemspineConfig) -> Capabilities:
             gaps={k: sorted(v) for k, v in gaps.items()},
             first_missing=f"{mem_type} needs {service}",
         )
+    # ADR-093: cache-only ONNX weights must already be fetched (no download during a request).
+    from memspine.runtime.model_weights import check_model_weights
+
+    check_model_weights(config)
     enable_plugins(config.plugins)
     # ADR-081 WP6: deployment.locality and data_dir rules, before any provider opens.
     validate_deployment_locality(config, enabled=enabled)

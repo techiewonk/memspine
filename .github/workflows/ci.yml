@@ -26,6 +26,15 @@ jobs:
         run: uv run ruff check . && uv run ruff format --check .
       - name: Typecheck
         run: uv run mypy
+      # ADR-093: Engine start needs the pinned ONNX weights in the HF cache (no download
+      # during a request). The cache key follows the pinned catalogue (revisions + SHA-256).
+      - name: Restore model weight cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface/hub
+          key: hf-weights-${{ runner.os }}-${{ hashFiles('src/memspine/clients/weights/onnx_catalogue.py') }}
+      - name: Fetch and verify model weights
+        run: uv run memspine models fetch --template base --model Xenova/ms-marco-MiniLM-L-6-v2
       - name: Test
         run: uv run pytest -rs -q
 

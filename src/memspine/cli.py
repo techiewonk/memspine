@@ -381,5 +381,70 @@ def tap_report_cmd(
     tap_report.main(argv)
 
 
+models_app = typer.Typer(help="Fetch and verify the pinned model weights (ADR-093).")
+app.add_typer(models_app, name="models")
+
+
+@models_app.command("fetch")
+def models_fetch_cmd(
+    template: TemplateOpt = None,
+    config_file: FileOpt = None,
+    model: Annotated[
+        list[str] | None,
+        typer.Option("--model", "-m", help="Catalogue model id (repeatable)"),
+    ] = None,
+    cache_dir: Annotated[
+        Path | None, typer.Option("--cache-dir", help="Hugging Face cache directory")
+    ] = None,
+    check: Annotated[
+        bool, typer.Option("--check", help="Verify the cache only; no network")
+    ] = False,
+) -> None:
+    """Download and SHA-256-verify the ONNX weights of a template's model slots.
+
+    Resolves model.embedding, model.rerank.chain and any onnx extraction slot to the pinned
+    catalogue, plus every ``--model``. ``--model`` alone fetches just those models. Prints
+    one line per file; exits non-zero on any failure."""
+    from memspine.clients.weights.onnx_files import fetch_model
+    from memspine.runtime.model_weights import (
+        WeightRequirement,
+        catalogue_requirement,
+        onnx_requirements,
+    )
+
+    wanted: list[WeightRequirement] = []
+    try:
+        if template is not None or config_file is not None or not model:
+            wanted.extend(onnx_requirements(_load(template, config_file).config))
+        wanted.extend(catalogue_requirement(name) for name in model or ())
+    except (ConfigError, ValueError) as exc:
+        typer.secho(f"invalid: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    seen: set[tuple[str, str]] = set()
+    failures = 0
+    for req in wanted:
+        key = (req.spec.repo, req.spec.revision)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            reports = fetch_model(
+                req.model,
+                req.spec,
+                cache_dir=None if cache_dir is None else str(cache_dir),
+                check_only=check,
+            )
+        except Exception as exc:  # any download/verify failure is reported, then exit 1
+            failures += 1
+            typer.secho(f"{req.model} FAILED: {exc}", fg=typer.colors.RED, err=True)
+            continue
+        for report in reports:
+            typer.echo(report.line())
+    if not seen:
+        typer.echo("no onnx model slots to fetch")
+    if failures:
+        raise typer.Exit(code=1)
+
+
 if __name__ == "__main__":  # pragma: no cover
     app()

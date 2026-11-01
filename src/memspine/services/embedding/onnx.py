@@ -31,7 +31,7 @@ class OnnxEmbedding:
         batch_size: int = 256,
         threads: int = 0,
         providers: Sequence[str] | None = None,
-        local_files_only: bool = False,
+        local_files_only: bool = True,
     ) -> None:
         self._model_name = model
         self._spec = resolve_model_spec(model, model_spec)

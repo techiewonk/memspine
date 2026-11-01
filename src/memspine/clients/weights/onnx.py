@@ -1,4 +1,8 @@
-"""Lazy HF-cache ONNX sessions and tokenizers; no model downloads at import."""
+"""Lazy HF-cache ONNX sessions and tokenizers; no model downloads at import.
+
+ADR-093: loads are cache-only (``local_files_only=True``) unless the caller opts in, and
+every catalogued file is checked against its pinned SHA-256 before it is used.
+"""
 
 from __future__ import annotations
 
@@ -8,7 +12,15 @@ from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
 
-from memspine.clients.weights.onnx_catalogue import OnnxModelSpec, resolve_model_spec, spec_identity
+from memspine.clients.weights.onnx_catalogue import (
+    TOKENIZER_METADATA_FILES,
+    OnnxModelSpec,
+    catalogue_id,
+    pinned_file,
+    resolve_model_spec,
+    spec_identity,
+)
+from memspine.clients.weights.onnx_files import FETCH_COMMAND, verify_file
 from memspine.clients.weights.shared import SharedWeights, WeightRegistry
 
 WARM_TEXT = "warm-up"
@@ -23,7 +35,7 @@ class OnnxModel:
         *,
         threads: int = 0,
         providers: Sequence[str] | None = None,
-        local_files_only: bool = False,
+        local_files_only: bool = True,
     ) -> None:
         import onnxruntime as ort
         from huggingface_hub import hf_hub_download
@@ -36,7 +48,7 @@ class OnnxModel:
 
         def download(filename: str) -> str:
             try:
-                return str(
+                path = str(
                     hf_hub_download(
                         spec.repo,
                         filename,
@@ -47,17 +59,22 @@ class OnnxModel:
             except Exception as exc:
                 raise FileNotFoundError(
                     f"ONNX required file {filename!r} unavailable for {spec.repo}@{spec.revision}"
-                    f" (local_files_only={local_files_only})"
+                    f" (local_files_only={local_files_only}); run `{FETCH_COMMAND}` first"
                 ) from exc
+            pin = pinned_file(spec, filename)
+            if pin is not None:  # ADR-093: a differing file is never used
+                verify_file(path, pin, model=catalogue_id(spec) or spec.repo)
+            return path
 
         model_path = download(spec.model_file)
         for filename in spec.additional_files:
             download(filename)
         tokenizer_path = download(spec.tokenizer_file)
-        config = json.loads(Path(download("tokenizer_config.json")).read_text(encoding="utf-8"))
+        config_file, tokens_file = TOKENIZER_METADATA_FILES
+        config = json.loads(Path(download(config_file)).read_text(encoding="utf-8"))
         self.tokenizer = Tokenizer.from_file(tokenizer_path)
         # Repositories declare additional special tokens beyond tokenizer.json.
-        tokens = json.loads(Path(download("special_tokens_map.json")).read_text(encoding="utf-8"))
+        tokens = json.loads(Path(download(tokens_file)).read_text(encoding="utf-8"))
         for value in tokens.values():
             for token in value if isinstance(value, list) else [value]:
                 self.tokenizer.add_special_tokens(
@@ -164,7 +181,7 @@ def _weights(
     model_spec: dict[str, Any] | OnnxModelSpec | None = None,
     threads: int = 0,
     providers: Sequence[str] | None = None,
-    local_files_only: bool = False,
+    local_files_only: bool = True,
     registry: WeightRegistry | None = None,
 ) -> SharedWeights[OnnxModel]:
     spec = resolve_model_spec(model, model_spec)
@@ -203,7 +220,7 @@ def text_weights(
     model_spec: dict[str, Any] | OnnxModelSpec | None = None,
     threads: int = 0,
     providers: Sequence[str] | None = None,
-    local_files_only: bool = False,
+    local_files_only: bool = True,
     registry: WeightRegistry | None = None,
 ) -> SharedWeights[OnnxModel]:
     return _weights(
@@ -223,7 +240,7 @@ def rerank_weights(
     model_spec: dict[str, Any] | OnnxModelSpec | None = None,
     threads: int = 0,
     providers: Sequence[str] | None = None,
-    local_files_only: bool = False,
+    local_files_only: bool = True,
     registry: WeightRegistry | None = None,
 ) -> SharedWeights[OnnxModel]:
     return _weights(

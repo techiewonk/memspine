@@ -1,0 +1,188 @@
+{
+  "task": "RM-134 (fetch part)",
+  "decision": "ADR-093 amendment 2026-11-01: every catalogue file pins a SHA-256 content digest",
+  "date": "2026-11-01",
+  "method": "huggingface_hub 2.4.0 hf_hub_download(repo, file, revision=<pinned>) then sha256 of the file bytes; LFS files cross-checked against HfApi.get_paths_info(...).lfs.sha256 (hub_lfs_sha256_match true); non-LFS files (null) matched the Hub-reported size",
+  "files": [
+    {
+      "model": "BAAI/bge-small-en-v1.5",
+      "repo": "Qdrant/bge-small-en-v1.5-onnx-Q",
+      "revision": "aa8f8b060edb00e03bfdd08813a2949946c8ba55",
+      "file": "model_optimized.onnx",
+      "size": 66465124,
+      "sha256": "51f1bd0addd6e859e42c2c8021a5e5461385bb676a649f4b269aa445449f2431",
+      "hub_lfs_sha256_match": true
+    },
+    {
+      "model": "BAAI/bge-small-en-v1.5",
+      "repo": "Qdrant/bge-small-en-v1.5-onnx-Q",
+      "revision": "aa8f8b060edb00e03bfdd08813a2949946c8ba55",
+      "file": "tokenizer.json",
+      "size": 711396,
+      "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "BAAI/bge-small-en-v1.5",
+      "repo": "Qdrant/bge-small-en-v1.5-onnx-Q",
+      "revision": "aa8f8b060edb00e03bfdd08813a2949946c8ba55",
+      "file": "tokenizer_config.json",
+      "size": 1242,
+      "sha256": "0b29c7bfc889e53b36d9dd3e686dd4300f6525110eaa98c76a5dafceb2029f53",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "BAAI/bge-small-en-v1.5",
+      "repo": "Qdrant/bge-small-en-v1.5-onnx-Q",
+      "revision": "aa8f8b060edb00e03bfdd08813a2949946c8ba55",
+      "file": "special_tokens_map.json",
+      "size": 695,
+      "sha256": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "BAAI/bge-base-en-v1.5",
+      "repo": "Qdrant/bge-base-en-v1.5-onnx-Q",
+      "revision": "199291fdd1aa89faf9c20b722dc72ad5e17aa0d0",
+      "file": "model_optimized.onnx",
+      "size": 217824172,
+      "sha256": "4e556722bc4f65716c544c8a931f1e90fb3f866e5741fd93a96f051d673339c7",
+      "hub_lfs_sha256_match": true
+    },
+    {
+      "model": "BAAI/bge-base-en-v1.5",
+      "repo": "Qdrant/bge-base-en-v1.5-onnx-Q",
+      "revision": "199291fdd1aa89faf9c20b722dc72ad5e17aa0d0",
+      "file": "tokenizer.json",
+      "size": 711396,
+      "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "BAAI/bge-base-en-v1.5",
+      "repo": "Qdrant/bge-base-en-v1.5-onnx-Q",
+      "revision": "199291fdd1aa89faf9c20b722dc72ad5e17aa0d0",
+      "file": "tokenizer_config.json",
+      "size": 1242,
+      "sha256": "0b29c7bfc889e53b36d9dd3e686dd4300f6525110eaa98c76a5dafceb2029f53",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "BAAI/bge-base-en-v1.5",
+      "repo": "Qdrant/bge-base-en-v1.5-onnx-Q",
+      "revision": "199291fdd1aa89faf9c20b722dc72ad5e17aa0d0",
+      "file": "special_tokens_map.json",
+      "size": 695,
+      "sha256": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "repo": "Qdrant/all-MiniLM-L6-v2-onnx",
+      "revision": "d13954661f83248295ba75c1ed411eef3b7b936e",
+      "file": "model.onnx",
+      "size": 90387630,
+      "sha256": "bbd7b466f6d58e646fdc2bd5fd67b2f5e93c0b687011bd4548c420f7bd46f0c5",
+      "hub_lfs_sha256_match": true
+    },
+    {
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "repo": "Qdrant/all-MiniLM-L6-v2-onnx",
+      "revision": "d13954661f83248295ba75c1ed411eef3b7b936e",
+      "file": "tokenizer.json",
+      "size": 711649,
+      "sha256": "851ca67100d372ca3ae031a6abd168f53489eebfd7d89523f35c5c9b4d372c3c",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "repo": "Qdrant/all-MiniLM-L6-v2-onnx",
+      "revision": "d13954661f83248295ba75c1ed411eef3b7b936e",
+      "file": "tokenizer_config.json",
+      "size": 1412,
+      "sha256": "abda01c8c14c5151ae498aceb30db406d6b91242c394fd88d3b6fd5a63a101e6",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "sentence-transformers/all-MiniLM-L6-v2",
+      "repo": "Qdrant/all-MiniLM-L6-v2-onnx",
+      "revision": "d13954661f83248295ba75c1ed411eef3b7b936e",
+      "file": "special_tokens_map.json",
+      "size": 695,
+      "sha256": "5d5b662e421ea9fac075174bb0688ee0d9431699900b90662acd44b2a350503a",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "repo": "Qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+      "revision": "faf4aa4225822f3bc6376869cb1164e8e3feedd0",
+      "file": "model_optimized.onnx",
+      "size": 235052644,
+      "sha256": "634d0f66c29dc934c8fa72b8a4fe91dd4d420a22f1d82a241058d4316e659a99",
+      "hub_lfs_sha256_match": true
+    },
+    {
+      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "repo": "Qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+      "revision": "faf4aa4225822f3bc6376869cb1164e8e3feedd0",
+      "file": "tokenizer.json",
+      "size": 17083009,
+      "sha256": "fa685fc160bbdbab64058d4fc91b60e62d207e8dc60b9af5c002c5ab946ded00",
+      "hub_lfs_sha256_match": true
+    },
+    {
+      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "repo": "Qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+      "revision": "faf4aa4225822f3bc6376869cb1164e8e3feedd0",
+      "file": "tokenizer_config.json",
+      "size": 1416,
+      "sha256": "0666eebf692422757e1dddf3c9fb1ded73ba3dc726c5828671fc89e45bf3609f",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
+      "repo": "Qdrant/paraphrase-multilingual-MiniLM-L12-v2-onnx-Q",
+      "revision": "faf4aa4225822f3bc6376869cb1164e8e3feedd0",
+      "file": "special_tokens_map.json",
+      "size": 964,
+      "sha256": "8c785abebea9ae3257b61681b4e6fd8365ceafde980c21970d001e834cf10835",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "Xenova/ms-marco-MiniLM-L-6-v2",
+      "repo": "Xenova/ms-marco-MiniLM-L-6-v2",
+      "revision": "a09144355adeed5f58c8ed011d209bf8ee5a1fec",
+      "file": "onnx/model.onnx",
+      "size": 90992115,
+      "sha256": "c623d0bcb99f4622beb413eaef00cfbe5db20df9f1dd982da4b4f26022881870",
+      "hub_lfs_sha256_match": true
+    },
+    {
+      "model": "Xenova/ms-marco-MiniLM-L-6-v2",
+      "repo": "Xenova/ms-marco-MiniLM-L-6-v2",
+      "revision": "a09144355adeed5f58c8ed011d209bf8ee5a1fec",
+      "file": "tokenizer.json",
+      "size": 711396,
+      "sha256": "d241a60d5e8f04cc1b2b3e9ef7a4921b27bf526d9f6050ab90f9267a1f9e5c66",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "Xenova/ms-marco-MiniLM-L-6-v2",
+      "repo": "Xenova/ms-marco-MiniLM-L-6-v2",
+      "revision": "a09144355adeed5f58c8ed011d209bf8ee5a1fec",
+      "file": "tokenizer_config.json",
+      "size": 1242,
+      "sha256": "0b29c7bfc889e53b36d9dd3e686dd4300f6525110eaa98c76a5dafceb2029f53",
+      "hub_lfs_sha256_match": null
+    },
+    {
+      "model": "Xenova/ms-marco-MiniLM-L-6-v2",
+      "repo": "Xenova/ms-marco-MiniLM-L-6-v2",
+      "revision": "a09144355adeed5f58c8ed011d209bf8ee5a1fec",
+      "file": "special_tokens_map.json",
+      "size": 125,
+      "sha256": "b6d346be366a7d1d48332dbc9fdf3bf8960b5d879522b7799ddba59e76237ee3",
+      "hub_lfs_sha256_match": null
+    }
+  ]
+}

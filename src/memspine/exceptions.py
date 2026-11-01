@@ -16,6 +16,7 @@ __all__ = [
     "RebuildUnavailableError",
     "RollbackUnavailableError",
     "StorageError",
+    "WeightIntegrityError",
 ]
 
 
@@ -37,11 +38,22 @@ class MissingServiceError(MemspineError):
     Always names the extra that provides it, so the fix is one pip install away.
     """
 
-    def __init__(self, service: str, extra: str | None = None) -> None:
+    def __init__(self, service: str, extra: str | None = None, *, hint: str | None = None) -> None:
         self.service = service
         self.extra = extra
-        hint = f" — install with `pip install memspine[{extra}]`" if extra else ""
-        super().__init__(f"required service {service!r} is not available{hint}")
+        self.hint = hint
+        detail = f" — install with `pip install memspine[{extra}]`" if extra else ""
+        if hint:
+            detail += f" — {hint}"
+        super().__init__(f"required service {service!r} is not available{detail}")
+
+
+class WeightIntegrityError(MissingServiceError):
+    """A pinned model file differs from its catalogue digest (ADR-093); it is never loaded."""
+
+    def __init__(self, service: str, detail: str, *, hint: str | None = None) -> None:
+        self.detail = detail
+        super().__init__(service, hint=f"{detail}; {hint}" if hint else detail)
 
 
 class ConflictError(MemspineError):

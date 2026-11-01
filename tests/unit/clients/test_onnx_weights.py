@@ -80,7 +80,7 @@ async def test_identical_specs_share_one_load_without_sharing_holder_limits(
 def test_weight_identity_covers_runtime_policy() -> None:
     first = text_weights(MODEL, threads=1)
     assert first.identity() != text_weights(MODEL, threads=2).identity()
-    assert first.identity() != text_weights(MODEL, threads=1, local_files_only=True).identity()
+    assert first.identity() != text_weights(MODEL, threads=1, local_files_only=False).identity()
 
 
 @pytest.mark.asyncio
