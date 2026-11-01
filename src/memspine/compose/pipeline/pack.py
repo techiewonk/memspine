@@ -7,7 +7,7 @@ from typing import Any
 
 from memspine.compose.budget import Budget, EstimatingCounter
 from memspine.compose.bundles import TurnKey, TurnText, build_bundles, pack
-from memspine.compose.pack import AssembledContext
+from memspine.compose.pack import AssembledContext, HitManifest, truncated_copy
 from memspine.compose.pipeline.render import BUNDLE_TAG, current_counter, record_envelope, tok
 from memspine.config import constants
 from memspine.core import trace_sink
@@ -32,9 +32,6 @@ from memspine.read.pipeline.time_guard import blocks_guarded
 from memspine.store.records import MemoryRecord, RecordStatus
 
 _log = get_logger(__name__)
-
-#: R3-09b: source turns shown with a fact bundle (the best-overlapping ones).
-_BUNDLE_TURNS = 2
 
 
 def _reply_budget(eng: Any, budget_tokens: int) -> int:
@@ -523,10 +520,11 @@ def _context_eligible(eng: Any, record: MemoryRecord) -> bool:
     return not integrity.enabled or integrity.admits(record.trust)
 
 
-async def _source_turns(eng: Any, fact: MemoryRecord, cap: int) -> list[MemoryRecord]:
+async def _source_turns(eng: Any, fact: MemoryRecord) -> list[MemoryRecord]:
     """R3-09b: the eligible parent turns of ``fact`` (decorated like any context record), the
-    ``cap`` sharing most words with it first. Today's records carry no evidence lists: the fact's
-    source turns (``source.parents``) are its support evidence."""
+    ones sharing most words with it first. Today's records carry no evidence lists: the fact's
+    source turns (``source.parents``) are its support evidence, so these are the turns its
+    ADR-092 dependency manifest needs."""
     storage = eng._require_started()
     words = set(fact.content.lower().split())
     found: list[tuple[float, int, MemoryRecord]] = []
@@ -547,7 +545,7 @@ async def _source_turns(eng: Any, fact: MemoryRecord, cap: int) -> list[MemoryRe
         overlap = len(words & other) / (len(words | other) or 1)
         found.append((-overlap, index, decorated[0][0]))
     found.sort(key=lambda t: (t[0], t[1]))
-    return [r for _, _, r in found[:cap]]
+    return [r for _, _, r in found]
 
 
 def _turn_text(turn: MemoryRecord) -> TurnText:
@@ -572,16 +570,24 @@ async def bundle_selected(
     what the bundles left. Fact bundles may take ``read.bundle_fact_share`` of the room while
     other records wait, all of it when none do. A turn cited by an included bundle is not repeated
     as a record of its own. The stable prefix is kept and charged first.
+
+    ADR-092: a bundle shows its fact's best ``read.bundle_turns`` source turns; every packed hit
+    gets a dependency manifest in ``assembled.hits`` (needed, included and dropped turns), and a
+    fact whose needed turn was cut is ``partial``. The budget is a hard cap: when nothing else
+    entered, an oversize first record is cut to the room left (sentence, else whitespace
+    boundary); one that does not fit even cut is left out and ``budget_status`` is ``oversize``.
     """
     cfg = eng._config().read
     counter = current_counter() or EstimatingCounter()
     boundary = min(assembled.boundary_index, len(assembled.records))
     facts: dict[str, tuple[MemoryRecord, list[MemoryRecord]]] = {}
+    needed: dict[str, list[MemoryRecord]] = {}
     for record in assembled.records:
         if "atomic_fact" in record.tags and record.source.parents and not record.is_engine_block:
-            turns = await _source_turns(eng, record, _BUNDLE_TURNS)
-            if turns:
-                facts[record.record_id] = (record, turns)
+            eligible = await _source_turns(eng, record)
+            if eligible:
+                needed[record.record_id] = eligible
+                facts[record.record_id] = (record, eligible[: cfg.bundle_turns])
     # Mined facts are semantic records, so placement puts them in the stable prefix; as bundles
     # they depend on the query, so they move to the front of the volatile part.
     stable = [r for r in assembled.records[:boundary] if r.record_id not in facts]
@@ -639,8 +645,12 @@ async def bundle_selected(
     elif bundles:
         dropped.extend({"id": b.record_id, "reason": "over_budget"} for b in bundles)
 
+    # The result is accounted line by line (each line is a record), so the room left is too.
+    spent = sum(counter.count(r.content) for lines in lines_for.values() for r in lines)
     remaining = max(0, room - spent)
-    kept_other: set[str] = set()
+    kept_other: dict[str, MemoryRecord] = {}
+    hits: dict[str, HitManifest] = {}
+    oversize = False
     skips = 0
     for record in others:
         if record.record_id in cited:
@@ -650,22 +660,62 @@ async def bundle_selected(
             dropped.append({"id": record.record_id, "reason": "early_break"})
             continue
         cost = counter.count(record.content)
-        if cost <= remaining or (not kept_other and not included_ids and not stable):
-            kept_other.add(record.record_id)  # never an empty context: the first one always enters
-            remaining -= min(cost, remaining)
+        if cost <= remaining:
+            kept_other[record.record_id] = record
+            remaining -= cost
+        elif not kept_other and not included_ids and not stable and not oversize:
+            # Never an empty context: the first record enters, cut to the room (ADR-092).
+            cut = truncated_copy(record, remaining, counter.count)
+            if cut is None:
+                oversize = True
+                dropped.append({"id": record.record_id, "reason": "oversize"})
+                continue
+            earlier = assembled.hits.get(record.record_id)
+            original = earlier.original_tokens if earlier and earlier.truncated else cost
+            hits[record.record_id] = HitManifest(
+                record.record_id, truncated=True, original_tokens=original
+            )
+            kept_other[record.record_id] = cut[0]
+            remaining -= counter.count(cut[0].content)
         else:
             skips += 1
             dropped.append({"id": record.record_id, "reason": "over_budget"})
 
+    def total() -> int:
+        return (
+            sum(counter.count(r.content) for r in stable)
+            + spent
+            + sum(counter.count(r.content) for r in kept_other.values())
+        )
+
+    while kept_other and total() > budget_tokens:  # per-line rounding: shed the last other
+        rid = next(reversed(kept_other))
+        kept_other.pop(rid)
+        dropped.append({"id": rid, "reason": "over_budget"})
+
     out: list[MemoryRecord] = []
     for record in volatile:
-        if record.record_id in included_ids:
-            out.extend(lines_for.get(record.record_id, []))
-        elif record.record_id in kept_other:
-            out.append(record)
+        rid = record.record_id
+        if rid in included_ids:
+            out.extend(lines_for.get(rid, []))
+            shown = facts[rid][1]
+            hits[rid] = HitManifest(
+                rid,
+                needed_turns=tuple(t.record_id for t in needed[rid]),
+                included_turns=tuple(t.record_id for t in shown),
+                dropped_turns=tuple(t.record_id for t in needed[rid][len(shown) :]),
+            )
+        elif rid in kept_other:
+            out.append(kept_other[rid])
+            if rid not in hits:
+                carried = assembled.hits.get(rid)
+                hits[rid] = carried if carried is not None else HitManifest(rid)
     assembled.records = [*stable, *out]
     assembled.boundary_index = len(stable)
     assembled.tokens_used = sum(counter.count(r.content) for r in assembled.records)
+    assembled.hits = {**assembled.carry_over(stable), **hits}
+    if oversize or assembled.tokens_used > budget_tokens:
+        assembled.budget_status = "oversize"  # not even a cut fitted, or the stable prefix is over
     if tap.enabled():
         tap.event("compose.pack.dropped", dropped=dropped, n_dropped=len(dropped))
         tap.event(

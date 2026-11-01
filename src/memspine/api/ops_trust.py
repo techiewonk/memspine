@@ -150,6 +150,8 @@ def _consent_context(eng: Any, context: AssembledContext) -> AssembledContext:
         abstained=context.abstained or not kept,
         tokens_used=max(0, tokens),
         evidence=context.evidence,
+        hits=context.carry_over(kept),
+        budget_status=context.budget_status,
     )
 
 

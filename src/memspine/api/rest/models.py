@@ -7,7 +7,7 @@ the REST layer adds no second record schema.
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -208,3 +208,7 @@ class AssembleResponse(BaseModel):
     boundary_index: int
     abstained: bool
     tokens_used: int
+    #: ADR-092: each packed hit's dependency manifest (``HitManifest.to_dict``), with its
+    #: ``complete`` / ``partial`` status, and whether the context fits its budget.
+    hits: list[dict[str, Any]] = Field(default_factory=list)
+    budget_status: Literal["within", "oversize"] = "within"

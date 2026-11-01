@@ -151,6 +151,10 @@ class ReadConfig(ConfigModel):
     #: R3-09b: share of the retrieved-evidence budget fact bundles may take while other records
     #: still wait; with no other records they may use all of it.
     bundle_fact_share: float = Field(default=0.6, ge=0.0, le=1.0)
+    #: ADR-092 (DS-13): source turns shown with a fact bundle, the best-overlapping first.
+    #: Eligible turns past this many are listed as dropped in the hit's dependency manifest
+    #: and the hit is marked ``partial``.
+    bundle_turns: int = Field(default=constants.BUNDLE_TURNS, ge=1)
     #: T5-02 (G-09, LIB-25): low-trust, tentative and contested records are rendered in labelled
     #: sections as quoted, neutralised data (injection-like text defanged), quarantined ones
     #: withheld. Replaces the B6 untrusted-note wrapper while on. Off: unchanged.

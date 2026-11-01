@@ -429,5 +429,7 @@ async def _gate(eng: Any, query: str, result: ReadResult, ns: str | None = None)
             abstained=False,
             tokens_used=sum(estimate_tokens(r.content) for r in kept),
             evidence=context.evidence,
+            hits=context.carry_over(kept),
+            budget_status=context.budget_status,
         ),
     )

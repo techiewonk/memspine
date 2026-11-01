@@ -1497,6 +1497,8 @@ async def _read_routed(
                 abstained=base.abstained,
                 tokens_used=used,
                 evidence=base.evidence,
+                hits=base.carry_over([*stable, *turns]),
+                budget_status=base.budget_status,
             ),
             budget_tokens,
         ),

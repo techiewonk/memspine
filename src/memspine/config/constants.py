@@ -950,3 +950,10 @@ DISCOVERY_NO_WORK_OFFSET = -1
 # (``recover`` at start) picks the intent up. Bounded, not tuned.
 INTAKE_DISCOVERY_ATTEMPTS = 5
 INTAKE_DISCOVERY_RETRY_S = 0.02
+
+# ADR-092 / DS-13 (docs/adr/ADR-092-compose-budget-and-bundle-manifest.md; the bundle
+# dependencies of docs/ENRICHMENT_SCHEMA_CONTRACTS.md section 6): the source turns shown with
+# a mined fact bundle (``read.bundle_turns``, the best-overlapping first). The value is the
+# R3-09b default kept as it was measured; eligible turns past it are listed as dropped in the
+# hit's dependency manifest and the hit is marked ``partial``.
+BUNDLE_TURNS = 2

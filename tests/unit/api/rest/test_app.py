@@ -79,7 +79,15 @@ async def test_write_search_assemble_retrieve_roundtrip(client: httpx.AsyncClien
     assembled = await client.post("/assemble", json={"query": "deploy"}, headers=ns("alice"))
     assert assembled.status_code == 200
     body = assembled.json()
-    assert set(body) == {"records", "boundary_index", "abstained", "tokens_used"}
+    assert set(body) == {
+        "records",
+        "boundary_index",
+        "abstained",
+        "tokens_used",
+        "hits",  # ADR-092: dependency manifests
+        "budget_status",
+    }
+    assert body["budget_status"] == "within"
 
     listed = await client.post("/retrieve", json={}, headers=ns("alice"))
     assert [r["record_id"] for r in listed.json()] == [record["record_id"]]

@@ -12,7 +12,7 @@ from functools import lru_cache
 from typing import Any
 
 from memspine.compose.budget import CallableCounter, EstimatingCounter, TokenCounter
-from memspine.compose.pack import AssembledContext, estimate_tokens
+from memspine.compose.pack import AssembledContext, estimate_tokens, truncated_copy
 from memspine.compose.render_trust import TrustItem, TrustStyle, classify, find_directives
 from memspine.compose.render_trust import render as render_trust_lines
 from memspine.config import constants
@@ -348,8 +348,23 @@ def _render(
             break
         dropped = priority.pop()
         volatile = [r for r in volatile if r is not dropped]
+    if budget_tokens is not None and used > budget_tokens and len(rendered) == 1:
+        # ADR-092 (DS-15): the one record left is cut to the budget, not let over it.
+        room = budget_tokens - sum(tok(r.content) for r in stable)
+        cut = truncated_copy(rendered[0], room, tok)
+        if cut is not None:
+            earlier = assembled.hits.get(cut[1].record_id)
+            if earlier is not None and earlier.truncated:
+                cut = (cut[0], earlier)  # keep the cost before the first cut
+            rendered = [cut[0]]
+            assembled.hits = {**assembled.hits, cut[1].record_id: cut[1]}
+            used = sum(tok(r.content) for r in [*stable, *rendered])
     assembled.records = [*stable, *rendered]
     assembled.tokens_used = used
+    kept = {r.record_id for r in assembled.records}
+    assembled.hits = {rid: hit for rid, hit in assembled.hits.items() if rid in kept}
+    if budget_tokens is not None and used > budget_tokens:
+        assembled.budget_status = "oversize"
     return assembled
 
 

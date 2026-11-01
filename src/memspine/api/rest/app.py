@@ -434,6 +434,8 @@ def build_app(
             boundary_index=context.boundary_index,
             abstained=context.abstained,
             tokens_used=context.tokens_used,
+            hits=[hit.to_dict() for hit in context.hits.values()],
+            budget_status=context.budget_status,
         )
 
     @app.post("/retrieve")
