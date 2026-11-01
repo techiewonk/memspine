@@ -31,7 +31,7 @@ import time
 from collections import Counter, deque
 from collections.abc import Awaitable, Callable, Mapping, Sequence
 from contextlib import AbstractAsyncContextManager, nullcontext
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Protocol
 
@@ -53,6 +53,7 @@ from memspine.derive.envelope_stages import (
     run_envelope_stages,
 )
 from memspine.derive.failure_ledger import FailureLedger
+from memspine.derive.gliner_mentions import GlinerMentionError, bind_gliner_mentions
 from memspine.derive.integration_stage import deposit_attribute as integration_attribute
 from memspine.derive.integration_stage import deposit_tags as integration_deposit_tags
 from memspine.derive.items import (
@@ -86,6 +87,7 @@ from memspine.prompts.structured import (
 )
 from memspine.schemas.durable import SemanticEnvelope
 from memspine.schemas.durable.common import OwnerScope
+from memspine.schemas.durable.ingestion import AnnotationBatch, IngestionSourceSnapshot
 from memspine.scope import Scope
 from memspine.services.concurrency import Priority, priority_scope
 from memspine.services.llm.base import LLMService, lenient_json
@@ -277,6 +279,46 @@ def _snapshot_matches(snapshot: Mapping[str, Any] | None, record: MemoryRecord) 
 def _generation(snapshots: Mapping[str, Mapping[str, Any]] | None, record_id: str) -> int:
     snapshot = snapshots.get(record_id) if snapshots is not None else None
     return int(snapshot.get("erasure_generation", 0)) if snapshot is not None else 0
+
+
+def _source_snapshot(
+    record: MemoryRecord, snapshots: Mapping[str, Mapping[str, Any]] | None
+) -> IngestionSourceSnapshot:
+    """The source fence of one live window input (the annotation batch's binding)."""
+    message = record.source.message or {}
+    sender = message.get("sender") if isinstance(message, dict) else None
+    return IngestionSourceSnapshot(
+        namespace=record.namespace,
+        record_id=record.record_id,
+        source_id=record.record_id,
+        source_version=record.version,
+        content_hash=fingerprint_payload({"content": record.content}),
+        sender=sender.get("id") if isinstance(sender, dict) else None,
+        role=record.source.role,
+        source_at=record.source_at,
+        erasure_generation=_generation(snapshots, record.record_id),
+    )
+
+
+def _excluded_batches(
+    excluded: Sequence[str],
+    snapshots: Mapping[str, Mapping[str, Any]] | None,
+    producer_revision: str,
+) -> list[AnnotationBatch]:
+    """RM-143 (c): an explicit empty batch for every source of the item that is not a live
+    input, so the batches cover exactly the effect identity's sources."""
+    out: list[AnnotationBatch] = []
+    for record_id in dict.fromkeys(excluded):
+        snapshot = snapshots.get(record_id) if snapshots is not None else None
+        if snapshot is None:
+            continue  # no membership (no outbox): no effect identity to match
+        out.append(
+            AnnotationBatch(
+                source=IngestionSourceSnapshot.model_validate(snapshot),
+                producer_revision=producer_revision,
+            )
+        )
+    return out
 
 
 def _conversation_id(record: MemoryRecord) -> str | None:
@@ -1541,10 +1583,10 @@ class WindowPipeline:
             if (ns, offset) in self._prefetched:
                 ready = self._prefetched.pop((ns, offset))
                 store.inflight = ready.job if ready is not None else None
-                return ("window", ready)
+                return ("window", await self._with_model_annotations(ns, ready))
             batched = await self._outbox_prepare_batch(ns, store, offset)
             if batched is not _MISSING:
-                return ("window", batched)
+                return ("window", await self._with_model_annotations(ns, batched))
         job = _Job(
             ns,
             window=window,
@@ -1554,10 +1596,70 @@ class WindowPipeline:
         store.inflight = job  # a forget during the call cancels it
         try:
             prepared = await self._prepare_job(ns, job, strict=True)
+            prepared = await self._with_model_annotations(ns, prepared)
         except BaseException:
             store.inflight = None
             raise
         return ("window", prepared)
+
+    async def _with_model_annotations(self, ns: str, prepared: Any) -> Any:
+        """DS-04 (ADR-090 item 6): the model path's per-source annotation batches.
+
+        Like the rules-only path, every source of the window item gets one batch whatever the
+        fact yield: zero facts, rejected facts or an uncited source still record their exact
+        source mentions (an explicit empty batch for a source that is not a live input). The
+        mentions are the pre-pass GLiNER hints when the pre-pass runs GLiNER, else the source
+        record's own bound mentions. They are unasserted annotations (ADR-076), never facts."""
+        if (
+            self._rule_only
+            or not isinstance(prepared, _Prepared)
+            or prepared.annotation_batches
+            or prepared.job.window is None
+        ):
+            return prepared
+        window = prepared.job.window
+        snapshots = self._membership(ns, window.record_ids)
+        records = [
+            r
+            for r in prepared.records
+            if snapshots is None or _snapshot_matches(snapshots.get(r.record_id), r)
+        ]
+        live_ids = {r.record_id for r in records}
+        excluded = [rid for rid in window.record_ids if rid not in live_ids]
+        by_record: dict[str, list[Any]] = {}
+        revision = "window-extraction:base"
+        pre = self._prepass
+        if pre is not None and pre.uses_gliner and prepared.records:
+            hints = await pre.ahints(prepared.records, namespace=ns)
+            revision = f"prepass:{pre.producer_id}"
+            for line, mention in hints.gliner_mentions:
+                if 1 <= line <= len(prepared.records):
+                    rid = prepared.records[line - 1].record_id
+                    by_record.setdefault(rid, []).append(mention)
+        batches: list[AnnotationBatch] = []
+        for record in records:
+            mentions: tuple[Any, ...] = record.fingerprint.entity_mentions
+            found = by_record.get(record.record_id)
+            if found:
+                try:
+                    mentions = bind_gliner_mentions(record, found)
+                except GlinerMentionError:
+                    self._counts["annotations_source_changed"] += 1
+                    mentions = ()
+            batches.append(
+                AnnotationBatch(
+                    source=_source_snapshot(record, snapshots),
+                    mentions=mentions,
+                    producer_revision=revision,
+                )
+            )
+        batches.extend(_excluded_batches(excluded, snapshots, revision))
+        if excluded:
+            self._counts["annotation_sources_excluded"] += len(excluded)
+        if not batches:
+            return prepared
+        self._counts["annotation_batches"] += len(batches)
+        return replace(prepared, annotation_batches=tuple(batches))
 
     async def _discovery_prepare(
         self, scope: OwnerScope, offset: int, payload: dict[str, Any]
@@ -2404,7 +2506,6 @@ class WindowPipeline:
                 compile_grounded_facts,
                 mine_grounded_facts,
             )
-            from memspine.schemas.durable.ingestion import AnnotationBatch, IngestionSourceSnapshot
 
             scope = OwnerScope(tenant=_TENANT, owner=ns)
             facts: list[Any] = []
@@ -2444,19 +2545,7 @@ class WindowPipeline:
                         )
                 compiled = compile_grounded_facts(result, records, scope)
                 facts.extend(compiled.envelopes)
-                message = record.source.message or {}
-                sender = message.get("sender") if isinstance(message, dict) else None
-                source = IngestionSourceSnapshot(
-                    namespace=record.namespace,
-                    record_id=record.record_id,
-                    source_id=record.record_id,
-                    source_version=record.version,
-                    content_hash=fingerprint_payload({"content": record.content}),
-                    sender=sender.get("id") if isinstance(sender, dict) else None,
-                    role=record.source.role,
-                    source_at=record.source_at,
-                    erasure_generation=_generation(snapshots, record.record_id),
-                )
+                source = _source_snapshot(record, snapshots)
                 annotations.append(
                     AnnotationBatch(
                         source=source,
@@ -2471,16 +2560,7 @@ class WindowPipeline:
                         self._counts["rule_facts_unresolved_unbound"] += 1
                         continue
                     unresolved.append(UnresolvedAnnotation.of(candidate, source))
-            for record_id in dict.fromkeys(excluded):
-                snapshot = snapshots.get(record_id) if snapshots is not None else None
-                if snapshot is None:
-                    continue  # no membership (no outbox): no effect identity to match
-                annotations.append(
-                    AnnotationBatch(
-                        source=IngestionSourceSnapshot.model_validate(snapshot),
-                        producer_revision="personal-rules:1",
-                    )
-                )
+            annotations.extend(_excluded_batches(excluded, snapshots, "personal-rules:1"))
             if excluded:
                 self._counts["annotation_sources_excluded"] += len(excluded)
             # RM-143 (d): report only the facts that will be deposited (see _storable_facts).

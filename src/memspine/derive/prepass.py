@@ -463,6 +463,11 @@ class Prepass:
     def uses_gliner(self) -> bool:
         return self.mode == "gliner" and self._gliner is not None
 
+    @property
+    def producer_id(self) -> str:
+        """The hint producer's identity (the GLiNER finder's, else ``rules``)."""
+        return str(getattr(self._gliner, "producer_id", "rules"))
+
     def learn(self, names: Iterable[str], *, namespace: str) -> None:
         """Remember entity surfaces the pipeline deposited in ``namespace`` (the 'known aliases'
         of that namespace's later windows only)."""
