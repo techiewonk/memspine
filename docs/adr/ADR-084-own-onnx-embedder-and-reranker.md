@@ -101,3 +101,13 @@ default itself stays), and the `fastembed` entry of `model.rerank.chain`.
   numerical reference fixtures, current table identities, warm-up and documentation.
 - The 2026-10-24 owner amendment supersedes the old-store adoption and configuration
   migration requirements in the original plan.
+
+## Amendment 2026-11-01 (ADR-093 model fetch)
+
+Downloads are no longer the default. Each onnx slot has `settings.download` (default
+`false`); `settings.local_files_only` is removed, with no alias. Weights come from
+`memspine models fetch`, and every catalogue file pins a SHA-256 digest that is verified on
+fetch and on load
+([evidence](../provider_verification/onnx_catalogue_digests_2026-11-01.json)). Missing
+weights at start raise `MissingServiceError` naming the fetch command; a digest mismatch
+raises `WeightIntegrityError`. Custom `model_spec` exports are reported as unpinned.
