@@ -7452,30 +7452,6 @@
     },
     "schema_version": 1,
     "seq": 60
-   },
-   {
-    "actor": "system",
-    "kind": "memory.marker",
-    "namespace": "conv",
-    "payload": {
-     "marker": "session_closed",
-     "session_id": "s0",
-     "windows": 2
-    },
-    "schema_version": 1,
-    "seq": 61
-   },
-   {
-    "actor": "system",
-    "kind": "memory.marker",
-    "namespace": "conv",
-    "payload": {
-     "marker": "session_closed",
-     "session_id": "s1",
-     "windows": 2
-    },
-    "schema_version": 1,
-    "seq": 62
    }
   ],
   "identities": [
