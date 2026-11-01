@@ -18,7 +18,7 @@ import re
 from types import SimpleNamespace
 from typing import Any
 
-from memspine.derive.prompt_context import KnownEntity, KnownSource
+from memspine.derive.prompt_context import KnownEntity, KnownSource, KnownVisibility
 
 __all__ = ["prepass_known", "resolver_known"]
 
@@ -36,7 +36,8 @@ def prepass_known(prepass: Any) -> KnownSource:
         seen: dict[str, None] = {}
         for span in hints.entities:
             seen.setdefault(span.text, None)
-        return [KnownEntity(name) for name in seen]
+        # DS-11: read from the caller's own NEW lines, so visible to it alone (no visibility).
+        return [KnownEntity(name, source="prepass") for name in seen]
 
     return source
 
@@ -54,6 +55,15 @@ def resolver_known(stage: Any, *, limit: int = 200) -> KnownSource:
                 entities.extend(registry.active(key))
         named = [e for e in entities if any(n.lower() in low for n in e.names() if n)]
         rest = [e for e in entities if e not in named]
-        return [KnownEntity(e.name, tuple(e.aliases)) for e in (named + rest)[:limit]]
+        return [
+            KnownEntity(
+                e.name,
+                tuple(e.aliases),
+                source="resolver",
+                entity_id=str(getattr(e, "entity_id", "")) or None,
+                visibility=KnownVisibility(namespace=ns),
+            )
+            for e in (named + rest)[:limit]
+        ]
 
     return source

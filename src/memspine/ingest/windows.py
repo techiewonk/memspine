@@ -22,7 +22,6 @@ from memspine.derive.known_sources import prepass_known, resolver_known
 from memspine.derive.online_extractor import OnlineExtractor
 from memspine.derive.pipeline.stages.close import session_close
 from memspine.derive.pipeline.stages.context import SessionClosed
-from memspine.derive.pipeline.stages.index import SessionIndex
 from memspine.derive.prepass import Prepass, prepass_stage
 from memspine.derive.prompt_context import KnownEntity, KnownSource, PromptContextBuilder
 from memspine.derive.resolve_stage import ResolveSettings, build_resolve_stage
@@ -313,12 +312,12 @@ _KNOWN_REFRESH_EVERY = 4
 
 
 def _known_from_store(eng: Any) -> KnownSource:
-    """KNOWN from the entity records and the alias table already in the store (W2-06b). The P-23
-    pre-pass (W2-13) and the online resolver (W2-09) plug in through the builder's ``prepass`` /
-    ``resolver`` hooks and are not read here."""
-    from memspine.memories.associative.entity_index import namespace_entity_names
+    """KNOWN from the RM-130 entity index (W2-06b; DS-11): canonical names and evidence-cited
+    aliases with their provenance and visibility. The P-23 pre-pass (W2-13) and the online
+    resolver (W2-09) plug in through the builder's ``prepass`` / ``resolver`` hooks and are not
+    read here."""
+    from memspine.memories.associative.known_entities import index_known_entities
 
-    index = SessionIndex()
     cache: dict[str, tuple[int, list[KnownEntity]]] = {}
 
     async def source(ns: str, _text: str) -> list[KnownEntity]:
@@ -329,16 +328,7 @@ def _known_from_store(eng: Any) -> KnownSource:
         assoc = getattr(eng, "_associative", None)
         if assoc is None:
             return []
-        await index.refresh(eng._storage)
-        by_target: dict[str, list[str]] = {}
-        for alias, target in index.entity_aliases.get(ns, {}).items():
-            by_target.setdefault(target, []).append(alias)
-        # RM-130: names come from the entity name index (an entity id carries no name).
-        names = dict.fromkeys(await namespace_entity_names(eng._storage, ns))
-        known = [
-            KnownEntity(canon.title(), tuple(a.title() for a in by_target.get(canon, ())))
-            for canon in names
-        ]
+        known = await index_known_entities(eng._storage, ns)
         cache[ns] = (1, known)
         return known
 
