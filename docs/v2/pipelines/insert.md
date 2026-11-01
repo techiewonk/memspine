@@ -40,7 +40,7 @@ flowchart TD
   S14 --> S15[15 Validate, repair once, dead letters]
   S15 -->|failed twice| DL[(failure ledger)]
   S15 -->|truncated| S11
-  S15 --> S16[16 Compile ItemV1 into AssertionEnvelope]
+  S15 --> S16[16 Compile ItemV1 into SemanticEnvelope]
   S16 --> S17[17 Grounding and assent check]
   S17 --> S18[18 Firewall gate 3 and trust cap]
   S18 --> S19[19 Online entity resolution]
@@ -520,7 +520,7 @@ Output: valid ItemV1[] with their batch block; FailureRecord[] with failure_clas
   a bad item is dropped and counted, never repaired; counters live in memory (`:914-971`). Decided W-14 C, P-05 D,
   P-09 B, P-11 D: `derive.ItemValidator`, `derive.RepairAsk`, `derive.FailureLedger`. Package **W2-06**.
 
-### 16. Compile ItemV1 into AssertionEnvelope
+### 16. Compile ItemV1 into SemanticEnvelope
 
 - **Purpose:** the model emits only the short wire item; code compiles the stored envelope from it plus intake
   fields, so the model never writes provenance.
@@ -529,7 +529,7 @@ Output: valid ItemV1[] with their batch block; FailureRecord[] with failure_clas
 
 ```text
 Input:  ItemV1, alias map, cited L0 records (spk, source_at, source_tz, src_class), prompt hash
-Output: AssertionEnvelope (section 5) with evidence[{source_id, source_version, line, span}], asserter (= speaker
+Output: SemanticEnvelope (section 5) with evidence[{source_id, source_version, line, span}], asserter (= speaker
         of the cited line unless the item names a reported speaker supported by the line), subject[], mode,
         polarity (from neg), kind, event{start, end, precision} from `when`/`until` resolved against the cited
         line's own source_at and zone, src from the item's source label, prompt_hash, graph? projection
@@ -545,7 +545,7 @@ Output: AssertionEnvelope (section 5) with evidence[{source_id, source_version, 
   with `valid_from` from `_fact_date` (day-one parsing of YYYY-MM and YYYY, `workers/pipelines.py:2912-2935`) or the
   window start (`workers/windows.py:854`); `span`, `speaker`, `subject` and `confidence` are validated but not stored
   (`prompts/models.py:811-828`, `workers/windows.py:829-881`); edges are a separate list held for sleep. Decided
-  W-15 C ("B + C"), M-06, M-10, M-16: `schema.ItemV1`, `schema.AssertionEnvelope`, `derive.EnvelopeCompiler`; the
+  W-15 C ("B + C"), M-06, M-10, M-16: `schema.ItemV1`, `schema.SemanticEnvelope`, `derive.EnvelopeCompiler`; the
   graph is a code-compiled projection of L1 (Q1). Packages **W2-06**, **F-02**.
 
 ### 17. Grounding and assent check
@@ -558,7 +558,7 @@ Output: AssertionEnvelope (section 5) with evidence[{source_id, source_version, 
   or the `decider` role (W-17); never by default until the W-17 screen passes.
 
 ```text
-Input:  AssertionEnvelope, cited lines (NEW lines support the assertion; CONTEXT lines are accepted only as reference-binding evidence, ER-11), the assistant turn a user line
+Input:  SemanticEnvelope, cited lines (NEW lines support the assertion; CONTEXT lines are accepted only as reference-binding evidence, ER-11), the assistant turn a user line
         replies to (for assent)
 Output: grounding: grounded | uncertain | rejected, checks {span, numbers, polarity, names, endpoint_spans},
         src possibly promoted (assistant_proposed -> user_confirmed) or downgraded, adjudicated: bool
@@ -584,7 +584,7 @@ Output: grounding: grounded | uncertain | rejected, checks {span, numbers, polar
 - **Model call?** never.
 
 ```text
-Input:  AssertionEnvelope, parent records (live state and trust)
+Input:  SemanticEnvelope, parent records (live state and trust)
 Output: FirewallVerdict {gate: 3, ...}; tau = min(class cap, firewall trust, min parent trust, min view trust when
         grants exist) x derivation decay
 ```
@@ -864,7 +864,7 @@ Record (one shape, all layers)                                         [changed,
   src_class: user_stated|assistant_proposed|user_confirmed|tool|document|external|derived [new, M-07]
   trust: float [today]; quarantined, instruction_flag: bool [today]; support_count: int [new, M-07; today corroborations]
   derivation: Fingerprint? [new, P-12; today SourceInfo.prompt_version]; covers_seq: int? [new, O-06]
-  envelope: AssertionEnvelope? [new; L1 and above]; status, version, history [today]; pii_tier, consent_tags [today]
+  envelope: SemanticEnvelope? [new; L1 and above]; status, version, history [today]; pii_tier, consent_tags [today]
 
 ItemV1 (wire schema, model output, compact keys)                       [new]  W-15 (B), P-06
   s: str, optional        subject name as written in the lines
@@ -882,7 +882,7 @@ ItemV1 (wire schema, model output, compact keys)                       [new]  W-
   [today the nearest shape is WindowFact, prompts/models.py:811-828 (entity, attribute, value, kind, date, turns,
    span, speaker, subject, persons, location, topic, confidence) plus ExtractedEdge, :360-397]
 
-AssertionEnvelope (stored, compiled in code)                           [new]  W-15 (C), M-06
+SemanticEnvelope (stored, compiled in code)                           [new]  W-15 (C), M-06
   v: 1; text: str; value: typed literal or entity id
   evidence: [{source_id, source_version, line, span}]                                           M-09
   asserter: entity id; subject: [entity id]; spk: str                                           W-05, M-08

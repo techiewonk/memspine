@@ -263,7 +263,7 @@ Every stage returns a `StageReport`.
 - **Input / Output**:
   ```text
   CatchUpInput:  sources: [record_id] with underived mark or no derived child; batch_tokens: int
-  CatchUpOutput: assertions: [AssertionEnvelope] (compiled from ItemV1 in code); pending_merges: [PendingMerge];
+  CatchUpOutput: assertions: [SemanticEnvelope] (compiled from ItemV1 in code); pending_merges: [PendingMerge];
                  still_underived: int
   ```
 - **Writes**: L1 assertions through the semantic door (grounding, firewall, ladder, trust cap), `pending_merge` rows,
@@ -767,7 +767,7 @@ Record (one shape for all layers)           (today: MemoryRecord, core/records.p
 LineageEdge                                 (new; M-09 C)
   child_id; parent_id; parent_version; role: member|evidence|merged_from|cites; span: {line, start, end}|null
 
-AssertionEnvelope                           (new; M-06 B, W-15 C)  produced by S2, read by S3-S7
+SemanticEnvelope                           (new; M-06 B, W-15 C)  produced by S2, read by S3-S7
   text; value; evidence[{source_id, source_v, span}]; spk; sub[]; modality; polarity; kind; occurrence_id; times
 
 SessionClosed, Call2Result, ProfileOp, ProfileCard, PendingMerge, ResolutionDecision, ContradictionVerdict,

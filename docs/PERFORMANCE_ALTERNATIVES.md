@@ -48,7 +48,7 @@ fast choice for its exact input: about 4.18 million calls/second versus 336,413
 for the comparable stdlib encoding on this small payload. This is a local
 measurement, not a universal library ratio.
 
-For the envelope sample, `AssertionEnvelope.model_dump_json()` measured 130,630
+For the envelope sample, `AssertionEnvelope.model_dump_json()` (now `SemanticEnvelope`, ADR-088) measured 130,630
 calls/second; wrapping `model_dump(mode="json")` in orjson measured 127,312.
 Stdlib encoding was slower at 67,544 calls/second. The existing Pydantic JSON
 serializer remains unchanged.

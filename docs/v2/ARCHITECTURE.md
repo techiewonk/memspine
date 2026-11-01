@@ -53,7 +53,7 @@ flowchart TD
    numbered block; per-turn mode stays a setting (W-11).
 7. **Online extraction, after the write returns.** Example-free prompt v2 (about 353 tokens) with NEW, CONTEXT and
    KNOWN lines; schema-constrained decoding; per-item validation and one repair re-ask; the model emits `ItemV1`
-   and code compiles the stored `AssertionEnvelope` (W-12, W-14, W-15, W-16, P-04).
+   and code compiles the stored `SemanticEnvelope` (W-12, W-14, W-15, W-16, P-04).
 8. **Grounding and resolution in code.** Evidence spans per assertion and endpoint, rule checks on numbers, polarity
    and names; entity ladder online without a model, uncertain names `pending_merge`; key = (scope, src, rel, dst,
    kind) plus occurrence (W-17, W-19, W-20, M-17).

@@ -41,3 +41,20 @@ vocabularies. The Decision's shorthand list ("asserted, planned, negated, contes
 "none, fulfilled, failed") is replaced by these fields. Only `modality=asserted` with
 `status=active` reads as a current fact. The first implementation commit is schema-only,
 so the parallel streams can rebase onto it.
+
+### Implementation (RM-129, 2026-11-01)
+
+The claim keeps the existing vocabularies as three separate typed fields
+(docs/ENRICHMENT_SCHEMA_CONTRACTS.md section 3 and the RM-57 selection). The decision moves
+only their edge-only placement (ADR-080 section 1) onto the claim:
+
+- `assessment.modality`: asserted, negated, hypothetical, planned, reported, question;
+- `status`: active, tentative, contested, superseded, hidden;
+- `outcome`: none, done, missed, failed, declined (a hypothetical or question carries none).
+
+Registry typing (`registry`), `role_bindings` and `producer` (rules, model or record, with a
+revision) are claim fields; the registry predicate must equal the claim attribute and role
+evidence must be cited by the claim. Only an asserted claim reads as an asserted fact.
+Durable kind id: `semantic_envelope`.
+
+Open follow-ups: the source binding hash and `known_at` are not yet claim fields; the edge compiler takes `status` from the live record rather than the write-time snapshot; reported claims are not facts.

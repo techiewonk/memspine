@@ -31,7 +31,7 @@ Every declared property is required unless the schema explicitly says otherwise.
 | Existing implementation | Target treatment |
 |---|---|
 | `schemas/durable/common.py::OwnerScope` | Preserve tenant/owner identity; add resolved namespace binding in the proposed context objects, validated by the canonical gateway |
-| `assertion.py::AssertionEnvelope`, `Mention` | Replace affected envelope shapes in a coordinated release; Claim is the single replacement contract, not a second stored fact format |
+| `semantic.py::SemanticEnvelope`, `Mention` | ADR-088 / RM-129: `AssertionEnvelope` is removed with no alias; `SemanticEnvelope` is the single stored claim (modality on `assessment`, `status`, `outcome` none/done/missed/failed/declined, optional registry typing, role bindings, producer). Claim is the single replacement contract, not a second stored fact format |
 | `identity.py::AssertionKey`, write/occurrence IDs | Preserve distinct operation, proposition, occurrence and record identities; do not use a source occurrence ID as a domain event ID |
 | `evidence.py::Evidence`, `TurnRef`, `Span` | Reuse support/binding/context semantics; proposed shape adds pinned snapshot, provenance and mandatory exact spans for raw support/binding |
 | `temporal.py::TemporalRef`, `TimeAxes` | Replace shape while reusing correct parser semantics; aware datetime values only, unresolved civil text, known-time sequence and separate occurrence versus state validity |

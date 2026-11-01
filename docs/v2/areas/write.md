@@ -37,7 +37,7 @@ Verdicts: 13 `ok`, 6 `ok-combined`, 4 `needs-measurement`, 3 `conflict`.
 | 10. Online extraction | Runs asynchronously after the receipt. Readers may pass `wait_for_pending`, a bounded barrier. LLM merges stay at sleep. | W-12 |
 | 11. Prompt | v2, example-free (about 353 tokens): NEW lines, CONTEXT lines, KNOWN names, the same-language and coarse-date partials, a soft length warning, and a prompt hash on every item. Firewall gate 2 keeps quarantined turns out of the prompt. | W-16, W-18, W-07 |
 | 12. Validation | Constrained decoding (P-04), then per-item validation. One repair re-ask for invalid items. Failures are classified and kept in a dead-letter list, and truncation reschedules the remaining lines. | W-14 |
-| 13. Item to envelope | The model emits ItemV1 (the B list). Code compiles it into the stored AssertionEnvelope with spans, asserter and subject, times, source class and an optional graph projection. | W-15 |
+| 13. Item to envelope | The model emits ItemV1 (the B list). Code compiles it into the stored SemanticEnvelope with spans, asserter and subject, times, source class and an optional graph projection. | W-15 |
 | 14. Grounding | Spans per assertion and per endpoint, plus rule checks on numbers, polarity and names. Only ambiguous bindings go to the adjudicator. The assent check promotes an item to user_confirmed. | W-17, W-08 |
 | 15. Firewall gate 3 | Screen every derived item. Trust is always capped: $\tau_\Delta \le \min$ over its parents. | W-07 |
 | 16. Resolution and key | Entity ladder online in code, with uncertain names marked `pending_merge`. Versioned assertion key with kind and occurrence. | W-19, W-20 |
@@ -53,7 +53,7 @@ SourceEnvelope{source_id, kind: conversation|document|tool_log|asset, version?, 
 Receipt{event_ids[], intent_id, readiness (illustrative; fields not frozen, ER-06)}   status(intent_id) -> {layer: pending|done|failed}
 OutboxRow{id, kind: projection|derivation, ns, source_id, source_version, members[], attempts, lease_until, state, failure_class?}
 ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines[], span, source?}
-  -> AssertionEnvelope{v:1, text, value, evidence[], asserter, subject[], spk, mode, polarity,
+  -> SemanticEnvelope{v:1, text, value, evidence[], asserter, subject[], spk, mode, polarity,
                        source_at, event:[start,end,precision], kind, occurrence?, src, tau, parents[], prompt_hash, graph?}
 ```
 
@@ -200,7 +200,7 @@ ItemV1{s?, r?, o?, text, kind: state|event|fact, mode, neg, when?, until?, lines
 - **Decision:** B is the **wire schema** the model emits (the compact G-W49 item list). C is the **stored envelope**, compiled in code from the B item plus the intake fields (`spk`, `source_at`, `source_tz`, source class, evidence spans, prompt hash) and an optional graph projection. B is declared envelope v1, and the model never emits the full envelope.
 - **Verdict:** ok-combined. It matches M-06 B.
 - **What will happen:** one contract for facts and the graph. No duplicate relations, and literal and n-ary facts are stored without fake entity nodes. Replies are shorter. Touches $\mathcal{D}$, semantic and associative.
-- **Where:** `workers/windows.py:199`, `:236` (two validators), `workers/pipelines.py:1882` _edge_key, `engine.py:13794` _deposit_window_episode -> `schema.ItemV1`, `schema.AssertionEnvelope` and `derive.EnvelopeCompiler`.
+- **Where:** `workers/windows.py:199`, `:236` (two validators), `workers/pipelines.py:1882` _edge_key, `engine.py:13794` _deposit_window_episode -> `schema.ItemV1`, `schema.SemanticEnvelope` and `derive.EnvelopeCompiler`.
 - **Depends on / affects:** W-04, W-05, W-08, W-16 to W-22; M-06, M-16, M-26 (schema versioning).
 - **Migration:** v1 facts and edges are re-shaped into envelopes on replay, with fields not present in v1 left null.
 - **Test or gate:** every envelope field has a named consumer (RV03), and an unknown enum value fails closed per item.

@@ -204,7 +204,7 @@ GraphProjection (existing GraphStore protocol, services/graph/base.py:88, extend
 - **What will happen**: negation, plans and attribution survive storage (RV03); quality + to ++
   (estimate), cost - (larger rows, more validation), risk +. Operator D. Types semantic, episodic.
 - **Where**: `core/records.py:183-197`, `workers/windows.py:829` (fields dropped on deposit),
-  `workers/pipelines.py:1882` -> v2 `AssertionEnvelope` (v1 = the G-W49 item list).
+  `workers/pipelines.py:1882` -> v2 `SemanticEnvelope` (v1 = the G-W49 item list).
 - **Depends on / affects**: M-02 (L1 is the envelope layer); M-07..M-12, M-16, M-17, M-26; W-15, W-17.
 - **Migration**: v1 semantic records upcast to envelope v0 (text + key, unknown fields null, never guessed).
 - **Test or gate**: every envelope field has a named consumer test (RV03); unknown enum fails.
