@@ -1213,6 +1213,19 @@
           "title": "Kind",
           "type": "string"
         },
+        "known_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Known At"
+        },
         "object": {
           "anyOf": [
             {
@@ -1313,6 +1326,20 @@
         },
         "scope": {
           "$ref": "#/$defs/OwnerScope"
+        },
+        "source_binding_hash": {
+          "anyOf": [
+            {
+              "maxLength": 16,
+              "minLength": 16,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Binding Hash"
         },
         "speaker": {
           "anyOf": [

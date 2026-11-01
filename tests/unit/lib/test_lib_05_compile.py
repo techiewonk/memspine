@@ -354,3 +354,24 @@ def test_accepts_itemv1_instances() -> None:
 
     res = compile_items([ExtractionItem(**item())], ctx())
     assert len(res.envelopes) == 1
+
+
+def test_model_path_sets_known_at_and_source_binding_hash() -> None:
+    """RM-146 (ADR-088): known_at defaults to the recorded time; the binding hash comes from the
+    context, else from the first support line; neither is model-authored."""
+    env = one()
+    assert env.known_at == REC and env.source_binding_hash is None
+    lines = window()
+    lines[1] = WindowLine(
+        "t-1", "src-1", 1, 0, "user", "zorbi", T0, "UTC", "She lives in Quillon now.",
+        binding_hash="aaaaaaaaaaaaaaaa",
+    )  # fmt: skip
+    from_line = compile_items([item()], ctx(window=lines)).envelopes[0]
+    assert from_line.source_binding_hash == "aaaaaaaaaaaaaaaa" and from_line.known_at == REC
+    known = datetime(2026, 3, 3, tzinfo=UTC)
+    pinned = compile_items(
+        [item()], ctx(window=lines, source_binding_hash="bbbbbbbbbbbbbbbb", known_at=known)
+    ).envelopes[0]
+    assert pinned.source_binding_hash == "bbbbbbbbbbbbbbbb" and pinned.known_at == known
+    unstamped = compile_items([item()], ctx(recorded_at=None)).envelopes[0]
+    assert unstamped.known_at == T0  # falls back to the source time

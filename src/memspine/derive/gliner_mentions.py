@@ -9,13 +9,12 @@ from __future__ import annotations
 
 import math
 from collections.abc import Iterable, Mapping
-from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from memspine.store.events import fingerprint_payload
 from memspine.store.records import EntityMention, MemoryRecord
+from memspine.store.source_binding import source_binding
 
 __all__ = [
     "GlinerMentionError",
@@ -194,44 +193,14 @@ def bind_gliner_mentions(
     Callers must first map each mention to the single source record whose text
     it quotes. A merged or concatenated output has no implicit source owner.
     """
-    message = record.source.message or {}
-    sender = message.get("sender") if isinstance(message, dict) else None
-    sender = sender if isinstance(sender, dict) else {}
-    sender_value = sender.get("id")
-    sender_id = sender_value if isinstance(sender_value, str) and sender_value.strip() else None
-    sender_role = message.get("role") if isinstance(message, dict) else None
-    if not isinstance(sender_role, str) or not sender_role.strip():
-        sender_role = record.source.role
-    message_id = message.get("message_id") if isinstance(message, dict) else None
-    if not isinstance(message_id, str) or not message_id.strip():
-        message_id = None
-    created_at_value = (
-        message.get("created_at", message.get("timestamp")) if isinstance(message, dict) else None
-    )
-    if isinstance(created_at_value, datetime):
-        created_at = created_at_value.isoformat()
-    elif isinstance(created_at_value, str) and created_at_value.strip():
-        created_at = created_at_value
-    else:
-        created_at = None
-
-    # Bind the actual current source text even if a caller used model_copy(update=)
-    # and carried forward an older, non-empty record.content_fingerprint.
-    source_content_fingerprint = fingerprint_payload({"content": record.content})
-    source_identity = {
-        "namespace": record.namespace,
-        "record_id": record.record_id,
-        "version": record.version,
-        "content_fingerprint": source_content_fingerprint,
-        "source_role": record.source.role,
-        "source_channel": record.source.channel,
-        "source_message_id": message_id,
-        "sender_id": sender_id,
-        "sender_role": sender_role,
-        "created_at": created_at,
-        "parents": list(record.source.parents),
-    }
-    source_binding_hash = fingerprint_payload(source_identity)
+    # The one source binding (store/source_binding.py), shared with the claim (ADR-088).
+    binding = source_binding(record)
+    source_content_fingerprint = binding.content_fingerprint
+    source_binding_hash = binding.binding_hash
+    message_id = binding.message_id
+    sender_id = binding.sender_id
+    sender_role = binding.sender_role
+    created_at = binding.created_at
     bound: list[EntityMention] = []
     for mention in mentions:
         start, end = mention.start, mention.end

@@ -162,6 +162,9 @@ class WindowLine:
     tz: str | None = None
     content: str | None = None
     is_context: bool = False  # a CONTEXT line (ER-11): citable as binding evidence only
+    #: ADR-088: the source binding hash of the line's record (``memspine.store.source_binding``),
+    #: when the caller built the line from one; the claim inherits its first support line's.
+    binding_hash: str | None = None
 
 
 @dataclass(frozen=True)
@@ -222,6 +225,10 @@ class CompileContext:
     principal: str | None = None
     source_time: datetime | None = None  # fallback when the cited line has no time of its own
     recorded_at: datetime | None = None
+    #: ADR-088: the claim's evidence-known time; defaults to ``recorded_at`` (then source time).
+    known_at: datetime | None = None
+    #: ADR-088: the binding hash of the one source record, when the window has one.
+    source_binding_hash: str | None = None
     role_policy: Mapping[str, RolePolicy] = field(default_factory=lambda: dict(DEFAULT_ROLE_POLICY))
     erasure_generation: int = 0
     epoch: int | None = None
@@ -552,6 +559,8 @@ def _compile_one(
             speaker=reported_speaker or speaker or _clean(parsed.speaker),
             change_hint=chg,
             time=time,
+            known_at=ctx.known_at or ctx.recorded_at or time.source_time,
+            source_binding_hash=ctx.source_binding_hash or first_line.binding_hash,
             evidence=evidence,
             assessment=assessment,
             src_class=policy.src_class,

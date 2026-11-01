@@ -28,6 +28,7 @@ from memspine.schemas.durable.semantic import (
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 from memspine.schemas.versioning import declare_kind, validate_payload
 from memspine.store.records import MemoryRecord, RecordStatus
+from memspine.store.source_binding import source_binding
 
 __all__ = [
     "RECORD_KIND",
@@ -166,6 +167,8 @@ def to_envelope(record: MemoryRecord) -> SemanticEnvelope:
         attribute=record.attribute,
         speaker=record.axes.speaker,
         time=time,
+        known_at=recorded,
+        source_binding_hash=source_binding(record).binding_hash,
         evidence=evidence,
         assessment=Assessment(
             source_trust=record.trust,

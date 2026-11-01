@@ -337,3 +337,25 @@ def test_same_scope_context_is_cited_as_binding_not_support() -> None:
     compiled = compile_grounded_facts(FactStageResult(facts=(candidate,)), [source, context], scope)
 
     assert [item.role for item in compiled.envelopes[0].evidence] == ["support", "binding"]
+
+
+def test_rules_claim_carries_known_at_and_the_source_binding_hash() -> None:
+    """RM-146 (ADR-088): the rules producer stamps the claim's known time and binds it to the
+    same source snapshot hash a GLiNER mention of that record carries."""
+    from memspine.derive.gliner_mentions import MentionSpan, bind_gliner_mentions
+    from memspine.store.source_binding import source_binding
+
+    scope = OwnerScope(tenant="tenant", owner="tenant/alice")
+    record = _record("I work for Acme.")
+    compiled = compile_grounded_facts(mine_grounded_facts(record, scope), [record], scope)
+    assert len(compiled.envelopes) == 1
+    envelope = compiled.envelopes[0]
+    assert envelope.known_at is not None and envelope.known_at.tzinfo is not None
+    assert envelope.known_at == envelope.time.recorded_at
+    assert envelope.source_binding_hash == source_binding(record).binding_hash
+    start = record.content.index("Acme")
+    mention = MentionSpan(text="Acme", label="organisation", start=start, end=start + 4)
+    bound = bind_gliner_mentions(record, [mention])
+    assert bound[0].source_binding_hash == envelope.source_binding_hash
+    edited = record.model_copy(update={"content": "I work for Acme Corp."})
+    assert source_binding(edited).binding_hash != envelope.source_binding_hash

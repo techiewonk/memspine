@@ -138,6 +138,20 @@ def test_envelope_round_trip(record: MemoryRecord) -> None:
     assert to_envelope(record).write_id == envelope.write_id  # deterministic
 
 
+def test_record_mapping_sets_known_at_and_source_binding_hash() -> None:
+    """RM-146 (ADR-088): a record projection is known when the record was recorded and binds to
+    the record's source snapshot; both mappings (store and offline adapter) agree."""
+    from memspine.derive.pipeline.stages.envelope_adapter import to_envelope as adapt
+    from memspine.store.source_binding import source_binding
+
+    record = _rec("semantic", entity="alice", attribute="city")
+    binding = source_binding(record).binding_hash
+    for envelope in (to_envelope(record), adapt(record, record.namespace)):
+        assert envelope.known_at == record.recorded_at
+        assert envelope.known_at is not None and envelope.known_at.tzinfo is not None
+        assert envelope.source_binding_hash == binding
+
+
 def test_from_envelope_without_the_lossless_copy() -> None:
     envelope = to_envelope(_rec("semantic", entity="alice", attribute="city"))
     bare = envelope.model_copy(update={"extras": {}})

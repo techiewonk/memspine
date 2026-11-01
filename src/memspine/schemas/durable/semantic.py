@@ -19,7 +19,7 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import Any, ClassVar, Literal, get_args
 
-from pydantic import Field, ValidationError, model_validator
+from pydantic import AwareDatetime, Field, ValidationError, model_validator
 
 from memspine.schemas.base import DurableModel, DurablePart
 from memspine.schemas.durable.assessment import Assessment
@@ -180,6 +180,14 @@ class SemanticEnvelope(DurableModel):
 
     # --- time, evidence, assessment ---
     time: TimeAxes = Field(default_factory=TimeAxes)
+    #: ADR-088: when the claim became known (evidence-known time, D-100), timezone-aware only.
+    #: The producer sets it to the time the claim was recorded; ``None`` only before a producer
+    #: stamps it.
+    known_at: AwareDatetime | None = None
+    #: ADR-088: the binding hash of the source snapshot the claim was derived from (record id,
+    #: version, text fingerprint and message envelope; ``memspine.store.source_binding``), the
+    #: same hash a GLiNER mention carries. ``None`` when the producer has no single source record.
+    source_binding_hash: str | None = Field(default=None, min_length=16, max_length=16)
     evidence: list[Evidence] = Field(default_factory=list)
     assessment: Assessment
 

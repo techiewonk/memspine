@@ -310,6 +310,31 @@ def test_reserved_names_are_never_stored_as_extras():
         _envelope(extras={"nested": [{"user_id": "x"}]})
 
 
+def test_known_at_and_source_binding_hash_round_trip():
+    """RM-146 (ADR-088): the claim carries its evidence-known time and source binding hash."""
+    env = _envelope(known_at=u(2026, 3, 1, 9, 31), source_binding_hash="0123456789abcdef")
+    again = SemanticEnvelope.model_validate_json(env.model_dump_json())
+    assert again.known_at == u(2026, 3, 1, 9, 31)
+    assert again.source_binding_hash == "0123456789abcdef"
+    assert again == env
+
+
+def test_naive_known_at_is_rejected():
+    with pytest.raises(ValidationError, match="known_at"):
+        _envelope(known_at=datetime(2026, 3, 1, 9, 31))
+    with pytest.raises(ValidationError, match="known_at"):
+        SemanticEnvelope.model_validate_json(
+            _envelope()
+            .model_dump_json()
+            .replace('"known_at":null', '"known_at":"2026-03-01T09:31:00"')
+        )
+
+
+def test_source_binding_hash_has_the_fingerprint_length():
+    with pytest.raises(ValidationError, match="source_binding_hash"):
+        _envelope(source_binding_hash="short")
+
+
 def test_mention_ids_distinct_and_exposed():
     a = Mention(surface="A", mention_id="m1")
     b = Mention(surface="B", mention_id="m2")

@@ -24,6 +24,7 @@ from memspine.schemas.durable.semantic import RoleBinding as DurableRoleBinding
 from memspine.semantics import RoleBindingCheck, SemanticRegistry, load_builtin_registry
 from memspine.semantics.specs import EntityType, ValueKind
 from memspine.store.records import MemoryRecord
+from memspine.store.source_binding import source_binding
 
 __all__ = [
     "FactStageResult",
@@ -272,6 +273,7 @@ def compile_grounded_facts(
                 source_at=record.source_at or record.valid_from,
                 content=record.content,
                 is_context=evidence is not candidate.evidence,
+                binding_hash=source_binding(record).binding_hash,
             )
         ctx = compiler.context(
             scope,
@@ -280,6 +282,8 @@ def compile_grounded_facts(
             source_version=source.version,
             source_time=source.source_at or source.valid_from,
             principal=candidate.assertion_owner,
+            # ADR-088: the claim binds to the source record snapshot it was mined from.
+            source_binding_hash=source_binding(source).binding_hash,
         )
         compiled = compiler.compile(
             [

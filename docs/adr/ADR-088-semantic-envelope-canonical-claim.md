@@ -57,4 +57,9 @@ revision) are claim fields; the registry predicate must equal the claim attribut
 evidence must be cited by the claim. Only an asserted claim reads as an asserted fact.
 Durable kind id: `semantic_envelope`.
 
-Open follow-ups: the source binding hash and `known_at` are not yet claim fields; the edge compiler takes `status` from the live record rather than the write-time snapshot; reported claims are not facts.
+RM-146 (2026-11-01): `known_at` (timezone-aware; the time the claim was recorded) and
+`source_binding_hash` (the D-98 mention binding hash over the source record snapshot,
+`memspine.store.source_binding`) are claim fields, set by the rules, model and record
+producers. The model path sets the hash only when its window lines carry one.
+
+Open follow-ups: the edge compiler takes `status` from the live record rather than the write-time snapshot; reported claims are not facts.
