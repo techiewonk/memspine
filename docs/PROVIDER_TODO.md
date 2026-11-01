@@ -15,7 +15,7 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | EXCLUDED | 4 |
 | IN_PROGRESS | 24 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 47 |
+| OPEN | 51 |
 | PROPOSED | 1 |
 | REVIEW | 1 |
 
@@ -24,10 +24,10 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BI | 12 |
 | DS | 21 |
 | PA | 136 |
-| RM | 136 |
+| RM | 140 |
 | RS | 9 |
 
-Total: **314 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
+Total: **318 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
 <!-- CURRENT_SUMMARY_END -->
 
 ## Status and column legend
@@ -377,6 +377,10 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-134 | OPEN | P2 | Model maintainer | MiniLM default reranker in base/simple and memspine models fetch (ADR-093) | Decided 2026-11-01; [waves](DECISION_WAVES_2026-11-01.md) | Catalogue entry, fetch command with SHA-256, MissingServiceError naming it, CI cache; re-measure read latency with the reranker on | Closes: RS-09 default, RM-44 |
 | RM-135 | OPEN | P1 | Privacy maintainer | Erasure gate across every copy class (ADR-095) | Decided 2026-11-01; [waves](DECISION_WAVES_2026-11-01.md) | One gate test per copy class including caches, logs/traces and restored backups; part of the phase C gate | Closes: DS-16 |
 | RM-136 | OPEN | P2 | Platform maintainer | Local docker compose service stack for local-service gates (ADR-096) | Decided 2026-11-01; [waves](DECISION_WAVES_2026-11-01.md) | Temporal dev, Postgres, Redis/Valkey, MongoDB, Neo4j; run RM-16, RM-31 and service-only parts of PA-056..PA-073 | Feeds: RM-16, RM-31, PA-056 |
+| RM-137 | OPEN | P1 | Storage / ingestion maintainers | Move intake/outbox SQL behind a storage port (D-22) | Standards review 2026-11-01: ingest/discovery.py, intake_store.py, gateway.py and message_store.py take a raw AsyncEngine and run insert/update/select on intake/outbox tables; consumers must use services ports, and a MongoDB records store cannot serve discovery | Add an intake/outbox port (services/storage) with SQL and Mongo implementations; ingest calls port methods; add an import contract forbidding sqlalchemy in ingest/ | Prereq: RM-131 merge |
+| RM-138 | OPEN | P2 | Test maintainers | Mirror src 1:1 under tests/unit for modules added or renamed since 7ac861e9 | Standards review 2026-11-01: no direct test for trust/pipeline/audit_chain.py, trust/pipeline/retention.py, services/storage/baseline.py, migrations.py, provider_tables.py; misnamed mirrors for ingest/discovery.py, source_provenance.py, stages/decay.py, edge_compiler.py, store/rebuild.py | Add or rename tests along the src path, starting with the modules that have none | Prereq: none |
+| RM-139 | OPEN | P2 | Engine maintainers | Remove generation-era wording and paths; move carried-over thresholds to constants | Standards review 2026-11-01: docstrings describe legacy paths (api/engine.py, derive/write.py, offline_door.py, context.py write.lineage_table, read/pipeline/timeview.py, ingest/gateway.py); stale adopted-legacy comment in onnx_catalogue.py; deprecated Kuzu phrase in services/graph/ladybug.py; bare thresholds in communities.py, close.py, decay.py | Remove generation-only paths or rename real optional features (D-110); move thresholds to config/constants.py with doc citations | Prereq: none |
+| RM-140 | OPEN | P3 | Observability maintainer | Logging consistency: structlog in tap sinks, memory.rebuild log line, documented stdlib logging in clients | Standards review 2026-11-01: observability/tap_sinks.py uses stdlib logging; store/rebuild.py never logs memory.rebuild; clients use stdlib logging because clients-isolated forbids observability imports | Switch tap_sinks to structlog; log memory.rebuild; state the clients logging rule in CLIENT_ADAPTER_FACTORY_STANDARD.md | Prereq: none |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)
