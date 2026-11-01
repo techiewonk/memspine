@@ -25,7 +25,7 @@ WF_BASE = "scr-gc3-windowfacts"  # S43: gc3 + write.window_extract=facts
 ROLE = {
     "provider": "ollama",
     "timeout_s": 180.0,
-    "settings": {"model": "qwen3.5:9b", "base_url": "http://127.0.0.1:11434", "no_think": True},
+    "settings": {"model": "qwen3.5:9b", "api_base": "http://127.0.0.1:11434", "no_think": True},
 }
 #: R3-12: one sufficiency check, at most one rewrite and one extra retrieval; without a bound role the deep tier
 #: is rules-only and logs ``agentic_unbound`` (audit finding 4)
@@ -37,7 +37,7 @@ SUFF = {
                 "timeout_s": 180.0,
                 "settings": {
                     "model": "qwen3.5:9b",
-                    "base_url": "http://127.0.0.1:11434",
+                    "api_base": "http://127.0.0.1:11434",
                     "no_think": True,
                 },
             }
@@ -60,6 +60,8 @@ B7 = {
         "scr-pool-protect-jina",
         {
             "read": {"gate": True, "deep": True},
+            # ADR-081: the shared ollama server needs an explicit deployment.id
+            "deployment": {"id": "local-evaluation"},
             "model": {
                 "llm": {
                     "sufficiency": {
@@ -67,7 +69,7 @@ B7 = {
                         "timeout_s": 180.0,
                         "settings": {
                             "model": "qwen3.5:9b",
-                            "base_url": "http://127.0.0.1:11434",
+                            "api_base": "http://127.0.0.1:11434",
                             "no_think": True,
                         },
                     }
@@ -79,6 +81,8 @@ B7 = {
         "scr-pool-protect-jina",
         {
             "read": {"gate": True, "deep": True, "obligations": True},
+            # ADR-081: the shared ollama server needs an explicit deployment.id
+            "deployment": {"id": "local-evaluation"},
             "model": {
                 "llm": {
                     "sufficiency": {
@@ -86,7 +90,7 @@ B7 = {
                         "timeout_s": 180.0,
                         "settings": {
                             "model": "qwen3.5:9b",
-                            "base_url": "http://127.0.0.1:11434",
+                            "api_base": "http://127.0.0.1:11434",
                             "no_think": True,
                         },
                     }
@@ -108,7 +112,7 @@ B8 = {
                     "timeout_s": 180.0,
                     "settings": {
                         "model": "qwen3.5:9b",
-                        "base_url": "http://127.0.0.1:11434",
+                        "api_base": "http://127.0.0.1:11434",
                         "no_think": True,
                     },
                 },
@@ -117,7 +121,7 @@ B8 = {
                     "timeout_s": 180.0,
                     "settings": {
                         "model": "qwen3.5:9b",
-                        "base_url": "http://127.0.0.1:11434",
+                        "api_base": "http://127.0.0.1:11434",
                         "no_think": True,
                     },
                 },
@@ -133,7 +137,7 @@ B8 = {
                     "timeout_s": 180.0,
                     "settings": {
                         "model": "qwen3.5:9b",
-                        "base_url": "http://127.0.0.1:11434",
+                        "api_base": "http://127.0.0.1:11434",
                         "no_think": True,
                     },
                 }
@@ -148,7 +152,7 @@ B8 = {
                     "timeout_s": 180.0,
                     "settings": {
                         "model": "qwen3.5:9b",
-                        "base_url": "http://127.0.0.1:11434",
+                        "api_base": "http://127.0.0.1:11434",
                         "no_think": True,
                     },
                 }
@@ -163,7 +167,7 @@ B8 = {
                     "timeout_s": 180.0,
                     "settings": {
                         "model": "qwen3.5:9b",
-                        "base_url": "http://127.0.0.1:11434",
+                        "api_base": "http://127.0.0.1:11434",
                         "no_think": True,
                     },
                 },
@@ -172,7 +176,7 @@ B8 = {
                     "timeout_s": 180.0,
                     "settings": {
                         "model": "qwen3.5:9b",
-                        "base_url": "http://127.0.0.1:11434",
+                        "api_base": "http://127.0.0.1:11434",
                         "no_think": True,
                     },
                 },

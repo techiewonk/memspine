@@ -75,7 +75,7 @@
         "settings": {
           "model": "qwen3.5:9b",
           "no_think": true,
-          "base_url": "http://127.0.0.1:11434"
+          "api_base": "http://127.0.0.1:11434"
         },
         "timeout_s": 180.0,
         "provider": "ollama",
@@ -87,7 +87,7 @@
         "settings": {
           "model": "qwen3.5:9b",
           "no_think": true,
-          "base_url": "http://127.0.0.1:11434"
+          "api_base": "http://127.0.0.1:11434"
         },
         "timeout_s": 180.0,
         "provider": "ollama",
@@ -112,5 +112,8 @@
   },
   "offline": {
     "histories": true
+  },
+  "deployment": {
+    "id": "local-evaluation"
   }
 }

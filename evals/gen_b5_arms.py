@@ -16,7 +16,7 @@ BASE = "scr-gc3-graph-jina"
 ROLE = {
     "provider": "ollama",
     "timeout_s": 180.0,
-    "settings": {"model": "qwen3.5:9b", "base_url": "http://127.0.0.1:11434", "no_think": True},
+    "settings": {"model": "qwen3.5:9b", "api_base": "http://127.0.0.1:11434", "no_think": True},
 }
 SC = {
     "model": {
@@ -26,7 +26,7 @@ SC = {
                 "timeout_s": 180.0,
                 "settings": {
                     "model": "qwen3.5:9b",
-                    "base_url": "http://127.0.0.1:11434",
+                    "api_base": "http://127.0.0.1:11434",
                     "no_think": True,
                 },
             }
@@ -42,7 +42,7 @@ WX = {
                 "timeout_s": 180.0,
                 "settings": {
                     "model": "qwen3.5:9b",
-                    "base_url": "http://127.0.0.1:11434",
+                    "api_base": "http://127.0.0.1:11434",
                     "no_think": True,
                 },
             }
@@ -62,7 +62,7 @@ OVERLAYS = {
                     "timeout_s": 180.0,
                     "settings": {
                         "model": "qwen3.5:9b",
-                        "base_url": "http://127.0.0.1:11434",
+                        "api_base": "http://127.0.0.1:11434",
                         "no_think": True,
                     },
                 }
@@ -79,7 +79,7 @@ OVERLAYS = {
                     "timeout_s": 180.0,
                     "settings": {
                         "model": "qwen3.5:9b",
-                        "base_url": "http://127.0.0.1:11434",
+                        "api_base": "http://127.0.0.1:11434",
                         "no_think": True,
                     },
                 }
@@ -99,7 +99,7 @@ OVERLAYS = {
                     "timeout_s": 180.0,
                     "settings": {
                         "model": "qwen3.5:9b",
-                        "base_url": "http://127.0.0.1:11434",
+                        "api_base": "http://127.0.0.1:11434",
                         "no_think": True,
                     },
                 }
@@ -117,7 +117,7 @@ OVERLAYS = {
                     "timeout_s": 180.0,
                     "settings": {
                         "model": "qwen3.5:9b",
-                        "base_url": "http://127.0.0.1:11434",
+                        "api_base": "http://127.0.0.1:11434",
                         "no_think": True,
                     },
                 }
@@ -134,7 +134,7 @@ OVERLAYS = {
                     "timeout_s": 180.0,
                     "settings": {
                         "model": "qwen3.5:9b",
-                        "base_url": "http://127.0.0.1:11434",
+                        "api_base": "http://127.0.0.1:11434",
                         "no_think": True,
                     },
                 }

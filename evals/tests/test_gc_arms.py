@@ -45,7 +45,7 @@ def test_every_llm_role_is_local_qwen_thinking_off(name: str) -> None:
     assert roles
     for binding in roles.values():
         assert binding["settings"]["model"] == "qwen3.5:9b"
-        assert binding["settings"]["base_url"] == "http://127.0.0.1:11434"
+        assert binding["settings"]["api_base"] == "http://127.0.0.1:11434"
         assert binding["settings"]["no_think"] is True
 
 

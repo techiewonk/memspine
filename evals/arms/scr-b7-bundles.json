@@ -76,7 +76,7 @@
         "settings": {
           "model": "qwen3.5:9b",
           "no_think": true,
-          "base_url": "http://127.0.0.1:11434"
+          "api_base": "http://127.0.0.1:11434"
         },
         "timeout_s": 180.0,
         "provider": "ollama",
@@ -88,7 +88,7 @@
         "settings": {
           "model": "qwen3.5:9b",
           "no_think": true,
-          "base_url": "http://127.0.0.1:11434"
+          "api_base": "http://127.0.0.1:11434"
         },
         "timeout_s": 180.0,
         "provider": "ollama",
@@ -101,8 +101,8 @@
         "timeout_s": 180.0,
         "settings": {
           "model": "qwen3.5:9b",
-          "base_url": "http://127.0.0.1:11434",
-          "no_think": true
+          "no_think": true,
+          "api_base": "http://127.0.0.1:11434"
         }
       }
     },
@@ -123,5 +123,8 @@
   "write": {
     "window_extract": "facts",
     "window_async": false
+  },
+  "deployment": {
+    "id": "local-evaluation"
   }
 }

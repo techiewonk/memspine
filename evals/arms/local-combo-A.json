@@ -23,7 +23,7 @@
   },
   "model": {
     "embedding": {
-      "provider": "fastembed",
+      "provider": "onnx",
       "settings": {
         "model": "BAAI/bge-small-en-v1.5"
       }
