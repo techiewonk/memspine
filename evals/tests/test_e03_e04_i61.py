@@ -79,7 +79,7 @@ def test_message_carries_attachments_only_when_ingest_assets_is_on() -> None:
     on = MemspineSystem(config={**_HASH, "ingest": {"assets": "on"}})._message(
         _pic_turn(), "Ana: Look at this."
     )
-    assert on["turn_id"] == "D1:2" and on["attachments"][0]["uri"] == URL
+    assert on["message_id"] == "D1:2" and on["attachments"][0]["uri"] == URL
     plain = Turn(turn_id="D1:1", session_id="s1", speaker="Ana", text="hi")
     assert MemspineSystem(config={**_HASH, "ingest": {"assets": "on"}})._message(
         plain, "Ana: hi"
