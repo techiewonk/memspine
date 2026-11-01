@@ -24,6 +24,7 @@ import re
 from collections import Counter
 from datetime import datetime
 
+from memspine.config import constants
 from memspine.derive.pipeline.stages.context import (
     PipelineContext,
     SessionClosed,
@@ -51,8 +52,6 @@ from memspine.store.records import MemoryRecord, RecordStatus
 
 #: the stage name of the done marker.
 STAGE = "session_close"
-#: at most this many episode stubs go into the plan (the plan trims further by budget).
-_MAX_STUBS = 20
 _SPEAKER = re.compile(r"^\s*([^\W\d_][\w .'-]{0,30}?):\s+")
 
 
@@ -121,7 +120,7 @@ async def _stubs(
             )
         )
     out.sort(key=lambda s: (s.end.timestamp() if s.end else 0.0, s.episode_id))
-    return out[-_MAX_STUBS:]
+    return out[-constants.SESSION_CLOSE_MAX_STUBS :]
 
 
 def _parse(raw: str, plan: Call2Plan) -> Call2Result:

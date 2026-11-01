@@ -76,7 +76,7 @@ PredictEpisode = Callable[[str, str, list[str]], Awaitable[str]]
 
 
 #: #62: (prediction, dated transcript, known statements) -> the facts the transcript
-#: states that the known statements do not (``calibrate`` v2, ADR-049).
+#: states that the known statements do not (``calibrate``, ADR-049).
 CalibrateEpisode = Callable[[str, str, list[str]], Awaitable[list[ExtractedFact]]]
 
 
@@ -330,8 +330,8 @@ class PipelineContext:
     #: contexts) => every record is kept, as before. Stages go through :func:`live_records`.
     live_gate: Callable[[list[MemoryRecord]], Awaitable[list[MemoryRecord]]] | None = None
     #: FU-SAFE (``write.lineage_table``): ``(namespace, record, parent ids, site)`` writes the
-    #: lineage edges of a summary a legacy stage appended as a raw WRITE event. None (flag off, bare
-    #: contexts) => no edges, as before. See ``offline_door.stamp_summary`` / ``link_summary``.
+    #: lineage edges of a summary a stage appended as a raw WRITE event. None (flag off, bare
+    #: contexts) => no edges. See ``offline_door.stamp_summary`` / ``link_summary``.
     link_derived: Callable[[str, MemoryRecord, Sequence[str], str], Awaitable[None]] | None = None
     #: RM-99: the opt-in offline model detector of the sensitivity labelling layer
     #: (``model.extraction.sensitivity``; a ``derive.sensitivity.SensitivityModel``). None

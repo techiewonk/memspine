@@ -257,7 +257,7 @@ _ADMIT_ALL = QualifierFilter()
 
 
 class LadybugGraphStore:
-    """GraphStore over an embedded LadybugDB (or, deprecated, Kùzu) connection."""
+    """GraphStore over an embedded LadybugDB connection."""
 
     def __init__(self, client: CypherClient) -> None:
         self._client = client

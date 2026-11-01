@@ -259,8 +259,9 @@ def _as_envelope(r: MemoryRecord) -> SemanticEnvelope:
 
 
 def _timeview_allowed(listed: list[MemoryRecord], date_filter: Any, scope: Any) -> set[str] | None:
-    """R3-14 (``read.timeview``): the allow-list under the three-valued time view, or
-    None when the read has no as-of / known-at bound (the legacy path then runs).
+    """R3-14: the allow-list under the three-valued time view, or None when the read has
+    no as-of / known-at bound or ORs its date bounds (the plain date and scope filter then
+    applies).
 
     The as-of scope's own ``valid_from_before`` and a ``recorded_before`` bound are taken
     over by the view (event time and knowledge time); every other date bound still

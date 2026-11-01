@@ -2575,8 +2575,7 @@ class Engine:
         (D-25) a lexical BM25 leg (``services/lexical``) is fused into the
         candidate ranking via reciprocal-rank fusion (``rrf_fuse``), so a record
         that only lexical search would surface can enter the results. Hybrid is
-        opt-in for backward-compat (default-on is the intended v0.2 flip); off,
-        results are bit-identical to the vector-only pipeline. The E1
+        opt-in; off, results are bit-identical to the vector-only pipeline. The E1
         status/quarantine gate below runs on the FUSED candidates, so held
         content never surfaces through the lexical leg either.
         ``static_prefilter`` is a cheap lexical-overlap gate applied POST-fusion,
@@ -5905,7 +5904,7 @@ class Engine:
     async def _link_derived_summary(
         self, namespace: str, record: MemoryRecord, parents: Sequence[str], site: str
     ) -> None:
-        """FU-SAFE: lineage edges for a summary a legacy stage appended as a raw WRITE event."""
+        """FU-SAFE: lineage edges for a summary a stage appended as a raw WRITE event."""
         storage = self._require_started()
         stored = await storage.get_record(record.record_id)
         await derive_write.link_derived(storage, namespace, stored or record, parents, site)

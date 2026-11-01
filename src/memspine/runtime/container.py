@@ -964,10 +964,9 @@ def resolved_embedding(config: MemspineConfig) -> Any:
     from memspine.models.embedding_profiles import resolve_profile
     from memspine.observability import tap
 
-    # Provider-native options moved into ``settings``.  In particular, a profile
+    # Provider-native options live in ``settings``.  In particular, a profile
     # can be selected while the configured provider is still the default
-    # onnx provider, so read an explicit device from the raw settings map
-    # rather than looking for a legacy top-level attribute.
+    # onnx provider, so read an explicit device from the raw settings map.
     configured_device = cfg.settings.get("device")
     profile = resolve_profile(
         cfg.preset,

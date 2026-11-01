@@ -20,7 +20,7 @@ Three profile representations, three consumers (MF-13); do not confuse them:
 * **profile card** (this module): ``profile_card`` event-log MARKERs, no layered record. Its one
   read consumer is the ``read.profile_card_header`` block (:func:`read_latest_card` here,
   :func:`render_card_header` for the text, ``compose/pipeline/sections._profile_card_section``);
-* **reflective insights** (L4 records from ``reflect_profile``): the legacy ``read.profile_header``
+* **reflective insights** (L4 records from ``reflect_profile``): the ``read.profile_header``
   / ``profile_header_packing`` block, unchanged;
 * **standing answers** (L5 records from ``standing_answers``): the ``read.standing_answers`` block
   and the router's ``profile`` leg.

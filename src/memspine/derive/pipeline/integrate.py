@@ -119,7 +119,8 @@ async def _deposit_surprise_fact(
     Like a mined fact (C6'): LLM-authored, so the non-privileged ``assistant``
     role; trust capped at the least-trusted turn; an event drops its attribute
     so it is ADDed beside the person's other events. Tagged ``surprise_fact``
-    and ``calibrated:<session key>`` (the stage's legacy done check)."""
+    and ``calibrated:<session key>`` (the session it came from; the stage's done check is its
+    ``stage_done`` marker)."""
     storage = eng._require_started()
     ns = validate_namespace(namespace)
     sources = [r for r in [await storage.get_record(p) for p in parents] if r is not None]

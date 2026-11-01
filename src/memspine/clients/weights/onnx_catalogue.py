@@ -334,8 +334,9 @@ def model_embedder_id(
     if query_instruction:
         # The instruction is holder-owned rather than shared weight metadata, but
         # it changes retrieval semantics and must enter projection/space identity.
-        # Otherwise an adopted legacy table can be replaced by an empty neutral
-        # table while retaining its old projection checkpoint.
+        # Otherwise a space built with the instruction and one built without it
+        # would share an identity, so a table could be swapped for one with
+        # different query semantics while keeping the projection checkpoint.
         spec = replace(spec, query_prefix=query_instruction, certified=False)
     if model_spec is None and spec.certified:
         return f"embedder:{model}"

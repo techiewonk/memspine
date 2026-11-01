@@ -60,8 +60,8 @@ async def write_summary_record(
 
 
 def stamp_summary(ctx: PipelineContext, record: MemoryRecord, site: str) -> MemoryRecord:
-    """FU-SAFE: the door's envelope stamp (layer, derivation) on a summary a legacy stage appends
-    raw; the identity unless ``write.lineage_table`` is on (``ctx.link_derived`` set)."""
+    """FU-SAFE: the door's envelope stamp (layer, derivation) on a summary a stage appends raw;
+    the identity unless ``write.lineage_table`` is on (``ctx.link_derived`` set)."""
     if ctx.link_derived is None:
         return record
     from memspine.derive.write import stamp_derived

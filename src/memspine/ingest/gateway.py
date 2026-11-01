@@ -633,7 +633,7 @@ class IntakeGateway:
                 turn.get("role") in fw.skip_message_roles
                 or (fw.skip_injected_recall and _looks_like_recall(str(turn.get("content", ""))))
             ):
-                continue  # legacy writes no record for these; do not replay their audit marker
+                continue  # the first apply wrote no record for these; do not replay their audit marker
             todo.append(f)
         sink: dict[str, str] = {}
         if todo:

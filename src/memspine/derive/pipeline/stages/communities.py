@@ -161,7 +161,7 @@ def _hubs(named: set[str], edges: list[CommunityEdge], fraction: float) -> froze
     for e in edges:
         neighbours.setdefault(e.src, set()).add(e.dst)
         neighbours.setdefault(e.dst, set()).add(e.src)
-    if fraction > 0 and len(neighbours) >= 10:
+    if fraction > 0 and len(neighbours) >= constants.COMMUNITY_HUB_MIN_ENTITIES:
         need = fraction * (len(neighbours) - 1)
         hubs |= {n for n, nb in neighbours.items() if len(nb) >= need}
     return frozenset(hubs)
@@ -230,7 +230,10 @@ async def _namespace(ctx: PipelineContext, namespace: str, totals: Counter[str])
             [m.content for m in inputs], constants.CONSOLIDATION_SUMMARY_MAX_CHARS
         )
         used_model = False
-        if ctx.summarize is not None and len(job.members) >= 3:
+        if (
+            ctx.summarize is not None
+            and len(job.members) >= constants.COMMUNITY_MODEL_SUMMARY_MIN_ENTITIES
+        ):
             try:
                 text = await ctx.summarize("\n".join(m.content for m in inputs))
                 used_model = True

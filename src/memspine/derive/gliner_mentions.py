@@ -139,7 +139,7 @@ def parse_gliner_mentions(
     """Validate an SDK result and map every supported entity span in source order.
 
     The SDK may return either ``{"entities": {label: [spans]}}`` or the bare
-    type-to-spans mapping. Legacy strings are grounded only when they occur
+    type-to-spans mapping. Bare string spans (no offsets) are grounded only when they occur
     exactly once; no ambiguous repeated mention is assigned a guessed offset.
     Confidence remains unknown when the SDK did not return it.
     """

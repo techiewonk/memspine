@@ -1,6 +1,6 @@
 """Flag prerequisites as checks (FU-REQS; audit 2026-10-13, finding 1).
 
-A v2 flag that "needs X" used to say so in a comment only; without X the stage was never
+A flag that "needs X" used to say so in a comment only; without X the stage was never
 built and the flag was silently inert (a screen arm that forgot X read as "no effect").
 :data:`REQUIRES` declares each prerequisite as data: dotted YAML key of the flag -> the
 :class:`Need` rows that must hold when the flag is on. One generic validator on the root

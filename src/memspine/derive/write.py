@@ -212,7 +212,8 @@ async def link_derived(
     storage: Any, ns: str, written: MemoryRecord, parents: Sequence[str], site: str
 ) -> MemoryRecord:
     """FU-SAFE: lineage edges for a derived record that was appended as a raw WRITE event (the
-    legacy summary paths keep their event payload, e.g. ``consolidation``, for the graph projector).
+    summary stages append raw so their event payload, e.g. ``consolidation``, reaches the graph
+    projector).
     The record must already be stamped with :func:`stamp_derived`; nothing is written if no parent
     is named. Only called under ``write.lineage_table``."""
     pids = [p for p in dict.fromkeys(parents) if p != written.record_id]

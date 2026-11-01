@@ -13,12 +13,12 @@ data. A record matches when an *event interval* of it overlaps the window:
 Matches rank by closeness of the best interval to the window middle (ties: chronological).
 Score is ``1 / (1 + days)`` from that middle, so it lies in ``(0, 1]``.
 
-FU-TEMPORAL: the old ``read.temporal_*`` rules are honoured here (see ``LegContext``): the
+FU-TEMPORAL: the ``read.temporal_*`` rules are honoured here (see ``LegContext``): the
 ``overlap`` rank, ``soft`` fill, turns that name a date (``mentions``), the ``happened:`` date
-(``event_dates``, with the old "start of the overlap" distance), relative phrases (only with a
+(``event_dates``, with the "start of the overlap" distance), relative phrases (only with a
 ``reference_time``) and yearless dates (only with a ``year_ref``). Utterance instants and mention /
-happened dates rank exactly as ``models.encoders.query.temporal_query.temporal_leg`` did; closed
-validity intervals and the precision weight are the v2 additions.
+happened dates rank exactly as ``models.encoders.query.temporal_query.temporal_leg`` ranks them; closed
+validity intervals and the precision weight are added by this leg.
 """
 
 from __future__ import annotations

@@ -242,8 +242,9 @@ async def decay_sweep(ctx: PipelineContext) -> dict[str, object]:
 
 
 def _clip(text: str, tokens: int) -> str:
-    """At most ``tokens`` tokens (four characters each), cut at a word boundary."""
-    limit = tokens * 4
+    """At most ``tokens`` tokens (TOKEN_ESTIMATE_CHARS_PER_TOKEN characters each), cut at a word
+    boundary."""
+    limit = tokens * constants.TOKEN_ESTIMATE_CHARS_PER_TOKEN
     text = " ".join(text.split())
     if len(text) <= limit:
         return text
@@ -262,7 +263,9 @@ def _first_sentence(text: str) -> str:
 
 def _keywords(text: str, tokens: int) -> str:
     words = [
-        w for w in "".join(c.lower() if c.isalnum() else " " for c in text).split() if len(w) > 3
+        w
+        for w in "".join(c.lower() if c.isalnum() else " " for c in text).split()
+        if len(w) >= constants.DECAY_MULTIRES_KEYWORD_MIN_CHARS
     ]
     freq = Counter(w for w in words if w not in _STOP)
     ranked = sorted(freq, key=lambda w: (-freq[w], w))
@@ -372,7 +375,9 @@ async def _multires_namespace(
     counts["groups"] += len(groups)
     jobs = compression_plan(
         [ColdGroup(group_id=g, members=tuple(m)) for g, m in sorted(groups.items())],
-        CompressBudget(min_group_size=min_group),
+        CompressBudget(
+            min_group_size=min_group, paragraph_tokens=constants.DECAY_MULTIRES_PARAGRAPH_TOKENS
+        ),
     )
     counts["planned"] += len(jobs)
     counts["over_cap"] += max(0, len(jobs) - cap)
@@ -381,9 +386,13 @@ async def _multires_namespace(
         if not members:
             continue
         paragraph_budget = next(
-            (s.token_budget for s in job.levels if s.level is Resolution.PARAGRAPH), 200
+            (s.token_budget for s in job.levels if s.level is Resolution.PARAGRAPH),
+            constants.DECAY_MULTIRES_PARAGRAPH_TOKENS,
         )
-        paragraph = extractive_summary([m.content for m in members], paragraph_budget * 4)
+        paragraph = extractive_summary(
+            [m.content for m in members],
+            paragraph_budget * constants.TOKEN_ESTIMATE_CHARS_PER_TOKEN,
+        )
         if ctx.summarize is not None:
             try:
                 paragraph = await ctx.summarize("\n".join(m.content for m in members))

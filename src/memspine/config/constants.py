@@ -73,24 +73,14 @@ PPR_ITERATIONS = 20
 EVOLUTION_LINK_MIN_SIMILARITY = 0.6
 EVOLUTION_MAX_LINKS_PER_WRITE = 4
 
-# Background reorganizer (D-40/D-42): communities below this size are not
-# worth a summary-parent record (mirrors CONSOLIDATION_MIN_SESSION_RECORDS).
-REORGANIZE_MIN_COMMUNITY_SIZE = 3
-
-# Leiden community-detection knobs (D-40/v0.2 A6, ADR-028, ADR-043): Leiden
-# defaults + the hierarchical ``max_cluster_size`` bound, surfaced as
-# ``memories.associative.policies.community.*`` so a deployment can tune
-# community granularity without a code change. The seed is fixed so the same
-# graph yields the same communities (rebuild determinism, D0.1) — override it
-# only when a deployment deliberately wants to reshuffle clustering.
-LEIDEN_RANDOM_SEED = 1
-LEIDEN_RESOLUTION = 1.0
-LEIDEN_RANDOMNESS = 0.001
-LEIDEN_MAX_CLUSTER_SIZE = 1000
-# graspologic-native Leiden cycles per run (ADR-043): ``iterations=10`` matched
-# leidenalg's run-to-convergence accuracy in the KB-12 benchmark. Resolution 2.0
-# scored higher on synthetic graphs but stays a calibration candidate (#24).
-LEIDEN_ITERATIONS = 10
+# Entity communities (O4-06, docs/v2/pipelines/offline.md section 13 "S10 Communities";
+# deterministic LPA, D-110 / ADR-086). The automatic hub rule
+# (``offline.community_hub_fraction``) applies only to a graph of at least this many linked
+# entities; on a smaller graph a degree share is too coarse to single out a hub. Not tuned.
+COMMUNITY_HUB_MIN_ENTITIES = 10
+# Section 13 "Model call?": only a community of at least this many entities gets a
+# ``summarize`` model call; a smaller one keeps the extractive summary.
+COMMUNITY_MODEL_SUMMARY_MIN_ENTITIES = 3
 
 
 # Reflective memory (M13.7): maximum reflection-on-reflection depth.
@@ -106,6 +96,12 @@ EVENT_LOG_RETENTION_DAYS = 30
 DECAY_HOT_TO_WARM_DAYS = 7
 DECAY_WARM_TO_COLD_DAYS = 30
 DECAY_COLD_TO_DORMANT_DAYS = 90
+# Multi-resolution compression (O4-09, docs/v2/pipelines/offline.md section 20 "S17
+# Compression"): the paragraph level's token budget (the ``derive.decay.CompressBudget``
+# default), and the shortest word (in characters) the keyword level keeps; shorter words are
+# mostly function words. Characters per token come from TOKEN_ESTIMATE_CHARS_PER_TOKEN.
+DECAY_MULTIRES_PARAGRAPH_TOKENS = 200
+DECAY_MULTIRES_KEYWORD_MIN_CHARS = 4
 
 # Memory Firewall (E1): trust assigned at write per source class; retrieved
 # content is capped low so it can never masquerade as operator input.
@@ -304,7 +300,7 @@ SLOTS_TAG = "slots_header"
 SPAN_MARKER = "TIME BETWEEN (computed by memory from the two best-matching dated turns):"
 SPAN_TAG = "span_line"
 PROFILE_HEADER_TOP_K = 8
-# #35 (SM-8): the most planner-v2 lookup subqueries a lookup read fuses as extra legs.
+# #35 (SM-8): the most planner lookup subqueries a lookup read fuses as extra legs.
 PLAN_LOOKUP_PROBES = 2
 # E3: header of the occurrences block (``read.count_timeline``) and its tag: the distinct
 # dated mentions, among the retrieved records, of the event a count question asks about.
@@ -526,6 +522,9 @@ WINDOW_EPISODE_MAX_CHARS = 4000
 WINDOW_EPISODE_CHANNEL = "window_episode"
 #: O4-02: channel of a session summary / stitched episode written by call 2 at session close.
 SESSION_CLOSE_CHANNEL = "session_close"
+#: O4-02 (docs/v2/pipelines/offline.md section 3 "Call 2 at session close"): at most this many
+#: of the newest episode stubs enter the call-2 plan, which trims further by token budget.
+SESSION_CLOSE_MAX_STUBS = 20
 #: O4-07: MARKER payload name of the profile card state of one namespace (latest wins).
 PROFILE_CARD_MARKER = "profile_card"
 

@@ -32,7 +32,7 @@ class RetentionConfig(ConfigModel):
 
     classes: list[RetentionClassConfig] = Field(default_factory=list)
     #: T5-05: a named LIB-41 template (assistant, coding, ephemeral, multi_agent, regulated)
-    #: whose classes apply under ``v2`` besides ``classes``. None: ``classes`` only.
+    #: whose classes apply besides ``classes``. None: ``classes`` only.
     profile: Literal["assistant", "coding", "ephemeral", "multi_agent", "regulated"] | None = None
 
 

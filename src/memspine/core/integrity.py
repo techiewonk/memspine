@@ -21,7 +21,7 @@ _UNBOUNDED_HORIZON = 1_000_000
 
 
 def _unit(value: float) -> float:
-    """Clamp to [0, 1]: the library rejects anything else, the legacy arithmetic never did."""
+    """Clamp to [0, 1]: the library rejects anything else; callers' scores are unbounded."""
     return min(1.0, max(0.0, value))
 
 

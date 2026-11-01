@@ -23,7 +23,7 @@ EDGES           x (+hist) x         -            edge compiler (kept as before)
 RECONCILE       x         x         x            supersession only among keyed facts
 HISTORIES_MERGE x         x         -            near-duplicate merge (NEW-01: was unkeyed)
 HISTORIES_VALUE x (+hist) x         x            value-history projection
-ANY             x (+hist) -         -            legacy ``is_fact`` default (no key needed)
+ANY             x (+hist) -         -            plain ``is_fact`` default (no key needed)
 INTEGRATION     x         x         -            live index; ``attr:`` tag may supply the
                                                   attribute, so only the entity is required
 PATTERNS        -         x         -            lifecycle is judged by ``fact_envelope``
@@ -67,7 +67,7 @@ class FactPurpose(StrEnum):
     INTEGRATION = "integration"
     PATTERNS = "patterns"
     STANDING = "standing"
-    #: lifecycle + derived-view gate only (the legacy ``is_fact`` default); no key requirement
+    #: lifecycle + derived-view gate only (the plain ``is_fact`` default); no key requirement
     ANY = "any"
 
 
