@@ -6,7 +6,7 @@ This file is loaded into every Claude Code session. Keep it accurate and terse.
 
 `memspine` is an open-source **cognitive-memory engine** for AI agents: one clean API (`Engine`) over a real write pipeline, hybrid + graph retrieval, and background learning dynamics — with pluggable, composable stores. It is the *engine*, not a product.
 
-**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix. Get the current test count with `uv run pytest --collect-only -q` (evals add `evals/tests`); `ruff` + `mypy --strict` are the gate. **84 ADRs** (ADR-001…ADR-086; 038 and 045 unassigned; ADR-029/030/031 *proposed*), decision register through D-110. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current task/status lives only in `docs/PROVIDER_TODO.md` (see below). The design docs in `docs/` are the **single source of truth** — read them before writing code.
+**Status:** pre-alpha, under active construction. **P0–P7 are all implemented and review-passed** (substrate · working memory + retrieval · semantic · episodic + lifecycle · Memory Firewall · procedural + reflective · associative graph · prospective + shared + REST), plus the C6 combination matrix. Get the current test count with `uv run pytest --collect-only -q` (evals add `evals/tests`); `ruff` + `mypy --strict` are the gate. **94 ADRs** (ADR-001…ADR-096; 038 and 045 unassigned; ADR-029/030/031 *proposed*), decision register through D-120. All 9 memory types and E1–E9 are landed. User-facing docs: `docs/FEATURES.md` + `docs/USAGE.md`. Ecosystem comparison: `docs/ECOSYSTEM_COMPARISON.md` + `docs/ARCHITECTURE_FLOWS.md` (pass #3: stages, packages, prompts, memory I/O). Current task/status lives only in `docs/PROVIDER_TODO.md` (see below). The design docs in `docs/` are the **single source of truth** — read them before writing code.
 
 ## Single live task/status tracker
 
@@ -14,7 +14,7 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 
 ## Read these first (in order)
 
-1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-109), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
+1. `docs/memspine-structure-plan.md` — **the buildable blueprint**: repo tree, extras matrix, decision register (D-01…D-120), phase plan (P0…P7), enhancement program (E1–E9). This is authoritative.
 2. `docs/UNIMEM_V2_REWORK_PROPOSAL.md` — architecture rationale (why, and the evidence base).
 3. `docs/DEPENDENCY_ANALYSIS.md` + `docs/PACKAGE_CATALOG.md` — why each dependency was chosen; every candidate package with "does what".
 
@@ -30,7 +30,7 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 - **Profiles stay green.** Keep the current `simple` profile green while applying the accepted breaking first-cycle contracts. No legacy configuration aliases or compatibility modules (ADR-068); `core` is the bare reference used by mechanics tests.
 - **Hard-fail clearly (D-10).** Missing service → `MissingServiceError` naming the extra to install, unless `strict_services: false`.
 
-## Locked defaults (decision register — see plan for D-01…D-109)
+## Locked defaults (decision register — see plan for D-01…D-120)
 
 | Area | Default | Notes |
 |------|---------|-------|
@@ -46,7 +46,7 @@ Use **docs/PROVIDER_TODO.md** for all current task IDs, statuses, completed work
 | LLM | local: **Ollama/vLLM/llama.cpp/LM Studio/OpenAI-compatible** + Bedrock | own httpx client; Bedrock `[aws]`, hosted long tail `[anyllm]` (ADR-085) |
 | Workers | **inline** default, **Temporal + embedded Resonate** durable, **taskiq** brokered | ADR-071; Temporal requires external cluster + persistent local journal |
 | Dedup | **datasketch** MinHash-LSH → cosine confirm | D-27 |
-| Entities | **GLiNER2** CPU NER `[ner]` (default checkpoint GLiNER2.5 Base, `fastino/gliner2.5-base-v1`), selected via named `models.profiles` + `models.bindings` (off unless bound) + LLM fallback | D-28/D-97/ADR-075 |
+| Entities | **GLiNER2** CPU NER `[ner]` (default checkpoint GLiNER2.5 Base, `fastino/gliner2.5-base-v1`), selected via `model.extraction.<consumer>` slots (off unless set) + LLM fallback | D-28/D-97/D-106/ADR-082 |
 | Ingest | **markitdown + chonkie** `[ingest]` | D-29 |
 | Structured output | built-in schema recovery + always-on **json-repair** | no instructor dependency; explicit provider capabilities |
 | Compression | **zstandard** cold-tier + **llmlingua** assembly `[compress]` | D-32/E5 |
@@ -89,7 +89,7 @@ uv run ruff check . && uv run ruff format --check .
 ## How to work here
 
 1. **Find the phase.** Work follows P0→P7 (see plan §5). Confirm which phase a task belongs to; don't build P4 before P1's contracts exist.
-2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-109. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
+2. **Check the register.** Before adding a dependency or pattern, confirm it against D-01…D-120. New dep → justify like `DEPENDENCY_ANALYSIS.md` (what it does, who proves it, which extra) and record a decision.
 3. **Keep the core slim and `simple` green.** Guard both in every PR.
 4. **Update docs with the code.** If you change a contract, update the structure plan + this file in the same change.
 
@@ -131,7 +131,7 @@ D-100 schema selection Q-S1..5 B/B/A/A/B: coordinated replacement of affected en
 
 D-104 / ADR-080: compiled graph edges carry typed qualifiers (aware-only times; semantics vocabularies for lifecycle, sensitivity and origin). `graph_filter` on search/read/REST/MCP gates only the compiled-edge leg. Unknown never passes an allow-filter and erased edges never pass; unqualified graph paths are skipped under a filter. Sensitivity is a separate three-state labelling layer that only tightens policy. Malformed qualifiers are dropped with a warning, never failing the write.
 
-D-105 / ADR-081 (RM-111 WP1-WP3/WP5/WP7 landed): data providers live in one `storage` block with a slot per category (`storage.records`, `.vector`, `.lexical`, `.graph` (the one graph client; the `.graph_mirror` slot was removed 2026-10-23 and is rejected naming `storage.graph`), `.cache`, `.documents` (reserved, must be null)), each `{provider, settings}`, plus a `deployment` block (`id` (was `runtime.deployment_id`), `locality`, `data_dir` (was postgres `settings.data_dir`; unset keeps today's placement base)). The old keys (`storage.profile/provider/settings`, top-level `vector`/`cache`, `graph.provider/settings/mirror`, `read.lexical_*`, `runtime.deployment_id`) are rejected naming the new key; current keys are validated strictly, with no migration helper. Every durable SQL database uses Alembic (Postgres under an advisory lock). Every built-in data descriptor declares `locality` (process/host/cluster); WP6 validation is pending. `embedded` and `server` are config templates. Service providers (embedding model, LLM, models) stay outside `storage`.
+D-105 / ADR-081 (RM-111 WP1-WP3/WP5/WP7 landed): data providers live in one `storage` block with a slot per category (`storage.records`, `.vector`, `.lexical`, `.graph` (the one graph client; the `.graph_mirror` slot was removed 2026-10-23 and is rejected naming `storage.graph`), `.cache`, `.documents` (optional: filesystem, S3, Weaviate, MongoDB/GridFS)), each `{provider, settings}`, plus a `deployment` block (`id` (was `runtime.deployment_id`), `locality`, `data_dir` (was postgres `settings.data_dir`; unset keeps today's placement base)). The old keys (`storage.profile/provider/settings`, top-level `vector`/`cache`, `graph.provider/settings/mirror`, `read.lexical_*`, `runtime.deployment_id`) are rejected naming the new key; current keys are validated strictly, with no migration helper. Every durable SQL database uses Alembic (Postgres under an advisory lock). Every built-in data descriptor declares `locality` (process/host/cluster); WP6 validation is pending. `embedded` and `server` are config templates. Service providers (embedding model, LLM, models) stay outside `storage`.
 
 D-106 / ADR-082 (RM-117 landed 2026-10-23): model providers move to one `model` block: `model.embedding`, `model.llm.<role>`, `model.rerank` (chain + typed behaviour), `model.extraction.<consumer>`, `model.decider.<consumer>`, `model.vision`, `model.placement`. Each slot is `{provider, typed common keys, settings}` (settings = provider-owned JSON). No named profiles; identical settings share weights (weights key ignores consumer-only fields). The old keys (`embedding`, `llm.roles`, `models.*`, `decision.provider`, `read.rerank*`, `read.decider*`, `ingest.asset_vision*`) are rejected naming the new key; current keys are validated strictly, with no migration helper. Every LLM slot states `timeout_s`. Follow-ups are RM-118. See docs/MODEL_SLOTS_MIGRATION_PLAN.md.
 
@@ -142,3 +142,5 @@ D-108 / ADR-084 and D-109 / ADR-085 (implementation and verification tracked by 
 Owner 2026-10-24 (ADR-084/085 amendment): this is the first development cycle. The model replacements carry no previous-code compatibility: no old-store relabeling, alternate vector IDs, retired cache lookup or replacement config codemods. Preserve current lifecycle features and numerical reference tests.
 
 Owner 2026-10-24 (D-110 / ADR-086): latest development implementations are the sole unversioned base. Remove generation-only switches and old-store/configuration compatibility. Meaningful optional features remain optional. Fresh SQL schema and canonical records are current-only; preserve replay, isolation, locks, provider/model lifecycle and erasure safety. No internal generation aliases. Current work/evidence: RM-126.
+
+Owner 2026-11-01 (D-111..D-120 / ADR-087..ADR-096, plan docs/DECISION_WAVES_2026-11-01.md): revision-bound evidence and a local baseline gate with an explicit quarantine list; SemanticEnvelope is the one canonical claim; opaque entity ids with unique-name auto-link and a `surface:` prefix; one durable write path, session-keyed windows, strict message envelope with a `metadata` bag, naive times stay civil text; Temporal drains the outbox; hard token budget; MiniLM default reranker with `memspine models fetch`; per-family vocabulary domains; an erasure gate across every copy class. Standing authorization: push origin/restructure after each green wave (never main, never force).
