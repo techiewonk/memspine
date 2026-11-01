@@ -29,13 +29,9 @@ def test_message_adapter_keeps_provenance_axes_separate() -> None:
 
 def test_derived_and_web_origins_keep_required_links() -> None:
     with pytest.raises(ValueError, match="asset"):
-        message_provenance(
-            {"metadata": {"source_origin": "ocr"}}, source_id="message-1"
-        )
+        message_provenance({"metadata": {"source_origin": "ocr"}}, source_id="message-1")
     with pytest.raises(ValueError, match="explicit fetch"):
-        message_provenance(
-            {"metadata": {"source_origin": "web_page"}}, source_id="message-1"
-        )
+        message_provenance({"metadata": {"source_origin": "web_page"}}, source_id="message-1")
     web = message_provenance(
         {"metadata": {"source_origin": "web_page", "explicit_fetch": True}},
         source_id="message-1",
