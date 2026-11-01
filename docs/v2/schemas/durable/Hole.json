@@ -34,7 +34,9 @@
         "size_skip",
         "partial_commit",
         "invented_alias",
-        "budget_exhausted"
+        "budget_exhausted",
+        "replay_diverged",
+        "source_missing"
       ],
       "title": "Reason",
       "type": "string"

@@ -19,13 +19,19 @@ Binding decisions (schema session 8, ER-07/ER-09/ER-15/ER-26, OF-1/OF-2):
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Collection, Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal, Protocol, runtime_checkable
 
 from memspine.schemas.durable.common import OwnerScope
-from memspine.schemas.durable.jobs import FAILURE_CLASSES, Hole, JobLease, Progress
+from memspine.schemas.durable.jobs import (
+    FAILURE_CLASSES,
+    NON_RETRYABLE_HOLE_REASONS,
+    Hole,
+    JobLease,
+    Progress,
+)
 from memspine.schemas.public import CostRecord, JobHandle
 from memspine.schemas.public.receipt import JobState
 
@@ -434,9 +440,11 @@ class JobBook:
         *,
         scope: OwnerScope | None = None,
         stage: str | None = None,
+        exclude: Collection[tuple[ScopeKey, str]] = (),
     ) -> Claim | None:
         """Lease the next ready job. One running job per (scope, stage). Expired leases are reclaimed
-        first. The first claim freezes the snapshot target."""
+        first. The first claim freezes the snapshot target. ``exclude`` names ``(scope, stage)``
+        keys this caller already met a transient fence on, so one drain moves on to other scopes."""
         if ttl <= timedelta(0):
             raise ValueError("ttl must be positive")
         self.expire_leases()
@@ -445,7 +453,7 @@ class JobBook:
         running = {j.key for j in jobs if j.state == "running"}
         by_key: dict[tuple[ScopeKey, str], Job] = {}
         for j in jobs:  # oldest queued per key (the frozen retry precedes its follow-up)
-            if j.state != "queued" or j.key in running or j.key in by_key:
+            if j.state != "queued" or j.key in running or j.key in by_key or j.key in exclude:
                 continue
             if scope is not None and scope_key(j.scope) != scope_key(scope):
                 continue
@@ -632,11 +640,14 @@ class JobBook:
 
     # ------------------------------------------------------------------ holes
     def holes_to_retry(self, scope: OwnerScope, stage: str) -> list[Hole]:
-        """Open holes still inside the per-hole retry budget (ER-15)."""
+        """Open holes still inside the per-hole retry budget (ER-15). A hole whose reason is
+        non-retryable (``NON_RETRYABLE_HOLE_REASONS``: an exhausted budget or a deterministic
+        fence) is never retried; it stays visible until waived."""
         return [
             h
             for h in self.progress(scope, stage).open_holes
             if h.attempts < self.budget.max_hole_attempts
+            and h.reason not in NON_RETRYABLE_HOLE_REASONS
         ]
 
     def _update_holes(
@@ -653,18 +664,46 @@ class JobBook:
         self.store.put_progress(prog.model_copy(update={"holes": holes}))
 
     def record_hole_result(
-        self, scope: OwnerScope, stage: str, offset: int, ok: bool, error: str | None = None
+        self,
+        scope: OwnerScope,
+        stage: str,
+        offset: int,
+        ok: bool,
+        error: str | None = None,
+        *,
+        reason: str | None = None,
     ) -> None:
-        """A hole retry finished: success removes the hole, failure counts an attempt."""
+        """A hole retry finished: success removes the hole, failure counts an attempt. ``reason``
+        reclassifies the hole (a retry that met a deterministic fence)."""
         if ok:
             self._update_holes(scope, stage, offset, lambda h: None)
-        else:
-            self._update_holes(
-                scope,
-                stage,
-                offset,
-                lambda h: h.model_copy(update={"attempts": h.attempts + 1, "last_error": error}),
-            )
+            return
+        if reason is not None and reason not in FAILURE_CLASSES:
+            raise ValueError(f"unknown failure class {reason!r}")
+        update: dict[str, Any] = {"last_error": error}
+        if reason is not None:
+            update["reason"] = reason
+        self._update_holes(
+            scope,
+            stage,
+            offset,
+            lambda h: h.model_copy(update={**update, "attempts": h.attempts + 1}),
+        )
+
+    def reopen_hole(self, scope: OwnerScope, stage: str, offset: int, note: str) -> bool:
+        """Make a ``source_missing`` hole retryable again (its item was rewritten so it no longer
+        names the erased source): reason ``raised``, attempts reset. Any other hole is left as it
+        is. Returns whether a hole was reopened."""
+        hole = next((h for h in self.progress(scope, stage).holes if h.offset == offset), None)
+        if hole is None or hole.reason != "source_missing" or hole.waived:
+            return False
+        self._update_holes(
+            scope,
+            stage,
+            offset,
+            lambda h: h.model_copy(update={"reason": "raised", "attempts": 0, "last_error": note}),
+        )
+        return True
 
     def waive_hole(self, scope: OwnerScope, stage: str, offset: int) -> None:
         self._update_holes(scope, stage, offset, lambda h: h.model_copy(update={"waived": True}))

@@ -18,9 +18,29 @@ the offsets ``(watermark, target]`` in order. Each offset runs in two phases:
 After every offset the watermark is checkpointed under the lease epoch (``JobBook.checkpoint``), so
 a stop or a crash resumes at the next offset. An offset whose handler raised becomes a hole (never
 skipped silently) and is retried on later drains inside the per-hole budget. A stale epoch is
-refused and logged; the stale worker stops without writing. A fence (stale lease, stale source,
-diverged replay) is never a hole: the offset is not checkpointed, the job is handed back when
-this worker still owns it, and a later drain retries it.
+refused and logged; the stale worker stops without writing.
+
+Fences are classified (RM-147):
+
+=================  =============  ==============================================================
+fence              class          what the drain does
+=================  =============  ==============================================================
+lease              transient      the job is no longer ours; nothing is released or recorded
+busy               transient      another consumer holds the effect events: hand the job back
+source (stale)     transient      a snapshot changed, or a membership is not accepted yet:
+                                  hand the job back; a later drain re-reads and recomputes
+replay_diverged    deterministic  a replay planned effects that differ from the acknowledged
+                                  ones: a recorded, waivable hole; nothing is (re)projected
+source_missing     deterministic  the item still names an erased source, so its effect can
+                                  never be authorized: a recorded, waivable hole
+=================  =============  ==============================================================
+
+A transient fence is never a hole: the offset is not checkpointed, the job is handed back when
+this worker still owns it, and the same drain goes on with every OTHER (scope, stage) key; a later
+drain retries the fenced one. A deterministic fence would be met again on every retry, so the
+offset becomes a hole with that reason, a structured alert is logged, and the watermark moves
+past it. Such holes are never retried automatically (``NON_RETRYABLE_HOLE_REASONS``); an owner
+waives them, and an erasure rewrite of a ``source_missing`` item reopens it.
 """
 
 from __future__ import annotations
@@ -114,6 +134,8 @@ class DrainReport:
     fenced: int = 0
     released: int = 0
     stopped: bool = False
+    #: deterministic-fence holes recorded in this drain, by reason (RM-147)
+    hole_fences: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -132,35 +154,49 @@ class BarrierOutcome:
         return tuple(sorted({*self.pending, *self.unavailable}))
 
 
-FenceReason = Literal["lease", "source", "busy", "replay"]
+#: Transient fences (RM-147): retrying later can succeed, so they never become holes.
+FenceReason = Literal["lease", "source", "busy"]
+#: Deterministic fences (RM-147): every retry meets them again, so they become holes.
+HoleFenceReason = Literal["replay_diverged", "source_missing"]
 
 
 class _Fenced(Exception):
-    """A commit or checkpoint was refused: this worker no longer owns the job (``lease``), a
-    source snapshot is stale (``source``), another consumer holds the effect events
-    (``busy``), or a replay diverged (``replay``). Never a hole."""
+    """A transient fence: this worker no longer owns the job (``lease``), a source snapshot is
+    stale or not accepted yet (``source``), or another consumer holds the effect events
+    (``busy``). Never a hole."""
 
     def __init__(self, reason: FenceReason = "lease") -> None:
         super().__init__(reason)
         self.reason: FenceReason = reason
 
 
-class _ReplayDiverged(_Fenced):
+class _DeterministicFence(Exception):
+    """A fence every retry meets again: the offset becomes a recorded, waivable hole whose
+    reason is ``replay_diverged`` or ``source_missing``. ``detail`` never names a record."""
+
+    def __init__(self, reason: HoleFenceReason, detail: str) -> None:
+        super().__init__(f"{reason}: {detail}")
+        self.reason: HoleFenceReason = reason
+        self.detail = detail
+
+
+class _ReplayDiverged(_DeterministicFence):
     """A replay planned effects that differ from the acknowledged ones (layer set or result)."""
 
     def __init__(self) -> None:
-        super().__init__("replay")
+        super().__init__(
+            "replay_diverged", "the replay planned effects that differ from the acknowledged ones"
+        )
 
 
 _FENCE_REASONS: dict[EffectFence, FenceReason] = {
     EffectFence.STALE_LEASE: "lease",
     EffectFence.STALE_SOURCE: "source",
     EffectFence.BUSY: "busy",
-    EffectFence.REPLAY_DIVERGED: "replay",
 }
 
 
-def _fence_for(outcome: EffectFence) -> _Fenced:
+def _fence_for(outcome: EffectFence) -> _Fenced | _DeterministicFence:
     if outcome is EffectFence.REPLAY_DIVERGED:
         return _ReplayDiverged()
     return _Fenced(_FENCE_REASONS.get(outcome, "lease"))
@@ -472,6 +508,17 @@ class InlineRunner:
             if new is not None:
                 self.store.set_item(scope, stage, offset, new)
                 n += 1
+        # A ``source_missing`` hole is unhandled work too: a drain may have met the erased
+        # source before this rewrite removed it. The rewritten item can proceed, so reopen it.
+        for hole in self.book.progress(scope, stage).holes:
+            if hole.reason != "source_missing" or hole.waived:
+                continue
+            held = self.store.get_item(scope, stage, hole.offset)
+            rewritten = None if held is None else fn(held)
+            if rewritten is not None:
+                self.store.set_item(scope, stage, hole.offset, rewritten)
+                self.book.reopen_hole(scope, stage, hole.offset, "reopened: item rewritten")
+                n += 1
         return n
 
     # ------------------------------------------------------------------ lifecycle
@@ -536,9 +583,17 @@ class InlineRunner:
         await self._reconcile_stage(scope, stage)
         if self._retry_holes_next:
             await self._retry_holes(scope, stage, report)
+        # (scope, stage) keys that met a transient fence in this call: skipped until the next
+        # drain, so one fenced scope never ends the drain for the others (RM-147).
+        fenced: set[tuple[tuple[str, str, str], str]] = set()
         while not self._stopping:
             claim = await self._io(
-                self.book.claim, self.owner, self.lease_ttl, scope=scope, stage=stage
+                self.book.claim,
+                self.owner,
+                self.lease_ttl,
+                scope=scope,
+                stage=stage,
+                exclude=frozenset(fenced),
             )
             if claim is None:
                 return
@@ -561,11 +616,11 @@ class InlineRunner:
                     reason=fence.reason,
                 )
                 # Hand the job back when it is still ours (no attempt spent): the fenced offset
-                # was not checkpointed, so a later drain retries it. Only a lost lease lets
-                # this drain go on claiming; any other fence would be re-met at once.
+                # was not checkpointed, so a later drain retries it. Re-claiming it now would
+                # meet the same fence at once (or spin on a lease another worker holds), so
+                # this drain skips that key and goes on with the other scopes.
                 report.released += await self._release(claim)
-                if fence.reason != "lease":
-                    return
+                fenced.add(claim.job.key)
             except _Stop:
                 report.stopped = True
                 report.released += await self._release(claim)
@@ -851,7 +906,12 @@ class InlineRunner:
         if handler.effect_results is not None and source_ids:
             sources = await self._io(self.store.source_snapshots, job.scope, stage, source_ids)
             if len(sources) != len(dict.fromkeys(source_ids)):
-                raise _Fenced("source")
+                erased = await self._io(self.store.erased_sources, job.scope, stage, source_ids)
+                if erased:  # the item still names an erased source: it can never be authorized
+                    raise _DeterministicFence(
+                        "source_missing", f"{len(erased)} input source(s) erased"
+                    )
+                raise _Fenced("source")  # not accepted yet: a later drain re-reads it
         try:
             if self._backpressure is None and self._ledger is None:
                 prepared = await self._phases(handler, job.scope, offset, payload, stage)
@@ -930,7 +990,12 @@ class InlineRunner:
             try:
                 await self._execute_item(handler, job, epoch, offset)
             except (asyncio.CancelledError, _Fenced):
-                raise  # a fence is not a hole: no checkpoint moves past this offset
+                raise  # a transient fence is not a hole: no checkpoint moves past this offset
+            except _DeterministicFence as fence:
+                failed[offset] = (fence.reason, fence.detail)
+                report.holes += 1
+                report.hole_fences[fence.reason] = report.hole_fences.get(fence.reason, 0) + 1
+                self._alert_hole(job.job_id, job.scope, job.stage, offset, fence)
             except Exception as exc:
                 failed[offset] = ("raised", f"{type(exc).__name__}: {exc}"[:300])
                 report.holes += 1
@@ -999,6 +1064,26 @@ class InlineRunner:
                     )
                 except asyncio.CancelledError:
                     raise
+                except _DeterministicFence as fence:
+                    await self._io(
+                        self.book.fail,
+                        claim.job.job_id,
+                        claim.lease.epoch,
+                        f"fenced: {fence.reason}",
+                        "raised",
+                        retryable=False,
+                    )
+                    await self._io(
+                        self.book.record_hole_result,
+                        sc,
+                        stage,
+                        hole.offset,
+                        False,
+                        fence.detail,
+                        reason=fence.reason,
+                    )
+                    self._alert_hole(claim.job.job_id, sc, stage, hole.offset, fence)
+                    report.hole_fences[fence.reason] = report.hole_fences.get(fence.reason, 0) + 1
                 except _Fenced as fence:
                     if fence.reason in ("lease", "busy"):
                         # The retry job is no longer ours: spend nothing, record nothing.
@@ -1051,6 +1136,33 @@ class InlineRunner:
                         raise _Fenced
                     await self._io(self.book.record_hole_result, sc, stage, hole.offset, True)
                     report.hole_filled += 1
+
+    @staticmethod
+    def _alert_hole(
+        job_id: str, scope: OwnerScope, stage: str, offset: int, fence: _DeterministicFence
+    ) -> None:
+        """A deterministic fence became a hole: a structured alert an operator acts on (waive the
+        hole, or fix and requeue the item). Identifiers only, never record ids or content."""
+        tap.event(
+            "runtime.outbox.hole",
+            job_id=job_id,
+            stage=stage,
+            offset=offset,
+            reason=fence.reason,
+            error=type(fence).__name__,
+        )
+        _log.error(
+            "outbox.deterministic_hole",
+            alert=True,
+            job_id=job_id,
+            tenant=scope.tenant,
+            owner_kind=scope.owner_kind,
+            stage=stage,
+            offset=offset,
+            reason=fence.reason,
+            detail=fence.detail,
+            waivable=True,
+        )
 
     def _scopes_with_holes(self, scope: OwnerScope | None, stage: str) -> list[OwnerScope]:
         if scope is not None:

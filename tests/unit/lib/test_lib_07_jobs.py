@@ -203,6 +203,42 @@ def test_hole_lifecycle():
         book.record_hole_result(SCOPE, "sleep", 99, ok=True)
 
 
+def test_deterministic_and_budget_holes_are_never_retried():
+    """RM-147: ``budget_exhausted``, ``replay_diverged`` and ``source_missing`` holes stay visible
+    and waivable but are never handed to a retry; only ``source_missing`` can be reopened."""
+    book, _, _ = make()
+    book.enqueue(SCOPE, "sleep", 4)
+    c = book.claim("w", TTL)
+    failed = {
+        1: ("budget_exhausted", None),
+        2: ("replay_diverged", "diverged"),
+        3: ("source_missing", "1 input source(s) erased"),
+        4: ("raised", "x"),
+    }
+    book.commit(c.job.job_id, c.lease.epoch, failed=failed)
+    assert [h.offset for h in book.holes_to_retry(SCOPE, "sleep")] == [4]
+    assert [h.offset for h in book.progress(SCOPE, "sleep").open_holes] == [1, 2, 3, 4]
+    assert not book.reopen_hole(SCOPE, "sleep", 2, "no")  # only source_missing reopens
+    assert book.reopen_hole(SCOPE, "sleep", 3, "rewritten")
+    assert [h.offset for h in book.holes_to_retry(SCOPE, "sleep")] == [3, 4]
+    book.record_hole_result(SCOPE, "sleep", 4, ok=False, error="d", reason="replay_diverged")
+    assert [h.offset for h in book.holes_to_retry(SCOPE, "sleep")] == [3]
+    with pytest.raises(ValueError):
+        book.record_hole_result(SCOPE, "sleep", 3, ok=False, reason="nonsense")
+    book.waive_hole(SCOPE, "sleep", 2)
+    assert book.progress(SCOPE, "sleep").holes[1].waived
+
+
+def test_claim_skips_excluded_keys():
+    book, _, _ = make()
+    other = OwnerScope(tenant="t", owner="v")
+    book.enqueue(SCOPE, "sleep", 0)
+    book.enqueue(other, "sleep", 0)
+    c = book.claim("w", TTL, exclude={(("t", "u", SCOPE.owner_kind), "sleep")})
+    assert c is not None and c.job.scope == other
+    assert book.claim("w", TTL, exclude={(("t", "u", SCOPE.owner_kind), "sleep")}) is None
+
+
 def test_watermark_contiguity_and_checkpoints():
     book, _, _ = make()
     book.enqueue(SCOPE, "sleep", 9)

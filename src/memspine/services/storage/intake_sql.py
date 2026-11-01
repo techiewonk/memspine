@@ -599,10 +599,12 @@ class SqlIntakeLedger:
                 retryable = progress is None or int(row.item_offset) > int(progress.watermark)
                 if progress is not None and not retryable:
                     holes = json.loads(progress.holes)
+                    # A new policy re-plans effect identities, so a ``replay_diverged`` hole
+                    # is retry-eligible here; an erased source (``source_missing``) is not.
                     retryable = any(
                         int(hole.get("offset", -1)) == int(row.item_offset)
                         and not hole.get("waived", False)
-                        and hole.get("reason") != "budget_exhausted"
+                        and hole.get("reason") not in ("budget_exhausted", "source_missing")
                         for hole in holes
                     )
                 if not retryable:

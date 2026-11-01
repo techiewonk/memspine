@@ -673,6 +673,27 @@ class SqlJobStore:
                 )
         return snapshots
 
+    def erased_sources(self, scope: OwnerScope, stage: str, record_ids: Sequence[str]) -> list[str]:
+        """The ``record_ids`` whose membership row exists but was erased (inactive), in order.
+
+        An erased row cannot come back without proof of the erasure (``mark_sources``), so an
+        item still naming one can never be authorized: the deterministic ``source_missing``
+        fence (RM-147). A row that does not exist yet is not erased: its acceptance may still
+        be on its way, so that short snapshot stays a transient source fence."""
+        erased: list[str] = []
+        with self._tx() as c:
+            for record_id in dict.fromkeys(record_ids):
+                row = c.execute(
+                    select(outbox_source_membership.c.active).where(
+                        *_scope_where(outbox_source_membership, scope),
+                        outbox_source_membership.c.stage == stage,
+                        outbox_source_membership.c.record_id == record_id,
+                    )
+                ).first()
+                if row is not None and not row.active:
+                    erased.append(record_id)
+        return erased
+
     def erase_source(self, scope: OwnerScope, stage: str, record_id: str) -> bool:
         """Invalidate snapshots and remove immutable effects bound to ``record_id``.
 

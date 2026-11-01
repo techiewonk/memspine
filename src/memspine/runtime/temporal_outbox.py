@@ -16,19 +16,24 @@ Nothing here is a second code path: the per-offset work is ``InlineRunner._run_c
 switch between the inline runner, the taskiq transport and this Activity loses and repeats nothing
 beyond what the lease epoch and the effect door already make safe.
 
-Fences become Temporal outcomes, never holes (the fenced offset is never checkpointed):
+Transient fences become retryable Temporal outcomes, never holes (the fenced offset is never
+checkpointed). Deterministic fences (RM-147) are not Temporal failures at all: the inline path
+records the offset as a waivable hole, logs an alert, and the step goes on past it:
 
-=========  ===========  ======================================================================
-reason     retryable    why
-=========  ===========  ======================================================================
-lease      yes          our lease ran out and was reclaimed; the next attempt claims afresh
-busy       yes, later   another worker holds the job (or its effect events); retry after its
-                        lease can have expired
-source     yes          a source was erased or changed mid-step; the projection was
-                        compensated; the next attempt re-reads the rewritten item
-replay     no           a replay planned different effects from the acknowledged ones; retrying
-                        the same replay diverges again (operator decision; the job stays queued)
-=========  ===========  ======================================================================
+===============  ===========  ==================================================================
+reason           outcome      why
+===============  ===========  ==================================================================
+lease            retryable    our lease ran out and was reclaimed; the next attempt claims afresh
+busy             retryable,   another worker holds the job (or its effect events); retry after
+                 later        its lease can have expired
+source           retryable,   a source changed mid-step (the projection was compensated) or a
+                 1 s delay    membership is not accepted yet; the next attempt re-reads the item
+replay_diverged  hole         a replay planned different effects from the acknowledged ones;
+                              every retry diverges again, so the watermark passes a hole
+source_missing   hole         the item still names an erased source; it can never be authorized
+===============  ===========  ==================================================================
+
+The step result counts those holes by reason (``hole_fences``).
 
 A crash inside the step (process gone, Activity timed out) leaves the lease to expire; the retry
 reclaims the job (``JobBook.expire_leases``) and replays the offset, whose effect door re-authorizes
@@ -90,7 +95,9 @@ class OutboxActivityFenced(Exception):
 
     @property
     def retryable(self) -> bool:
-        return self.reason != "replay"
+        """Every fence that reaches Temporal is transient (RM-147): deterministic fences are
+        recorded as holes by the drain step and never raised."""
+        return True
 
 
 @dataclass(frozen=True)
@@ -184,8 +191,9 @@ class OutboxActivity:
     ) -> dict[str, Any]:
         """Run one bounded, fenced drain step for ``request`` (see the module docstring).
 
-        Returns ``{"status", "job_id", "items", "holes", "hole_retries", "hole_filled",
-        "watermark", "more"}``; ``status`` is ``idle`` (nothing to do), ``partial`` (job handed
+        Returns ``{"status", "job_id", "items", "holes", "hole_fences", "hole_retries",
+        "hole_filled", "watermark", "more"}`` (``hole_fences``: deterministic-fence holes recorded
+        by this step, by reason); ``status`` is ``idle`` (nothing to do), ``partial`` (job handed
         back, ``more``) or ``drained``. Raises :class:`OutboxActivityFenced` on a fence and
         :class:`InvalidDrainRequest` on bad input. Any other exception (a crash) leaves the lease
         to expire, so a retry reclaims and replays."""
@@ -225,8 +233,8 @@ class OutboxActivity:
         try:
             finished = await runner._run_claim(claim, report, limit=max_items, on_offset=beat)
         except _Fenced as fence:
-            # Hand the job back when it is still ours (no attempt spent). The fenced offset was
-            # not checkpointed: it is retried, never a hole.
+            # A transient fence: hand the job back when it is still ours (no attempt spent).
+            # The fenced offset was not checkpointed: it is retried, never a hole.
             await runner._release(claim)
             tap.event("runtime.temporal.fenced", job_id=job_id, stage=stage, reason=fence.reason)
             retry_after = self._lease_wait() if fence.reason == "busy" else None
@@ -277,6 +285,7 @@ class OutboxActivity:
             "job_id": job_id,
             "items": report.items,
             "holes": report.holes,
+            "hole_fences": dict(report.hole_fences),
             "hole_retries": report.hole_retries,
             "hole_filled": report.hole_filled,
             "watermark": self.runner.book.progress(scope, stage).watermark,

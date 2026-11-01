@@ -11,6 +11,7 @@ from memspine.schemas.durable.common import Fingerprint, OwnerScope, SourceRef
 
 __all__ = [
     "FAILURE_CLASSES",
+    "NON_RETRYABLE_HOLE_REASONS",
     "Hole",
     "JobLease",
     "OutboxKind",
@@ -41,6 +42,8 @@ FailureClass = Literal[
     "partial_commit",
     "invented_alias",
     "budget_exhausted",
+    "replay_diverged",
+    "source_missing",
 ]
 FAILURE_CLASSES: tuple[str, ...] = (
     "raised",
@@ -51,6 +54,16 @@ FAILURE_CLASSES: tuple[str, ...] = (
     "partial_commit",
     "invented_alias",
     "budget_exhausted",
+    "replay_diverged",
+    "source_missing",
+)
+#: Hole reasons a drain never retries on its own (RM-147): an exhausted recovery budget, and the
+#: deterministic fences. ``replay_diverged``: a replay planned effects that differ from the
+#: acknowledged ones, so every retry diverges again. ``source_missing``: an input source was
+#: erased while the item still names it, so its effect can never be authorized. Each stays
+#: visible until the owner waives it (or an erasure rewrite reopens a ``source_missing`` hole).
+NON_RETRYABLE_HOLE_REASONS: frozenset[str] = frozenset(
+    {"budget_exhausted", "replay_diverged", "source_missing"}
 )
 
 

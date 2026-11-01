@@ -320,21 +320,40 @@ async def test_erasure_during_the_activity_fences_without_a_hole(db: Path) -> No
     assert facts.facts[1] == ["r1"]
 
 
-async def test_a_diverged_replay_is_non_retryable_and_keeps_the_job(db: Path) -> None:
+async def test_a_diverged_replay_becomes_a_hole_and_the_step_goes_on(db: Path) -> None:
+    """RM-147: a diverged replay is no longer a non-retryable failure that leaves the job queued
+    forever: the step records a ``replay_diverged`` hole, projects nothing, and drains on."""
     clock, facts = ManualClock(T0), FactStore()
     runner = _runner(db, clock, facts, "w")
-    await _seed(runner, 1)
-    runner.store.authorize_effects = lambda **kw: EffectFence.REPLAY_DIVERGED  # type: ignore[method-assign]
-    with pytest.raises(OutboxActivityFenced) as fenced:
-        await OutboxActivity(runner).drain(drain_request(SCOPE, STAGE))
-    assert fenced.value.reason == "replay" and not fenced.value.retryable
-    failure = temporal_failure(fenced.value)
-    assert failure.non_retryable and failure.next_retry_delay_s is None
+    await _seed(runner, 2)
+    door = runner.store.authorize_effects
+
+    def diverge_first(**kw: Any) -> EffectFence:
+        return EffectFence.REPLAY_DIVERGED if kw["offset"] == 0 else door(**kw)
+
+    runner.store.authorize_effects = diverge_first  # type: ignore[method-assign]
+    result = await OutboxActivity(runner).drain(drain_request(SCOPE, STAGE))
+    assert result["status"] == "drained" and result["more"] is False
+    assert result["holes"] == 1 and result["hole_fences"] == {"replay_diverged": 1}
     progress = runner.book.progress(SCOPE, STAGE)
-    assert progress.watermark == -1 and progress.holes == []
-    [job] = runner.book.live_jobs(SCOPE, STAGE)
-    assert job.state == "queued" and job.attempts == 0
-    assert facts.commits == Counter()
+    assert progress.watermark == 1
+    assert [(h.offset, h.reason) for h in progress.holes] == [(0, "replay_diverged")]
+    assert runner.book.live_jobs(SCOPE, STAGE) == []
+    assert facts.commits == Counter({1: 1})  # offset 0 never projected
+    again = await OutboxActivity(runner).drain(drain_request(SCOPE, STAGE))
+    assert again["status"] == "idle" and again["hole_retries"] == 0  # never retried
+
+
+async def test_an_erased_source_still_named_is_a_source_missing_hole(db: Path) -> None:
+    clock, facts = ManualClock(T0), FactStore()
+    runner = _runner(db, clock, facts, "w")
+    await _seed(runner, 2)
+    assert await runner.erase_source(SCOPE, STAGE, "r0")  # erased before the step, not rewritten
+    result = await OutboxActivity(runner).drain(drain_request(SCOPE, STAGE))
+    assert result["status"] == "drained" and result["hole_fences"] == {"source_missing": 1}
+    [hole] = runner.book.progress(SCOPE, STAGE).holes
+    assert (hole.offset, hole.reason) == (0, "source_missing")
+    assert facts.commits == Counter({1: 1})
 
 
 async def test_a_lost_lease_is_retryable(db: Path) -> None:
@@ -431,18 +450,19 @@ async def test_invalid_requests_are_refused(db: Path, request_: Any) -> None:
 
 
 def test_fence_mapping_table() -> None:
+    """Only transient fences reach Temporal, and all of them retry (RM-147): the deterministic
+    ones are holes inside the step result, never an ``ApplicationError``."""
     rows = {
         reason: temporal_failure(OutboxActivityFenced(reason))
-        for reason in ("lease", "busy", "source", "replay")
+        for reason in ("lease", "busy", "source")
     }
     assert {r: f.non_retryable for r, f in rows.items()} == {
         "lease": False,
         "busy": False,
         "source": False,
-        "replay": True,
     }
     assert rows["source"].next_retry_delay_s == 1.0
-    assert rows["replay"].next_retry_delay_s is None
+    assert rows["lease"].next_retry_delay_s is None
     assert rows["busy"].type == "OutboxFenced.busy"
 
 
@@ -473,6 +493,66 @@ def test_attach_registers_the_activity_on_the_temporal_runner(tmp_path: Path, db
         activity.attach(temporal)
 
 
+class _FakeApplicationError(Exception):
+    def __init__(self, message: str, *, type: str, non_retryable: bool, **kw: Any) -> None:
+        super().__init__(message)
+        self.type = type
+        self.non_retryable = non_retryable
+        self.next_retry_delay = kw.get("next_retry_delay")
+
+
+def _fake_temporalio(monkeypatch: pytest.MonkeyPatch) -> list[Any]:
+    """Stand-in ``temporalio.activity`` / ``temporalio.exceptions`` so the Activity body runs
+    without the ``[temporal]`` extra; returns the heartbeat sink."""
+    import sys
+    import types
+
+    beats: list[Any] = []
+    root = types.ModuleType("temporalio")
+    activity_mod = types.ModuleType("temporalio.activity")
+    exceptions_mod = types.ModuleType("temporalio.exceptions")
+    info = types.SimpleNamespace(workflow_run_id="run", activity_id="act", attempt=1)
+    activity_mod.info = lambda: info  # type: ignore[attr-defined]
+    activity_mod.heartbeat = beats.append  # type: ignore[attr-defined]
+    exceptions_mod.ApplicationError = _FakeApplicationError  # type: ignore[attr-defined]
+    root.activity = activity_mod  # type: ignore[attr-defined]
+    root.exceptions = exceptions_mod  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "temporalio", root)
+    monkeypatch.setitem(sys.modules, "temporalio.activity", activity_mod)
+    monkeypatch.setitem(sys.modules, "temporalio.exceptions", exceptions_mod)
+    return beats
+
+
+async def test_the_activity_body_maps_holes_and_transient_fences(
+    db: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """RM-147 through ``temporal_activity`` itself: deterministic fences come back as holes in
+    the result; a transient fence is a retryable ``ApplicationError``."""
+    beats = _fake_temporalio(monkeypatch)
+    clock, facts = ManualClock(T0), FactStore()
+    runner = _runner(db, clock, facts, "w")
+    await _seed(runner, 3)
+    assert await runner.erase_source(SCOPE, STAGE, "r2")
+    door = runner.store.authorize_effects
+
+    def diverge_first(**kw: Any) -> EffectFence:
+        return EffectFence.REPLAY_DIVERGED if kw["offset"] == 0 else door(**kw)
+
+    runner.store.authorize_effects = diverge_first  # type: ignore[method-assign]
+    activity = OutboxActivity(runner)
+    result = await activity.temporal_activity(drain_request(SCOPE, STAGE))
+    assert result["status"] == "drained" and result["watermark"] == 2
+    assert result["hole_fences"] == {"replay_diverged": 1, "source_missing": 1}
+    assert len(beats) == 3
+
+    runner.store.authorize_effects = lambda **kw: EffectFence.BUSY  # type: ignore[method-assign]
+    await runner.enqueue(SCOPE, STAGE, {"record_ids": ["r1"]})
+    with pytest.raises(_FakeApplicationError) as err:
+        await activity.temporal_activity(drain_request(SCOPE, STAGE))
+    assert err.value.type == "OutboxFenced.busy" and not err.value.non_retryable
+    assert runner.book.progress(SCOPE, STAGE).watermark == 2  # busy: no hole, no advance
+
+
 @pytest.mark.skipif(_has_temporalio(), reason="checks the missing-extra error")
 async def test_without_temporalio_the_adapters_name_the_extra(db: Path) -> None:
     activity = OutboxActivity(_runner(db, ManualClock(T0), FactStore(), "w"))
@@ -501,11 +581,18 @@ async def test_temporal_activity_maps_fences_to_application_errors(db: Path) -> 
     assert result["status"] == "drained" and result["watermark"] == 1
     assert len(heartbeats) == 2
 
+    # A diverged replay is a hole in the result, not an ApplicationError (RM-147).
     runner.store.authorize_effects = lambda **kw: EffectFence.REPLAY_DIVERGED  # type: ignore[method-assign]
     await runner.enqueue(SCOPE, STAGE, {"record_ids": ["r0"]})
+    diverged = await env.run(activity.temporal_activity, drain_request(SCOPE, STAGE))
+    assert diverged["status"] == "drained" and diverged["hole_fences"] == {"replay_diverged": 1}
+
+    # A transient fence still surfaces as a retryable ApplicationError.
+    runner.store.authorize_effects = lambda **kw: EffectFence.BUSY  # type: ignore[method-assign]
+    await runner.enqueue(SCOPE, STAGE, {"record_ids": ["r1"]})
     with pytest.raises(ApplicationError) as err:
         await env.run(activity.temporal_activity, drain_request(SCOPE, STAGE))
-    assert err.value.type == "OutboxFenced.replay" and err.value.non_retryable
+    assert err.value.type == "OutboxFenced.busy" and not err.value.non_retryable
 
     with pytest.raises(ApplicationError) as bad:
         await env.run(activity.temporal_activity, {"stage": STAGE})
