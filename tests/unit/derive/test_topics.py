@@ -54,17 +54,17 @@ def _settings(**kw: Any) -> GlinerSettings:
 def test_candidate_labels_are_the_active_pack_domains() -> None:
     tagger = GlinerTopicTagger(_Pool(_Extractor(None)), _settings())
     domains = declared_domains(load_builtin_registry())
-    assert domains and "location/residence" in domains
+    assert domains and "personal/residence" in domains
     assert dict(tagger.labels) == {readable_label(d): d for d in domains}
-    assert tagger.labels["location residence"] == "location/residence"
+    assert tagger.labels["personal residence"] == "personal/residence"
 
 
 async def test_pack_domain_hit_above_threshold_sets_the_domain() -> None:
-    extractor = _Extractor({"label": "location residence", "confidence": 0.81})
+    extractor = _Extractor({"label": "personal residence", "confidence": 0.81})
     tagger = GlinerTopicTagger(_Pool(extractor), _settings())
-    assert list(await tagger.atag("I moved to Porto")) == ["location/residence"]
+    assert list(await tagger.atag("I moved to Porto")) == ["personal/residence"]
     assert extractor.calls[0][0] == "I moved to Porto"
-    assert "location residence" in extractor.calls[0][1]
+    assert "personal residence" in extractor.calls[0][1]
 
 
 async def test_threshold_and_unscored_hits() -> None:

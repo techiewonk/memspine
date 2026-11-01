@@ -3,14 +3,23 @@
 from __future__ import annotations
 
 import json
+from importlib.resources import files
 from types import SimpleNamespace
 
 import pytest
 from pydantic import ValidationError
 
 from memspine.config.schema import MemspineConfig
-from memspine.semantics import PackManifest, SemanticRegistry, load_builtin_registry, load_registry
+from memspine.semantics import (
+    FAMILY_DOMAINS,
+    PackManifest,
+    SemanticRegistry,
+    load_builtin_packs,
+    load_builtin_registry,
+    load_registry,
+)
 from memspine.semantics.domains import (
+    declared_domains,
     domain_covers,
     domain_in,
     resolve_domain,
@@ -30,11 +39,90 @@ def test_domain_covers_is_segment_bounded() -> None:
 
 def test_builtin_vocabulary_declares_domains() -> None:
     core = load_builtin_registry()
-    assert core.predicates["resides_in"].domain == "location/residence"
-    assert core.predicates["employed_by"].domain == "work"
-    assert core.properties["price"].domain == "finance"
+    assert core.predicates["resides_in"].domain == "personal/residence"
+    assert core.predicates["employed_by"].domain is None
+    assert core.family_domain("predicate", "employed_by") == "work"
+    assert core.family_domain("property", "price") == "finance"
     proposed = load_registry(["memspine.core", "memspine.proposed"])
     assert proposed.predicates["has_condition"].domain == "health/condition"
+
+
+def test_every_builtin_definition_has_one_generic_family_domain() -> None:
+    """RM-107 (ADR-094): every built-in predicate and property belongs to exactly one
+    family; the family domain is from the fixed generic set; a definition's own domain is
+    under it; built-in packs carry no top domain."""
+    for pack in load_builtin_packs():
+        assert pack.domain is None
+        assert all(family.domain in FAMILY_DOMAINS for family in pack.families)
+        for spec in (*pack.predicates, *pack.properties):
+            kind = "predicate" if isinstance(spec, PredicateSpec) else "property"
+            family = pack.family_of(kind, spec.name)
+            assert family is not None and family.domain is not None, spec.name
+            assert spec.domain is None or domain_covers(family.domain, spec.domain)
+    full = load_registry(["memspine.core", "memspine.proposed"])
+    assert full.family_domains <= set(FAMILY_DOMAINS)
+    assert set(FAMILY_DOMAINS) <= set(declared_domains(full))
+
+
+def _families_pack(families: list[dict[str, object]], **overrides: object) -> dict[str, object]:
+    payload = json.loads(_custom_pack(None).model_dump_json())
+    payload["families"] = families
+    payload.update(overrides)
+    return payload
+
+
+def test_family_domain_validation() -> None:
+    sport = {"name": "sport", "description": "sports", "predicates": ["plays_sport"]}
+    # a custom family may omit its domain, and then falls back to the predicate/key defaults
+    plain = PackManifest.model_validate_json(json.dumps(_families_pack([sport])))
+    registry = load_registry(["memspine.core"], [plain])
+    assert registry.family_of("predicate", "plays_sport") == "sport"
+    assert resolve_domain(predicate="plays_sport", registry=registry) is None
+    # an unknown family domain is rejected, in any pack
+    with pytest.raises(ValidationError):
+        PackManifest.model_validate_json(
+            json.dumps(_families_pack([sport | {"domain": "leisure"}]))
+        )
+    with pytest.raises(ValidationError, match="unknown predicate"):
+        PackManifest.model_validate_json(
+            json.dumps(_families_pack([sport | {"predicates": ["nope"]}]))
+        )
+    with pytest.raises(ValidationError, match="two families"):
+        PackManifest.model_validate_json(
+            json.dumps(_families_pack([sport, sport | {"name": "again"}]))
+        )
+    pred = json.loads(_custom_pack(None).model_dump_json())["predicates"][0]
+    with pytest.raises(ValidationError, match="outside family"):
+        PackManifest.model_validate_json(
+            json.dumps(
+                _families_pack(
+                    [sport | {"domain": "health"}], predicates=[pred | {"domain": "work/team"}]
+                )
+            )
+        )
+    # a declared family domain is the claim's domain (source ``family``)
+    fam = PackManifest.model_validate_json(
+        json.dumps(_families_pack([sport | {"domain": "health"}]))
+    )
+    got = resolve_domain(predicate="plays_sport", registry=load_registry(["memspine.core"], [fam]))
+    assert got is not None and (got.domain, got.source) == ("health", "family")
+
+
+def test_builtin_family_contract_is_enforced() -> None:
+    core = json.loads(
+        files("memspine.semantics").joinpath("catalog.json").read_text(encoding="utf-8")
+    )
+    PackManifest.model_validate_json(json.dumps(core))
+    no_domain = json.loads(json.dumps(core))
+    no_domain["families"][0]["domain"] = None
+    with pytest.raises(ValidationError, match="declares no domain"):
+        PackManifest.model_validate_json(json.dumps(no_domain))
+    orphan = json.loads(json.dumps(core))
+    orphan["families"][0]["predicates"] = orphan["families"][0]["predicates"][1:]
+    with pytest.raises(ValidationError, match="belongs to no family"):
+        PackManifest.model_validate_json(json.dumps(orphan))
+    with pytest.raises(ValidationError, match="no top domain"):
+        PackManifest.model_validate_json(json.dumps(core | {"domain": "personal"}))
 
 
 def test_spec_domain_must_be_hierarchical_id() -> None:
@@ -84,9 +172,9 @@ def test_precedence_and_source_recording() -> None:
     assert got is not None and (got.domain, got.source) == ("health/allergy", "ingest_tag")
     # (a) property key default beats the predicate default
     got = resolve_domain(predicate="has_attribute", attribute_key="price", registry=registry)
-    assert got is not None and (got.domain, got.source) == ("finance", "property")
+    assert got is not None and (got.domain, got.source) == ("finance", "family")
     got = resolve_domain(predicate="resides_in", registry=registry)
-    assert got is not None and (got.domain, got.source) == ("location/residence", "predicate")
+    assert got is not None and (got.domain, got.source) == ("personal/residence", "predicate")
     # (b) the pack's top domain when the predicate declares none
     got = resolve_domain(predicate="plays_sport", registry=registry)
     assert got is not None and (got.domain, got.source) == ("leisure/sport", "pack")

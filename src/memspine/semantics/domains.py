@@ -13,9 +13,16 @@ winning source is recorded next to the domain):
    vocabulary (``PropertySpec.domain``);
 3. ``predicate``: the default ``domain`` of the claim's predicate
    (``PredicateSpec.domain``);
-4. ``pack``: the top domain of the pack that owns the predicate
-   (``PackManifest.domain``);
-5. ``gliner_topic``: an engine-written ``gliner_topic:<id>`` tag from the
+4. ``family`` (RM-107, ADR-094): the generic domain of the family that owns the
+   property key, else of the family that owns the predicate (``FamilySpec.domain``,
+   one of ``personal``, ``work``, ``health``, ``finance``, ``travel``, ``learning``,
+   ``social``, ``tools``, ``other``). A key's family domain is checked before the
+   predicate's own default, since the key is the more specific definition. Every
+   built-in definition belongs to a family; a definition's own domain is always under
+   its family's domain, so a filter on the family domain admits it;
+5. ``pack``: the top domain of the pack that owns the predicate
+   (``PackManifest.domain``; built-in packs carry none);
+6. ``gliner_topic``: an engine-written ``gliner_topic:<id>`` tag from the
    opt-in topic tagger, or (RM-106) the domain that tagger gives the record on the
    compile path. The tagger is OFF unless ``model.extraction.topic`` is
    configured AND a tagger is supplied; nothing here loads a model
@@ -67,7 +74,7 @@ DOMAIN_TAG_PREFIX = "domain:"
 #: Engine-written tag from the opt-in GLiNER topic tagger (never accepted from callers).
 TOPIC_TAG_PREFIX = "gliner_topic:"
 
-DomainSource = Literal["ingest_tag", "property", "predicate", "pack", "gliner_topic"]
+DomainSource = Literal["ingest_tag", "property", "predicate", "family", "pack", "gliner_topic"]
 #: Text -> candidate domain ids (a GLiNER classification adapter, or a test stub).
 TopicTagger = Callable[[str], Sequence[str]]
 
@@ -129,12 +136,19 @@ def resolve_domain(
         return ResolvedDomain(tagged, "ingest_tag")
     if registry is not None:
         prop = registry.properties.get(attribute_key) if attribute_key else None
-        if prop is not None and prop.domain is not None:
-            return ResolvedDomain(prop.domain, "property")
+        if prop is not None:
+            if prop.domain is not None:
+                return ResolvedDomain(prop.domain, "property")
+            prop_family = registry.family_domain("property", prop.name)
+            if prop_family is not None:
+                return ResolvedDomain(prop_family, "family")
         spec = registry.predicates.get(predicate) if predicate else None
         if spec is not None:
             if spec.domain is not None:
                 return ResolvedDomain(spec.domain, "predicate")
+            family_domain = registry.family_domain("predicate", spec.name)
+            if family_domain is not None:
+                return ResolvedDomain(family_domain, "family")
             pack_domain = registry.pack_domain("predicate", spec.name)
             if pack_domain is not None:
                 return ResolvedDomain(pack_domain, "pack")
@@ -150,6 +164,7 @@ def declared_domains(registry: SemanticRegistry) -> tuple[str, ...]:
     found = {s.domain for s in registry.predicates.values() if s.domain is not None}
     found |= {s.domain for s in registry.properties.values() if s.domain is not None}
     found |= set(registry.pack_domains.values())
+    found |= registry.family_domains
     return tuple(sorted(d for d in found if is_domain_id(d)))
 
 

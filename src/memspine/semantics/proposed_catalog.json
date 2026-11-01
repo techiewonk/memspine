@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "pack_id": "memspine.proposed",
-  "pack_version": 1,
+  "pack_version": 2,
   "source": "builtin",
   "status": "proposed",
   "default_active": false,
@@ -9,7 +9,7 @@
   "dependencies": [
     {
       "pack_id": "memspine.core",
-      "digest": "dc365a8f81f3b27be7055a3e3b96b5e243067cace7d4acde76b2463d02d4a0ea"
+      "digest": "aa71a1d0062ef540a063a4941c0507d0c7032c4263995ca6693c4da598499605"
     }
   ],
   "predicates": [
@@ -361,8 +361,7 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "lifecycle": true,
-      "domain": "education"
+      "lifecycle": true
     },
     {
       "name": "teaches",
@@ -396,8 +395,7 @@
       "required_roles": [
         "topic"
       ],
-      "extraction_rule_ids": [],
-      "domain": "education"
+      "extraction_rule_ids": []
     },
     {
       "name": "enrolled_in",
@@ -429,8 +427,7 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": [],
-      "domain": "education"
+      "extraction_rule_ids": []
     },
     {
       "name": "studied_at",
@@ -460,8 +457,7 @@
       "property_category": null,
       "role_names": [],
       "required_roles": [],
-      "extraction_rule_ids": [],
-      "domain": "education"
+      "extraction_rule_ids": []
     },
     {
       "name": "purchased",
@@ -510,8 +506,7 @@
       "event_family": "sale",
       "sensitivity": [
         "financial"
-      ],
-      "domain": "finance"
+      ]
     },
     {
       "name": "sold",
@@ -560,8 +555,7 @@
       "event_family": "sale",
       "sensitivity": [
         "financial"
-      ],
-      "domain": "finance"
+      ]
     },
     {
       "name": "paid",
@@ -607,8 +601,7 @@
       "extraction_rule_ids": [],
       "sensitivity": [
         "financial"
-      ],
-      "domain": "finance"
+      ]
     },
     {
       "name": "lent",
@@ -654,8 +647,7 @@
       "event_family": "loan",
       "sensitivity": [
         "financial"
-      ],
-      "domain": "finance"
+      ]
     },
     {
       "name": "borrowed",
@@ -701,8 +693,7 @@
       "event_family": "loan",
       "sensitivity": [
         "financial"
-      ],
-      "domain": "finance"
+      ]
     },
     {
       "name": "acquired",
@@ -1103,8 +1094,7 @@
       ],
       "sensitivity": [
         "health"
-      ],
-      "domain": "health"
+      ]
     },
     {
       "name": "diagnosis_status",
@@ -1153,8 +1143,7 @@
       "subject_types": [],
       "value_kinds": [
         "text"
-      ],
-      "domain": "education"
+      ]
     },
     {
       "name": "qualification",
@@ -1167,8 +1156,7 @@
       "subject_types": [],
       "value_kinds": [
         "text"
-      ],
-      "domain": "education"
+      ]
     },
     {
       "name": "speech_act",
@@ -1332,6 +1320,139 @@
       ],
       "max_bindings": 1,
       "evidence_requirement": "exact_span"
+    }
+  ],
+  "families": [
+    {
+      "name": "health_wellbeing",
+      "description": "Family D: health and wellbeing (health sensitivity label).",
+      "domain": "health",
+      "predicates": [
+        "has_condition",
+        "allergic_to",
+        "intolerant_of",
+        "takes_medication",
+        "experienced_symptom"
+      ],
+      "properties": [
+        "severity",
+        "diagnosis_status"
+      ],
+      "roles": []
+    },
+    {
+      "name": "feelings_beliefs",
+      "description": "Family E: attributed feelings, beliefs and values.",
+      "domain": "personal",
+      "predicates": [
+        "feels",
+        "believes",
+        "values",
+        "worried_about"
+      ],
+      "properties": [
+        "intensity"
+      ],
+      "roles": []
+    },
+    {
+      "name": "learning_education",
+      "description": "Family F: skills, learning and education.",
+      "domain": "learning",
+      "predicates": [
+        "learning",
+        "teaches",
+        "enrolled_in",
+        "studied_at"
+      ],
+      "properties": [
+        "field_of_study",
+        "qualification"
+      ],
+      "roles": []
+    },
+    {
+      "name": "communication_acts",
+      "description": "Family H: speech acts on communicated_with.",
+      "domain": "social",
+      "predicates": [],
+      "properties": [
+        "speech_act"
+      ],
+      "roles": []
+    },
+    {
+      "name": "transactions",
+      "description": "Family I: purchases, sales, payments and loans.",
+      "domain": "finance",
+      "predicates": [
+        "purchased",
+        "sold",
+        "paid",
+        "lent",
+        "borrowed"
+      ],
+      "properties": [],
+      "roles": [
+        "buyer",
+        "seller"
+      ]
+    },
+    {
+      "name": "possession_lifecycle",
+      "description": "Family J: possession lifecycle and opinions.",
+      "domain": "personal",
+      "predicates": [
+        "acquired",
+        "disposed_of",
+        "lost",
+        "repaired",
+        "returned",
+        "rated"
+      ],
+      "properties": [
+        "rating",
+        "sentiment"
+      ],
+      "roles": []
+    },
+    {
+      "name": "routines",
+      "description": "Family L: habits and routines.",
+      "domain": "personal",
+      "predicates": [
+        "has_routine"
+      ],
+      "properties": [
+        "time_of_day",
+        "day_of_week"
+      ],
+      "roles": []
+    },
+    {
+      "name": "travel_modes",
+      "description": "Family M: transport and participation modes of trips and events.",
+      "domain": "travel",
+      "predicates": [],
+      "properties": [
+        "transport_mode",
+        "participation_mode"
+      ],
+      "roles": []
+    },
+    {
+      "name": "tool_experience",
+      "description": "Family N: tool and agent attempts, failures and workarounds.",
+      "domain": "tools",
+      "predicates": [
+        "attempted",
+        "failed_with",
+        "workaround_for"
+      ],
+      "properties": [
+        "error_type"
+      ],
+      "roles": []
     }
   ],
   "withdrawn": []

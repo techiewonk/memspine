@@ -24,8 +24,8 @@ BUILTIN_PACK_FILES: Mapping[str, str] = MappingProxyType(
 )
 BUILTIN_PACK_DIGESTS: Mapping[str, str] = MappingProxyType(
     {
-        "memspine.core": "dc365a8f81f3b27be7055a3e3b96b5e243067cace7d4acde76b2463d02d4a0ea",
-        "memspine.proposed": "c7193006e929bd8311f9064a1b00fb277ca73df447c6cb74eadb6eb00307221e",
+        "memspine.core": "aa71a1d0062ef540a063a4941c0507d0c7032c4263995ca6693c4da598499605",
+        "memspine.proposed": "ad193dda3ceb063a39500295e8fac21999be074113aaa668d040a34cd392c3c1",
     }
 )
 
@@ -77,6 +77,7 @@ class SemanticRegistry:
 
     __slots__ = (
         "_digest",
+        "_families",
         "_owners",
         "_pack_domains",
         "_predicates",
@@ -94,6 +95,7 @@ class SemanticRegistry:
         withdrawn: Iterable[tuple[str, str]] = (),
         owners: Mapping[tuple[str, str], str] | None = None,
         pack_domains: Mapping[str, str] | None = None,
+        families: Mapping[tuple[str, str], tuple[str, str | None]] | None = None,
     ) -> None:
         self._predicates = _index(predicates)
         self._properties = _index(properties)
@@ -101,6 +103,8 @@ class SemanticRegistry:
         self._withdrawn = frozenset(withdrawn)
         self._owners = MappingProxyType(dict(owners or {}))
         self._pack_domains = MappingProxyType(dict(pack_domains or {}))
+        #: RM-107: (kind, name) -> (family name, family domain or None).
+        self._families = MappingProxyType(dict(families or {}))
         self._check_references()
         payload: dict[str, object] = {
             label: [spec.model_dump(mode="json") for _, spec in sorted(index.items())]
@@ -113,6 +117,11 @@ class SemanticRegistry:
         payload["withdrawn"] = sorted(self._withdrawn)
         if self._pack_domains:  # RM-91: a pack's top domain changes what claims resolve to
             payload["pack_domains"] = dict(sorted(self._pack_domains.items()))
+        if self._families:  # RM-107: a family's domain changes what claims resolve to
+            payload["families"] = sorted(
+                [kind, name, family, domain]
+                for (kind, name), (family, domain) in self._families.items()
+            )
         self._digest = hashlib.sha256(
             json.dumps(payload, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
@@ -201,6 +210,12 @@ class SemanticRegistry:
             withdrawn=((item.kind, item.name) for pack in packs for item in pack.withdrawn),
             owners=owners,
             pack_domains={p.pack_id: p.domain for p in packs if p.domain is not None},
+            families={
+                key: (family.name, family.domain)
+                for pack in packs
+                for family in pack.families
+                for key in family.members()
+            },
         )
 
     @property
@@ -231,6 +246,26 @@ class SemanticRegistry:
         """RM-91: the top domain of the pack owning a definition (None = none declared)."""
         owner = self._owners.get((kind, name))
         return self._pack_domains.get(owner) if owner is not None else None
+
+    def family_of(self, kind: str, name: str) -> str | None:
+        """RM-107: the name of the family a definition belongs to (None = none)."""
+        found = self._families.get((kind, name))
+        return found[0] if found is not None else None
+
+    def family_domain(self, kind: str, name: str) -> str | None:
+        """RM-107: the generic domain of a definition's family (None = none declared)."""
+        found = self._families.get((kind, name))
+        return found[1] if found is not None else None
+
+    @property
+    def families(self) -> Mapping[tuple[str, str], tuple[str, str | None]]:
+        """RM-107: (kind, name) -> (family name, family domain) for every family member."""
+        return self._families
+
+    @property
+    def family_domains(self) -> frozenset[str]:
+        """RM-107: every domain a family of this registry declares."""
+        return frozenset(d for _, d in self._families.values() if d is not None)
 
     def is_withdrawn(self, kind: str, name: str) -> bool:
         return (kind, name) in self._withdrawn

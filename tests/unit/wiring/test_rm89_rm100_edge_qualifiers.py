@@ -19,6 +19,7 @@ from memspine.derive.pipeline.stages.edge_compiler import (
     requalify_namespace,
     source_origin_for,
 )
+from memspine.semantics import load_builtin_packs
 from memspine.services.graph.qualifiers import (
     QUALIFIERS_PROP,
     ClaimState,
@@ -28,6 +29,9 @@ from memspine.services.graph.qualifiers import (
 from memspine.store.records import MemoryRecord, SourceInfo
 
 NS = "acme/alice"
+_CORE_VERSION = str(
+    next(p.pack_version for p in load_builtin_packs() if p.pack_id == "memspine.core")
+)
 
 
 def _engine(path: str = ":memory:") -> Engine:
@@ -158,7 +162,7 @@ async def test_compiled_edges_carry_the_new_qualifiers() -> None:
         assert q.provenance is None or q.provenance.lineage_root is None
         assert q.trust == pytest.approx(known.trust) and q.trust_tier is not None
         assert q.binding_status == "bound"
-        assert q.vocabulary_pack == "memspine.core" and q.vocabulary_version == "2"
+        assert q.vocabulary_pack == "memspine.core" and q.vocabulary_version == _CORE_VERSION
         assert q.lifecycle_status is None and q.lifecycle_outcome is None
     for q in quals(planned):
         assert q.lifecycle_status == "in_progress" and q.lifecycle_outcome is None

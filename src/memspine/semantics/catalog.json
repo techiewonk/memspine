@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "pack_id": "memspine.core",
-  "pack_version": 2,
+  "pack_version": 3,
   "source": "builtin",
   "status": "approved",
   "default_active": true,
@@ -39,7 +39,7 @@
       "sensitivity": [
         "location"
       ],
-      "domain": "location/residence"
+      "domain": "personal/residence"
     },
     {
       "name": "works_in",
@@ -68,8 +68,7 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": [],
-      "domain": "work"
+      "cardinality_scope": []
     },
     {
       "name": "home_country",
@@ -99,7 +98,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "location/residence",
+      "domain": "personal/residence",
       "sensitivity": [
         "location"
       ]
@@ -132,7 +131,7 @@
       "cardinality_scope": [
         "precision"
       ],
-      "domain": "identity",
+      "domain": "personal/identity",
       "sensitivity": [
         "identity"
       ]
@@ -163,7 +162,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "location/residence"
+      "domain": "personal/residence"
     },
     {
       "name": "move_origin",
@@ -194,7 +193,7 @@
       "extraction_rule_ids": [],
       "cardinality_scope": [],
       "event_family": "move",
-      "domain": "location/residence"
+      "domain": "personal/residence"
     },
     {
       "name": "move_destination",
@@ -225,7 +224,7 @@
       "extraction_rule_ids": [],
       "cardinality_scope": [],
       "event_family": "move",
-      "domain": "location/residence"
+      "domain": "personal/residence"
     },
     {
       "name": "visited",
@@ -254,8 +253,7 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "cardinality_scope": [],
-      "domain": "location/travel"
+      "cardinality_scope": []
     },
     {
       "name": "temporarily_present_in",
@@ -285,7 +283,6 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "location/travel",
       "sensitivity": [
         "location"
       ]
@@ -317,7 +314,7 @@
       "extraction_rule_ids": [],
       "cardinality_scope": [],
       "inverse_view": "child_of",
-      "domain": "relationships/family"
+      "domain": "social/family"
     },
     {
       "name": "sibling_of",
@@ -346,7 +343,7 @@
       "extraction_rule_ids": [],
       "cardinality_scope": [],
       "symmetric": true,
-      "domain": "relationships/family"
+      "domain": "social/family"
     },
     {
       "name": "spouse_of",
@@ -375,7 +372,7 @@
       "extraction_rule_ids": [],
       "cardinality_scope": [],
       "symmetric": true,
-      "domain": "relationships/family"
+      "domain": "social/family"
     },
     {
       "name": "friend_of",
@@ -407,8 +404,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "symmetric": true,
-      "domain": "relationships"
+      "symmetric": true
     },
     {
       "name": "member_of",
@@ -467,8 +463,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "inverse_view": "employer_of",
-      "domain": "work"
+      "inverse_view": "employer_of"
     },
     {
       "name": "owns",
@@ -731,7 +726,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "media"
+      "domain": "personal/media"
     },
     {
       "name": "listened_to",
@@ -763,7 +758,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "media"
+      "domain": "personal/media"
     },
     {
       "name": "watched",
@@ -795,7 +790,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "media"
+      "domain": "personal/media"
     },
     {
       "name": "played",
@@ -966,7 +961,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "preferences"
+      "domain": "personal/preferences"
     },
     {
       "name": "dislikes",
@@ -1002,7 +997,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "preferences"
+      "domain": "personal/preferences"
     },
     {
       "name": "prefers",
@@ -1044,7 +1039,7 @@
       ],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "preferences"
+      "domain": "personal/preferences"
     },
     {
       "name": "interested_in",
@@ -1080,7 +1075,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "domain": "preferences"
+      "domain": "personal/preferences"
     },
     {
       "name": "intends",
@@ -1781,8 +1776,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "cardinality_scope": [],
-      "inverse_view": "managed_by",
-      "domain": "work"
+      "inverse_view": "managed_by"
     },
     {
       "name": "has_role",
@@ -2162,8 +2156,7 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "lifecycle": true,
-      "domain": "work"
+      "lifecycle": true
     },
     {
       "name": "blocked_by",
@@ -2405,8 +2398,7 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "symmetric": true,
-      "domain": "relationships"
+      "symmetric": true
     },
     {
       "name": "relative_of",
@@ -2435,7 +2427,7 @@
       "required_roles": [],
       "extraction_rule_ids": [],
       "symmetric": true,
-      "domain": "relationships/family"
+      "domain": "social/family"
     },
     {
       "name": "colleague_of",
@@ -2463,8 +2455,7 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "symmetric": true,
-      "domain": "work"
+      "symmetric": true
     },
     {
       "name": "acquainted_with",
@@ -2492,8 +2483,7 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "symmetric": true,
-      "domain": "relationships"
+      "symmetric": true
     },
     {
       "name": "mentor_of",
@@ -2521,8 +2511,7 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "inverse_view": "mentee_of",
-      "domain": "relationships"
+      "inverse_view": "mentee_of"
     },
     {
       "name": "caregiver_of",
@@ -2552,8 +2541,7 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "inverse_view": "cared_for_by",
-      "domain": "relationships"
+      "inverse_view": "cared_for_by"
     },
     {
       "name": "neighbour_of",
@@ -2581,8 +2569,7 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "symmetric": true,
-      "domain": "relationships"
+      "symmetric": true
     },
     {
       "name": "instructed",
@@ -2803,7 +2790,7 @@
       "sensitivity": [
         "identity"
       ],
-      "domain": "identity"
+      "domain": "personal/identity"
     },
     {
       "name": "speaks",
@@ -2836,7 +2823,7 @@
       "role_names": [],
       "required_roles": [],
       "extraction_rule_ids": [],
-      "domain": "identity"
+      "domain": "personal/identity"
     },
     {
       "name": "affiliated_with",
@@ -4193,8 +4180,7 @@
       "allowed_units": [],
       "requires_currency": true,
       "nonnegative_integer": false,
-      "context_requirements": [],
-      "domain": "finance"
+      "context_requirements": []
     },
     {
       "name": "cost",
@@ -4226,8 +4212,7 @@
       "allowed_units": [],
       "requires_currency": true,
       "nonnegative_integer": false,
-      "context_requirements": [],
-      "domain": "finance"
+      "context_requirements": []
     },
     {
       "name": "item_count",
@@ -4627,8 +4612,7 @@
       "value_kinds": [
         "text",
         "entity"
-      ],
-      "domain": "work"
+      ]
     },
     {
       "name": "pronouns",
@@ -4647,7 +4631,7 @@
       "sensitivity": [
         "identity"
       ],
-      "domain": "identity"
+      "domain": "personal/identity"
     },
     {
       "name": "nationality",
@@ -4666,7 +4650,7 @@
       "sensitivity": [
         "identity"
       ],
-      "domain": "identity"
+      "domain": "personal/identity"
     },
     {
       "name": "contact_channel",
@@ -4687,7 +4671,7 @@
       "sensitivity": [
         "contact"
       ],
-      "domain": "identity/contact"
+      "domain": "personal/contact"
     },
     {
       "name": "preferred_contact_time",
@@ -4708,7 +4692,7 @@
       "sensitivity": [
         "contact"
       ],
-      "domain": "identity/contact"
+      "domain": "personal/contact"
     }
   ],
   "roles": [
@@ -5313,6 +5297,311 @@
       ],
       "max_bindings": null,
       "evidence_requirement": "exact_span"
+    }
+  ],
+  "families": [
+    {
+      "name": "residence",
+      "description": "Where a subject lives, lived and moved (residence history).",
+      "domain": "personal",
+      "predicates": [
+        "resides_in",
+        "home_country",
+        "grew_up_in",
+        "move_origin",
+        "move_destination"
+      ],
+      "properties": [],
+      "roles": []
+    },
+    {
+      "name": "travel_presence",
+      "description": "Visits and temporary stays away from home.",
+      "domain": "travel",
+      "predicates": [
+        "visited",
+        "temporarily_present_in"
+      ],
+      "properties": [],
+      "roles": []
+    },
+    {
+      "name": "identity_contact",
+      "description": "Family K: identity and contact attributes.",
+      "domain": "personal",
+      "predicates": [
+        "born_in",
+        "citizen_of",
+        "speaks",
+        "affiliated_with"
+      ],
+      "properties": [
+        "pronouns",
+        "nationality",
+        "contact_channel",
+        "preferred_contact_time"
+      ],
+      "roles": []
+    },
+    {
+      "name": "social_relationships",
+      "description": "Family A plus the foundation kinship and group relations.",
+      "domain": "social",
+      "predicates": [
+        "parent_of",
+        "sibling_of",
+        "spouse_of",
+        "friend_of",
+        "partner_of",
+        "relative_of",
+        "acquainted_with",
+        "mentor_of",
+        "caregiver_of",
+        "neighbour_of",
+        "member_of"
+      ],
+      "properties": [
+        "kinship_type",
+        "relationship_type"
+      ],
+      "roles": []
+    },
+    {
+      "name": "social_interactions",
+      "description": "Communication, suggestions, offers and attended events.",
+      "domain": "social",
+      "predicates": [
+        "communicated_with",
+        "suggested_to",
+        "offered",
+        "participated_in",
+        "attended"
+      ],
+      "properties": [],
+      "roles": []
+    },
+    {
+      "name": "work_status",
+      "description": "Family 2 plus employment: decisions, work status and roles.",
+      "domain": "work",
+      "predicates": [
+        "works_in",
+        "employed_by",
+        "manages",
+        "has_role",
+        "assigned_to",
+        "colleague_of",
+        "works_on",
+        "blocked_by",
+        "decided"
+      ],
+      "properties": [
+        "occupation",
+        "progress",
+        "outcome"
+      ],
+      "roles": []
+    },
+    {
+      "name": "commitments",
+      "description": "Family 1: commitments, deadlines and requests.",
+      "domain": "work",
+      "predicates": [
+        "committed_to",
+        "due_by",
+        "requested_of"
+      ],
+      "properties": [
+        "priority"
+      ],
+      "roles": []
+    },
+    {
+      "name": "documents",
+      "description": "Family 3: documents, citations and revisions.",
+      "domain": "learning",
+      "predicates": [
+        "cites",
+        "about",
+        "derived_from",
+        "revision_of"
+      ],
+      "properties": [
+        "locator",
+        "publisher",
+        "licence"
+      ],
+      "roles": []
+    },
+    {
+      "name": "preferences",
+      "description": "Likes, dislikes, preferences and interests.",
+      "domain": "personal",
+      "predicates": [
+        "likes",
+        "dislikes",
+        "prefers",
+        "interested_in"
+      ],
+      "properties": [],
+      "roles": []
+    },
+    {
+      "name": "media",
+      "description": "Reading, listening, watching and playing.",
+      "domain": "personal",
+      "predicates": [
+        "read",
+        "listened_to",
+        "watched",
+        "played"
+      ],
+      "properties": [],
+      "roles": []
+    },
+    {
+      "name": "instructions",
+      "description": "Families B and C: assistant-directed instructions and constraints.",
+      "domain": "tools",
+      "predicates": [
+        "instructed",
+        "restricted_by"
+      ],
+      "properties": [
+        "directive_polarity",
+        "tone",
+        "detail_level",
+        "rule_strength"
+      ],
+      "roles": []
+    },
+    {
+      "name": "goals",
+      "description": "Family G: goals, wishes and intentions.",
+      "domain": "personal",
+      "predicates": [
+        "has_goal",
+        "wishes",
+        "intends"
+      ],
+      "properties": [
+        "target_value",
+        "target_date"
+      ],
+      "roles": []
+    },
+    {
+      "name": "possessions",
+      "description": "Ownership, adoption, gifts, commissions and things made.",
+      "domain": "personal",
+      "predicates": [
+        "owns",
+        "adopted",
+        "gave",
+        "received",
+        "commissioned",
+        "made"
+      ],
+      "properties": [],
+      "roles": []
+    },
+    {
+      "name": "skills",
+      "description": "Capabilities and skill levels.",
+      "domain": "learning",
+      "predicates": [
+        "has_capability"
+      ],
+      "properties": [
+        "skill_level"
+      ],
+      "roles": []
+    },
+    {
+      "name": "prices",
+      "description": "Prices and costs of things.",
+      "domain": "finance",
+      "predicates": [],
+      "properties": [
+        "price",
+        "cost"
+      ],
+      "roles": []
+    },
+    {
+      "name": "event_time",
+      "description": "Generic event times, frequencies and reasons.",
+      "domain": "other",
+      "predicates": [
+        "started_on",
+        "opened_on",
+        "completed_on",
+        "occurred_on",
+        "explicit_frequency",
+        "explicit_reason"
+      ],
+      "properties": [
+        "occurrence_rate",
+        "recurrence_interval"
+      ],
+      "roles": []
+    },
+    {
+      "name": "attributes",
+      "description": "Generic attributes, measurements, quantities, parts and dependencies.",
+      "domain": "other",
+      "predicates": [
+        "has_quantity",
+        "has_measurement",
+        "has_attribute",
+        "located_in",
+        "part_of",
+        "uses",
+        "requires",
+        "depends_on"
+      ],
+      "properties": [
+        "colour",
+        "material",
+        "breed",
+        "model",
+        "title",
+        "language",
+        "genre",
+        "activity_type",
+        "art_form",
+        "description",
+        "category",
+        "purpose",
+        "format",
+        "medium",
+        "style",
+        "shape",
+        "condition",
+        "brand",
+        "manufacturer",
+        "edition",
+        "version",
+        "external_identifier",
+        "domain_status",
+        "length",
+        "width",
+        "height",
+        "depth",
+        "distance",
+        "area",
+        "volume",
+        "mass",
+        "temperature",
+        "duration",
+        "speed",
+        "capacity",
+        "age",
+        "item_count",
+        "event_count",
+        "participant_count"
+      ],
+      "roles": []
     }
   ],
   "withdrawn": []

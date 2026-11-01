@@ -43,8 +43,13 @@ def test_registry_digest_is_order_independent_and_version_sensitive(registry):
         reversed(list(registry.predicates.values())),
         reversed(list(registry.properties.values())),
         reversed(list(registry.roles.values())),
+        families=dict(reversed(list(registry.families.items()))),
     )
     assert reverse.digest == registry.digest
+    unfamilied = SemanticRegistry(
+        registry.predicates.values(), registry.properties.values(), registry.roles.values()
+    )
+    assert unfamilied.digest != registry.digest  # RM-107: family domains change resolution
     changed = registry.predicates["resides_in"].model_copy(update={"version": 2})
     with pytest.raises(ValueError, match="unsupported.*version"):
         SemanticRegistry([changed], [], [])

@@ -22,7 +22,7 @@ T0 = datetime(2023, 5, 7, 10, 0, tzinfo=UTC)
 
 
 class _Extractor:
-    """Answers ``location residence`` for "moved" texts and ``cinema`` for "film" texts."""
+    """Answers ``personal residence`` for "moved" texts and ``cinema`` for "film" texts."""
 
     def __init__(self) -> None:
         self.texts: list[str] = []
@@ -35,8 +35,10 @@ class _Extractor:
         if "film" in text:
             return {"topic": {"label": "cinema", "confidence": 0.9}}
         if "chess" in text:
-            return {"topic": {"label": "preferences", "confidence": 0.2}}  # below threshold
-        return {"topic": {"label": "relationships", "confidence": 0.8}}
+            return {
+                "topic": {"label": "personal preferences", "confidence": 0.2}
+            }  # below threshold
+        return {"topic": {"label": "social", "confidence": 0.8}}
 
 
 class _Binding:
@@ -135,7 +137,7 @@ async def test_bound_tagger_is_built_offline_and_tags_writes() -> None:
         tagger = eng._topic_tagger
         assert isinstance(tagger, GlinerTopicTagger)
         assert tagger.labels["cinema"] == "media/film"  # operator map
-        assert tagger.labels["location residence"] == "location/residence"  # pack domain
+        assert tagger.labels["personal residence"] == "personal/residence"  # pack domain
         assert eng._pipeline_ctx().topic_tagger is tagger
         extractor = _stub(eng)
         rec = await eng.write("We watched a film", namespace=NS)
@@ -174,7 +176,7 @@ async def test_compile_and_requalify_backfill_with_precedence() -> None:
     assert report["updated"] and report["to_update"]
     assert after[ids["topic"]] == {("media/film", "gliner_topic")}
     assert after[ids["caller"]] == {("work/team", "ingest_tag")}  # caller tag beats topic
-    assert after[ids["predicate"]] == {("location/residence", "predicate")}
+    assert after[ids["predicate"]] == {("personal/residence", "predicate")}
     assert after[ids["low"]] == {(None, None)}  # below threshold: unknown
     # the tagger only ran where no higher source applied, once per text (cached)
     assert sorted(extractor.texts) == ["Ilse and Bram watched a film", "Ilse plays chess with Ana"]

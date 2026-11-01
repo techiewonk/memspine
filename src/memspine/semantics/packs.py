@@ -25,14 +25,20 @@ import hashlib
 import json
 from importlib.resources import files
 from pathlib import Path
-from typing import Literal
+from typing import Literal, get_args
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from memspine.semantics.domains import DOMAIN_PATTERN
+from memspine.semantics.domains import DOMAIN_PATTERN, domain_covers
 from memspine.semantics.specs import PredicateSpec, PropertySpec, RoleSpec
 
 DefinitionKind = Literal["predicate", "property", "role"]
+#: RM-107 (ADR-094): the fixed generic family domains. Generic topics only: no
+#: benchmark, product or dataset names.
+FamilyDomain = Literal[
+    "personal", "work", "health", "finance", "travel", "learning", "social", "tools", "other"
+]
+FAMILY_DOMAINS: tuple[str, ...] = get_args(FamilyDomain)
 PackSource = Literal["builtin", "plugin", "config"]
 _PACK_ID = r"^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$"
 _DIGEST = r"^[0-9a-f]{64}$"
@@ -55,6 +61,32 @@ class WithdrawnDefinition(BaseModel):
     reason: str = Field(min_length=1)
 
 
+class FamilySpec(BaseModel):
+    """RM-107 (ADR-094): a named group of a pack's definitions with one generic domain.
+
+    ``domain`` is one value of the fixed generic set :data:`FAMILY_DOMAINS`; any other
+    value is rejected. Built-in families must declare one; a custom (plugin/config)
+    family may omit it, and its definitions then fall back to their own predicate/key
+    domains (and the pack's top domain). Roles are optional members: they are shared
+    slots and never set a claim's domain."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    name: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    description: str = Field(min_length=1)
+    domain: FamilyDomain | None = None
+    predicates: tuple[str, ...] = ()
+    properties: tuple[str, ...] = ()
+    roles: tuple[str, ...] = ()
+
+    def members(self) -> list[tuple[str, str]]:
+        return (
+            [("predicate", n) for n in self.predicates]
+            + [("property", n) for n in self.properties]
+            + [("role", n) for n in self.roles]
+        )
+
+
 class PackManifest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
@@ -66,12 +98,15 @@ class PackManifest(BaseModel):
     default_active: bool
     description: str = Field(min_length=1)
     #: RM-91: the pack's top topical domain, the fallback for its predicates that
-    #: declare none (None = a general pack with no single topic).
+    #: declare none (None = a general pack with no single topic). Built-in packs
+    #: carry none (ADR-094): their domains come from their families.
     domain: str | None = Field(default=None, pattern=DOMAIN_PATTERN)
     dependencies: tuple[PackDependency, ...] = ()
     predicates: tuple[PredicateSpec, ...] = ()
     properties: tuple[PropertySpec, ...] = ()
     roles: tuple[RoleSpec, ...] = ()
+    #: RM-107: definition families, each with one generic domain (ADR-094).
+    families: tuple[FamilySpec, ...] = ()
     withdrawn: tuple[WithdrawnDefinition, ...] = ()
 
     @model_validator(mode="after")
@@ -92,7 +127,54 @@ class PackManifest(BaseModel):
             raise ValueError("duplicate withdrawal")
         if not set(withdrawn) <= names:
             raise ValueError("a pack may only withdraw its own definitions")
+        self._family_contract(names)
         return self
+
+    def _family_contract(self, names: set[tuple[str, str]]) -> None:
+        """RM-107: families name only this pack's definitions, each at most once; a
+        definition's own domain lies under its family's domain. Built-in packs carry no
+        top domain, every built-in family declares a domain, and every built-in
+        predicate and property belongs to a family."""
+        family_names = [family.name for family in self.families]
+        if len(set(family_names)) != len(family_names):
+            raise ValueError("duplicate family name")
+        owner: dict[tuple[str, str], FamilySpec] = {}
+        for family in self.families:
+            for key in family.members():
+                if key not in names:
+                    raise ValueError(f"family {family.name} names unknown {key[0]} {key[1]}")
+                if key in owner:
+                    raise ValueError(f"{key[0]} {key[1]} belongs to two families")
+                owner[key] = family
+        specs: list[tuple[str, PredicateSpec | PropertySpec]] = [
+            ("predicate", s) for s in self.predicates
+        ]
+        specs += [("property", s) for s in self.properties]
+        for kind, spec in specs:
+            fam = owner.get((kind, spec.name))
+            if (
+                fam is not None
+                and fam.domain is not None
+                and spec.domain is not None
+                and not domain_covers(fam.domain, spec.domain)
+            ):
+                raise ValueError(
+                    f"{kind} {spec.name} domain {spec.domain} is outside family "
+                    f"{fam.name} domain {fam.domain}"
+                )
+        if self.source != "builtin":
+            return
+        if self.domain is not None:
+            raise ValueError("built-in packs carry no top domain; families declare domains")
+        for family in self.families:
+            if family.domain is None:
+                raise ValueError(f"built-in family {family.name} declares no domain")
+        for kind, spec in specs:
+            if (kind, spec.name) not in owner:
+                raise ValueError(f"built-in {kind} {spec.name} belongs to no family")
+
+    def family_of(self, kind: str, name: str) -> FamilySpec | None:
+        return next((f for f in self.families if (kind, name) in f.members()), None)
 
     def definition_names(self) -> set[tuple[str, str]]:
         return (
@@ -109,8 +191,13 @@ class PackManifest(BaseModel):
 def compute_pack_digest(manifest: PackManifest) -> str:
     """SHA-256 over canonical JSON; independent of definition order."""
     payload = manifest.model_dump(mode="json")
-    for key in ("predicates", "properties", "roles"):
+    for key in ("predicates", "properties", "roles", "families"):
         payload[key] = sorted(payload[key], key=lambda item: str(item["name"]))
+    for family in payload["families"]:
+        for key in ("predicates", "properties", "roles"):
+            family[key] = sorted(family[key])
+    if not payload["families"]:
+        del payload["families"]  # a pack without families keeps its earlier digest
     payload["dependencies"] = sorted(payload["dependencies"], key=lambda item: item["pack_id"])
     payload["withdrawn"] = sorted(
         payload["withdrawn"], key=lambda item: (item["kind"], item["name"])

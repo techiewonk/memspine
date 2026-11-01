@@ -14,6 +14,8 @@ from memspine.semantics.lifecycle import (
 )
 from memspine.semantics.origins import SOURCE_ORIGINS, SourceOrigin, SourceProvenance
 from memspine.semantics.packs import (
+    FAMILY_DOMAINS,
+    FamilySpec,
     PackDependency,
     PackManifest,
     WithdrawnDefinition,
@@ -35,10 +37,12 @@ from memspine.semantics.specs import PredicateSpec, PropertySpec, RoleSpec
 from memspine.semantics.views import EdgeView, StoredEdge, edge_views
 
 __all__ = [
+    "FAMILY_DOMAINS",
     "SOURCE_ORIGINS",
     "CardinalityConflict",
     "CardinalityReport",
     "EdgeView",
+    "FamilySpec",
     "HandlingPolicy",
     "LifecycleState",
     "PackDependency",

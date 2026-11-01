@@ -332,7 +332,7 @@ async def test_compiled_edges_carry_domain_and_source(monkeypatch: pytest.Monkey
         by_record.setdefault(str(edge.properties["record_id"]), set()).add(
             (q.topical_domain, q.topical_domain_source)
         )
-    assert by_record[ids["home"]] == {("location/residence", "predicate")}
+    assert by_record[ids["home"]] == {("personal/residence", "predicate")}
     assert by_record[ids["tagged"]] == {("work/team", "ingest_tag")}
     assert by_record[ids["plain"]] == {(None, None)}  # nothing inferred
     tagged_edges = sum(1 for e in edges if e.properties["record_id"] == ids["tagged"])
