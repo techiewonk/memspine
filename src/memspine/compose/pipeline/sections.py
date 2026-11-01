@@ -930,7 +930,7 @@ async def _profile_card_section(
     than :data:`constants.PROFILE_PACK_MAX_SHARE` of the read budget), then shown in section
     order. The block is a synthetic record whose parents are the cited sources, so its trust,
     consent and PII tier are the strictest of them; unlike other lead blocks the read below still
-    shows its parents. Independent of the legacy reflective header (:func:`_profile_section`),
+    shows its parents. Independent of the reflective profile header (:func:`_profile_section`),
     which is unchanged.
     """
     read_cfg = eng._config().read
