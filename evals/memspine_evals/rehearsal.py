@@ -145,6 +145,60 @@ def validate_engine_config(config: dict[str, Any]) -> None:
                     f"{where}.policies.{name}: unknown policy; known: {sorted(options)}"
                 )
             model.model_validate(raw or {})
+    validate_provider_settings(parsed)
+
+
+def validate_provider_settings(parsed: Any) -> None:
+    """Phase D (ADR-096): each selected provider's own ``settings`` object, validated by its
+    descriptor the way the engine's build path does, without building anything.
+
+    The config schema keeps ``settings`` as provider-owned JSON (ADR-081/082), so a key the
+    provider no longer takes (``base_url`` on ``ollama``, an ``st`` key left on ``hash``)
+    passes ``load_config`` and only fails at engine start.
+    """
+    from memspine.exceptions import ConfigError
+    from memspine.providers.registry import get_registry, validate_settings
+    from memspine.providers.rerank import validate_reranker_settings
+    from memspine.runtime.container import llm_settings, resolved_embedding
+
+    def descriptor(kind: str, name: str, where: str) -> Any:
+        try:
+            return get_registry(kind).get(name)
+        except Exception as exc:
+            raise ConfigError(f"unknown provider at {where}: {name!r}") from exc
+
+    explicit_id = parsed.deployment.id is not None
+
+    def check(where: str, kind: str, name: str, values: Any, slot: Any = None) -> None:
+        try:
+            found = descriptor(kind, name, where)
+            if found.requires_deployment_id and not explicit_id:
+                # the build path's check (runtime.container._build_provider)
+                raise ConfigError(
+                    f"deployment.id is required by shared provider "
+                    f"{found.ref.category}.{found.ref.name}"
+                )
+            if slot is not None:
+                llm_settings(found, slot)
+            else:
+                validate_settings(found, values)
+        except Exception as exc:
+            raise ValueError(f"{where}: {exc}") from None
+
+    for role, slot in parsed.model.llm.items():
+        check(f"model.llm.{role}", "llm_providers", slot.provider, None, slot)
+    embedding = resolved_embedding(parsed)
+    check("model.embedding", "embedders", embedding.provider, embedding.settings)
+    for index, stage in enumerate(parsed.model.rerank.chain):
+        where = f"model.rerank.chain[{index}]"
+        try:
+            validate_reranker_settings(
+                stage.provider, stage.settings, explicit_deployment_id=explicit_id, path=where
+            )
+        except Exception as exc:
+            raise ValueError(f"{where}: {exc}") from None
+    records = parsed.storage.records
+    check("storage.records", "storage_backends", records.provider, records.settings)
 
 
 def _namespaces(parsed: Any) -> dict[str, Any]:
@@ -290,11 +344,13 @@ async def rehearse_arm(
     prices: dict[str, tuple[float, float]],
 ) -> ArmReport:
     report = ArmReport(arm_id=arm["id"], ok=True)
-    engine_config = arm_engine_config(plan, arm)
+    from .experiments import memspine_engine_config
+
     try:
-        if engine_config is not None:
-            validate_engine_config(engine_config)
         config = arm_config(plan, arm, item_ids=item_ids, max_queries=max_queries, prices=prices)
+        if config.include_memspine:
+            # the config as it will run: --memspine-llm roles and deployment.id merged in
+            validate_engine_config(memspine_engine_config(config) or {})
     except Exception as exc:
         report.ok = False
         report.problems.append(f"config does not parse: {type(exc).__name__}: {exc}")

@@ -10,6 +10,7 @@ from typing import Any
 import plan_commands
 import pytest
 from memspine_evals.cli import build_parser
+from memspine_evals.experiments import memspine_engine_config
 from memspine_evals.rehearsal import (
     arm_categories,
     arm_config,
@@ -93,7 +94,9 @@ def test_engine_configs_validate_and_rerank_mode_is_registered() -> None:
     for arm in plan["arms"]:
         config = arm_engine_config(plan, arm)
         assert config is not None
-        validate_engine_config(config)
+        # the config as it runs: c0-1 --memspine-llm merges roles and deployment.id in
+        run = arm_config(plan, arm, item_ids=None, max_queries=None, prices={})
+        validate_engine_config(memspine_engine_config(run) or {})
         assert config.get("read", {}).get("rerank", "off") in rerank_modes()
 
 

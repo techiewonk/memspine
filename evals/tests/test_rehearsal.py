@@ -10,6 +10,7 @@ from typing import Any
 import pytest
 from memspine_evals.bedrock import QWEN3_32B
 from memspine_evals.datasets.synthetic import SyntheticDataset
+from memspine_evals.experiments import memspine_engine_config
 from memspine_evals.rehearsal import (
     ArmReport,
     SystemMeasure,
@@ -89,7 +90,7 @@ def test_shipped_plan_parses_and_every_engine_config_validates() -> None:
         config = arm_config(plan, arm, item_ids=("conv-26",), max_queries=None, prices=PRICES)
         if config.include_memspine:
             assert config.memspine_config is not None
-            validate_engine_config(config.memspine_config)
+            validate_engine_config(memspine_engine_config(config) or {})
             assert config.memspine_llm == "bedrock-qwen3"
 
 
