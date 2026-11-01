@@ -41,6 +41,16 @@ memory metadata cache, Tantivy writer heap and commit retries) moved from
 `clients/_common/endpoints.py` (no alias). Factories acquire a shared connector with
 `providers/connectors.py` `acquire(ctx, ConnectorCls, spec, resource_id=...)`.
 
+Logging in connectors (RM-140): `clients/*` log through stdlib `logging`
+(`logging.getLogger(__name__)`), not the structlog `get_logger` of
+`memspine.observability.logging`. The `clients-isolated` import contract
+(`.importlinter`) forbids `memspine.observability` in `clients`, so a connector cannot
+use the M11 vocabulary or its redaction processor. Connector log lines therefore carry
+no record content and no credentials (use `clients/_common/secrets` for anything that
+could echo a DSN), and an application that wants one stream routes the `memspine.clients`
+stdlib loggers into structlog in its own logging setup. Everything above `clients`
+(services, providers, runtime, store, observability and the engine) uses structlog.
+
 ## 2a. Live status by provider (updated after each merge; RM-113 row holds the evidence)
 
 Last update: 2026-10-24. RM-113 is complete: both shrink-only baselines are empty; Taskiq borrows the shared Redis connector; lease, side-table and observability connections are opened only by `clients`; and the eval harness can seed each fresh item store from a precomputed asset pack. Asset rows live in records and bytes in documents. The historical audit below is implementation evidence, not a list of current violations.

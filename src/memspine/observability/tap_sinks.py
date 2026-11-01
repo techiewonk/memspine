@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import logging
 import threading
 from collections import deque
 from datetime import UTC, datetime
@@ -11,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from memspine.observability import tap
+from memspine.observability.logging import get_logger
 
 __all__ = ["JsonlSink", "LogSink", "MemorySink", "OtelSink", "SqliteSink", "register_builtin"]
 
@@ -105,13 +105,13 @@ class SqliteSink:
 
 
 class LogSink:
-    """One structured log line per request on the ``memspine.tap`` logger."""
+    """One structured ``tap.request`` log line per request on the ``memspine.tap`` logger."""
 
     def __init__(self) -> None:
-        self.logger = logging.getLogger("memspine.tap")
+        self.logger = get_logger("memspine.tap")
 
     def write(self, trace: dict[str, Any]) -> None:
-        self.logger.info("tap.request %s", json.dumps(trace, separators=(",", ":"), default=str))
+        self.logger.info("tap.request", trace=trace)
 
     def close(self) -> None:
         return None

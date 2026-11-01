@@ -4,11 +4,11 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import sqlite3
 import time
 
 import pytest
+from structlog.testing import capture_logs
 
 from memspine.config.schema.observability import ObservabilityConfig, TapConfig
 from memspine.observability import tap, tap_report
@@ -193,12 +193,13 @@ def test_sqlite_sink(tmp_path):
     assert len(loaded) == 1 and len(loaded[0]["children"]) == 1
 
 
-def test_log_sink(caplog):
-    with caplog.at_level(logging.INFO, logger="memspine.tap"):
+def test_log_sink():
+    with capture_logs() as logs:
         _on(sink="log")
         with tap.request("read"):
             tap.event("r.a.b", n=1)
-    assert any("tap.request" in r.getMessage() for r in caplog.records)
+    (line,) = [e for e in logs if e["event"] == "tap.request"]
+    assert line["trace"]["kind"] == "read"
 
 
 def test_otel_sink_clear_error_without_package():

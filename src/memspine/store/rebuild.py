@@ -10,10 +10,13 @@ import orjson
 
 from memspine.exceptions import RebuildUnavailableError
 from memspine.observability import tap
+from memspine.observability.logging import EVENT_REBUILD, get_logger
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.store.events import MemoryEvent
 from memspine.store.replay import catch_up
+
+_log = get_logger(__name__)
 
 NOT_REBUILT_LAYERS = {
     "vector": "rebuild with the selected embedding provider",
@@ -95,6 +98,13 @@ class ReplayBuilder:
             events=report.events_written,
             projected=report.projected,
             not_rebuilt=sorted(report.not_rebuilt),
+        )
+        _log.info(
+            EVENT_REBUILD,
+            events_read=report.events_read,
+            events_written=report.events_written,
+            by_kind=dict(sorted(report.by_kind.items())),
+            projected=dict(sorted(report.projected.items())),
         )
         return report
 
