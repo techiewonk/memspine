@@ -4,16 +4,44 @@ from __future__ import annotations
 
 import hashlib
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
-from scripts.record_verification_run import record_run
+from scripts.record_verification_run import DirtyTreeError, main, record_run, revision_info
+
+_GIT_IDENTITY = (
+    "-c",
+    "user.name=Ledger Test",
+    "-c",
+    "user.email=ledger@example.invalid",
+    "-c",
+    "commit.gpgsign=false",
+)
+
+
+def _git(root: Path, *args: str) -> str:
+    result = subprocess.run(
+        ["git", "-C", str(root), *_GIT_IDENTITY, *args],
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    return result.stdout.strip()
+
+
+def _commit_all(root: Path, message: str = "evidence") -> None:
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", message)
 
 
 def _root(path: Path) -> Path:
+    """A real, clean Git repository with the files the recorder hashes."""
     path.mkdir()
+    _git(path, "init", "-q", "-b", "main")
     (path / "pyproject.toml").write_text("project = {}\n", encoding="utf-8")
     (path / "uv.lock").write_text("version = 1\n", encoding="utf-8")
+    _commit_all(path, "init")
     return path
 
 
@@ -32,20 +60,105 @@ def _record(root: Path, output: Path, **changes: object) -> dict[str, object]:
     return record_run(**values)  # type: ignore[arg-type]
 
 
-def test_appends_without_replacing_existing_evidence(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_appends_without_replacing_existing_evidence(tmp_path: Path) -> None:
     root = _root(tmp_path / "repo")
     output = root / "runs.jsonl"
     prior = '{"older":"evidence"}\n'
     output.write_text(prior, encoding="utf-8")
-    monkeypatch.setattr("scripts.record_verification_run._git", lambda *_args: "abc123")
+    _commit_all(root)
 
     _record(root, output)
 
     lines = output.read_text(encoding="utf-8").splitlines()
     assert lines[0] == prior.rstrip("\n")
-    assert json.loads(lines[1])["schema_version"] == 1
+    assert json.loads(lines[1])["schema_version"] == 2
+
+
+def test_clean_record_carries_revision_and_env(tmp_path: Path) -> None:
+    root = _root(tmp_path / "repo")
+
+    record = _record(root, root / "runs.jsonl", extras=["ner,graph", "dev", "graph"])
+
+    assert record["revision"] == {
+        "commit": _git(root, "rev-parse", "HEAD"),
+        "tree": _git(root, "rev-parse", "HEAD^{tree}"),
+        "branch": "main",
+        "dirty": False,
+    }
+    assert record["diagnostic_only"] is False
+    env = record["env"]
+    assert isinstance(env, dict)
+    assert env["uv_lock_sha256"] == hashlib.sha256((root / "uv.lock").read_bytes()).hexdigest()
+    assert env["extras"] == ["dev", "graph", "ner"]
+    assert isinstance(env["python"], str) and env["python"].count(".") == 2
+
+
+def test_extras_not_stated_is_recorded_as_null(tmp_path: Path) -> None:
+    root = _root(tmp_path / "repo")
+    env = _record(root, root / "runs.jsonl")["env"]
+    assert isinstance(env, dict) and env["extras"] is None
+
+
+def test_detached_head_records_no_branch(tmp_path: Path) -> None:
+    root = _root(tmp_path / "repo")
+    _git(root, "checkout", "-q", "--detach")
+    assert revision_info(root)["branch"] is None
+
+
+@pytest.mark.parametrize("change", ["modified", "staged", "untracked"])
+def test_dirty_tree_is_refused(tmp_path: Path, change: str) -> None:
+    root = _root(tmp_path / "repo")
+    if change == "untracked":
+        (root / "new.txt").write_text("x\n", encoding="utf-8")
+    else:
+        (root / "uv.lock").write_text("version = 2\n", encoding="utf-8")
+        if change == "staged":
+            _git(root, "add", "uv.lock")
+    output = tmp_path / "runs.jsonl"  # outside the repository: the refusal is not self-caused
+
+    assert revision_info(root)["dirty"] is True
+    with pytest.raises(DirtyTreeError, match="--allow-dirty"):
+        _record(root, output)
+    assert not output.exists()
+
+
+def test_allow_dirty_marks_the_record_diagnostic_only(tmp_path: Path) -> None:
+    root = _root(tmp_path / "repo")
+    (root / "scratch.txt").write_text("x\n", encoding="utf-8")
+
+    record = _record(root, tmp_path / "runs.jsonl", allow_dirty=True)
+
+    revision = record["revision"]
+    assert isinstance(revision, dict) and revision["dirty"] is True
+    assert record["diagnostic_only"] is True
+
+
+def test_cli_exits_non_zero_on_a_dirty_tree(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    root = _root(tmp_path / "repo")
+    (root / "scratch.txt").write_text("x\n", encoding="utf-8")
+    output = tmp_path / "runs.jsonl"
+    argv = [
+        "--gate=unit",
+        "--status=passed",
+        "--command=pytest",
+        "--passed=1",
+        "--failed=0",
+        "--skipped=0",
+        f"--root={root}",
+        f"--output={output}",
+    ]
+
+    with pytest.raises(SystemExit) as refused:
+        main(argv)
+    assert refused.value.code != 0
+    assert "dirty" in capsys.readouterr().err
+    assert not output.exists()
+
+    assert main([*argv, "--allow-dirty", "--extras=dev"]) == 0
+    written = json.loads(output.read_text(encoding="utf-8"))
+    assert written["diagnostic_only"] is True and written["env"]["extras"] == ["dev"]
 
 
 @pytest.mark.parametrize("status", ["unknown", "PASS", ""])
@@ -97,11 +210,11 @@ def test_rejects_missing_artifact(tmp_path: Path) -> None:
         _record(root, root / "runs.jsonl", artifacts=["logs/missing.txt"])
 
 
-def test_records_artifact_path_and_sha256(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_records_artifact_path_and_sha256(tmp_path: Path) -> None:
     root = _root(tmp_path / "repo")
     artifact = root / "evidence.log"
     artifact.write_text("provider gate passed\n", encoding="utf-8")
-    monkeypatch.setattr("scripts.record_verification_run._git", lambda *_args: "abc123")
+    _commit_all(root)
 
     record = _record(root, root / "runs.jsonl", artifacts=["evidence.log"])
 
@@ -114,8 +227,7 @@ def test_records_only_explicit_fields_and_refuses_clear_credentials(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     root = _root(tmp_path / "repo")
-    output = root / "runs.jsonl"
-    monkeypatch.setattr("scripts.record_verification_run._git", lambda *_args: "abc123")
+    output = tmp_path / "runs.jsonl"
     monkeypatch.setenv("VERIFICATION_LEDGER_TEST_SECRET", "must-not-be-captured")
 
     _record(root, output, command="echo exact command")

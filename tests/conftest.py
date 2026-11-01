@@ -18,6 +18,16 @@ import pytest_asyncio
 
 from memspine.clients.sqlite import SQLiteClient
 
+# tests/ has no __init__.py, so pytest puts this directory on sys.path before importing us.
+from quarantine_plugin import QuarantinePlugin
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """ADR-087: quarantined flakes report as xfail with their tracker row, never silently."""
+    if not config.pluginmanager.has_plugin("memspine-quarantine"):
+        config.pluginmanager.register(QuarantinePlugin(), "memspine-quarantine")
+
+
 _PG_MODULES = (
     "test_f16d_storage_profile",
     "test_storage_backends",

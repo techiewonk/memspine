@@ -1,0 +1,8 @@
+# Quarantined intermittent tests (ADR-087 decision 3). Read by tests/quarantine_plugin.py.
+#
+# One pytest node id per line, then the tracker row (docs/PROVIDER_TODO.md) that owns it:
+#   tests/unit/test_example.py::test_name  # RM-123 why it is flaky
+# Omitting the [param] suffix quarantines every parametrisation. An entry without a row id
+# is a collection error. A quarantined test still runs; a failure reports as xfail
+# (strict=False) and the session summary lists every quarantined test that ran.
+# Remove the entry when the row closes.

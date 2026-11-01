@@ -276,6 +276,7 @@ def test_report_request_filter(capsys, tmp_path):
     assert "no_events" in capsys.readouterr().out
 
 
+@pytest.mark.perf
 def test_off_path_overhead():
     n = 200_000
     t0 = time.perf_counter()

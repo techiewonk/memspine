@@ -1,11 +1,22 @@
 # Portable verification ledger
 
 `scripts/record_verification_run.py` appends one manually supplied gate record
-per invocation to `docs/provider_verification/runs.jsonl`. It captures the
-current Git revision and dirty state, hashes of `pyproject.toml` and `uv.lock`,
-Python and platform details, the exact command text, a status, counts, and
-optional artifact references. The writer stores a UTC timestamp and schema
-version 1. It opens the ledger in append mode, preserving earlier lines. Each
+per invocation to `docs/provider_verification/runs.jsonl`. Schema version 2
+(ADR-087) writes a `revision` block (`commit`, `tree` = `HEAD^{tree}`, `branch`,
+null when detached, and `dirty` from `git status --porcelain`, untracked files
+included) and an `env` block (Python, implementation, platform, `uv.lock` and
+`pyproject.toml` SHA-256, and `extras` from `--extras`, null when not stated).
+It also stores the exact command text, a status, counts, optional artifact
+references and a UTC timestamp. Schema version 1 lines (`source`/`runtime`
+blocks) remain in the ledger as written.
+
+The writer refuses a dirty tree with a non-zero exit. Commit referenced
+artifacts first, and commit the ledger between records, because an
+uncommitted `runs.jsonl` makes the tree dirty. `--allow-dirty` writes the
+record anyway with `dirty: true` and `diagnostic_only: true`; such a record
+cannot close a tracker row.
+
+It opens the ledger in append mode, preserving earlier lines. Each
 artifact entry stores its repository-relative path and SHA-256 hash of the file
 contents at record time.
 

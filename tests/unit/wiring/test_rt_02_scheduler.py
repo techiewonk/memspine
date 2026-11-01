@@ -507,6 +507,7 @@ async def _load(prioritised: bool) -> tuple[float, int, int]:
     return percentile(lat, 0.95), done, bg_total
 
 
+@pytest.mark.perf
 async def test_load_reads_keep_their_p95_under_background_load_and_nothing_is_dropped() -> None:
     p95, done, total = await _load(prioritised=True)
     assert done == total  # every background call finished, none dropped
@@ -516,6 +517,7 @@ async def test_load_reads_keep_their_p95_under_background_load_and_nothing_is_dr
     assert baseline > p95 * 2  # without classes the same reads queue behind the burst
 
 
+@pytest.mark.perf
 async def test_load_through_the_runner_reads_stay_fast_and_all_jobs_finish() -> None:
     cfg = _runtime(scheduler=True, model_concurrency=2, backlog_max_items=0)
     lease = await sched.acquire(cfg)

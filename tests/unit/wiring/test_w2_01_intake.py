@@ -650,6 +650,7 @@ async def test_crash_while_reingesting_a_document_then_restart(tmp_path: Path, p
 
 
 # ------------------------------------------------------------------------------------------ latency
+@pytest.mark.perf
 async def test_write_p95_is_under_250ms(tmp_path: Path) -> None:
     eng = await build(tmp_path / "bench.db")
     try:

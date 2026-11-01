@@ -1,4 +1,9 @@
-"""Append a portable, manually supplied verification record to JSONL."""
+"""Append a portable, manually supplied, revision-bound verification record to JSONL.
+
+Every record carries a ``revision`` block (commit, tree, branch, dirty) and an ``env`` block
+(Python, ``uv.lock`` hash, extras), ADR-087. A dirty working tree is refused unless
+``--allow-dirty`` is passed; such a record is marked ``diagnostic_only``.
+"""
 
 from __future__ import annotations
 
@@ -14,6 +19,13 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 STATUSES = {"passed", "failed", "skipped", "not_run"}
+SCHEMA_VERSION = 2
+
+
+class DirtyTreeError(ValueError):
+    """The working tree has uncommitted or untracked changes (ADR-087)."""
+
+
 _SECRET_PATTERNS = (
     re.compile(
         r"(?i)\b(?:password|passwd|secret|token|api[_-]?key|access[_-]?key)\s*[:=]\s*[^\s,;]+"
@@ -39,6 +51,28 @@ def _git(root: Path, *args: str) -> str:
         text=True,
     )
     return result.stdout.strip()
+
+
+def revision_info(root: Path) -> dict[str, object]:
+    """Commit SHA, tree hash, branch (``None`` when detached) and dirty state of ``root``.
+
+    ``dirty`` is any output from ``git status --porcelain``: modified, staged and untracked
+    files all count; nothing is filtered.
+    """
+    branch: str | None = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
+    return {
+        "commit": _git(root, "rev-parse", "HEAD"),
+        "tree": _git(root, "rev-parse", "HEAD^{tree}"),
+        "branch": None if branch == "HEAD" else branch,
+        "dirty": bool(_git(root, "status", "--porcelain")),
+    }
+
+
+def _normalise_extras(extras: Sequence[str] | None) -> list[str] | None:
+    if extras is None:
+        return None
+    names = {part.strip() for item in extras for part in item.split(",")}
+    return sorted(name for name in names if name)
 
 
 def _sha256(path: Path) -> str:
@@ -79,8 +113,14 @@ def record_run(
     skipped: int,
     artifacts: Sequence[str] = (),
     evidence: Sequence[str] = (),
+    extras: Sequence[str] | None = None,
+    allow_dirty: bool = False,
 ) -> dict[str, object]:
-    """Validate explicit evidence and append one record; never run ``command``."""
+    """Validate explicit evidence and append one record; never run ``command``.
+
+    Raises :class:`DirtyTreeError` when the tree is dirty and ``allow_dirty`` is false.
+    ``extras`` ``None`` records that the installed extras were not stated.
+    """
     if status not in STATUSES:
         raise ValueError(f"status must be one of {', '.join(sorted(STATUSES))}")
     for name, count in (("passed", passed), ("failed", failed), ("skipped", skipped)):
@@ -104,24 +144,29 @@ def record_run(
         raise ValueError("gate and command must not be empty")
 
     root = root.resolve()
+    revision = revision_info(root)
+    if revision["dirty"] and not allow_dirty:
+        raise DirtyTreeError(
+            "working tree is dirty (git status --porcelain is not empty); commit or remove "
+            "the changes, or pass --allow-dirty to write a diagnostic-only record"
+        )
     artifacts_list = _artifact_records(root, artifacts)
     output_path = output if output.is_absolute() else root / output
     record: dict[str, object] = {
-        "schema_version": 1,
+        "schema_version": SCHEMA_VERSION,
         "recorded_at": datetime.now(UTC).isoformat(),
         "gate": gate,
         "status": status,
         "command": command,
-        "source": {
-            "git_head": _git(root, "rev-parse", "HEAD"),
-            "git_dirty": bool(_git(root, "status", "--porcelain")),
-            "pyproject_toml_sha256": _sha256(root / "pyproject.toml"),
-            "uv_lock_sha256": _sha256(root / "uv.lock"),
-        },
-        "runtime": {
+        "diagnostic_only": bool(revision["dirty"]),
+        "revision": revision,
+        "env": {
             "python": sys.version.split()[0],
             "implementation": platform.python_implementation(),
             "platform": platform.platform(),
+            "uv_lock_sha256": _sha256(root / "uv.lock"),
+            "pyproject_toml_sha256": _sha256(root / "pyproject.toml"),
+            "extras": _normalise_extras(extras),
         },
         "counts": {"passed": passed, "failed": failed, "skipped": skipped},
         "artifacts": artifacts_list,
@@ -160,6 +205,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--evidence", action="append", default=[], help="brief evidence metadata (repeatable)"
     )
     parser.add_argument(
+        "--extras",
+        action="append",
+        default=None,
+        help="installed optional extras, comma-separated (repeatable); omitted = not stated",
+    )
+    parser.add_argument(
+        "--allow-dirty",
+        action="store_true",
+        help="record from a dirty tree; the record is marked diagnostic_only",
+    )
+    parser.add_argument(
         "--output", type=Path, default=Path("docs/provider_verification/runs.jsonl")
     )
     parser.add_argument("--root", type=Path, default=Path(__file__).resolve().parents[1])
@@ -176,6 +232,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             skipped=args.skipped,
             artifacts=args.artifact,
             evidence=args.evidence,
+            extras=args.extras,
+            allow_dirty=args.allow_dirty,
         )
     except (OSError, subprocess.CalledProcessError, ValueError) as exc:
         parser.error(str(exc))
