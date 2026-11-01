@@ -561,11 +561,15 @@ class Prepass:
         self._put(key, out, records, namespace)
         return out
 
-    async def ahints(self, records: Sequence[Any], *, namespace: str) -> Hints:
-        """Hints without blocking the event loop (GLiNER2 runs in a worker thread)."""
+    async def ahints(self, records: Sequence[Any], *, namespace: str, cache: bool = True) -> Hints:
+        """Hints without blocking the event loop (GLiNER2 runs in a worker thread).
+
+        ``cache=False``: neither read nor fill the cache. Callers that have no real source record
+        ids (the KNOWN pre-pass over transcript lines) use it, because a cached entry that no
+        record id maps to could not be evicted on forget or erasure (ADR-095)."""
         producer = str(getattr(self._gliner, "producer_id", "rules"))
         key = self._cache_key(records, f"async:{producer}", namespace)
-        hit = self._cache.get(key)
+        hit = self._cache.get(key) if cache else None
         if hit is not None:
             return hit
         aliases = self.known_aliases(namespace)
@@ -603,7 +607,8 @@ class Prepass:
                 )
             base = _with_gliner_spans(base, extra)
             base = replace(base, gliner_mentions=tuple(mentions))
-        self._put(key, base, records, namespace)
+        if cache:
+            self._put(key, base, records, namespace)
         return base
 
     @staticmethod

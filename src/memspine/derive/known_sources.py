@@ -32,7 +32,9 @@ def prepass_known(prepass: Any) -> KnownSource:
     async def source(ns: str, text: str) -> list[KnownEntity]:
         lines = [_LINE_PREFIX.sub("", ln) for ln in text.splitlines() if ln.strip()]
         records = [SimpleNamespace(record_id=f"known:{hash(ln)}", content=ln) for ln in lines]
-        hints = await prepass.ahints(records, namespace=ns)
+        # uncached: these synthetic ids name no source record, so a cached entry could not be
+        # evicted when the real turn is forgotten or erased (ADR-095)
+        hints = await prepass.ahints(records, namespace=ns, cache=False)
         seen: dict[str, None] = {}
         for span in hints.entities:
             seen.setdefault(span.text, None)

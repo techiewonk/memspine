@@ -32,7 +32,6 @@ pytestmark = pytest.mark.erasure_gate
 
 NS = "a"
 LINE = re.compile(r"^\[(\d+)\] \[[\d-]+\] (.+)$", re.M)
-RM154 = pytest.mark.xfail(strict=True, reason="RM-154 known-entity/prepass cache erasure")
 
 
 class CiteAllLLM:
@@ -385,7 +384,7 @@ async def _feed_known(eng: Engine) -> Any:
 
 
 @pytest.mark.parametrize(
-    "scope", [pytest.param("record", marks=RM154), pytest.param("namespace", marks=RM154)]
+    "scope", ["record", "namespace"]
 )
 async def test_known_entity_cache(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, scope: str
@@ -408,7 +407,6 @@ async def test_known_entity_cache(
         await eng.stop()
 
 
-@RM154
 async def test_prepass_mention_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     """The GLiNER pre-pass caches its hints (mention text) by window text. Hard-erasing the turn
     drops every cached hint holding its mentions."""
