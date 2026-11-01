@@ -21,6 +21,8 @@ from memspine.memories.associative.entity_index import ALIAS_MARKER, LINKS_KEY, 
 from memspine.services.storage.entity_index_tables import entity_index_store_of
 from memspine.store.events import EventKind, fingerprint_payload
 
+pytestmark = pytest.mark.erasure_gate  # ADR-095 / RM-135: part of the phase C erasure gate
+
 NS = "a"
 
 

@@ -147,6 +147,8 @@ markers = [
     "shipped_default: run with the shipped Engine() default template (ADR-032), not the pinned pre-ADR default",
     "milestone: phase-exit milestone runs (docs/v2/MILESTONES.md), model-free",
     "provider_live: real provider startup, health, operation and owned-resource shutdown contract",
+    "erasure_gate: ADR-095 erasure gate, one test per copy class (RM-135); part of the phase C gate, select with -m erasure_gate",
+    "erasure_gate: ADR-095 erasure gate, one test per copy class (RM-135); part of the phase C gate, select with -m erasure_gate",
     "perf: wall-clock threshold assertion (p95/latency/overhead); deselected by default, run with -m perf (ADR-087)",
 ]
 
