@@ -1,11 +1,10 @@
-"""F5: naive datetimes are explicit (configurable zone, warning) and ties keep session order."""
+"""F5 / ADR-090 (DS-08): naive times are never given a zone, and ties keep session order."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
-from structlog.testing import capture_logs
 
 from memspine.api.engine import Engine
 from memspine.config.schema import ReadConfig
@@ -29,65 +28,78 @@ def _engine(**read: object) -> Engine:
     )
 
 
-def test_defaults_keep_utc_and_no_sequence() -> None:
+def test_no_naive_timezone_key_and_no_sequence() -> None:
+    """ADR-090 (DS-08): ``read.naive_timezone`` is removed; no zone is ever guessed."""
     read = ReadConfig()
-    assert read.naive_timezone == "UTC" and read.session_sequence is False
+    assert not hasattr(read, "naive_timezone") and read.session_sequence is False
+    with pytest.raises(ValueError, match="naive_timezone"):
+        ReadConfig(naive_timezone="UTC")
 
 
-async def test_naive_datetime_defaults_to_utc_with_one_warning() -> None:
+async def test_naive_valid_from_is_refused_by_name() -> None:
     eng = _engine()
     await eng.start()
     try:
-        with capture_logs() as logs:
-            a = await eng.write("first", namespace="n", memory_type="episodic", valid_from=NAIVE)
-            await eng.write("second", namespace="n", memory_type="episodic", valid_from=NAIVE)
-        assert a.valid_from == NAIVE.replace(tzinfo=UTC)
-        warnings = [e for e in logs if e["event"] == "write.naive_datetime"]
-        assert len(warnings) == 1 and warnings[0]["assumed_timezone"] == "UTC"
+        with pytest.raises(ValueError, match="has no timezone"):
+            await eng.write("first", namespace="n", memory_type="episodic", valid_from=NAIVE)
+        with pytest.raises(ValueError, match="has no timezone"):
+            await eng.write("fact", namespace="n", valid_from=NAIVE)
+        with pytest.raises(ValueError, match="has no timezone"):
+            await eng.ingest_messages(
+                [{"role": "user", "content": "hello"}], namespace="n", valid_from=NAIVE
+            )
     finally:
         await eng.stop()
 
 
 async def test_aware_datetime_is_untouched_and_silent() -> None:
-    eng = _engine(naive_timezone="Asia/Kolkata")
+    eng = _engine()
     await eng.start()
     try:
         stamp = datetime(2023, 5, 8, 23, 30, tzinfo=timezone(timedelta(hours=-5)))
-        with capture_logs() as logs:
-            rec = await eng.write("x", namespace="n", memory_type="episodic", valid_from=stamp)
+        rec = await eng.write("x", namespace="n", memory_type="episodic", valid_from=stamp)
         assert rec.valid_from == stamp
-        assert not [e for e in logs if e["event"] == "write.naive_datetime"]
     finally:
         await eng.stop()
 
 
-async def test_configured_zone_applies_to_naive_values_and_message_timestamps() -> None:
-    eng = _engine(naive_timezone="America/New_York")
+async def test_naive_message_time_stays_civil_text_and_aware_resolves() -> None:
+    eng = _engine(skip_defaulted_dates=True)
     await eng.start()
     try:
-        rec = await eng.write("x", namespace="n", memory_type="episodic", valid_from=NAIVE)
-        # 23:30 New York (EDT, UTC-4) is 03:30 UTC the next day: the zone matters near midnight
-        assert rec.valid_from.astimezone(UTC) == datetime(2023, 5, 9, 3, 30, tzinfo=UTC)
-        out = await eng.ingest_messages(
-            [{"role": "user", "content": "hello there", "timestamp": "2023-05-08T23:30:00"}],
+        civil = await eng.ingest_messages(
+            [
+                {"role": "user", "content": "hello there", "created_at": "2023-05-08T23:30:00"},
+                {"role": "user", "content": "a day note", "created_at": "2023-05-08"},
+            ],
             namespace="n",
         )
-        assert out[0].valid_from.astimezone(UTC) == datetime(2023, 5, 9, 3, 30, tzinfo=UTC)
+        for rec, text, precision in zip(
+            civil, ("2023-05-08T23:30:00", "2023-05-08"), ("instant", "day"), strict=True
+        ):
+            message = rec.source.message
+            assert message["created_at"] == text
+            assert message["source_clock"]["precision"] == "unknown"
+            assert message["source_clock"]["text_precision"] == precision
+            assert rec.source_at is None  # no resolved instant, no guessed zone
+            assert "ts_defaulted" in rec.tags
+        declared = await eng.ingest_messages(
+            [
+                {
+                    "role": "user",
+                    "content": "in tokyo",
+                    "created_at": "2023-05-08T23:30:00",
+                    "tz": "Asia/Tokyo",
+                }
+            ],
+            namespace="n",
+        )
+        assert declared[0].valid_from.astimezone(UTC) == datetime(2023, 5, 8, 14, 30, tzinfo=UTC)
         out = await eng.ingest_messages(
-            [{"role": "user", "content": "hi again", "timestamp": "2023-05-08T23:30:00+00:00"}],
+            [{"role": "user", "content": "hi again", "created_at": "2023-05-08T23:30:00+00:00"}],
             namespace="n",
         )
         assert out[0].valid_from == datetime(2023, 5, 8, 23, 30, tzinfo=UTC)
-    finally:
-        await eng.stop()
-
-
-async def test_unknown_zone_fails_loudly_on_a_naive_write() -> None:
-    eng = _engine(naive_timezone="Not/AZone")
-    await eng.start()
-    try:
-        with pytest.raises(Exception):  # noqa: B017 - zoneinfo's error type varies by OS
-            await eng.write("x", namespace="n", memory_type="episodic", valid_from=NAIVE)
     finally:
         await eng.stop()
 

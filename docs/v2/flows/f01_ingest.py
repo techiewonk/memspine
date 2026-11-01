@@ -153,16 +153,20 @@ async def stamping(ctx: Ctx) -> None:
     msgs = [
         {
             "role": "user",
-            "name": "Bram",
+            "sender": {"name": "Bram"},
             "content": "I moved to Utrecht last week.",
-            "timestamp": "2024-03-02",
+            "created_at": "2024-03-02",
         },
-        {"role": "assistant", "content": "Utrecht is lovely in spring.", "timestamp": "2024-03-02"},
+        {
+            "role": "assistant",
+            "content": "Utrecht is lovely in spring.",
+            "created_at": "2024-03-02",
+        },
         {
             "role": "user",
-            "name": "Ilse",
+            "sender": {"name": "Ilse"},
             "content": "Cello lessons start at nine.",
-            "timestamp": "2024-03-03T09:15:00+02:00",
+            "created_at": "2024-03-03T09:15:00+02:00",
         },
     ]
     recs = await ctx.engine.ingest_messages(msgs, namespace=ctx.ns, session_id="S1")
@@ -347,20 +351,20 @@ async def window_extraction(ctx: Ctx) -> None:
     msgs = [
         {
             "role": "user",
-            "name": "Bram",
+            "sender": {"name": "Bram"},
             "content": "Bram: I finally moved to Utrecht last week.",
-            "timestamp": "2024-03-09",
+            "created_at": "2024-03-09",
         },
         {
             "role": "assistant",
             "content": "Ilse: Utrecht sounds Wonderful, Bram, congratulations on the move!",
-            "timestamp": "2024-03-09",
+            "created_at": "2024-03-09",
         },
         {
             "role": "user",
-            "name": "Bram",
+            "sender": {"name": "Bram"},
             "content": "Bram: My new address is Oudegracht 12.",
-            "timestamp": "2024-03-09",
+            "created_at": "2024-03-09",
         },
     ]
     turns = await eng.ingest_messages(msgs, namespace=ns, session_id="S2")

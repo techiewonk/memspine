@@ -33,7 +33,7 @@ async def _session(eng: Engine) -> list[str]:
     t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
     lines = [SECRET, "Melanie: noted", "Caroline: thanks"]
     msgs = [
-        {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+        {"role": "user", "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(lines)
     ]
     await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")

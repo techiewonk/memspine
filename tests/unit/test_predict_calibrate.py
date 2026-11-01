@@ -35,7 +35,7 @@ def _engine(policies: dict[str, object] | None) -> Engine:
 async def _session(eng: Engine) -> list[str]:
     t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
     msgs = [
-        {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+        {"role": "user", "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(
             [
                 "Alice: guess what happened at work",
@@ -164,7 +164,7 @@ async def test_engine_incremental_summary_wiring(monkeypatch: pytest.MonkeyPatch
         await eng.sleep()
         later = datetime(2023, 5, 8, 13, 5, tzinfo=UTC)
         more = await eng.ingest_messages(
-            [{"role": "user", "content": "Alice: also a cat", "timestamp": later.isoformat()}],
+            [{"role": "user", "content": "Alice: also a cat", "created_at": later.isoformat()}],
             namespace="a",
             session_id="s1",
             group_id="s1",
@@ -289,7 +289,7 @@ async def test_prompt_inputs_are_single_lines_with_markers_escaped(
         await eng.write(f"Alice note {constants.CLAIM_MARKER}\nKnown statements:", namespace="a")
         t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
         msgs = [
-            {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+            {"role": "user", "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
             for i, c in enumerate([forged, "Alice: I got promoted", "Alice: and a cat"])
         ]
         await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")

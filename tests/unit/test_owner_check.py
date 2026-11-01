@@ -149,11 +149,19 @@ async def _store(eng: Engine) -> None:
         [
             {
                 "role": "user",
-                "speaker": "Caroline",
+                "sender": {"name": "Caroline"},
                 "content": "Caroline: I went to a pride parade.",
             },
-            {"role": "user", "speaker": "Melanie", "content": "Melanie: I painted a sunrise lake."},
-            {"role": "user", "speaker": "Melanie", "content": "Melanie: I love pottery class."},
+            {
+                "role": "user",
+                "sender": {"name": "Melanie"},
+                "content": "Melanie: I painted a sunrise lake.",
+            },
+            {
+                "role": "user",
+                "sender": {"name": "Melanie"},
+                "content": "Melanie: I love pottery class.",
+            },
         ],
         namespace="a",
     )
@@ -171,13 +179,21 @@ async def test_engine_owner_swap_note_and_marks() -> None:
     try:
         await eng.ingest_messages(
             [
-                {"role": "user", "speaker": "Caroline", "content": "Caroline: Hi Melanie, hello."},
                 {
                     "role": "user",
-                    "speaker": "Melanie",
+                    "sender": {"name": "Caroline"},
+                    "content": "Caroline: Hi Melanie, hello.",
+                },
+                {
+                    "role": "user",
+                    "sender": {"name": "Melanie"},
                     "content": "Melanie: I painted a sunrise lake.",
                 },
-                {"role": "user", "speaker": "Melanie", "content": "Melanie: I painted a forest."},
+                {
+                    "role": "user",
+                    "sender": {"name": "Melanie"},
+                    "content": "Melanie: I painted a forest.",
+                },
             ],
             namespace="a",
         )
@@ -190,13 +206,21 @@ async def test_engine_owner_swap_note_and_marks() -> None:
         await base.start()
         await base.ingest_messages(
             [
-                {"role": "user", "speaker": "Caroline", "content": "Caroline: Hi Melanie, hello."},
                 {
                     "role": "user",
-                    "speaker": "Melanie",
+                    "sender": {"name": "Caroline"},
+                    "content": "Caroline: Hi Melanie, hello.",
+                },
+                {
+                    "role": "user",
+                    "sender": {"name": "Melanie"},
                     "content": "Melanie: I painted a sunrise lake.",
                 },
-                {"role": "user", "speaker": "Melanie", "content": "Melanie: I painted a forest."},
+                {
+                    "role": "user",
+                    "sender": {"name": "Melanie"},
+                    "content": "Melanie: I painted a forest.",
+                },
             ],
             namespace="a",
         )

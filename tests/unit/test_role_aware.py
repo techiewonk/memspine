@@ -62,7 +62,7 @@ async def test_assistant_recommendation_is_found_for_a_you_recommended_question(
             ("assistant", "That sounds like a fun flight."),
         ]
         msgs = [
-            {"role": r, "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+            {"role": r, "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
             for i, (r, c) in enumerate(turns)
         ]
         await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")

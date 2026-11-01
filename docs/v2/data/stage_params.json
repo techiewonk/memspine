@@ -146,20 +146,10 @@
      ]
     },
     {
-     "key": "write.stamp_default_tz",
-     "default": null,
-     "type": "str | None",
-     "description": "W2-02 (W-04). With `write.stamping`: the zone a naive source time with no declared zone is read in as wall clock (the record is still marked `unknown`). `null`: `read.naive_timezone`.",
-     "effect": "With `write.stamping`: the zone a naive source time with no declared zone is read in as wall clock (the record is still marked `unknown`).",
-     "rebuild": true,
-     "rebuild_scope": "ingest",
-     "screen_ids": []
-    },
-    {
      "key": "write.stamping",
      "default": false,
      "type": "bool",
-     "description": "W2-02 (LIB-29; W-04, W-05, W-08, M-08). `true`: every raw turn written by `ingest_messages` / `write_episode` is stamped. Three clocks: `source_at` from the turn's own `timestamp` (never \"now\"; an undated turn stays undated), `source_tz` from the turn's `tz` / `timezone` key, else `unknown`, `recorded_at` the engine clock. A naive time with no zone is kept as wall clock and recorded as `source_tz = unknown` (flagged `tz_unknown`; it is not shifted by `read.naive_timezone`); a future-skewed or out-of-order time is flagged and kept. Speaker, addressee and a `participants` list become typed columns (`spk`, `addr`, `participants`; participants are filled from the call's speakers, a turn without a name counts as its role, on by default). The provenance class comes from the role (`user_stated`, `assistant_proposed`, `tool`, `document`, `external`). A user turn that answers an assistant turn of the same call goes through the assent check: a real yes (\"yes please\", \"sí, adelante\", \"ja, genau\") is tagged `assent_of:<assistant record id>` for the derivation step to promote the proposal to `user_confirmed`; \"ok, thanks\", a refusal, a question or a conditional yes is not. Runs through the canonical intake gateway. The event interval and its precision are filled at derivation, not here. New columns `source_tz`, `participants` (Alembic `w202_stamping`). Taps `write.stamp.turn`, `write.stamp.assent`. `false` (default): turns are stamped as before.",
+     "description": "W2-02 (LIB-29; W-04, W-05, W-08, M-08). `true`: every raw turn written by `ingest_messages` / `write_episode` is stamped. Three clocks: `source_at` from the turn's own `created_at` (never \"now\"; an undated turn stays undated), `source_tz` from the turn's `tz` key, else `unknown`, `recorded_at` the engine clock. A naive or date-only time with no declared zone has no resolved instant: it stays source text with `precision: unknown` and its `text_precision`, recorded as `source_tz = unknown` (flagged `tz_unknown`; ADR-090, no zone is guessed); a future-skewed or out-of-order time is flagged and kept. Speaker, addressee and a `participants` list become typed columns (`spk`, `addr`, `participants`; participants are filled from the call's speakers, a turn without a name counts as its role, on by default). The provenance class comes from the role (`user_stated`, `assistant_proposed`, `tool`, `document`, `external`). A user turn that answers an assistant turn of the same call goes through the assent check: a real yes (\"yes please\", \"sí, adelante\", \"ja, genau\") is tagged `assent_of:<assistant record id>` for the derivation step to promote the proposal to `user_confirmed`; \"ok, thanks\", a refusal, a question or a conditional yes is not. Runs through the canonical intake gateway. The event interval and its precision are filled at derivation, not here. New columns `source_tz`, `participants` (Alembic `w202_stamping`). Taps `write.stamp.turn`, `write.stamp.assent`. `false` (default): turns are stamped as before.",
      "effect": "`true`: every raw turn written by `ingest_messages` / `write_episode` is stamped.",
      "rebuild": true,
      "rebuild_scope": "ingest",
@@ -6665,16 +6655,6 @@
      }
     },
     {
-     "key": "read.naive_timezone",
-     "default": "UTC",
-     "type": "str",
-     "description": "F5. The IANA zone a naive datetime (`valid_from` or a message `timestamp` without an offset) is read in. Default UTC as before, with a one-time `write.naive_datetime` warning; aware values are never changed.",
-     "effect": "The IANA zone a naive datetime (`valid_from` or a message `timestamp` without an offset) is read in.",
-     "rebuild": false,
-     "rebuild_scope": "",
-     "screen_ids": []
-    },
-    {
      "key": "read.order_by_time_for_ordering",
      "default": false,
      "type": "bool",
@@ -8871,5 +8851,5 @@
   "workers.temporal": "no read site matched an inventory stage"
  },
  "unattributed_count": 132,
- "schema_key_count": 590
+ "schema_key_count": 588
 }

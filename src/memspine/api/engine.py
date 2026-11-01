@@ -486,7 +486,6 @@ class Engine:
         # SF-1/ADR-018: latch so the "invalidation watches never fire under
         # event_log.mode=ephemeral" warning is logged at most once per engine.
         self._ephemeral_watch_warned = False
-        self._naive_warned = False  # F5: the naive-datetime warning is logged once
         self._session_ticks: dict[tuple[str, str, datetime], int] = {}  # F5: session_sequence
         self._inflate: CompressionPolicy = CompressionPolicy.bind()
         self._firewall: Firewall = Firewall()
@@ -1490,7 +1489,12 @@ class Engine:
 
         ``valid_from`` sets the record's EVENT time (when the content was true or
         said), distinct from ``recorded_at`` (when the engine learned it). Default
-        is "now", which keeps every existing caller unchanged.
+        is "now". It must be timezone-aware: a naive value raises ``ValueError``
+        (ADR-090, no zone is guessed).
+
+        An episodic write with a SQL records store goes through the intake gateway's
+        durable path (ADR-090): the intent and its derivation manifest commit before the
+        record, so a crash or a failed window observe is recovered on restart.
 
         ``purposes`` (#50) are the read purposes the record may serve, stored as its
         ``consent_tags`` (``*`` = any); enforced only under ``consent.enabled``.
@@ -2238,9 +2242,18 @@ class Engine:
         Identical supplied-ID retries return existing results; changed data raises
         until an explicit revision API is provided. Excluded turns produce no record.
 
-        ``created_at`` accepts ISO text or datetime. ``timestamp`` and batch
-        ``valid_from`` are accepted time inputs; absent source time uses the engine
-        clock and retains its generated provenance. Write policies, firewall and
+        The envelope is strict (ADR-090): ``message_id``, ``conversation_id``,
+        ``session_id``, ``reply_to``, ``sender`` (``id``/``kind``/``name``), ``role``,
+        ``content``, ``created_at``, ``updated_at``, ``tz``, ``addressee``,
+        ``participants``, ``visibility``, ``caption``, ``attachments``, ``memory_type``,
+        ``entity``, ``attribute``, ``value`` and ``metadata``. Any other field raises a
+        ``ValueError`` naming it (``timestamp``, ``speaker``, ``name``, ``timezone`` and
+        ``turn_id`` name their canonical field). ``metadata`` is stored verbatim and never
+        interpreted. ``created_at`` accepts ISO text or datetime: an aware value resolves;
+        a naive or date-only one resolves only with a declared ``tz``, otherwise it stays
+        civil source text (``source_clock.precision`` ``unknown``) and no zone is guessed.
+        A batch ``valid_from`` (aware) fills a missing ``created_at``; absent source time
+        uses the engine clock and retains its generated provenance. Write policies, firewall and
         trust still apply; optional extraction respects conversation boundaries.
         Acceptance is durable before application, so interrupted writes can resume
         with their original identities. Projection/embedding batching remains an

@@ -559,7 +559,7 @@ async def _engine(monkeypatch: pytest.MonkeyPatch, path: Path, **write: Any) -> 
 
 def _msgs(*lines: str) -> list[dict[str, str]]:
     return [
-        {"role": "user", "content": text, "timestamp": f"2023-06-01T10:0{i}:00+00:00"}
+        {"role": "user", "content": text, "created_at": f"2023-06-01T10:0{i}:00+00:00"}
         for i, text in enumerate(lines)
     ]
 

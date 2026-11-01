@@ -317,9 +317,6 @@
   "read.inferred_*": [
    "C18"
   ],
-  "read.naive_timezone": [
-   "C25"
-  ],
   "read.reference_edges": [
    "C24"
   ],

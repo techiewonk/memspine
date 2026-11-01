@@ -82,7 +82,7 @@ async def _seed(eng: Engine) -> None:
             {
                 "role": "user",
                 "content": f"{speakers[i % 2]}: line {i} in {ns}",
-                "timestamp": (t0 + timedelta(minutes=i)).isoformat(),
+                "created_at": (t0 + timedelta(minutes=i)).isoformat(),
             }
             for i in range(3)
         ]

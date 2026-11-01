@@ -34,10 +34,12 @@ import hashlib
 import json
 import time
 from collections.abc import Callable, Mapping, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
@@ -73,7 +75,13 @@ from memspine.schemas.public import QuotaExceeded, WaitResult
 from memspine.schemas.public.errors import QuotaExceededError
 from memspine.schemas.public.receipt import CAPABILITIES, Readiness, Receipt
 from memspine.schemas.steps.shared import AssetRef, Scope, Segment, SourceEnvelope
-from memspine.store.records import MemoryRecord, PiiTier, RecordStatus, SourceInfo
+from memspine.store.records import (
+    MemoryRecord,
+    PiiTier,
+    RecordStatus,
+    SourceInfo,
+    new_record_id,
+)
 from memspine.store.scope import validate_namespace
 
 __all__ = [
@@ -87,7 +95,14 @@ __all__ = [
     "ingest_data",
     "ingest_resolved_messages",
     "recover",
+    "submit_write",
 ]
+
+#: ADR-090 (DS-05): the record (and ladder action) each ``write`` adapter apply produced, by
+#: write id, for the ``Engine.write`` call waiting on it in this task.
+_WRITE_RESULTS: ContextVar[dict[str, tuple[MemoryRecord, str]] | None] = ContextVar(
+    "memspine_write_results", default=None
+)
 
 
 class SimulatedCrash(BaseException):
@@ -252,9 +267,7 @@ def _required_layers(eng: Any, capabilities: Mapping[str, bool]) -> tuple[str, .
     config = eng._config()
     semantic_cfg = config.memories.get("semantic")
     semantic = (
-        semantic_cfg.policies.get("entity_extraction", "off")
-        if semantic_cfg is not None
-        else "off"
+        semantic_cfg.policies.get("entity_extraction", "off") if semantic_cfg is not None else "off"
     )
     if semantic != "off" or config.write.prepass == "gliner":
         layers.append("annotations")
@@ -270,9 +283,12 @@ def _required_layers(eng: Any, capabilities: Mapping[str, bool]) -> tuple[str, .
 def _policy_revision(eng: Any) -> str:
     """Digest the effective current configuration; edits are inert until a new acceptance."""
     payload = eng._config().model_dump(mode="json", exclude_none=False)
-    return "policy:" + hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
-    ).hexdigest()[:24]
+    return (
+        "policy:"
+        + hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+        ).hexdigest()[:24]
+    )
 
 
 def _registry_digest() -> str:
@@ -467,15 +483,17 @@ class IntakeGateway:
                 # The adapter already folded the caption into validated content.
                 turn.pop("caption", None)
                 turn["speaker"] = segment.speaker
-                if turn.get("created_at") is not None:
-                    # Resolved message time preserves source precision and whether
-                    # the caller supplied a zone; source_at is a normalized instant.
-                    turn["timestamp"] = turn["created_at"]
-                elif segment.source_at is not None:
-                    turn["timestamp"] = segment.source_at
+                # ADR-090: ``timestamp`` is the resolved instant (None for civil source
+                # text); ``created_at`` keeps the source spelling.
+                turn["timestamp"] = segment.source_at
                 item["turn"] = _turn_json(turn)
             body["args"] = {k: v for k, v in args.items() if k != "turns"}
             body["all_wids"] = {str(i): w for i, w in enumerate(wids)}
+        elif adapter == "write":
+            # The persisted args are the exact Engine.write call (JSON form); content is the
+            # caller's text, not the envelope's normalised copy.
+            for item in body["fresh"]:
+                item["text"] = args["content"]
         else:
             for item in body["fresh"]:
                 item["text"] = env.segments[item["i"]].content
@@ -565,6 +583,8 @@ class IntakeGateway:
             return await self._apply_messages(payload, resume)
         if payload["adapter"] == "asset":
             return await self._apply_asset(payload, resume)
+        if payload["adapter"] == "write":
+            return await self._apply_write(payload, resume)
         return await self._apply_document(payload, resume)
 
     async def _apply_messages(self, p: dict[str, Any], resume: bool) -> dict[str, str]:
@@ -632,6 +652,29 @@ class IntakeGateway:
         if eng._config().write.role_policy:  # W2-03: keyed turns also get a typed record
             await self._route_typed(p, fresh, {**landed, **sink})
         return {**landed, **sink}
+
+    async def _apply_write(self, p: dict[str, Any], resume: bool) -> dict[str, str]:
+        """ADR-090 (DS-05): a direct episodic ``Engine.write``, applied through the one write
+        door under the record id fixed in its intent. A resume finds a landed record by that id
+        (the caller's tags stay exactly as given)."""
+        eng = self.eng
+        landed: dict[str, str] = {}
+        results = _WRITE_RESULTS.get()
+        storage = eng._require_started()
+        for f in p["fresh"]:
+            kwargs = _write_kwargs(p["args"])
+            if resume and await storage.get_record(kwargs["record_id"]) is not None:
+                landed[f["wid"]] = kwargs["record_id"]
+                continue
+            token = INTAKE_LANDED.set({})
+            try:
+                record = await ingest_write.write(eng, **kwargs)
+            finally:
+                INTAKE_LANDED.reset(token)
+            if results is not None:
+                results[f["wid"]] = (record, eng._last_write_action)
+            landed[f["wid"]] = record.record_id
+        return landed
 
     async def _route_typed(
         self, p: dict[str, Any], fresh: list[dict[str, Any]], raw_ids: dict[str, str]
@@ -942,6 +985,81 @@ async def recover(eng: Any) -> int:
     return done
 
 
+def _write_args(kwargs: Mapping[str, Any]) -> dict[str, Any]:
+    """The JSON form of one ``Engine.write`` call, persisted with its intent."""
+    out = dict(kwargs)
+    source = out.get("source")
+    out["source"] = source.model_dump(mode="json") if source is not None else None
+    out["pii_tier"] = PiiTier(out["pii_tier"]).value
+    valid_from = out.get("valid_from")
+    out["valid_from"] = valid_from.isoformat() if valid_from is not None else None
+    for key in ("tags", "derived_from", "purposes", "participants"):
+        if out.get(key) is not None:
+            out[key] = list(out[key])
+    if out.get("parent_weights") is not None:
+        out["parent_weights"] = {str(k): float(v) for k, v in out["parent_weights"].items()}
+    return out
+
+
+def _write_kwargs(args: Mapping[str, Any]) -> dict[str, Any]:
+    """Rebuild the ``Engine.write`` keyword arguments from :func:`_write_args`."""
+    out = dict(args)
+    out["source"] = (
+        SourceInfo.model_validate(out["source"]) if out.get("source") is not None else None
+    )
+    out["pii_tier"] = PiiTier(out["pii_tier"])
+    out["valid_from"] = datetime.fromisoformat(out["valid_from"]) if out.get("valid_from") else None
+    return out
+
+
+def accepts_writes(eng: Any) -> bool:
+    """Whether direct writes can go through the intake ledger (a SQL records store)."""
+    return getattr(eng._require_started(), "_client", None) is not None
+
+
+async def submit_write(eng: Any, kwargs: Mapping[str, Any]) -> MemoryRecord:
+    """ADR-090 (DS-05): a direct episodic ``Engine.write`` through the same atomic raw intent +
+    required-derivation manifest + outbox discovery path as ``ingest_messages``.
+
+    The intent (with the exact call) commits before the record is written, so a crash between
+    the two is finished by :func:`recover` at start; once applied, the manifest is discovered
+    into the window outbox, so a failed ``window.observe`` is replayed instead of lost."""
+    ns = validate_namespace(kwargs["namespace"])
+    # The record id is fixed before the intent commits, so a resume can tell a landed write.
+    args = _write_args({**kwargs, "namespace": ns, "record_id": new_record_id()})
+    source = kwargs.get("source")
+    role = source.role if source is not None else kwargs.get("actor", "user")
+    session = kwargs.get("ledger_id") or kwargs.get("session_id")
+    env = SourceEnvelope(
+        # Every direct write is its own source: identical text written twice is two writes,
+        # as it always was; the write door's own ladder still decides merges.
+        source_id=f"write:{uuid4().hex}",
+        kind="conversation",
+        scope=_scope_of(ns, session, kwargs.get("actor")),
+        segments=[
+            Segment(
+                seg_index=0,
+                role=role if role in _SEGMENT_ROLES else "user",
+                source_at=kwargs.get("valid_from"),
+                content=kwargs["content"],
+            )
+        ],
+    )
+    results: dict[str, tuple[MemoryRecord, str]] = {}
+    token = _WRITE_RESULTS.set(results)
+    try:
+        res = await gateway_of(eng).submit(env, ns, "write", args)
+    finally:
+        _WRITE_RESULTS.reset(token)
+    wid = res.receipt.event_ids[0].removeprefix("evt-")
+    record, action = results[wid]
+    eng._last_write_action = action  # G8: no await between this and the caller's read
+    return record
+
+
+_SEGMENT_ROLES = frozenset({"user", "assistant", "tool", "system", "operator"})
+
+
 def _turn_text(turn: Mapping[str, Any]) -> str:
     return _turn_content(turn)
 
@@ -964,9 +1082,8 @@ async def ingest_resolved_messages(
     turns = batch.to_messages()
     segments: list[Segment] = []
     for i, turn in enumerate(turns):
-        stamp = eng._event_time(turn.get("timestamp")) or (
-            eng._localize(valid_from) if valid_from is not None else None
-        )
+        # ADR-090: only a resolved instant; civil source text never borrows a batch time.
+        stamp = eng._event_time(turn.get("timestamp"))
         who = turn.get("speaker") or turn.get("name")
         segments.append(
             Segment(

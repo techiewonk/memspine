@@ -15,6 +15,8 @@ from typing import Any
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from datetime import UTC
+
 from test_window_write import FakeWindowLLM, _facts, _send, _turns
 
 from memspine import Engine
@@ -280,3 +282,54 @@ async def test_concurrent_writes_and_drains_never_stall_on_the_database(
         assert sum([len(await _facts(eng, ns)) for ns in "abc"]) >= 3 * 3
     finally:
         await eng.stop()
+
+
+async def test_direct_write_with_a_failed_observe_reaches_its_window_after_restart(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """ADR-090 (DS-05): Engine.write takes the gateway's atomic raw intent + manifest path, so a
+    turn whose window.observe failed is replayed by discovery after a restart, not lost."""
+    from datetime import datetime, timedelta
+
+    db = tmp_path / "direct.db"
+    first = await _engine(monkeypatch, FakeWindowLLM(), db, outbox=True)
+    assert first._windows is not None
+
+    async def broken(*_args: Any, **_kwargs: Any) -> None:
+        raise RuntimeError("observe failed")
+
+    first._windows.observe = broken  # type: ignore[method-assign]
+    t0 = datetime(2024, 3, 2, 10, tzinfo=UTC)
+    written = [
+        await first.write(
+            f"Mira: {text}",
+            namespace="a",
+            memory_type="episodic",
+            session_id="s1",
+            valid_from=t0 + timedelta(minutes=i),
+        )
+        for i, text in enumerate(
+            ["I adopted a greyhound named Juno.", "Juno loves the beach.", "We moved to Delft."]
+        )
+    ]
+    assert len(first._windows._store("a").segmenter.open_turns) == 0  # nothing reached a window
+    await first.stop()
+    assert _rows(db, "intake_intent") == 3
+    assert _rows(db, "intake_derivation_discovery") == 3  # each manifest reached the outbox
+
+    llm = FakeWindowLLM()
+    second = await _engine(monkeypatch, llm, db, outbox=True)
+    try:
+        await second.flush_windows()  # discovery drains first: the turns are observed
+        await second.flush_windows("a")  # their window closes and runs
+        assert second._windows is not None and second._windows._outbox is not None
+        scope = second._windows._scope("a")
+        from memspine.workers.windows import WINDOW_STAGE
+
+        assert all(
+            second._windows._outbox.contains_record(scope, WINDOW_STAGE, rec.record_id)
+            for rec in written
+        )
+        assert len(await _facts(second)) == 3
+    finally:
+        await second.stop()

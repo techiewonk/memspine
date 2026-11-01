@@ -94,7 +94,7 @@ async def test_rule_mining_end_to_end_supersedes_home_without_an_llm() -> None:
                 {
                     "role": "user",
                     "content": text,
-                    "timestamp": (t0 + timedelta(days=day, minutes=i)).isoformat(),
+                    "created_at": (t0 + timedelta(days=day, minutes=i)).isoformat(),
                 }
                 for i, text in enumerate(texts)
             ]
@@ -146,7 +146,7 @@ async def test_auto_watch_turns_a_dated_plan_into_a_watch() -> None:
             "Melanie: yes!",
         ]
         msgs = [
-            {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+            {"role": "user", "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
             for i, c in enumerate(texts)
         ]
         await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
@@ -212,7 +212,7 @@ async def test_profile_slots_header_shows_the_current_slots() -> None:
                 {
                     "role": "user",
                     "content": text,
-                    "timestamp": (t0 + timedelta(days=day, minutes=i)).isoformat(),
+                    "created_at": (t0 + timedelta(days=day, minutes=i)).isoformat(),
                 }
                 for i, text in enumerate(texts)
             ]

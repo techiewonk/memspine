@@ -33,9 +33,8 @@ def mk(**kw) -> StampIn:
 
 def st(**kw):
     rec = kw.pop("recorded_at", REC)
-    dtz = kw.pop("default_tz", "UTC")
     pol = kw.pop("policy", None)
-    return stamp(mk(**kw), recorded_at=rec, default_tz=dtz, policy=pol)
+    return stamp(mk(**kw), recorded_at=rec, policy=pol)
 
 
 # ------------------------------------------------------------------------------------ time formats
@@ -129,31 +128,23 @@ def test_missing_time_is_null_never_now() -> None:
 # ------------------------------------------------------------------------------------ unknown zone
 
 
-def test_unknown_zone_uses_default_and_is_flagged() -> None:
-    r = st(source_at="2026-10-01T08:00:00", default_tz="Asia/Tokyo")
+def test_unknown_zone_stays_civil_and_is_flagged() -> None:
+    """ADR-090 (DS-08): a naive time with no declared zone has no resolved instant."""
+    r = st(source_at="2026-10-01T08:00:00")
     assert r.tz_unknown and r.source_tz == "unknown"
-    assert "tz_unknown" in r.flags and "tz_assumed_default" in r.notes
-    assert r.source_at is not None and r.source_at.hour == 8  # wall clock kept
-    assert r.source_at_utc == datetime(2026, 9, 30, 23, 0, tzinfo=UTC)
+    assert "tz_unknown" in r.flags and "civil_time_unresolved" in r.notes
+    assert r.source_at is None and r.source_at_utc is None and r.precision == "unknown"
 
 
-def test_unknown_zone_default_utc_keeps_wall_clock() -> None:
-    r = st(source_at=datetime(2026, 10, 1, 23, 30))
-    assert (
-        r.tz_unknown
-        and r.source_at is not None
-        and (r.source_at.hour, r.source_at.minute) == (23, 30)
-    )
+def test_naive_datetime_and_bare_date_without_zone_are_never_guessed() -> None:
+    for value in (datetime(2026, 10, 1, 23, 30), "2026-10-01", date(2026, 10, 1)):
+        r = st(source_at=value)
+        assert r.tz_unknown and r.source_at is None and r.precision == "unknown"
 
 
 def test_invalid_declared_zone_falls_back_flagged() -> None:
     r = st(source_at="2026-10-01T08:00:00", tz="Mars/Olympus")
     assert r.tz_unknown and {"tz_invalid", "tz_unknown"} <= set(r.flags)
-
-
-def test_bad_default_zone_raises() -> None:
-    with pytest.raises(ValueError):
-        st(source_at="2026-10-01T08:00:00", default_tz="Nowhere/Land")
 
 
 # ------------------------------------------------------------------------------------ DST edges
@@ -378,7 +369,7 @@ def test_stamped_turn_is_frozen() -> None:
 
 
 def test_parse_source_time_direct() -> None:
-    at, tz, unk, prec, flags, _ = parse_source_time("2026-10-01T08:00:00Z", None, "UTC")
+    at, tz, unk, prec, flags, _ = parse_source_time("2026-10-01T08:00:00Z", None)
     assert at is not None and tz == "UTC" and not unk and prec == "second" and not flags
 
 

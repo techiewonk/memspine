@@ -224,7 +224,7 @@ async def _stubbed(stubs: dict[str, _Stub], **kw: Any) -> Any:
 
 async def _session(engine: Any, texts: list[str], start: datetime = T0, **kw: Any) -> list[Any]:
     msgs = [
-        {"role": "user", "content": c, "timestamp": (start + timedelta(minutes=i)).isoformat()}
+        {"role": "user", "content": c, "created_at": (start + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(texts)
     ]
     return await engine.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1", **kw)

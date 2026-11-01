@@ -3,15 +3,66 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Collection, Iterable, Mapping, Sequence
 from datetime import datetime
 from typing import Any
 from uuid import uuid4
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-__all__ = ["normalise_messages"]
+__all__ = [
+    "MESSAGE_FIELDS",
+    "SENDER_FIELDS",
+    "normalise_messages",
+    "source_clock",
+    "validate_message_fields",
+]
 
 _ROLES = {"user", "assistant", "system", "tool", "operator", "document", "external"}
 _SENDER_KINDS = {"human", "agent", "service"}
+_VISIBILITIES = {"private", "participants", "owner_shared"}
+
+#: ADR-090 (DS-09): the strict message envelope. One spelling per field (ADR-068/086); any
+#: other key is refused by name. Caller data that the engine must not interpret goes in
+#: ``metadata``, stored verbatim and never read for identity, time or role.
+MESSAGE_FIELDS: frozenset[str] = frozenset(
+    {
+        "message_id",
+        "conversation_id",
+        "session_id",
+        "reply_to",
+        "sender",
+        "role",
+        "content",
+        "created_at",
+        "updated_at",
+        "tz",
+        "addressee",
+        "participants",
+        "visibility",
+        "caption",
+        "attachments",
+        "memory_type",
+        "entity",
+        "attribute",
+        "value",
+        "metadata",
+    }
+)
+SENDER_FIELDS: frozenset[str] = frozenset({"id", "kind", "name"})
+#: Alternate spellings that are refused with the canonical field they duplicate.
+_CANONICAL = {
+    "timestamp": "created_at",
+    "speaker": "sender.id or sender.name",
+    "name": "sender.name",
+    "timezone": "tz",
+    "turn_id": "message_id",
+}
+_STRING_FIELDS = ("tz", "addressee", "caption", "memory_type", "entity", "attribute", "value")
+_OFFSET = r"(?:[+-]\d{2}(?::?\d{2})?|Z)?"
+_DATE_ONLY = re.compile(r"\d{4}-\d{2}-\d{2}")
+_HOUR = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}" + _OFFSET)
+_MINUTE = re.compile(r"\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}" + _OFFSET)
 
 
 def _identifier(value: object, field: str) -> str:
@@ -30,6 +81,87 @@ def _time(value: object, field: str) -> datetime | str:
             raise ValueError(f"{field} must be an ISO-8601 timestamp") from None
         return value
     raise ValueError(f"{field} must be a datetime or ISO-8601 string")
+
+
+def _text_precision(text: str) -> str:
+    """What the source text states (TemporalRef ``text_precision``), not what was resolved."""
+    t = text.strip()
+    if _DATE_ONLY.fullmatch(t):
+        return "day"
+    if _HOUR.fullmatch(t):
+        return "hour"
+    if _MINUTE.fullmatch(t):
+        return "minute"
+    return "instant"
+
+
+def source_clock(
+    value: datetime | str, tz: str | None = None
+) -> tuple[datetime | None, dict[str, Any]]:
+    """ADR-090 (DS-08, D-100 Q-S2-B): resolve a source time only when it is aware or the message
+    declares a zone (``tz``). A naive or date-only value without a declared zone keeps its source
+    text with ``precision="unknown"`` and no resolved instant; no zone is ever guessed.
+
+    Returns ``(resolved instant or None, SourceClock provenance)``."""
+    if isinstance(value, datetime):
+        text, parsed, text_precision = value.isoformat(), value, "instant"
+    else:
+        text, parsed = value, datetime.fromisoformat(value)
+        text_precision = _text_precision(value)
+    resolved: datetime | None = None
+    origin = "unknown"
+    if parsed.tzinfo is not None and parsed.utcoffset() is not None:
+        resolved, origin = parsed, "source"
+    elif tz is not None:
+        try:
+            resolved, origin = parsed.replace(tzinfo=ZoneInfo(tz)), "declared"
+        except (ZoneInfoNotFoundError, ValueError):
+            raise ValueError(f"tz {tz!r} is not a known IANA zone") from None
+    clock = {
+        "original_text": text,
+        "text_precision": text_precision,
+        "precision": text_precision if resolved is not None else "unknown",
+        "timezone": tz if origin == "declared" else None,
+        "timezone_origin": origin,
+    }
+    return resolved, clock
+
+
+def validate_message_fields(raw: Mapping[str, Any], index: int) -> None:
+    """ADR-090 (DS-09): refuse any key outside the strict envelope, naming it."""
+    for key in raw:
+        if not isinstance(key, str):
+            raise ValueError(f"message {index} has a non-string field name {key!r}")
+        if key in MESSAGE_FIELDS:
+            continue
+        if key in _CANONICAL:
+            raise ValueError(
+                f"message {index} field {key!r} is not accepted: use {_CANONICAL[key]!r}"
+            )
+        raise ValueError(
+            f"message {index} has unknown field {key!r}; put caller data in 'metadata'"
+        )
+    for key in _STRING_FIELDS:
+        value = raw.get(key)
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            raise ValueError(f"message {index} field {key!r} must be a non-empty string")
+    visibility = raw.get("visibility")
+    if visibility is not None and visibility not in _VISIBILITIES:
+        raise ValueError(f"message {index} visibility must be one of {sorted(_VISIBILITIES)}")
+    participants = raw.get("participants")
+    if participants is not None and (
+        not isinstance(participants, list | tuple)
+        or any(not isinstance(p, str) or not p.strip() for p in participants)
+    ):
+        raise ValueError(f"message {index} participants must be a list of non-empty strings")
+    sender = raw.get("sender")
+    if isinstance(sender, Mapping):
+        unknown = sorted(str(k) for k in sender if k not in SENDER_FIELDS)
+        if unknown:
+            raise ValueError(
+                f"message {index} sender has unknown field {unknown[0]!r}; "
+                "put caller data in 'metadata'"
+            )
 
 
 def _json_default(value: object) -> str:
@@ -111,6 +243,7 @@ def normalise_messages(
     for index, raw in enumerate(messages):
         if not isinstance(raw, Mapping):
             raise ValueError(f"message {index} must be a mapping")
+        validate_message_fields(raw, index)
         item = dict(raw)
         if not isinstance(item.get("role"), str):
             raise ValueError(f"message {index} must have a string role")
@@ -174,9 +307,7 @@ def normalise_messages(
             if cross_session:
                 resolved_conversation = msg_conversation or conversation_id or uuid4().hex
                 if parent_conversation is not None and resolved_conversation == parent_conversation:
-                    raise ValueError(
-                        "cross-session reply must start a new conversation_id"
-                    )
+                    raise ValueError("cross-session reply must start a new conversation_id")
             else:
                 resolved_conversation = msg_conversation or conversation_id or parent_conversation
                 if resolved_conversation is None:
@@ -203,37 +334,23 @@ def normalise_messages(
                     raise ValueError(f"unsupported sender.kind {kind!r}")
             if name is not None and (not isinstance(name, str) or not name.strip()):
                 raise ValueError("sender.name must be a non-empty string")
+            # Internal apply keys derived from the canonical sender (never caller input).
             speaker = sid or name
-            if (
-                speaker is not None
-                and item.get("speaker") is not None
-                and item["speaker"] != speaker
-            ):
-                raise ValueError("sender identity conflicts with speaker")
             if speaker is not None:
                 item["speaker"] = speaker
             if name is not None:
-                if item.get("name") is not None and item["name"] != name:
-                    raise ValueError("sender.name conflicts with name")
                 item["name"] = name
 
         if item.get("updated_at") is not None:
             item["updated_at"] = _time(item["updated_at"], "updated_at")
 
-        if "created_at" in item and item["created_at"] is not None:
+        if item.get("created_at") is not None:
             created = _time(item["created_at"], "created_at")
-            if item.get("timestamp") is not None:
-                legacy = _time(item["timestamp"], "timestamp")
-                left = datetime.fromisoformat(created) if isinstance(created, str) else created
-                right = datetime.fromisoformat(legacy) if isinstance(legacy, str) else legacy
-                if left != right:
-                    raise ValueError("created_at and timestamp conflict")
-            generated = False
-        elif item.get("timestamp") is not None:
-            created = _time(item["timestamp"], "timestamp")
+            resolved, clock = source_clock(created, item.get("tz"))
             generated = False
         else:
             created = now
+            resolved, clock = source_clock(now)
             generated = True
         if resolved_conversation in conversation_sessions:
             if conversation_sessions[resolved_conversation] != resolved_session:
@@ -244,7 +361,9 @@ def normalise_messages(
             message_id=new_id, session_id=resolved_session, conversation_id=resolved_conversation
         )
         item["created_at"] = created
-        item["timestamp"] = created
+        # Internal: the resolved instant, or None for civil source text (ADR-090).
+        item["timestamp"] = resolved
+        item["_source_clock"] = clock
         item["_created_at_generated"] = generated
         staged.append(item)
     return staged

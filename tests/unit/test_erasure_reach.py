@@ -49,16 +49,16 @@ async def _closed_session(eng: Engine, ns: str = "a") -> list[MemoryRecord]:
     """Three episodic turns of one session that closed two hours ago."""
     start = datetime.now(UTC) - timedelta(hours=2)
     turns = [
-        {"role": "user", "content": f"{SECRET} my locker code is 4471", "timestamp": start},
+        {"role": "user", "content": f"{SECRET} my locker code is 4471", "created_at": start},
         {
             "role": "user",
             "content": "the gym is on Elm street",
-            "timestamp": start + timedelta(minutes=1),
+            "created_at": start + timedelta(minutes=1),
         },
         {
             "role": "user",
             "content": "I go there every Tuesday morning",
-            "timestamp": start + timedelta(minutes=2),
+            "created_at": start + timedelta(minutes=2),
         },
     ]
     return await eng.ingest_messages(turns, namespace=ns, session_id="s1")  # type: ignore[arg-type]

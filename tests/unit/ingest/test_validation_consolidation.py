@@ -82,7 +82,7 @@ def test_message_payload_uses_validated_segment_text_role_and_speaker() -> None:
             "session_id": "s1",
             "conversation_id": "c1",
             "role": "assistant",
-            "speaker": "raw-speaker",
+            "sender": {"name": "raw-speaker"},
             "content": "raw\r\ntext",
         }
     ]

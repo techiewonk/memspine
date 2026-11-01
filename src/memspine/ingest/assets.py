@@ -82,7 +82,7 @@ def _attachment_refs(
         return []
     from memspine.services.assets import asset_id_for, parse_attachments
 
-    source = str(turn.get("turn_id") or f"{session_id or 'nosession'}:{index}")
+    source = str(turn.get("message_id") or f"{session_id or 'nosession'}:{index}")
     refs = parse_attachments(turn.get("attachments"))
     if refs:
         tap.event("write.assets.attached", n=len(refs), turn=index)
@@ -100,7 +100,7 @@ async def _register_assets(
 ) -> None:
     from memspine.services.assets import AssetEntry
 
-    source = str(turn.get("turn_id") or f"{session_id or 'nosession'}:{index}")
+    source = str(turn.get("message_id") or f"{session_id or 'nosession'}:{index}")
     registry = eng._asset_adapter().registry
     tap.event("write.assets.registered", n=len(refs), id=record_id)
     for ref, aid in refs:

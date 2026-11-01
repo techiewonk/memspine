@@ -85,8 +85,9 @@ def _index_view_prefixes(
             try:
                 return datetime.fromisoformat(str(value))
             except ValueError:
-                return valid_from
-        return valid_from
+                return None
+        # ADR-090: a turn with civil (unresolved) source time gets no date words
+        return None if "created_at" in turn else valid_from
 
     prefixes = plan_prefixes(
         [t if isinstance(t, Mapping) else {} for t in messages],

@@ -66,13 +66,25 @@ def test_reference_kinds_reads_tags() -> None:
 CONVERSATION = [
     {
         "role": "user",
-        "speaker": "amy",
+        "sender": {"name": "amy"},
         "content": "Amy: I booked the Old Mill for the reunion dinner",
     },
-    {"role": "user", "speaker": "bob", "content": "Bob: Sounds great!"},
-    {"role": "user", "speaker": "bob", "content": "Bob: Filler about hiking boots and long trails"},
-    {"role": "user", "speaker": "amy", "content": "Amy: Unrelated note about the garden shed roof"},
-    {"role": "user", "speaker": "bob", "content": "Bob: We should plant roses there as well"},
+    {"role": "user", "sender": {"name": "bob"}, "content": "Bob: Sounds great!"},
+    {
+        "role": "user",
+        "sender": {"name": "bob"},
+        "content": "Bob: Filler about hiking boots and long trails",
+    },
+    {
+        "role": "user",
+        "sender": {"name": "amy"},
+        "content": "Amy: Unrelated note about the garden shed roof",
+    },
+    {
+        "role": "user",
+        "sender": {"name": "bob"},
+        "content": "Bob: We should plant roses there as well",
+    },
 ]
 
 
@@ -98,7 +110,7 @@ def _messages() -> list[dict[str, Any]]:
             **m,
             "message_id": f"edge-message-{i}",
             "conversation_id": "edge-conversation",
-            "timestamp": (T0 + timedelta(minutes=i)).isoformat(),
+            "created_at": (T0 + timedelta(minutes=i)).isoformat(),
         }
         for i, m in enumerate(CONVERSATION)
     ]

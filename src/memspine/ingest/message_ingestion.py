@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Any
 
 from memspine.ingest import gateway
-from memspine.ingest.message_identity import normalise_messages
+from memspine.ingest.message_identity import normalise_messages, validate_message_fields
 from memspine.ingest.message_retry import input_fingerprint, prepare_retries
 from memspine.ingest.message_schema import ValidatedMessageBatch
 from memspine.ingest.message_store import lookup_conversations, lookup_messages
@@ -90,9 +90,10 @@ async def _ingest_once(
     storage = eng._require_started()
     requested: list[str] = []
     conversations = [conversation_id] if conversation_id else []
-    for raw in messages:
+    for index, raw in enumerate(messages):
         if not isinstance(raw, Mapping):
             raise ValueError("messages must be mappings")
+        validate_message_fields(raw, index)  # ADR-090: strict envelope before any lookup
         for key in ("message_id", "reply_to"):
             value = raw.get(key)
             if isinstance(value, str):
@@ -119,9 +120,10 @@ async def _ingest_once(
     ]
     inputs, reused = prepare_retries(messages, stored, session_id, conversation_id, identities)
     if valid_from is not None:
+        stamp = eng._localize(valid_from)  # ADR-090: a naive batch time is refused
         for turn in inputs:
-            if not turn.get("created_at") and not turn.get("timestamp"):
-                turn["created_at"] = valid_from.isoformat()
+            if not turn.get("created_at"):
+                turn["created_at"] = stamp.isoformat()
     accepted_at = eng._clock()
     turns = normalise_messages(
         inputs,
@@ -154,6 +156,7 @@ async def _ingest_once(
         }
         public["ingested_at"] = accepted_at.isoformat()
         public["created_at_generated"] = turn["_created_at_generated"]
+        public["source_clock"] = turn["_source_clock"]
         public["source_provenance"] = message_provenance(
             turn, source_id=str(turn["message_id"])
         ).model_dump(mode="json")

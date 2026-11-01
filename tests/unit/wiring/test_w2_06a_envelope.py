@@ -524,7 +524,7 @@ async def test_window_compile_uses_unprefixed_unicode_source_offsets(
     eng = await _engine(monkeypatch, ItemLLM())
     try:
         records = await eng.ingest_messages(
-            [{"role": "user", "content": source, "timestamp": NOW.isoformat()}],
+            [{"role": "user", "content": source, "created_at": NOW.isoformat()}],
             namespace="a",
             session_id="offset-session",
             conversation_id="offset-session",

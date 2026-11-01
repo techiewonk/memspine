@@ -179,7 +179,7 @@ def _msgs(count: int, speaker: str = "Bram") -> list[dict[str, str]]:
         {
             "role": "user",
             "content": f"{speaker}: {things[i % len(things)]}",
-            "timestamp": (T0 + timedelta(minutes=i)).isoformat(),
+            "created_at": (T0 + timedelta(minutes=i)).isoformat(),
             "message_id": f"inspect-message-{i}",
         }
         for i in range(count)
@@ -416,7 +416,7 @@ async def test_envelope_lifecycle_occ_to_rid(monkeypatch) -> None:
                 {
                     "role": "user",
                     "content": f"Ilse: I live in {city}",
-                    "timestamp": (T0 + timedelta(days=i)).isoformat(),
+                    "created_at": (T0 + timedelta(days=i)).isoformat(),
                 }
             ]
             with insp.inspect_scope(run_id="run1", item="conv1", turn_id=f"D1:{i + 1}"):

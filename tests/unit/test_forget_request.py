@@ -71,7 +71,7 @@ async def _talk(eng: Engine) -> None:
         "Please forget my home address",
     ]
     msgs = [
-        {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+        {"role": "user", "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(texts)
     ]
     await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")

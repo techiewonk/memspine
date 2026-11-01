@@ -37,13 +37,13 @@ def test_metadata_for_named_speakers_and_chat_roles() -> None:
     assert named == {
         "role": "user",
         "content": "Caroline: hi",
-        "speaker": "Caroline",
+        "sender": {"name": "Caroline"},
         "message_id": "D1:1",
         "conversation_id": "eval:s1",
     }
     bot = sys_._message(_turn("assistant", "hello", 2), "assistant: hello")
     assert bot["role"] == "assistant"
-    assert bot["speaker"] == "assistant"
+    assert bot["sender"] == {"name": "assistant"}
 
 
 def test_enabled_by_the_engine_policy_and_end_to_end_tags() -> None:

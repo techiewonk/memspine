@@ -208,11 +208,6 @@ class ReadConfig(ConfigModel):
     #: prefix / relative-date annotation / rerank date prefix / timeline date skip it. Only
     #: records written with this key on are affected. Off: byte-identical.
     skip_defaulted_dates: bool = False
-    #: F5: the zone a NAIVE datetime (a ``valid_from`` / message ``timestamp`` without an
-    #: offset) is read in, an IANA name. Default ``UTC`` (as always); a warning is logged once
-    #: per engine whenever a naive value is seen, because labelling dataset-local wall time as
-    #: UTC shifts events near midnight onto the wrong day. Aware values are never touched.
-    naive_timezone: str = "UTC"
     #: F5: when several turns of one session carry the SAME event time (a day-level or
     #: session-level stamp), each later one is moved by one more microsecond so the event-time
     #: order within the session is the write order everywhere (not only where ``recorded_at``

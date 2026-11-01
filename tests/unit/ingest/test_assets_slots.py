@@ -31,14 +31,14 @@ URL = "https://img.test/book.jpg"
 QUESTION = "What is the title of the book Melanie shared?"
 
 TURNS = [
-    {"role": "user", "content": "Melanie: I love reading before bed", "turn_id": "D1:1"},
+    {"role": "user", "content": "Melanie: I love reading before bed", "message_id": "D1:1"},
     {
         "role": "user",
         "content": "Melanie: my favourite bedtime read lately [image: a photo of a book]",
-        "turn_id": "D1:2",
+        "message_id": "D1:2",
         "attachments": [{"uri": URL, "caption": "a photo of a book"}],
     },
-    {"role": "user", "content": "Caroline: pottery class was relaxing", "turn_id": "D1:3"},
+    {"role": "user", "content": "Caroline: pottery class was relaxing", "message_id": "D1:3"},
 ]
 
 

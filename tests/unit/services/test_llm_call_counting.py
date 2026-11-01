@@ -100,7 +100,7 @@ async def test_model_calls_after_write_read_sleep(monkeypatch: pytest.MonkeyPatc
 
         t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
         msgs = [
-            {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+            {"role": "user", "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
             for i, c in enumerate(
                 ["Ana: I run every morning", "Ana: no coffee after noon", "Bob: nice routine"]
             )

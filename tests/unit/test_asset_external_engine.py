@@ -28,14 +28,14 @@ TURNS = [
     {
         "role": "user",
         "content": "Melanie: I love reading before bed with my kids",
-        "turn_id": "D1:1",
+        "message_id": "D1:1",
     },
     {
         "role": "user",
         "content": (
             "Melanie: Look at this, my favourite bedtime read lately [image: a photo of a book]"
         ),
-        "turn_id": "D1:2",
+        "message_id": "D1:2",
         "attachments": [
             {"uri": URL, "caption": "a photo of a book", "search_hint": "children's classic cover"}
         ],
@@ -43,12 +43,12 @@ TURNS = [
     {
         "role": "user",
         "content": "Caroline: pottery class was relaxing on Friday",
-        "turn_id": "D1:3",
+        "message_id": "D1:3",
     },
     {
         "role": "user",
         "content": "Caroline: I listen to classical music while painting",
-        "turn_id": "D1:4",
+        "message_id": "D1:4",
     },
 ]
 

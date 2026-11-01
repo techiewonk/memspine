@@ -143,7 +143,7 @@ def _turns(prefix: str, count: int, speaker: str = "Mira") -> list[dict[str, str
         {
             "role": "user",
             "content": f"{speaker}: {_SENTENCES[(start + i) % len(_SENTENCES)]}",
-            "timestamp": (T0 + timedelta(minutes=i)).isoformat(),
+            "created_at": (T0 + timedelta(minutes=i)).isoformat(),
         }
         for i in range(count)
     ]

@@ -20,22 +20,22 @@ async def seed(ctx: Ctx) -> None:
         {
             "role": "user",
             "content": "Bram says he is planning a trip to Leiden in April.",
-            "timestamp": (T0).isoformat(),
+            "created_at": (T0).isoformat(),
         },
         {
             "role": "assistant",
             "content": "Leiden in April has tulip fields nearby.",
-            "timestamp": (T0 + timedelta(minutes=1)).isoformat(),
+            "created_at": (T0 + timedelta(minutes=1)).isoformat(),
         },
         {
             "role": "user",
             "content": "Bram wants a train rather than a rental car.",
-            "timestamp": (T0 + timedelta(minutes=2)).isoformat(),
+            "created_at": (T0 + timedelta(minutes=2)).isoformat(),
         },
         {
             "role": "assistant",
             "content": "A train from Amsterdam takes about forty minutes.",
-            "timestamp": (T0 + timedelta(minutes=3)).isoformat(),
+            "created_at": (T0 + timedelta(minutes=3)).isoformat(),
         },
     ]
     r1 = await e.ingest_messages(day1, namespace=ctx.ns, session_id="conv-day1")
@@ -45,12 +45,12 @@ async def seed(ctx: Ctx) -> None:
         {
             "role": "user",
             "content": "Ilse recommended a cheese market in Gouda.",
-            "timestamp": d3.isoformat(),
+            "created_at": d3.isoformat(),
         },
         {
             "role": "assistant",
             "content": "The Gouda cheese market runs on Thursday mornings.",
-            "timestamp": (d3 + timedelta(minutes=2)).isoformat(),
+            "created_at": (d3 + timedelta(minutes=2)).isoformat(),
         },
     ]
     r3 = await e.ingest_messages(day3, namespace=ctx.ns, session_id="conv-day3")

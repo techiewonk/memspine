@@ -207,8 +207,8 @@ class WriteConfig(ConfigModel):
     #: W2-02 (LIB-29; W-04, W-05, W-08, M-08): stamping on every raw turn. ``True``: three
     #: clocks (``source_at`` from the turn's own timestamp and never "now", ``source_tz``
     #: declared by the turn or envelope else ``unknown``, ``recorded_at`` the engine clock),
-    #: a naive time with an unknown zone kept as wall clock flagged ``tz_unknown`` (not
-    #: shifted by ``read.naive_timezone``), the speaker / addressee / participants typed
+    #: a naive or date-only time with no declared zone kept as civil text with no resolved
+    #: instant, flagged ``tz_unknown`` (ADR-090: no zone is guessed), the speaker / addressee / participants typed
     #: columns (participants on by default, filled from the call's speakers), and the
     #: provenance class from the role. A user turn that answers an assistant turn in the
     #: same call is run through the assent check (a real yes is tagged
@@ -221,9 +221,6 @@ class WriteConfig(ConfigModel):
     #: (``v1``, kept for the dual-read period; ``none`` writes only the typed column). They
     #: feed the ``viewer`` read filter, so a deployment that reads with ``viewer=`` may set
     #: ``none`` and rely on the typed column.
-    #: W2-02 (W-04): the zone a naive source time with no declared zone is read in (as wall
-    #: clock; the record is still flagged ``unknown``). ``None``: ``read.naive_timezone``.
-    stamp_default_tz: str | None = None
 
     #: W2-03 (LIB-13; W-06, W-09, I-8): role policy, echo guard and routing. ``True``: raw storage
     #: keeps every role (a system or tool turn is written, tagged ``derive_use:excluded`` /

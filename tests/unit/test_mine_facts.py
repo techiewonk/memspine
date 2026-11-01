@@ -33,7 +33,7 @@ def _engine(mine: bool) -> Engine:
 async def _write_session(eng: Engine, trust_role: str = "user") -> datetime:
     t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
     msgs = [
-        {"role": trust_role, "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+        {"role": trust_role, "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(
             [
                 "Caroline: I went to the support group yesterday",
@@ -106,7 +106,7 @@ async def test_mined_fact_trust_follows_low_trust_sources(monkeypatch: pytest.Mo
             {
                 "role": "tool",
                 "content": f"ticket line {i}",
-                "timestamp": (t0 + timedelta(minutes=i)).isoformat(),
+                "created_at": (t0 + timedelta(minutes=i)).isoformat(),
             }
             for i in range(3)
         ]
@@ -209,7 +209,7 @@ async def test_mine_by_topic_calls_the_miner_once_per_segment(
     ]
     t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
     msgs = [
-        {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+        {"role": "user", "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(garden + car)
     ]
     await eng.start()
@@ -241,7 +241,7 @@ async def _two_sessions(eng: Engine) -> None:
     ):
         t = datetime(2023, 5, day, 13, 0, tzinfo=UTC)
         msgs = [
-            {"role": "user", "content": c, "timestamp": (t + timedelta(minutes=i)).isoformat()}
+            {"role": "user", "content": c, "created_at": (t + timedelta(minutes=i)).isoformat()}
             for i, c in enumerate([line, "Melanie: wow, tell me more", "Caroline: it was great"])
         ]
         await eng.ingest_messages(msgs, namespace="a", session_id=f"s{n}", group_id=f"s{n}")

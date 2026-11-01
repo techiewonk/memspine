@@ -629,7 +629,7 @@ class MemspineSystem:
 
     def _message(self, turn: Turn, text: str) -> dict[str, Any]:
         """One ``ingest_messages`` entry. Default: role ``user`` for every turn (the stored
-        content carries the speaker name). With perspective metadata: ``speaker`` = the
+        content carries the speaker name). With perspective metadata: ``sender.name`` = the
         turn's speaker, and the chat role when the speaker is ``user`` / ``assistant``."""
         message: dict[str, Any]
         if not self._perspective_metadata:
@@ -639,7 +639,7 @@ class MemspineSystem:
             role = who.lower() if who.lower() in ("user", "assistant") else "user"
             message = {"role": role, "content": text}
             if who:
-                message["speaker"] = who
+                message["sender"] = {"name": who}
         # Dataset identities are stable across batching and fresh evaluation runs.
         # A conversation belongs to one session in the canonical intake contract.
         message["message_id"] = turn.turn_id
@@ -651,7 +651,6 @@ class MemspineSystem:
         attachments = turn.meta.get("attachments") if turn.meta else None
         if attachments and (self.config.get("ingest") or {}).get("assets") == "on":
             message["attachments"] = [dict(a) for a in attachments]
-            message["turn_id"] = turn.turn_id
         return message
 
     async def flush(self) -> DepositResult:
@@ -681,7 +680,7 @@ class MemspineSystem:
             if stamp is not None:
                 # the stamping stage (write.stamping) reads the source time from the message, as in the
                 # batch path below; valid_from alone left single-turn writes undated (precision unknown)
-                one["timestamp"] = stamp_source_time(turns[0], stamp)
+                one["created_at"] = stamp_source_time(turns[0], stamp)
             records = await self._engine.ingest_messages(
                 [one],
                 namespace=self.namespace,
@@ -695,7 +694,7 @@ class MemspineSystem:
                 message: dict[str, Any] = self._message(turn, text)
                 stamp = parse_turn_stamp(turn, self._zone)
                 if stamp is not None:
-                    message["timestamp"] = stamp_source_time(turn, stamp)
+                    message["created_at"] = stamp_source_time(turn, stamp)
                 messages.append(message)
             records = await self._engine.ingest_messages(
                 messages,

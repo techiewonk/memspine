@@ -161,8 +161,16 @@ async def test_f1_raw_turns_in_a_declared_multi_party_namespace_carry_their_spea
     try:
         await eng.ingest_messages(
             [
-                {"role": "user", "content": "Ilse: the lantern is in the cellar", "name": "ilse"},
-                {"role": "user", "content": "Tomasz: I will not tell anyone", "name": "tomasz"},
+                {
+                    "role": "user",
+                    "content": "Ilse: the lantern is in the cellar",
+                    "sender": {"name": "ilse"},
+                },
+                {
+                    "role": "user",
+                    "content": "Tomasz: I will not tell anyone",
+                    "sender": {"name": "tomasz"},
+                },
             ],
             namespace=NS,
             session_id="s1",

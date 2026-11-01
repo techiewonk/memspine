@@ -47,7 +47,7 @@ async def engine() -> AsyncIterator[Engine]:
 async def _session(engine: Engine, texts: list[str]) -> list[str]:
     t0 = datetime.now(UTC) - timedelta(days=3)
     msgs = [
-        {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+        {"role": "user", "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(texts)
     ]
     recs = await engine.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")

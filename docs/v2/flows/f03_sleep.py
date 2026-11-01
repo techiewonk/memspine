@@ -51,7 +51,9 @@ STAGE_IDS = {
 
 
 def _turns(lines: list[str], day: str) -> list[dict[str, str]]:
-    return [{"role": "user", "name": "Bram", "content": t, "timestamp": day} for t in lines]
+    return [
+        {"role": "user", "sender": {"name": "Bram"}, "content": t, "created_at": day} for t in lines
+    ]
 
 
 async def prepare(ctx: Ctx) -> None:

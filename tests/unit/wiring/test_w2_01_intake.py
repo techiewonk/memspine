@@ -160,7 +160,7 @@ async def test_same_words_in_a_later_source_are_a_new_write(tmp_path: Path) -> N
 async def test_partial_retry_writes_only_the_new_segments(tmp_path: Path) -> None:
     eng = await build(tmp_path / "p.db")
     try:
-        stamped = [{**t, "timestamp": f"2024-03-01T09:0{i}:00+00:00"} for i, t in enumerate(TURNS)]
+        stamped = [{**t, "created_at": f"2024-03-01T09:0{i}:00+00:00"} for i, t in enumerate(TURNS)]
         await eng.ingest_messages(stamped[:2], namespace=NS, session_id="s1")
         # the same session, a bigger batch: a different call, but its first two turns are not retried
         # (the batch is the source); an exact resend of the small batch still is

@@ -409,7 +409,7 @@ async def say(eng: Engine, session: str, city: str, day: int) -> None:
         {
             "role": "user",
             "content": f"Ilse: I live in {city}",
-            "timestamp": (T0 + timedelta(days=day)).isoformat(),
+            "created_at": (T0 + timedelta(days=day)).isoformat(),
         }
     ]
     await eng.ingest_messages(msg, namespace="a", session_id=session, group_id=session)

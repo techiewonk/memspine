@@ -80,11 +80,15 @@ async def test_i43_hearsay_trust_is_capped() -> None:
     try:
         first, hear = await eng.ingest_messages(
             [
-                {"role": "user", "content": "Caroline: I love tennis.", "speaker": "Caroline"},
+                {
+                    "role": "user",
+                    "content": "Caroline: I love tennis.",
+                    "sender": {"name": "Caroline"},
+                },
                 {
                     "role": "user",
                     "content": "Caroline: My mom said she loves tennis.",
-                    "speaker": "Caroline",
+                    "sender": {"name": "Caroline"},
                 },
             ],
             namespace="a",
@@ -101,7 +105,13 @@ async def test_i43_cap_is_off_by_default() -> None:
     await eng.start()
     try:
         [hear] = await eng.ingest_messages(
-            [{"role": "user", "content": "My mom said she loves tennis.", "speaker": "Caroline"}],
+            [
+                {
+                    "role": "user",
+                    "content": "My mom said she loves tennis.",
+                    "sender": {"name": "Caroline"},
+                }
+            ],
             namespace="a",
         )
         assert hear.trust > 0.3
@@ -135,7 +145,13 @@ async def test_i44_render_marks_hedged_records() -> None:
     await eng.start()
     try:
         await eng.ingest_messages(
-            [{"role": "user", "content": "Maybe I live in Lisbon.", "speaker": "Caroline"}],
+            [
+                {
+                    "role": "user",
+                    "content": "Maybe I live in Lisbon.",
+                    "sender": {"name": "Caroline"},
+                }
+            ],
             namespace="a",
         )
         ctx = await eng.assemble("where does Caroline live", namespace="a", budget_tokens=500)
@@ -364,8 +380,12 @@ async def test_i55_mined_fact_inherits_and_the_conflict_key_uses_it() -> None:
     try:
         turns = await eng.ingest_messages(
             [
-                {"role": "user", "content": "I really like jazz.", "speaker": "Caroline"},
-                {"role": "user", "content": "My cousin likes rock.", "speaker": "Caroline"},
+                {"role": "user", "content": "I really like jazz.", "sender": {"name": "Caroline"}},
+                {
+                    "role": "user",
+                    "content": "My cousin likes rock.",
+                    "sender": {"name": "Caroline"},
+                },
             ],
             namespace="a",
         )

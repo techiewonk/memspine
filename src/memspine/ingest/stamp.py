@@ -10,9 +10,10 @@ client-declared zone. Event time comes later, from extraction. Rules:
   instant in UTC). Accepted: aware or naive ``datetime``, ISO 8601 strings (with ``Z`` or an offset, or
   a bare date), epoch seconds or milliseconds (number or digit string). An unparseable value gives
   ``source_at = None`` and the flag ``stamp_unparsed``; it never falls back to now (W-04).
-* A zone is the segment zone, else the envelope zone, else unknown. A naive time with an unknown zone is
-  read as wall clock in ``default_tz``, flagged ``tz_unknown`` with the note ``tz_assumed_default``
-  and ``source_tz == "unknown"``; it is never shifted into another zone.
+* A zone is the segment zone, else the envelope zone, else unknown. A naive or date-only time with an
+  unknown zone has no resolved instant (ADR-090, D-100 Q-S2): ``source_at`` is None, the flag is
+  ``tz_unknown``, the note ``civil_time_unresolved``, ``precision == "unknown"`` and ``source_tz ==
+  "unknown"``. No operator default zone is ever applied.
 * DST edges: a wall time inside a spring-forward gap is flagged ``dst_gap`` (resolved with the offset
   before the transition); a repeated autumn hour is flagged ``dst_ambiguous`` (resolved to the first).
 * Skew: a source time later than ``recorded_at`` plus the tolerance is flagged ``future_skew`` and kept.
@@ -186,7 +187,6 @@ def _localise(naive: datetime, z: tzinfo, flags: list[str]) -> datetime:
 def parse_source_time(
     value: Any,
     tz_name: str | None,
-    default_tz: str,
     *,
     epoch_ms_threshold: float = 1e11,
 ) -> tuple[datetime | None, str, bool, Precision, list[str], list[str]]:
@@ -196,9 +196,6 @@ def parse_source_time(
     """
     flags: list[str] = []
     notes: list[str] = []
-    dflt = _zone(default_tz)
-    if dflt is None:
-        raise ValueError(f"default_tz {default_tz!r} is not a known zone")
     declared: tzinfo | None = None
     if tz_name is not None and tz_name.strip():
         declared = _zone(tz_name)
@@ -272,10 +269,10 @@ def parse_source_time(
             flags,
             notes,
         )
-    # naive time, zone unknown: wall clock in the default zone, flagged, never shifted
+    # naive or date-only time, zone unknown: civil text, no resolved instant, no guessed zone
     flags.append("tz_unknown")
-    notes.append("tz_assumed_default")
-    return _localise(dt, dflt, flags), _UNKNOWN, True, precision, flags, notes
+    notes.append("civil_time_unresolved")
+    return None, _UNKNOWN, True, "unknown", flags, notes
 
 
 # ------------------------------------------------------------------------------------------- write id
@@ -318,7 +315,6 @@ def stamp(
     envelope_in: StampIn,
     *,
     recorded_at: datetime,
-    default_tz: str = "UTC",
     policy: StampPolicy | None = None,
 ) -> StampedTurn:
     """Stamp one segment. Deterministic for fixed arguments; ``recorded_at`` is the injected clock value."""
@@ -333,7 +329,6 @@ def stamp(
     src_at, src_tz, tz_unknown, precision, flags, notes = parse_source_time(
         envelope_in.source_at,
         zone_name,
-        default_tz,
         epoch_ms_threshold=pol.epoch_ms_threshold,
     )
     src_utc = src_at.astimezone(UTC) if src_at is not None else None

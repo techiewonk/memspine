@@ -339,14 +339,14 @@ MIXED = [
         "role": "assistant",
         "content": "Plan: book ferry, pack boxes, hand over keys",
         "memory_type": "plan",
-        "name": "moving day",
+        "sender": {"name": "moving day"},
     },
     {
         "message_id": "role-3",
         "role": "assistant",
         "content": "To tune the hive, check the frames weekly",
         "memory_type": "skill",
-        "name": "hive care",
+        "sender": {"name": "hive care"},
     },
 ]
 

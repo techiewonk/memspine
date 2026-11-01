@@ -35,18 +35,22 @@ async def test_default_event_time_is_now(engine: Engine) -> None:
     assert rec.valid_from >= before
 
 
-async def test_write_sets_event_time_and_makes_it_aware(engine: Engine) -> None:
-    naive = datetime(2023, 5, 8, 13, 56)
-    rec = await engine.write("met Mel", namespace="a", memory_type="episodic", valid_from=naive)
-    assert rec.valid_from == naive.replace(tzinfo=UTC)
+async def test_write_sets_event_time_and_refuses_a_naive_one(engine: Engine) -> None:
+    aware = datetime(2023, 5, 8, 13, 56, tzinfo=UTC)
+    rec = await engine.write("met Mel", namespace="a", memory_type="episodic", valid_from=aware)
+    assert rec.valid_from == aware
     assert rec.recorded_at > rec.valid_from  # event time is not ingestion time
+    with pytest.raises(ValueError, match="has no timezone"):  # ADR-090: no guessed zone
+        await engine.write(
+            "x", namespace="a", memory_type="episodic", valid_from=datetime(2023, 5, 8)
+        )
 
 
 async def test_ingest_messages_per_message_timestamp_beats_batch(engine: Engine) -> None:
     batch = datetime(2023, 1, 1, tzinfo=UTC)
     records = await engine.ingest_messages(
         [
-            {"role": "user", "content": "first", "timestamp": "2023-05-08T13:56:00"},
+            {"role": "user", "content": "first", "created_at": "2023-05-08T13:56:00+00:00"},
             {"role": "user", "content": "second"},
         ],
         namespace="a",

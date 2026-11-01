@@ -151,7 +151,7 @@ async def _thread(eng: Engine) -> tuple[str, str]:
         }
     )
     for i, msg in enumerate(msgs):
-        msg["timestamp"] = (T0 + timedelta(minutes=i)).isoformat()
+        msg["created_at"] = (T0 + timedelta(minutes=i)).isoformat()
     records = await eng.ingest_messages(
         msgs, namespace="a", session_id="s1", conversation_id="venue-thread"
     )

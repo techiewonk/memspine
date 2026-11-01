@@ -79,7 +79,7 @@ def window(i: int, *, fact: bool) -> list[dict[str, str]]:
         {
             "role": "user",
             "content": f"{who}: {t}",
-            "timestamp": (T0 + timedelta(days=i, minutes=k)).isoformat(),
+            "created_at": (T0 + timedelta(days=i, minutes=k)).isoformat(),
         }
         for k, t in enumerate(turns)
     ]
@@ -251,7 +251,7 @@ async def test_stage_flags_unseen_names_and_never_adds_or_drops(
                 {
                     "role": "user",
                     "content": f"Ilse: I planted {x} bulbs",
-                    "timestamp": (T0 + timedelta(minutes=k)).isoformat(),
+                    "created_at": (T0 + timedelta(minutes=k)).isoformat(),
                 }
                 for k, x in enumerate(["red", "blue", "white"])
             ],

@@ -938,3 +938,10 @@ DOCUMENT_WEAVIATE_MAX_CHUNK_BYTES = 4 * 1024 * 1024
 MONGOD_START_TIMEOUT_S = 30.0
 MONGOD_SHUTDOWN_TIMEOUT_S = 8.0
 MONGOD_REPLICA_SET = "rs0"
+
+# RM-142 (ADR-090 discovery): an outbox item that a policy activation superseded carries this
+# payload key; the runner skips it at selection time and discovery points at the replacement.
+OUTBOX_CANCELLED_KEY = "cancelled_by_policy_revision"
+# RM-142: the discovery row of an applied intent that had no raw records (all turns excluded):
+# discovered, with no outbox item.
+DISCOVERY_NO_WORK_OFFSET = -1

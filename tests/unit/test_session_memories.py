@@ -32,7 +32,7 @@ async def test_lists_records_derived_from_the_session_turns() -> None:
         t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
         texts = ["Caroline: I moved to Sweden last year", "Melanie: wow", "Caroline: yes!"]
         msgs = [
-            {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+            {"role": "user", "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
             for i, c in enumerate(texts)
         ]
         await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")

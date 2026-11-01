@@ -252,12 +252,12 @@ async def test_write_tags_and_content_unchanged() -> None:
                 {
                     "role": "user",
                     "content": "Caroline: My cousin is looking for a club.",
-                    "speaker": "Caroline",
+                    "sender": {"name": "Caroline"},
                 },
                 {
                     "role": "user",
                     "content": "Melanie: That is great, do you like clubs?",
-                    "speaker": "Melanie",
+                    "sender": {"name": "Melanie"},
                 },
             ],
             namespace="a",
@@ -274,7 +274,8 @@ async def test_explicit_speaker_without_text_prefix() -> None:
     await eng.start()
     try:
         [rec] = await eng.ingest_messages(
-            [{"role": "user", "content": "I adopted a dog", "speaker": "Melanie"}], namespace="a"
+            [{"role": "user", "content": "I adopted a dog", "sender": {"name": "Melanie"}}],
+            namespace="a",
         )
         assert "spk:melanie" in rec.tags
         assert "sub:melanie" in rec.tags
@@ -300,7 +301,13 @@ async def test_off_writes_no_perspective_tags() -> None:
     await eng.start()
     try:
         [rec] = await eng.ingest_messages(
-            [{"role": "user", "content": "Caroline: My cousin moved", "speaker": "Caroline"}],
+            [
+                {
+                    "role": "user",
+                    "content": "Caroline: My cousin moved",
+                    "sender": {"name": "Caroline"},
+                }
+            ],
             namespace="a",
         )
         assert not any(tag.startswith(("spk:", "sub:", "addr:")) for tag in rec.tags)
@@ -313,23 +320,23 @@ async def _store(eng: Engine) -> None:
         [
             {
                 "role": "user",
-                "speaker": "Caroline",
+                "sender": {"name": "Caroline"},
                 "content": "Caroline: I love volunteering in my community and getting involved.",
             },
             {
                 "role": "user",
-                "speaker": "Melanie",
+                "sender": {"name": "Melanie"},
                 "content": "Melanie: Nice! Do you like to get involved in the community?",
             },
             {
                 "role": "user",
-                "speaker": "Caroline",
+                "sender": {"name": "Caroline"},
                 "content": "Caroline: My cousin is looking for ways to get involved in their "
                 "community.",
             },
             {
                 "role": "user",
-                "speaker": "Melanie",
+                "sender": {"name": "Melanie"},
                 "content": "Melanie: Tell your cousin about the food bank.",
             },
         ],

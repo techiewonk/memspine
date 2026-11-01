@@ -269,7 +269,7 @@ def _chat(
                 f"{speaker}: {_SENTENCES[i % n]} and {_SENTENCES[(i // n + 5) % n].lower()} "
                 f"then {_SENTENCES[(i * 5 + 1) % n].lower()} number {i}"
             ),
-            "timestamp": (start + timedelta(minutes=(i - first) * step_min)).isoformat(),
+            "created_at": (start + timedelta(minutes=(i - first) * step_min)).isoformat(),
         }
         for i in range(first, first + count)
     ]

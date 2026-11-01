@@ -68,7 +68,6 @@ async def apply_turns(
     )
     role_policy = eng._config().write.role_policy  # W2-03
     conv_stamper = None
-    stamp_config = eng._config().write
     if eng._config().write.stamping:  # W2-02
         first_message = next(
             (
@@ -82,7 +81,6 @@ async def apply_turns(
             namespace=validate_namespace(namespace),
             source_id=(first_message.get("session_id") if first_message else session_id)
             or "nosession",
-            default_tz=stamp_config.stamp_default_tz or eng._config().read.naive_timezone,
             session_speakers=tuple(
                 participants_of_call([t for t in messages if isinstance(t, Mapping)])
             ),
@@ -106,8 +104,6 @@ async def apply_turns(
                     conv_stamper = ConversationStamper(
                         namespace=validate_namespace(namespace),
                         source_id=effective_session or "nosession",
-                        default_tz=stamp_config.stamp_default_tz
-                        or eng._config().read.naive_timezone,
                         session_speakers=tuple(
                             participants_of_call([t for t in messages if isinstance(t, Mapping)])
                         ),
@@ -198,7 +194,11 @@ async def apply_turns(
             if ref_kind is not None:
                 reply_to = prev_turn[0]
                 turn_tags.append(f"{REF_PREFIX}{ref_kind}")
-        stamp = eng._event_time(turn.get("timestamp")) or valid_from
+        stamp = (
+            eng._event_time(turn.get("timestamp"))
+            if isinstance(envelope, Mapping)  # ADR-090: civil source text stays undated
+            else eng._event_time(turn.get("timestamp")) or valid_from
+        )
         if stamp is not None and effective_session and eng._config().read.session_sequence:
             stamp = eng._sequenced(namespace, effective_session, eng._localize(stamp))
         pending = None
@@ -214,7 +214,10 @@ async def apply_turns(
         try:
             if isinstance(turn.get("_message_envelope"), Mapping):
                 meta = turn["_message_envelope"]
-                if meta.get("created_at_generated") and eng._config().read.skip_defaulted_dates:
+                civil = (meta.get("source_clock") or {}).get("precision") == "unknown"
+                if (
+                    meta.get("created_at_generated") or civil
+                ) and eng._config().read.skip_defaulted_dates:
                     turn_tags.append(constants.UNDATED_TAG)
                 turn_tags.extend(
                     f"{key}:{meta[key]}" for key in ("message_id", "session_id", "conversation_id")

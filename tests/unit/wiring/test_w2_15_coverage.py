@@ -347,7 +347,7 @@ def _turns() -> list[dict[str, str]]:
         {
             "role": "user",
             "content": f"Ilse: {t}",
-            "timestamp": (base + timedelta(minutes=i)).isoformat(),
+            "created_at": (base + timedelta(minutes=i)).isoformat(),
         }
         for i, t in enumerate(said)
     ]

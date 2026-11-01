@@ -50,35 +50,35 @@ GROUP = [
         "message_id": "stamped-0",
         "conversation_id": "stamping-conversation",
         "role": "user",
-        "speaker": "Ilse",
+        "sender": {"name": "Ilse"},
         "addressee": "Bram",
         "content": "Bram, I moved to Oslo",
-        "timestamp": "2026-03-01T09:00:00+09:00",
+        "created_at": "2026-03-01T09:00:00+09:00",
         "tz": "Asia/Tokyo",
     },
     {
         "message_id": "stamped-1",
         "conversation_id": "stamping-conversation",
         "role": "user",
-        "speaker": "Bram",
+        "sender": {"name": "Bram"},
         "addressee": "Ilse",
         "content": "Noor told me about it",
-        "timestamp": "2026-03-01T01:05:00",
+        "created_at": "2026-03-01T01:05:00",
     },
     {
         "message_id": "stamped-2",
         "conversation_id": "stamping-conversation",
         "role": "assistant",
         "content": "Shall I note the Oslo address?",
-        "timestamp": "2026-03-01T01:06:00",
+        "created_at": "2026-03-01T01:06:00",
     },
     {
         "message_id": "stamped-3",
         "conversation_id": "stamping-conversation",
         "role": "user",
-        "speaker": "Ilse",
+        "sender": {"name": "Ilse"},
         "content": "yes please, note it",
-        "timestamp": "2026-03-01T01:07:00",
+        "created_at": "2026-03-01T01:07:00",
     },
 ]
 
@@ -112,10 +112,11 @@ async def test_three_clocks_and_zone(tmp_path: Path) -> None:
         # (storage keeps the instant in UTC; the zone lives in source_tz)
         assert first.source_at is not None
         assert first.source_at.astimezone(UTC) == datetime(2026, 3, 1, 0, 0, tzinfo=UTC)
-        # naive time, no zone: wall clock kept, zone unknown, never shifted
+        # naive time, no zone (ADR-090): civil text, no resolved instant, no guessed zone
         second = by["Noor told me about it"]
         assert second.source_tz == "unknown"
-        assert (second.source_at.hour, second.source_at.minute) == (1, 5)
+        assert second.source_at is None and second.source_precision == "unknown"
+        assert second.source.message["created_at"] == "2026-03-01T01:05:00"
         # recorded_at is the engine clock, not the source time
         assert first.recorded_at >= before
         assert first.recorded_at != first.source_at
@@ -142,11 +143,12 @@ async def test_undated_turn_gets_generated_source_time(tmp_path: Path) -> None:
 
 
 def test_clock_stamper_flags() -> None:
-    cs = ClockStamper(default_tz="UTC")
+    cs = ClockStamper()
     now = datetime(2026, 3, 2, tzinfo=UTC)
     naive = cs.stamp("2026-03-01T10:00:00", now)
     assert naive.tz_unknown and naive.source_tz == "unknown" and "tz_unknown" in naive.flags
-    assert naive.source_at.hour == 10  # wall clock, not shifted
+    assert naive.source_at is None and naive.precision == "unknown"  # ADR-090: no guessed zone
+    assert "civil_time_unresolved" in naive.notes
     aware = cs.stamp("2026-03-01T10:00:00+05:30", now, tz="Asia/Kolkata")
     assert not aware.tz_unknown and aware.source_tz == "Asia/Kolkata"
     future = cs.stamp("2026-04-01T10:00:00Z", now)

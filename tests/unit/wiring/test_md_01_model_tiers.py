@@ -269,7 +269,7 @@ async def test_no_model_template_makes_zero_calls_across_write_sleep_read(
     await eng.start()
     try:
         msgs = [
-            {"role": "user", "content": c, "timestamp": f"2023-05-08T13:0{i}:00+00:00"}
+            {"role": "user", "content": c, "created_at": f"2023-05-08T13:0{i}:00+00:00"}
             for i, c in enumerate(["Ilse: I run every morning", "Ilse: no coffee after noon"])
         ]
         await eng.write("Ilse lives in Bergen", namespace="a", memory_type="semantic")

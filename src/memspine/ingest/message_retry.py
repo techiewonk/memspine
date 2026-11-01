@@ -5,6 +5,7 @@ from datetime import datetime
 from hashlib import sha256
 from typing import Any
 
+from memspine.ingest.message_identity import MESSAGE_FIELDS
 from memspine.store.events import canonical_payload
 from memspine.store.records import MemoryRecord
 
@@ -60,12 +61,6 @@ def prepare_retries(
             "role": old.source.role if old else item.get("role"),
             "content": old.content if old else item.get("content"),
         }
-        sender = meta.get("sender") or {}
-        expected["speaker"] = (
-            sender.get("id") or sender.get("name") or (old.axes.speaker if old else None)
-        )
-        expected["name"] = sender.get("name")
-        expected["timestamp"] = meta["created_at"]
         for key, value in (("session_id", session_id), ("conversation_id", conversation_id)):
             if value is not None and value != meta.get(key):
                 raise ValueError(f"retry {key} conflict for {item['message_id']!r}")
@@ -74,7 +69,7 @@ def prepare_retries(
                 raise ValueError("private ingestion fields cannot be supplied")
             same = (
                 _equal_time(value, expected.get(key))
-                if key in {"created_at", "timestamp", "updated_at"}
+                if key in {"created_at", "updated_at"}
                 else value == expected.get(key)
             )
             original = meta.get("input_fingerprints", {})
@@ -82,12 +77,13 @@ def prepare_retries(
                 # Raw records may be redacted or absent (excluded roles). The
                 # accepted input hash, not that projection, defines a retry.
                 same = input_fingerprint(value) == original[key] or (
-                    key in {"created_at", "timestamp", "updated_at"} and same
+                    key in {"created_at", "updated_at"} and same
                 )
             if not same:
                 raise ValueError(
                     f"message_id {item['message_id']!r} has changed {key}; explicit revision required"
                 )
-        inputs.append({**expected, **item})
+        # Only canonical envelope fields are expanded; stored provenance stays internal.
+        inputs.append({k: v for k, v in {**expected, **item}.items() if k in MESSAGE_FIELDS})
         reused[str(item["message_id"])] = old
     return inputs, reused

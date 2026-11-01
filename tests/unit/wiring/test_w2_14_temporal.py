@@ -488,22 +488,22 @@ async def test_window_end_to_end_with_the_flag(monkeypatch: pytest.MonkeyPatch) 
             {
                 "role": "user",
                 "content": "Ilse: she visited the zoo",
-                "timestamp": "2023-06-15T10:00:00+00:00",
+                "created_at": "2023-06-15T10:00:00+00:00",
             },
             {
                 "role": "user",
                 "content": "Ilse: she moved house",
-                "timestamp": "2023-06-15T10:01:00+00:00",
+                "created_at": "2023-06-15T10:01:00+00:00",
             },
             {
                 "role": "user",
                 "content": "Ilse: she likes tea",
-                "timestamp": "2023-06-15T10:02:00+00:00",
+                "created_at": "2023-06-15T10:02:00+00:00",
             },
             {
                 "role": "user",
                 "content": "Ilse: she bought a zoo ticket",
-                "timestamp": "2023-06-15T10:03:00+00:00",
+                "created_at": "2023-06-15T10:03:00+00:00",
             },
         ]
         await _send(eng, "a", "s1", msgs)
@@ -534,7 +534,7 @@ async def test_window_flag_off_keeps_the_text_only_behaviour(
             {
                 "role": "user",
                 "content": f"Ilse: she did thing {i}",
-                "timestamp": f"2023-06-15T10:0{i}:00+00:00",
+                "created_at": f"2023-06-15T10:0{i}:00+00:00",
             }
             for i in range(4)
         ]

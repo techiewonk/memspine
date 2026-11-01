@@ -49,7 +49,7 @@ def _engine(**consolidation: Any) -> Engine:
 
 async def _write_session(eng: Engine) -> None:
     msgs = [
-        {"role": "user", "content": c, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
+        {"role": "user", "content": c, "created_at": (T0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(TURNS)
     ]
     await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")

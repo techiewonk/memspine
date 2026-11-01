@@ -31,7 +31,7 @@ def _engine(on: bool) -> Engine:
 async def _session(eng: Engine) -> None:
     t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
     msgs = [
-        {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+        {"role": "user", "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(
             [
                 "Ana: I run every morning before work",

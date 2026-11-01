@@ -384,8 +384,8 @@ async def test_ingest_messages_tags_session_participants() -> None:
     try:
         recs = await eng.ingest_messages(
             [
-                {"role": "user", "name": "Sam", "content": "The garden needs water"},
-                {"role": "user", "name": "Pat", "content": "I will water the garden"},
+                {"role": "user", "sender": {"name": "Sam"}, "content": "The garden needs water"},
+                {"role": "user", "sender": {"name": "Pat"}, "content": "I will water the garden"},
                 {"role": "assistant", "content": "Noted about the garden"},
             ],
             namespace="a",
@@ -410,7 +410,7 @@ async def test_mined_fact_inherits_the_privacy_of_its_source_turn() -> None:
             [
                 {
                     "role": "user",
-                    "name": "Sam",
+                    "sender": {"name": "Sam"},
                     "content": "I keep a secret garden",
                     "visibility": "private",
                 }

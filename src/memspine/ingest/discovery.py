@@ -1,9 +1,15 @@
 """Durable raw-to-derivation discovery and explicit policy activation.
 
 The intake intent remains the authority for accepted raw work.  This scanner
-reconciles applied intents into the existing SQL outbox and advances its cursor
-in the *same transaction* as each outbox insert.  Repeating it after a crash is
-therefore harmless and cannot skip a committed source.
+reconciles applied intents into the existing SQL outbox and records each one in
+``intake_derivation_discovery`` in the *same transaction* as its outbox insert.
+Repeating it after a crash is therefore harmless and cannot skip a committed source.
+
+RM-142: the scan is an anti-join (applied intents with no discovery row for the
+stage), not a creation-order cursor, so an intent that applies after a later one
+(its first apply raised and ``recover`` finished it) is still discovered. An
+applied intent without raw records is recorded as discovered with no work
+(``DISCOVERY_NO_WORK_OFFSET``), so it never stalls the scope.
 """
 
 from __future__ import annotations
@@ -12,14 +18,13 @@ import json
 from collections.abc import Callable
 from datetime import datetime
 
-from sqlalchemy import and_, func, insert, or_, select, true, update
+from sqlalchemy import and_, func, insert, select, update
 from sqlalchemy.ext.asyncio import AsyncEngine
-from sqlalchemy.sql.elements import ColumnElement
 
+from memspine.config.constants import DISCOVERY_NO_WORK_OFFSET, OUTBOX_CANCELLED_KEY
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.ingestion import RequiredDerivation
 from memspine.services.storage.intake_tables import (
-    intake_derivation_cursor,
     intake_derivation_discovery,
     intake_derivation_policy,
     intake_intent,
@@ -61,33 +66,23 @@ async def discover_committed_derivations(
     """
     async with engine.begin() as conn:
         await conn.run_sync(outbox_metadata.create_all)
-        cursor = (
-            await conn.execute(
-                select(
-                    intake_derivation_cursor.c.created_at,
-                    intake_derivation_cursor.c.intent_id,
-                ).where(
-                    intake_derivation_cursor.c.scope_key == scope_key,
-                    intake_derivation_cursor.c.stage == stage,
-                )
-            )
-        ).first()
-        after: ColumnElement[bool] = true()
-        if cursor is not None:
-            after = or_(
-                intake_intent.c.created_at > cursor.created_at,
-                and_(
-                    intake_intent.c.created_at == cursor.created_at,
-                    intake_intent.c.intent_id > cursor.intent_id,
-                ),
-            )
+        known = intake_derivation_discovery.alias("known")
         rows = (
             await conn.execute(
                 select(intake_intent)
+                .select_from(
+                    intake_intent.outerjoin(
+                        known,
+                        and_(
+                            known.c.intent_id == intake_intent.c.intent_id,
+                            known.c.stage == stage,
+                        ),
+                    )
+                )
                 .where(
                     intake_intent.c.scope_key == scope_key,
                     intake_intent.c.status == "applied",
-                    after,
+                    known.c.intent_id.is_(None),
                 )
                 .order_by(intake_intent.c.created_at, intake_intent.c.intent_id)
             )
@@ -95,19 +90,8 @@ async def discover_committed_derivations(
         inserted = 0
         for row in rows:
             manifest = RequiredDerivation.model_validate_json(row.required_derivation)
-            if not manifest.source_record_ids:
-                # Do not pass this row: its application transaction has not
-                # attached authoritative raw record ids yet.
-                break
-            known = (
-                await conn.execute(
-                    select(intake_derivation_discovery.c.item_offset).where(
-                        intake_derivation_discovery.c.intent_id == manifest.intent_id,
-                        intake_derivation_discovery.c.stage == stage,
-                    )
-                )
-            ).first()
-            if known is None:
+            offset = DISCOVERY_NO_WORK_OFFSET
+            if manifest.source_record_ids:
                 queue_scope = _queue_scope(manifest, stage)
                 top = (
                     await conn.execute(
@@ -133,33 +117,17 @@ async def discover_committed_derivations(
                 )
                 if fault is not None:
                     fault("after_outbox_insert")
-                await conn.execute(
-                    insert(intake_derivation_discovery).values(
-                        intent_id=manifest.intent_id,
-                        stage=stage,
-                        item_offset=offset,
-                        discovered_at=discovered_at.isoformat(),
-                    )
-                )
                 inserted += 1
-            values = {
-                "created_at": row.created_at,
-                "intent_id": row.intent_id,
-            }
-            changed = await conn.execute(
-                update(intake_derivation_cursor)
-                .where(
-                    intake_derivation_cursor.c.scope_key == scope_key,
-                    intake_derivation_cursor.c.stage == stage,
+            # An applied intent without raw records (every turn excluded) has no work; it
+            # is recorded as discovered so it is neither rescanned nor blocking.
+            await conn.execute(
+                insert(intake_derivation_discovery).values(
+                    intent_id=manifest.intent_id,
+                    stage=stage,
+                    item_offset=offset,
+                    discovered_at=discovered_at.isoformat(),
                 )
-                .values(**values)
             )
-            if changed.rowcount == 0:
-                await conn.execute(
-                    insert(intake_derivation_cursor).values(
-                        scope_key=scope_key, stage=stage, **values
-                    )
-                )
         return inserted
 
 
@@ -274,7 +242,7 @@ async def activate_derivation_policy(
                 )
                 .values(
                     payload=json.dumps(
-                        {**old_payload, "cancelled_by_policy_revision": policy_revision},
+                        {**old_payload, OUTBOX_CANCELLED_KEY: policy_revision},
                         sort_keys=True,
                     )
                 )
@@ -309,6 +277,16 @@ async def activate_derivation_policy(
                     ),
                     created_at=activated_at.isoformat(),
                 )
+            )
+            # RM-142: discovery now points at the superseding item (the cancelled one is
+            # skipped by the runner at selection time).
+            await conn.execute(
+                update(intake_derivation_discovery)
+                .where(
+                    intake_derivation_discovery.c.intent_id == manifest.intent_id,
+                    intake_derivation_discovery.c.stage == stage,
+                )
+                .values(item_offset=int(top) + 1)
             )
             requeued += 1
         return requeued

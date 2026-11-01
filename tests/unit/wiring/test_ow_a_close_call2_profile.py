@@ -88,7 +88,7 @@ def _turns(count: int, start: int = 0, session: str | None = None) -> list[dict[
         {
             "role": "user",
             "content": f"Mira: {_TEXTS[(start + i) % len(_TEXTS)]}",
-            "timestamp": (T0 + timedelta(minutes=start + i)).isoformat(),
+            "created_at": (T0 + timedelta(minutes=start + i)).isoformat(),
         }
         for i in range(count)
     ]

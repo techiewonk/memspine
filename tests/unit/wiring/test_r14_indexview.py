@@ -26,15 +26,15 @@ ANCHOR = date(2023, 5, 8)  # a Monday
 TURNS = [
     {
         "role": "user",
-        "speaker": "Ilse",
+        "sender": {"name": "Ilse"},
         "content": "Bram and I hiked the Tarn ridge yesterday and it was lovely",
-        "timestamp": "2023-05-08T10:00:00",
+        "created_at": "2023-05-08T10:00:00+00:00",
     },
     {
         "role": "assistant",
-        "speaker": "Bram",
+        "sender": {"name": "Bram"},
         "content": "Yes, that one!",
-        "timestamp": "2023-05-08T10:01:00",
+        "created_at": "2023-05-08T10:01:00+00:00",
     },
 ]
 

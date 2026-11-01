@@ -95,7 +95,7 @@ def _projecting_engine(value: Any = "on") -> Engine:
 async def _session(eng: Engine, lines: list[str], ns: str = "a", sid: str = "s1") -> list[str]:
     t0 = datetime(2023, 5, 8, 13, 0, tzinfo=UTC)
     msgs = [
-        {"role": "user", "content": c, "timestamp": (t0 + timedelta(minutes=i)).isoformat()}
+        {"role": "user", "content": c, "created_at": (t0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(lines)
     ]
     await eng.ingest_messages(msgs, namespace=ns, session_id=sid, group_id=sid)

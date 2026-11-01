@@ -95,7 +95,7 @@ async def test_i7_ingest_messages_without_timestamps() -> None:
                 {
                     "role": "user",
                     "content": "I like coffee",
-                    "timestamp": datetime(2023, 1, 2, tzinfo=UTC),
+                    "created_at": datetime(2023, 1, 2, tzinfo=UTC),
                 }
             ],
             namespace="a",

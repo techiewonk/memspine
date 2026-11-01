@@ -46,7 +46,7 @@ def _engine(**consolidation: Any) -> Engine:
 
 async def _write_session(eng: Engine) -> list[str]:
     msgs = [
-        {"role": "user", "content": c, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
+        {"role": "user", "content": c, "created_at": (T0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(TURNS)
     ]
     records = await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
@@ -317,7 +317,7 @@ async def _mine_turns(
     last = turns[-1][0]
     filler = [(last + timedelta(minutes=n), f"Caro: ok {n}") for n in range(1, 3)]
     msgs = [
-        {"role": "user", "content": c, "timestamp": t.isoformat()} for t, c in [*turns, *filler]
+        {"role": "user", "content": c, "created_at": t.isoformat()} for t, c in [*turns, *filler]
     ]
     await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
     await eng.sleep()

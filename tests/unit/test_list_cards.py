@@ -71,7 +71,7 @@ def _engine(read: dict[str, Any] | None = None, **consolidation: Any) -> Engine:
 
 async def _write_session(eng: Engine) -> None:
     msgs = [
-        {"role": "user", "content": c, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
+        {"role": "user", "content": c, "created_at": (T0 + timedelta(minutes=i)).isoformat()}
         for i, c in enumerate(TURNS)
     ]
     await eng.ingest_messages(msgs, namespace="a", session_id="s1", group_id="s1")
@@ -488,7 +488,7 @@ async def test_a_list_card_over_assistant_only_facts_is_an_assistant_claim(
             {
                 "role": "assistant",
                 "content": c,
-                "timestamp": (T0 + timedelta(minutes=i)).isoformat(),
+                "created_at": (T0 + timedelta(minutes=i)).isoformat(),
             }
             for i, c in enumerate(TURNS)
         ]

@@ -97,7 +97,7 @@ def _sessions() -> list[tuple[str, list[dict[str, str]]]]:
                     "conversation_id": f"s{s}-conversation",
                     "role": "user" if t % 2 == 0 else "assistant",
                     "content": f"{speaker}: {words}.",
-                    "timestamp": (base + timedelta(days=s, minutes=t)).isoformat(),
+                    "created_at": (base + timedelta(days=s, minutes=t)).isoformat(),
                 }
             )
         sessions.append((f"s{s}", turns))
@@ -185,6 +185,7 @@ async def _observe_engine(template: str, storage_path: str) -> dict[str, Any]:
             for key in _VOLATILE_EVENT_KEYS:
                 row.pop(key, None)
             event_rows.append(norm(row))
+
         # The promoted base profile runs window derivation asynchronously. Its
         # deterministic session markers may therefore interleave with source
         # writes at different positions on memory and file stores. Preserve the

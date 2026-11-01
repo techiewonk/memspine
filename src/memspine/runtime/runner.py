@@ -36,6 +36,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
+from memspine.config.constants import OUTBOX_CANCELLED_KEY as CANCELLED_KEY
 from memspine.derive.backpressure import (
     UNDERIVED_KEY,
     Backlog,
@@ -577,7 +578,7 @@ class InlineRunner:
 
     async def _item(self, handler: StageHandler, scope: OwnerScope, stage: str, offset: int) -> Any:
         payload = self.store.get_item(scope, stage, offset)
-        if payload is None:  # pruned or never written: nothing to do, not an error
+        if payload is None or payload.get(CANCELLED_KEY):  # pruned, never written or superseded
             return None
         if self._backpressure is None and self._ledger is None:  # flag off: the original path
             return await self._phases(handler, scope, offset, payload, stage)
@@ -833,7 +834,7 @@ class InlineRunner:
     ) -> Any:
         stage = source_stage or job.stage
         payload = self.store.get_item(job.scope, stage, offset)
-        if payload is None:
+        if payload is None or payload.get(CANCELLED_KEY):  # RM-142: superseded by activation
             return None
         source_ids = tuple(str(value) for value in payload.get("record_ids", ()) if value)
         sources: list[dict[str, Any]] = []

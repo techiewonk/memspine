@@ -78,8 +78,7 @@ class RoleStamp:
 class ClockStamper:
     """The three clocks of one segment (W-04). Pure; ``recorded_at`` is the caller's clock value."""
 
-    def __init__(self, default_tz: str = "UTC", policy: StampPolicy | None = None) -> None:
-        self.default_tz = default_tz
+    def __init__(self, policy: StampPolicy | None = None) -> None:
         self.policy = policy or StampPolicy()
 
     def stamp(
@@ -104,7 +103,6 @@ class ClockStamper:
                 last_source_at=last_source_at,
             ),
             recorded_at=recorded_at,
-            default_tz=self.default_tz,
             policy=self.policy,
         )
         return ClockStamp(
@@ -196,7 +194,6 @@ class ConversationStamper:
 
     namespace: str
     source_id: str
-    default_tz: str = "UTC"
     policy: StampPolicy = field(default_factory=StampPolicy)
     session_speakers: tuple[str, ...] = ()
     envelope_tz: str | None = None
@@ -218,7 +215,7 @@ class ConversationStamper:
             role = "external"
         who = turn.get("speaker") or turn.get("name")
         to = turn.get("addressee")
-        tz = turn.get("tz") or turn.get("timezone")
+        tz = turn.get("tz")
         parts = turn.get("participants")
         st = stamp(
             StampIn(
@@ -228,7 +225,7 @@ class ConversationStamper:
                 seg_index=index,
                 role=role,
                 content=content,
-                source_at=turn.get("timestamp"),
+                source_at=turn.get("created_at"),
                 tz=tz if isinstance(tz, str) else None,
                 envelope_tz=self.envelope_tz,
                 speaker=who if isinstance(who, str) else None,
@@ -238,7 +235,6 @@ class ConversationStamper:
                 last_source_at=self.last_source_at,
             ),
             recorded_at=recorded_at,
-            default_tz=self.default_tz,
             policy=self.policy,
         )
         if st.source_at_utc is not None and (
@@ -271,6 +267,9 @@ def apply_stamp(record: MemoryRecord, pending: PendingStamp) -> MemoryRecord:
     if st.source_at is not None:
         update["source_at"] = st.source_at
         update["source_precision"] = "day" if st.precision == "day" else "instant"
+    elif "civil_time_unresolved" in st.notes:
+        # ADR-090: civil source text without a declared zone; no resolved instant
+        update["source_precision"] = "unknown"
     update["source_tz"] = st.source_tz
     ax = record.axes
     update["axes"] = RecordAxes(

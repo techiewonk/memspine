@@ -44,13 +44,12 @@ from memspine.ingest import role_wiring
 from memspine.ingest.index_view import PENDING_INDEX_PREFIX, compose_index_text
 from memspine.ingest.message_helpers import (
     IDEM_TAG_PREFIX,  # noqa: F401  gateway reads this shared constant
-    INTAKE_LANDED,  # noqa: F401  gateway sets this shared ContextVar
+    INTAKE_LANDED,
     _index_view_prefixes,
     _looks_like_recall,
     _turn_content,
 )
 from memspine.ingest.stamping import PENDING_STAMP, apply_stamp
-from memspine.ingest.timeparse import _zone_of
 from memspine.memories.episodic.lifecycle import session_of
 from memspine.models.encoders.query.shape import (
     content_words,
@@ -257,8 +256,12 @@ async def write(
     reply_to: str | None = None,
     participants: Sequence[str] | None = None,
     visibility: str | None = None,
+    *,
+    record_id: str | None = None,
 ) -> MemoryRecord:
     """Append a WRITE event through the single door; projection materializes it.
+
+    ``record_id`` (internal, the intake ``write`` adapter): the id fixed in the intent.
 
     ``entity``/``attribute`` key a semantic fact directly (M13.3) so the M4
     conflict ladder engages without requiring an extractor — callers that
@@ -291,6 +294,49 @@ async def write(
     ``owner_shared``), stored as typed ``axes.participants`` and ``visibility:<v>`` tags. They
     matter only to a read with ``viewer=``; the namespace stays the isolation boundary.
     """
+    if memory_type == "episodic" and INTAKE_LANDED.get() is None:
+        # ADR-090 (DS-05): a direct episodic write takes the one durable path (intent +
+        # manifest before the record, outbox discovery after it). Checks that would make the
+        # apply fail run first, so a committed intent is always applicable.
+        from memspine.ingest import gateway
+
+        if gateway.accepts_writes(eng):
+            ns = validate_namespace(namespace)
+            if valid_from is not None:
+                eng._localize(valid_from)
+            if reply_to is not None:
+                target = await eng._require_started().get_record(reply_to)
+                if (
+                    target is None
+                    or target.namespace != ns
+                    or target.status is RecordStatus.DELETED
+                ):
+                    raise ConflictError(f"no such record {reply_to!r} in namespace {ns!r}")
+            return await gateway.submit_write(
+                eng,
+                {
+                    "content": content,
+                    "namespace": ns,
+                    "memory_type": memory_type,
+                    "source": source,
+                    "pii_tier": pii_tier,
+                    "actor": actor,
+                    "entity": entity,
+                    "attribute": attribute,
+                    "group_id": group_id,
+                    "tags": tags,
+                    "derived_from": derived_from,
+                    "valid_from": valid_from,
+                    "session_id": session_id,
+                    "ledger_id": ledger_id,
+                    "extraction_hint": extraction_hint,
+                    "parent_weights": parent_weights,
+                    "purposes": purposes,
+                    "reply_to": reply_to,
+                    "participants": participants,
+                    "visibility": visibility,
+                },
+            )
     if tap.enabled():
         tap.event(
             "write.received",
@@ -347,6 +393,7 @@ async def write(
     if parents:
         source = source.model_copy(update={"parents": parents})
     record = MemoryRecord(
+        record_id=record_id or new_record_id(),
         namespace=ns,
         memory_type=memory_type,
         content=content,
@@ -412,6 +459,8 @@ async def write(
         try:  # W1: the turn joins the open window; never fails the write
             await eng._windows.observe(written, session_of(written))
         except Exception as exc:
+            # ADR-090 (DS-05): every episodic write is a committed intake intent, so with
+            # the durable outbox its manifest is discovered and the turn replayed.
             _log.warning("window.observe_failed", namespace=ns, error=redact_error(exc))
     return written  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
@@ -568,34 +617,32 @@ def _index_view_texts(
 
 
 def _localize(eng: Any, value: datetime) -> datetime:
-    """F5: an aware datetime is returned as is; a naive one is read in
-    ``read.naive_timezone`` (default UTC) and a warning is logged once per engine."""
-    if value.tzinfo is not None:
+    """ADR-090 (DS-08): an aware datetime is returned as is. A naive one has no resolved
+    instant and no zone is guessed, so it is refused with a clear error."""
+    if value.tzinfo is not None and value.utcoffset() is not None:
         return value
-    name = eng._config().read.naive_timezone
-    tap.event("write.time.parsed", anchored=True, unknown_tz=True, assumed=name)
-    if not eng._naive_warned:
-        eng._naive_warned = True
-        _log.warning(
-            "write.naive_datetime",
-            assumed_timezone=name,
-            hint="pass an aware datetime or set read.naive_timezone to the source's zone",
-        )
-    return value.replace(tzinfo=_zone_of(name))
+    tap.event("write.time.parsed", anchored=False, unknown_tz=True)
+    raise ValueError(
+        f"naive datetime {value.isoformat()!r} has no timezone: pass an aware datetime "
+        "(a message created_at without an offset is kept as civil source text instead)"
+    )
 
 
 def _event_time(eng: Any, value: object) -> datetime | None:
-    """F5: an ISO-8601 string or datetime -> aware datetime (naive ones via
-    :meth:`_localize`); None when absent or unparseable."""
+    """ADR-090 (DS-08): an aware datetime, or ISO-8601 text with an offset -> that instant.
+    A naive or date-only value is civil source text with no resolved instant: None."""
     if value is None:
         return None
     if isinstance(value, datetime):
-        return eng._localize(value)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
-    try:
-        parsed = datetime.fromisoformat(str(value))
-    except ValueError:
+        parsed = value
+    else:
+        try:
+            parsed = datetime.fromisoformat(str(value))
+        except ValueError:
+            return None
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
         return None
-    return eng._localize(parsed)  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
+    return parsed
 
 
 def _sequenced(eng: Any, namespace: str, session_id: str, stamp: datetime) -> datetime:
@@ -906,6 +953,33 @@ def _held(verdict: FirewallVerdict, reasons: list[str]) -> FirewallVerdict:
     )
 
 
+def _metadata_texts(value: object) -> list[str]:
+    """Every string leaf of a caller ``metadata`` bag (keys included), in order."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, Mapping):
+        return [t for k, v in value.items() for t in (*_metadata_texts(k), *_metadata_texts(v))]
+    if isinstance(value, list | tuple):
+        return [t for v in value for t in _metadata_texts(v)]
+    return []
+
+
+def _screen_metadata(value: object, fw: FirewallConfig, kinds: list[str]) -> object:
+    """ADR-090: the caller ``metadata`` bag gets the content's secret / PII masking; it is
+    otherwise stored verbatim and never interpreted."""
+    if isinstance(value, str):
+        cleaned, found = _screen_text(value, fw)
+        kinds.extend(found)
+        return cleaned
+    if isinstance(value, Mapping):
+        return {
+            _screen_metadata(k, fw, kinds): _screen_metadata(v, fw, kinds) for k, v in value.items()
+        }
+    if isinstance(value, list | tuple):
+        return [_screen_metadata(v, fw, kinds) for v in value]
+    return value
+
+
 def _redact_fields(eng: Any, record: MemoryRecord, fw: FirewallConfig) -> MemoryRecord:
     """B8 secrets + #44 PII pack over every text field, and the PII tier.
 
@@ -936,6 +1010,15 @@ def _redact_fields(eng: Any, record: MemoryRecord, fw: FirewallConfig) -> Memory
             kinds.extend(found)
         if tags != record.tags:
             update["tags"] = tags
+        message = record.source.message
+        if isinstance(message, Mapping) and message.get("metadata") is not None:
+            meta_kinds: list[str] = []
+            screened = _screen_metadata(message["metadata"], fw, meta_kinds)
+            if meta_kinds:
+                kinds.extend(meta_kinds)
+                update["source"] = record.source.model_copy(
+                    update={"message": {**message, "metadata": screened}}
+                )
     if kinds:
         _log.warning(
             "memory.redacted", namespace=record.namespace, kinds=list(dict.fromkeys(kinds))
@@ -944,7 +1027,14 @@ def _redact_fields(eng: Any, record: MemoryRecord, fw: FirewallConfig) -> Memory
     update = {}
     tier = record.pii_tier
     if fw.pii == "tag":
-        fields = [record.content, record.entity or "", record.attribute or "", *record.tags]
+        message = record.source.message
+        fields = [
+            record.content,
+            record.entity or "",
+            record.attribute or "",
+            *record.tags,
+            *_metadata_texts(message.get("metadata") if isinstance(message, Mapping) else None),
+        ]
         found_pii = list(
             dict.fromkeys(k for text in fields for k in find_pii(text, extended=fw.pii_extended))
         )

@@ -47,7 +47,7 @@ def _engine(rule_policy: object = True, **read: Any) -> Engine:
 
 async def _seed(eng: Engine) -> list[str]:
     msgs = [
-        {"role": r, "content": c, "timestamp": (T0 + timedelta(minutes=i)).isoformat()}
+        {"role": r, "content": c, "created_at": (T0 + timedelta(minutes=i)).isoformat()}
         for i, (r, c) in enumerate(TURNS)
     ]
     records = await eng.ingest_messages(msgs, namespace="a", session_id="s1")

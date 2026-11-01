@@ -41,9 +41,9 @@ def test_reply_inherits_earlier_message_identity_and_sender_is_projected() -> No
 
 def test_existing_reply_inherits_parent_or_starts_cross_session_conversation() -> None:
     old = [{"message_id": "old", "session_id": "s", "conversation_id": "c"}]
-    inherited = normalise_messages(
-        [message(reply_to="old")], namespace="n", existing=old, now=NOW
-    )[0]
+    inherited = normalise_messages([message(reply_to="old")], namespace="n", existing=old, now=NOW)[
+        0
+    ]
     assert (inherited["session_id"], inherited["conversation_id"]) == ("s", "c")
     reply = normalise_messages(
         [message(reply_to="old")], namespace="n", session_id="s", existing=old, now=NOW
@@ -120,7 +120,7 @@ def test_rejects_invalid_identity_graph(messages, kwargs, match) -> None:
 def test_supplied_ids_and_historical_timestamps_are_preserved() -> None:
     earlier = NOW - timedelta(days=2)
     result = normalise_messages(
-        [message(message_id="given", conversation_id="thread", timestamp=earlier)],
+        [message(message_id="given", conversation_id="thread", created_at=earlier)],
         namespace="n",
         session_id="session",
         now=NOW,
@@ -132,13 +132,17 @@ def test_supplied_ids_and_historical_timestamps_are_preserved() -> None:
     assert result["_created_at_generated"] is False
 
 
-def test_rejects_conflicting_timestamps_and_unsupported_sender() -> None:
-    with pytest.raises(ValueError, match="timestamp conflict"):
-        normalise_messages(
-            [message(created_at=NOW, timestamp=NOW + timedelta(seconds=1))],
-            namespace="n",
-            now=NOW,
-        )
+def test_rejects_alternate_spellings_and_unsupported_sender() -> None:
+    with pytest.raises(ValueError, match="'timestamp' is not accepted: use 'created_at'"):
+        normalise_messages([message(timestamp=NOW)], namespace="n", now=NOW)
+    with pytest.raises(ValueError, match="'speaker' is not accepted: use 'sender.id or"):
+        normalise_messages([message(speaker="Ana")], namespace="n", now=NOW)
+    with pytest.raises(ValueError, match="'name' is not accepted: use 'sender.name'"):
+        normalise_messages([message(name="Ana")], namespace="n", now=NOW)
+    with pytest.raises(ValueError, match="'timezone' is not accepted: use 'tz'"):
+        normalise_messages([message(timezone="UTC")], namespace="n", now=NOW)
+    with pytest.raises(ValueError, match="'turn_id' is not accepted: use 'message_id'"):
+        normalise_messages([message(turn_id="D1:1")], namespace="n", now=NOW)
     with pytest.raises(ValueError, match="sender.kind"):
         normalise_messages([message(sender={"id": "x", "kind": "robot"})], namespace="n", now=NOW)
     named_sender = normalise_messages([message(sender={"name": "Helper"})], namespace="n", now=NOW)[
@@ -156,3 +160,63 @@ def test_requires_legacy_role_content_and_validates_updated_at() -> None:
         normalise_messages([message(updated_at="yesterday")], namespace="n", now=NOW)
     with pytest.raises(ValueError, match="JSON-serializable"):
         normalise_messages([message(metadata={"bad": object()})], namespace="n", now=NOW)
+
+
+def test_unknown_fields_are_refused_by_name_and_metadata_is_verbatim() -> None:
+    """ADR-090 (DS-09): a strict envelope; caller extras go only in ``metadata``."""
+    with pytest.raises(ValueError, match="unknown field 'mood'; put caller data in 'metadata'"):
+        normalise_messages([message(mood="happy")], namespace="n", now=NOW)
+    with pytest.raises(ValueError, match="unknown field '_private'"):
+        normalise_messages([message(_private=1)], namespace="n", now=NOW)
+    with pytest.raises(ValueError, match="sender has unknown field 'email'"):
+        normalise_messages([message(sender={"id": "u", "email": "x"})], namespace="n", now=NOW)
+    with pytest.raises(ValueError, match="'addressee' must be a non-empty string"):
+        normalise_messages([message(addressee=3)], namespace="n", now=NOW)
+    with pytest.raises(ValueError, match="visibility must be one of"):
+        normalise_messages([message(visibility="public")], namespace="n", now=NOW)
+    bag = {"session_id": "not-an-identity", "created_at": "never read", "role": "x"}
+    result = normalise_messages([message(metadata=bag)], namespace="n", session_id="s", now=NOW)[0]
+    # the bag is stored as given and never interpreted for identity, time or role
+    assert result["metadata"] == bag
+    assert result["session_id"] == "s" and result["role"] == "user"
+    assert result["created_at"] is NOW
+
+
+@pytest.mark.parametrize(
+    "value,text_precision",
+    [
+        ("2026-10-01", "day"),
+        ("2026-10-01T08:30", "minute"),
+        ("2026-10-01T08:30:15", "instant"),
+        (datetime(2026, 10, 1, 8, 30), "instant"),
+    ],
+)
+def test_naive_and_date_only_times_stay_civil_text(value, text_precision) -> None:
+    """ADR-090 (DS-08): no resolved instant and never a guessed zone."""
+    result = normalise_messages([message(created_at=value)], namespace="n", now=NOW)[0]
+    assert result["created_at"] == value
+    assert result["timestamp"] is None
+    clock = result["_source_clock"]
+    assert clock["precision"] == "unknown"
+    assert clock["text_precision"] == text_precision
+    assert clock["timezone"] is None and clock["timezone_origin"] == "unknown"
+
+
+def test_aware_time_resolves_and_a_declared_zone_resolves_civil_text() -> None:
+    aware = normalise_messages(
+        [message(created_at="2026-10-01T08:30:00+02:00")], namespace="n", now=NOW
+    )[0]
+    assert aware["timestamp"] == datetime(2026, 10, 1, 6, 30, tzinfo=UTC)
+    assert aware["_source_clock"]["timezone_origin"] == "source"
+    declared = normalise_messages(
+        [message(created_at="2026-10-01T08:30:00", tz="Asia/Tokyo")], namespace="n", now=NOW
+    )[0]
+    assert declared["timestamp"] == datetime(2026, 9, 30, 23, 30, tzinfo=UTC)
+    assert declared["_source_clock"]["timezone"] == "Asia/Tokyo"
+    assert declared["_source_clock"]["precision"] == "instant"
+    with pytest.raises(ValueError, match="not a known IANA zone"):
+        normalise_messages(
+            [message(created_at="2026-10-01T08:30:00", tz="Nowhere/Land")],
+            namespace="n",
+            now=NOW,
+        )

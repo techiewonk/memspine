@@ -86,12 +86,12 @@ async def test_end_to_end_prompt_carries_prepass_names_and_resolver_aliases(
             {
                 "role": "user",
                 "content": "Mira: Bram booked a trip to Kelmark.",
-                "timestamp": T0.isoformat(),
+                "created_at": T0.isoformat(),
             },
             {
                 "role": "user",
                 "content": "Mira: Ilse Verhoeven joined him.",
-                "timestamp": (T0 + timedelta(minutes=1)).isoformat(),
+                "created_at": (T0 + timedelta(minutes=1)).isoformat(),
             },
         ]
         await _send(eng, "a", "s1", msgs)

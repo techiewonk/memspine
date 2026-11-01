@@ -246,7 +246,7 @@ def _turns(lines: tuple[str, ...], start: int) -> list[dict[str, str]]:
         {
             "role": "user",
             "content": text,
-            "timestamp": (T0 + timedelta(minutes=start + i)).isoformat(),
+            "created_at": (T0 + timedelta(minutes=start + i)).isoformat(),
         }
         for i, text in enumerate(lines)
     ]
