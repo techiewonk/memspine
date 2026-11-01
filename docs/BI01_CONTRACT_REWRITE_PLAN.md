@@ -524,3 +524,66 @@ buyer, seller.
 
 Focused gate: 80 tests in `tests/unit/semantics` pass; Ruff check/format pass;
 mypy shows the 11 known import-not-found errors and nothing else.
+
+## Family domains and activation gate — 2026-11-01 (RM-107, RM-62, RM-63, ADR-094)
+
+Every built-in predicate and property belongs to exactly one family (`PackManifest.families`),
+and each built-in family declares one domain from the fixed generic set personal, work,
+health, finance, travel, learning, social, tools, other. Any other family domain is rejected;
+built-in packs carry no top domain; a built-in family without a domain, or a built-in
+definition outside every family, is rejected. Custom packs may omit family domains and fall
+back to predicate/key defaults. A definition's own domain must lie under its family's domain,
+so the earlier ids were re-rooted: `location/residence` -> `personal/residence`, `identity`
+-> `personal/identity`, `identity/contact` -> `personal/contact`, `relationships/family` ->
+`social/family`, `media` -> `personal/media`, `preferences` -> `personal/preferences`;
+`location/travel`, `relationships`, `work`, `finance`, `education` and the bare `health` key
+domain were dropped in favour of the family domain. Resolution adds the `family` source
+(key family, then predicate family) after the predicate default and before the pack top
+domain.
+
+| Pack | Family | Domain | Members |
+|---|---|---|---|
+| core | residence | personal | resides_in, home_country, grew_up_in, move_origin, move_destination |
+| core | travel_presence | travel | visited, temporarily_present_in |
+| core | identity_contact (K) | personal | born_in, citizen_of, speaks, affiliated_with; pronouns, nationality, contact_channel, preferred_contact_time |
+| core | social_relationships (A) | social | parent_of, sibling_of, spouse_of, friend_of, partner_of, relative_of, acquainted_with, mentor_of, caregiver_of, neighbour_of, member_of; kinship_type, relationship_type |
+| core | social_interactions | social | communicated_with, suggested_to, offered, participated_in, attended |
+| core | work_status (2) | work | works_in, employed_by, manages, has_role, assigned_to, colleague_of, works_on, blocked_by, decided; occupation, progress, outcome |
+| core | commitments (1) | work | committed_to, due_by, requested_of; priority |
+| core | documents (3) | learning | cites, about, derived_from, revision_of; locator, publisher, licence |
+| core | preferences | personal | likes, dislikes, prefers, interested_in |
+| core | media | personal | read, listened_to, watched, played |
+| core | instructions (B+C) | tools | instructed, restricted_by; directive_polarity, tone, detail_level, rule_strength |
+| core | goals (G) | personal | has_goal, wishes, intends; target_value, target_date |
+| core | possessions | personal | owns, adopted, gave, received, commissioned, made |
+| core | skills | learning | has_capability; skill_level |
+| core | prices | finance | price, cost |
+| core | event_time | other | started_on, opened_on, completed_on, occurred_on, explicit_frequency, explicit_reason; occurrence_rate, recurrence_interval |
+| core | attributes | other | has_quantity, has_measurement, has_attribute, located_in, part_of, uses, requires, depends_on; the remaining descriptive, measurement and quantity keys |
+| core (activated) | health_wellbeing (D) | health | has_condition, allergic_to, intolerant_of, takes_medication, experienced_symptom; severity, diagnosis_status |
+| core (activated) | feelings_beliefs (E) | personal | feels, believes, values, worried_about; intensity |
+| core (activated) | learning_education (F) | learning | learning, teaches, enrolled_in, studied_at; field_of_study, qualification |
+| core (activated) | communication_acts (H) | social | speech_act |
+| core (activated) | transactions (I) | finance | purchased, sold, paid, lent, borrowed; roles buyer, seller |
+| core (activated) | routines (L) | personal | has_routine; time_of_day, day_of_week |
+| core (activated) | tool_experience (N) | tools | attempted, failed_with, workaround_for; error_type |
+| proposed | possession_lifecycle (J) | personal | acquired, disposed_of, lost, repaired, returned, rated; rating, sentiment |
+| proposed | travel_modes (M) | travel | transport_mode, participation_mode |
+
+Deviations from the survey grouping: `colleague_of` and `occupation` sit in work_status (their
+earlier domain was work), not in A/K.
+
+Activation gate (`tests/unit/semantics/families/`, one module per family over a shared
+`FamilyContract`): positive (registry validation of every definition, the canonical fact door,
+domain-qualified compiled edges, the family's own contract), negative (registry rejections,
+door unresolved, other-domain filters admit nothing), known-time (as-of and valid-time),
+replay (recompile no-op; rebuild + recompile gives identical edges and qualifiers) and erasure
+(hard forget leaves only non-traversable tombstones; no resurrection). D, E, F, H, I, L and N
+passed with `memspine.proposed` selected and were moved into `memspine.core` (v4;
+`memspine.proposed` v3). J and M stay proposed, their failing positive case recorded as
+`xfail(strict=True)`:
+
+- J: acquired/disposed_of/lost/returned open or close `owns` but accept `species` objects that
+  `owns` cannot hold, so the explicit transition has no well-typed target.
+- M: `participation_mode` is a declared edge qualifier with a graph filter, but no path carries
+  a claim's mode onto the compiled edge; `transport_mode` has no edge qualifier.

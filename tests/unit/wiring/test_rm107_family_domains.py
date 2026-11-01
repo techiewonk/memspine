@@ -33,6 +33,9 @@ CORE_FACTS: dict[str, tuple[str, str, str]] = {
     "learning": ("Thesis", "cites", "Handbook"),
     "tools": ("Ilse", "instructed", "Assistant"),
     "other": ("Bike", "part_of", "Fleet"),
+    # RM-62/RM-63 families activated after their fixtures passed
+    "health": ("Ilse", "allergic_to", "Peanuts"),
+    "finance": ("Ilse", "purchased", "Bike"),
 }
 
 
@@ -65,6 +68,8 @@ def _matches(compiler: EdgeCompiler, record: MemoryRecord, flt: QualifierFilter)
 def test_every_generic_domain_is_declared_by_a_builtin_family() -> None:
     full = load_registry(["memspine.core", "memspine.proposed"])
     assert full.family_domains == set(FAMILY_DOMAINS)
+    assert load_builtin_registry().family_domains == set(FAMILY_DOMAINS)
+    assert set(CORE_FACTS) == set(FAMILY_DOMAINS)
 
 
 @pytest.mark.parametrize("domain", sorted(CORE_FACTS))

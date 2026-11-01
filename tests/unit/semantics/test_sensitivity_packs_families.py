@@ -104,10 +104,12 @@ def test_builtin_packs_are_pinned_and_proposed_pack_inactive():
     assert core.digest == BUILTIN_PACK_DIGESTS["memspine.core"] and core.default_active
     assert proposed.status == "proposed" and not proposed.default_active
     assert "pending owner confirmation" in proposed.description
-    assert "has_condition" not in load_builtin_registry().predicates
+    assert "has_condition" in load_builtin_registry().predicates  # family D activated (RM-62)
+    assert "acquired" not in load_builtin_registry().predicates  # family J stays proposed
     full = load_registry(["memspine.core", "memspine.proposed"])
     assert (len(full.predicates), len(full.properties), len(full.roles)) == (105, 76, 35)
-    assert full.owner("predicate", "purchased") == "memspine.proposed"
+    assert full.owner("predicate", "purchased") == "memspine.core"  # family I activated
+    assert full.owner("predicate", "lost") == "memspine.proposed"
     assert full.owner("predicate", "cites") == "memspine.core"
 
 

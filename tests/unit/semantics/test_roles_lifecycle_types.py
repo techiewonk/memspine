@@ -47,7 +47,7 @@ def registry() -> SemanticRegistry:
 
 def test_general_roles_registered_with_types_cardinality_and_evidence(registry):
     assert registry.roles.keys() >= GENERAL_ROLES
-    assert len(registry.roles) == 33
+    assert len(registry.roles) == 35  # 33 + buyer/seller (family I, RM-62)
     assert registry.roles["time"].evidence_requirement == "temporal_ref"
     assert registry.roles["amount"].requires_unit
     assert registry.roles["participant"].max_bindings is None
@@ -172,7 +172,15 @@ def test_rescheduling_is_a_time_change_plus_link():
 
 def test_lifecycle_predicates_flagged(registry):
     flagged = {n for n, p in registry.predicates.items() if p.lifecycle}
-    assert flagged == {"committed_to", "requested_of", "works_on", "has_goal", "wishes"}
+    assert flagged == {
+        "committed_to",
+        "requested_of",
+        "works_on",
+        "has_goal",
+        "wishes",
+        "learning",  # family F (RM-62)
+        "attempted",  # family N (RM-63)
+    }
 
 
 def test_new_entity_types_are_usable_and_distinct(registry):
