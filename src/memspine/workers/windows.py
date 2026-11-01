@@ -1602,6 +1602,27 @@ class WindowPipeline:
             raise
         return ("window", prepared)
 
+    def _rule_annotations(
+        self, record: MemoryRecord, source: IngestionSourceSnapshot, result: Any
+    ) -> AnnotationBatch:
+        """The rules-only batch of one source: its bound mentions plus the exact mentions a
+        configured extractor found (DS-18), bound to the source here; the batch is recorded
+        even when they do not bind (the source changed): never a fact either way."""
+        mentions: list[Any] = list(record.fingerprint.entity_mentions)
+        revision = "personal-rules:1"
+        found = tuple(getattr(result, "mentions", ()) or ())
+        if found:
+            identity = str(getattr(self._non_generative_extractor, "identity", "configured"))
+            revision = f"personal-rules:1+{identity}"
+            try:
+                bound = bind_gliner_mentions(record, found)
+            except GlinerMentionError:
+                self._counts["annotations_source_changed"] += 1
+                bound = ()
+            held = {(m.start, m.end, m.label) for m in mentions}
+            mentions.extend(m for m in bound if (m.start, m.end, m.label) not in held)
+        return AnnotationBatch(source=source, mentions=tuple(mentions), producer_revision=revision)
+
     async def _with_model_annotations(self, ns: str, prepared: Any) -> Any:
         """DS-04 (ADR-090 item 6): the model path's per-source annotation batches.
 
@@ -2546,13 +2567,7 @@ class WindowPipeline:
                 compiled = compile_grounded_facts(result, records, scope)
                 facts.extend(compiled.envelopes)
                 source = _source_snapshot(record, snapshots)
-                annotations.append(
-                    AnnotationBatch(
-                        source=source,
-                        mentions=record.fingerprint.entity_mentions,
-                        producer_revision="personal-rules:1",
-                    )
-                )
+                annotations.append(self._rule_annotations(record, source, result))
                 # RM-42 (ADR-090 item 5): every unresolved candidate is kept, bound to the
                 # exact source version it was read from; one that names no source is counted.
                 for candidate in compiled.unresolved:

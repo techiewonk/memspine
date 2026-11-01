@@ -18,14 +18,22 @@ from typing import Protocol, runtime_checkable
 
 from memspine.config.schema.model import GlinerSettings
 from memspine.derive.gliner_mentions import MentionSpan, parse_gliner_mentions
+from memspine.derive.non_generative_facts import FactStageResult
 from memspine.observability.logging import get_logger
 from memspine.prompts.base import Prompt
 from memspine.prompts.models import ExtractedFact, ExtractedFacts
+from memspine.schemas.durable.common import OwnerScope
 from memspine.services.extraction.base import ExtractionModels
 from memspine.services.llm.base import LLMService
 from memspine.services.llm.structured import structured_call
+from memspine.store.records import MemoryRecord
 
-__all__ = ["EntityExtractor", "GlinerEntityExtractor", "LLMEntityExtractor"]
+__all__ = [
+    "EntityExtractor",
+    "GlinerEntityExtractor",
+    "GlinerFactEntityExtractor",
+    "LLMEntityExtractor",
+]
 
 _log = get_logger(__name__)
 
@@ -125,3 +133,37 @@ class GlinerEntityExtractor:
             )
         )
         return parse_gliner_mentions(content, raw, self._labels)
+
+
+class GlinerFactEntityExtractor(GlinerEntityExtractor):
+    """DS-18 (opt-in, ``memories.semantic.policies.grounded_facts: gliner``): the GLiNER
+    semantic extractor that also offers non-generative, grounded fact candidates to the
+    rules-only window path (``extract_grounded_facts``, ``generative = False``). Its semantic
+    door behaviour is unchanged: ``extract`` still invents no assertion."""
+
+    generative = False
+
+    def __init__(
+        self,
+        pool: ExtractionModels,
+        settings: GlinerSettings,
+        labels: tuple[str, ...] = GlinerEntityExtractor._DEFAULT_LABELS,
+    ) -> None:
+        super().__init__(pool, settings, labels)
+        if "relations" not in settings.tasks:
+            raise ValueError(
+                "memories.semantic.policies.grounded_facts: gliner needs "
+                "model.extraction.semantic settings.tasks to include 'relations'"
+            )
+        from memspine.derive.gliner_facts import GlinerFactExtractor
+
+        self._facts = GlinerFactExtractor(self._model, model_id=super().model_id)
+
+    @property
+    def model_id(self) -> str:
+        return self._facts.model_id
+
+    async def extract_grounded_facts(
+        self, record: MemoryRecord, scope: OwnerScope
+    ) -> FactStageResult:
+        return await self._facts.extract_grounded_facts(record, scope)

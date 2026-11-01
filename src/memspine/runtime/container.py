@@ -1616,11 +1616,17 @@ def build_extractor(
         )
         return SemanticExtractor(wiring.cached_extractor)
     if mode == "gliner":
-        from memspine.memories.semantic.entities import GlinerEntityExtractor
+        from memspine.memories.semantic.entities import (
+            GlinerEntityExtractor,
+            GlinerFactEntityExtractor,
+        )
 
         if wiring.gliner_pool is None:
             raise ConfigError("semantic GLiNER extraction needs model.extraction.semantic")
         settings = gliner_settings(config, "semantic")
+        # DS-18: opt-in grounded fact candidates for the rules-only window path.
+        if memory_policy(config, "semantic").get("grounded_facts", "off") == "gliner":
+            return SemanticExtractor(GlinerFactEntityExtractor(wiring.gliner_pool, settings))
         return SemanticExtractor(GlinerEntityExtractor(wiring.gliner_pool, settings))
     raise ConfigError(
         f"unknown memories.semantic.policies.entity_extraction {mode!r} (valid: off, llm, gliner)"

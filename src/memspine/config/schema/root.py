@@ -191,6 +191,28 @@ class MemspineConfig(ConfigModel):
                 raise ConfigError(f"{switch} needs {path} (a gliner2 slot)")
             if slot.provider != "gliner2":
                 raise ConfigError(f"{switch} needs {path}.provider: gliner2")
+        # DS-18: the opt-in non-generative GLiNER fact extractor of the rules-only window path.
+        grounded = semantic.policies.get("grounded_facts", "off") if semantic is not None else "off"
+        if grounded is False or grounded is None:  # YAML 1.1 reads a bare ``off`` as false
+            grounded = "off"
+        if grounded not in ("off", "gliner"):
+            raise ConfigError(
+                f"memories.semantic.policies.grounded_facts must be 'off' or 'gliner', "
+                f"not {grounded!r}"
+            )
+        if grounded == "gliner":
+            if semantic_mode != "gliner":
+                raise ConfigError(
+                    "memories.semantic.policies.grounded_facts: gliner needs "
+                    "memories.semantic.policies.entity_extraction: gliner"
+                )
+            semantic_slot = extraction.semantic
+            assert semantic_slot is not None  # checked above for entity_extraction: gliner
+            if "relations" not in GlinerSettings.model_validate(semantic_slot.settings).tasks:
+                raise ConfigError(
+                    "memories.semantic.policies.grounded_facts: gliner needs a gliner2 "
+                    "model.extraction.semantic with task 'relations'"
+                )
         if self.read.planner == "decision" and decider.route is None:
             raise ConfigError("read.planner: decision needs model.decider.route")
         if self.read.sensitivity_gate == "decider" and decider.read is None:

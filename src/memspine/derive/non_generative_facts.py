@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from memspine.core.rule_miner import mine_rules
 from memspine.derive.compile import WindowLine
 from memspine.derive.envelope_compiler import EnvelopeCompiler
+from memspine.derive.gliner_mentions import MentionSpan
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
 from memspine.schemas.durable.ingestion import IngestionSourceSnapshot
@@ -33,8 +34,11 @@ __all__ = [
     "NonGenerativeFactExtractor",
     "UnresolvedAnnotation",
     "UnresolvedFactCandidate",
+    "assertion_owner",
     "compile_grounded_facts",
     "mine_grounded_facts",
+    "source_ineligible",
+    "support_span",
 ]
 
 _RULE_TO_PREDICATE = {
@@ -58,6 +62,8 @@ UnresolvedReason = Literal[
     "semantic_validation_failed",
     "compiler_rejected",
     "extractor_failed",
+    "grounding_unsupported",
+    "subject_not_speaker",
 ]
 _OBJECT_TYPES: Mapping[str, tuple[ValueKind, EntityType | None]] = {
     "resides_in": ("entity", "place"),
@@ -139,6 +145,9 @@ class UnresolvedAnnotation(BaseModel):
 class FactStageResult(_Candidate):
     facts: tuple[GroundedFactCandidate, ...] = ()
     unresolved: tuple[UnresolvedFactCandidate, ...] = ()
+    #: DS-18: exact, unasserted source mentions the extractor found (the window binds them to
+    #: the source as its annotation batch; they never key or assert a fact)
+    mentions: tuple[MentionSpan, ...] = ()
     generative_calls: Literal[0] = 0
 
 
@@ -371,6 +380,48 @@ def compile_grounded_facts(
     return CompiledFactStage(envelopes=tuple(envelopes), unresolved=tuple(unresolved))
 
 
+def assertion_owner(record: MemoryRecord) -> str | None:
+    """The source's sender id (the only assertion owner a non-generative candidate may have)."""
+    return _owner(record)
+
+
+def support_span(text: str, start: int, end: int) -> Span | None:
+    """The sentence of ``text`` holding ``[start, end)``; None when a sentence mark falls
+    inside the range (the parts belong to different sentences)."""
+    if not (0 <= start < end <= len(text)):
+        return None
+    if any(mark in text[start:end] for mark in ".!?;\n"):
+        return None
+    left = max(text.rfind(mark, 0, start) for mark in ".!?;\n") + 1
+    rights = [pos for mark in ".!?;\n" if (pos := text.find(mark, end)) >= 0]
+    right = min(rights) + 1 if rights else len(text)
+    while left < start and text[left].isspace():
+        left += 1
+    return Span(start=left, end=right, quote=text[left:right])
+
+
+def source_ineligible(record: MemoryRecord) -> FactStageResult | None:
+    """The shared eligibility gate of every non-generative producer: only a user-authored
+    source with a sender id and no correction cue yields candidates. The unresolved result
+    when the source is not eligible, else None."""
+    reason: UnresolvedReason | None = None
+    if record.source.role != "user":
+        reason = "assistant_proposal"
+    elif _owner(record) is None:
+        reason = "missing_assertion_owner"
+    elif _CORRECTION.search(record.content):
+        reason = "correction_requires_resolution"
+    if reason is None:
+        return None
+    return FactStageResult(
+        unresolved=(
+            UnresolvedFactCandidate(
+                source_id=record.record_id, source_version=record.version, reason=reason
+            ),
+        )
+    )
+
+
 def mine_grounded_facts(record: MemoryRecord, scope: OwnerScope) -> FactStageResult:
     """Return deterministic grounded candidates for one authoritative raw turn.
 
@@ -380,37 +431,11 @@ def mine_grounded_facts(record: MemoryRecord, scope: OwnerScope) -> FactStageRes
     """
     source_id = record.record_id
     source_version = record.version
-    if record.source.role != "user":
-        return FactStageResult(
-            unresolved=(
-                UnresolvedFactCandidate(
-                    source_id=source_id,
-                    source_version=source_version,
-                    reason="assistant_proposal",
-                ),
-            )
-        )
+    ineligible = source_ineligible(record)
+    if ineligible is not None:
+        return ineligible
     owner = _owner(record)
-    if owner is None:
-        return FactStageResult(
-            unresolved=(
-                UnresolvedFactCandidate(
-                    source_id=source_id,
-                    source_version=source_version,
-                    reason="missing_assertion_owner",
-                ),
-            )
-        )
-    if _CORRECTION.search(record.content):
-        return FactStageResult(
-            unresolved=(
-                UnresolvedFactCandidate(
-                    source_id=source_id,
-                    source_version=source_version,
-                    reason="correction_requires_resolution",
-                ),
-            )
-        )
+    assert owner is not None  # source_ineligible checked it
 
     source_at = record.source_at or record.valid_from
     day = source_at.date().isoformat()
