@@ -64,6 +64,7 @@ __all__ = [
     "sleep_stage",
     "switches",
     "turn_bound",
+    "unresolved_annotation",
     "window_members",
 ]
 
@@ -370,6 +371,25 @@ def turn_bound(
         speaker=ic(speaker or ""),
         quarantined=quarantined,
         wid=idsafe(wid),
+    )
+
+
+def unresolved_annotation(window_id: str, annotation: Any) -> None:
+    """RM-42 (``write.unresolved.annotation``): one persisted unresolved fact candidate of a
+    window, source-bound and unasserted (never a fact). The value is content, so it is kept
+    only with ``observability.inspect_content``."""
+    span = annotation.span
+    tap.event(
+        "write.unresolved.annotation",
+        window_id=window_id,
+        source_id=annotation.source.record_id,
+        source_version=annotation.source.source_version,
+        reason=annotation.reason,
+        attribute=annotation.attribute,
+        value=ic(annotation.value),
+        span=[span.start, span.end] if span is not None else None,
+        producer_revision=annotation.producer_revision,
+        asserted=False,
     )
 
 

@@ -19,6 +19,7 @@ from memspine.derive.compile import WindowLine
 from memspine.derive.envelope_compiler import EnvelopeCompiler
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
+from memspine.schemas.durable.ingestion import IngestionSourceSnapshot
 from memspine.schemas.durable.semantic import ClaimProducer, PredicateTyping, SemanticEnvelope
 from memspine.schemas.durable.semantic import RoleBinding as DurableRoleBinding
 from memspine.semantics import RoleBindingCheck, SemanticRegistry, load_builtin_registry
@@ -30,6 +31,7 @@ __all__ = [
     "FactStageResult",
     "GroundedFactCandidate",
     "NonGenerativeFactExtractor",
+    "UnresolvedAnnotation",
     "UnresolvedFactCandidate",
     "compile_grounded_facts",
     "mine_grounded_facts",
@@ -95,6 +97,43 @@ class UnresolvedFactCandidate(_Candidate):
     reason: UnresolvedReason
     attribute: str | None = None
     value: str | None = None
+    #: RM-42: where in the source the candidate was read (None when it has no exact span)
+    span: Span | None = None
+    producer_revision: str = Field(default="personal-rules:1", min_length=1)
+
+
+class UnresolvedAnnotation(BaseModel):
+    """ADR-090 item 5 (RM-42): an unresolved or unmapped fact candidate, kept as a source-bound,
+    unasserted annotation (reason, span, producer revision). It is never read as a fact: it is
+    stored only as the window effect's artifact, so it is erased with its source like every
+    effect, and the next rules run over the source (policy or registry activation) replaces it.
+    The span is a character range of the source; the excerpt itself is not copied."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    source: IngestionSourceSnapshot
+    reason: UnresolvedReason
+    attribute: str | None = None
+    value: str | None = None
+    span: Span | None = None
+    producer_revision: str = Field(min_length=1)
+    asserted: Literal[False] = False
+
+    @classmethod
+    def of(
+        cls, candidate: UnresolvedFactCandidate, source: IngestionSourceSnapshot
+    ) -> UnresolvedAnnotation:
+        if candidate.source_id != source.record_id:
+            raise ValueError("unresolved candidate is not bound to this source")
+        span = candidate.span
+        return cls(
+            source=source,
+            reason=candidate.reason,
+            attribute=candidate.attribute,
+            value=candidate.value,
+            span=Span(start=span.start, end=span.end) if span is not None else None,
+            producer_revision=candidate.producer_revision,
+        )
 
 
 class FactStageResult(_Candidate):
@@ -150,6 +189,8 @@ def _unresolved(
         reason=reason,
         attribute=candidate.predicate,
         value=candidate.object,
+        span=candidate.evidence.span,
+        producer_revision=candidate.producer_revision,
     )
 
 
@@ -386,6 +427,7 @@ def mine_grounded_facts(record: MemoryRecord, scope: OwnerScope) -> FactStageRes
                     reason="unsupported_predicate",
                     attribute=mined.attribute,
                     value=mined.value,
+                    span=_support_span(record.content, mined.value),
                 )
             )
             continue
@@ -397,6 +439,7 @@ def mine_grounded_facts(record: MemoryRecord, scope: OwnerScope) -> FactStageRes
                     reason="unsupported_relation",
                     attribute=mined.attribute,
                     value=mined.value,
+                    span=_support_span(record.content, mined.value),
                 )
             )
             continue

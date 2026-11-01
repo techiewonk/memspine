@@ -531,6 +531,26 @@ def online_extractor(eng: Any) -> OnlineExtractor:
     return OnlineExtractor(eng._windows)
 
 
+def unresolved_annotations(eng: Any, namespace: str = "default") -> list[dict[str, Any]]:
+    """RM-42: the namespace's current unresolved fact candidates, as source-bound unasserted
+    annotations (reason, span, producer revision). Never facts; empty without the pipeline."""
+    eng._require_started()
+    pipeline = eng._windows
+    if pipeline is None:
+        return []
+    return pipeline.unresolved_annotations(validate_namespace(namespace))  # type: ignore[no-any-return]
+
+
+async def reresolve_unresolved(eng: Any, namespace: str = "default") -> int:
+    """RM-42: re-run the rules over the sources with unresolved annotations (call it after a
+    derivation policy or semantic registry activation). Returns the number of sources queued."""
+    eng._require_started()
+    pipeline = eng._windows
+    if pipeline is None:
+        return 0
+    return await pipeline.reresolve_unresolved(validate_namespace(namespace))  # type: ignore[no-any-return]
+
+
 async def wait_for_pending(
     eng: Any, namespace: str = "default", timeout_s: float = 0.0
 ) -> BarrierResult:

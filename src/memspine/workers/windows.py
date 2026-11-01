@@ -1965,6 +1965,8 @@ class WindowPipeline:
             layers["graph_mentions"] = 0
         if "episode" in self.sections:
             layers["summaries"] = 0
+        if self._rule_only:  # RM-42: the unresolved candidates of every rules window
+            layers["unresolved"] = 0
         if prepared is None:
             return layers
         kind, body = prepared
@@ -1977,6 +1979,8 @@ class WindowPipeline:
             layers["facts"] = len(body.rule_facts)
         if body.annotation_batches:
             layers["annotations"] = sum(len(batch.mentions) for batch in body.annotation_batches)
+        if "unresolved" in layers:
+            layers["unresolved"] = len(body.unresolved)
         if "graph_mentions" in layers and isinstance(merged.get("edges"), list):
             layers["graph_mentions"] = len(merged["edges"])
         if "summaries" in layers and merged.get("episode") not in (None, "", [], {}):
@@ -2002,7 +2006,76 @@ class WindowPipeline:
                 ),
                 "policy_revision": self._policy_revision,
             }
+        if "unresolved" in layers:
+            # Always written for a rules window (an empty list too): the latest effect over a
+            # source states its current unresolved set, so a re-resolution can empty it.
+            results["unresolved"] = {
+                "count": layers["unresolved"],
+                "artifact": {
+                    "unresolved_annotations": [a.model_dump(mode="json") for a in body.unresolved]
+                },
+                "producer_revision": "+".join(
+                    sorted({a.producer_revision for a in body.unresolved})
+                )
+                or "personal-rules:1",
+                "policy_revision": self._policy_revision,
+            }
         return results
+
+    def unresolved_annotations(self, namespace: str) -> list[dict[str, Any]]:
+        """RM-42: the current unresolved annotations of ``namespace`` (inspection; never facts).
+
+        For every source, the latest window effect over it states its set (a later rules run,
+        e.g. after a policy or registry activation, replaces an earlier one). An erased source
+        has none: the erasure deleted every effect bound to it."""
+        latest: dict[str, tuple[int, list[dict[str, Any]]]] = {}
+        for row in self.derivation_effect_status(namespace):
+            if row.get("layer") != "unresolved" or row.get("state") != "complete":
+                continue
+            offset = int(row.get("offset", -1))
+            items = (row.get("artifact") or {}).get("unresolved_annotations", [])
+            for source in row.get("identity", {}).get("sources", []):
+                record_id = str(source.get("record_id"))
+                if record_id in latest and latest[record_id][0] > offset:
+                    continue
+                mine = [i for i in items if i.get("source", {}).get("record_id") == record_id]
+                latest[record_id] = (offset, mine)
+        return [item for _, items in latest.values() for item in items]
+
+    async def reresolve_unresolved(self, namespace: str) -> int:
+        """RM-42: run the rules again over every live source that has unresolved annotations,
+        after a policy or registry activation. The sources are queued as one window item; its
+        effect states their new unresolved set and deposits what now resolves (the ladder keeps
+        a fact that was already stored). Returns the number of sources queued."""
+        if self._outbox is None or not self._rule_only:
+            return 0
+        ids = list(
+            dict.fromkeys(
+                str(item["source"]["record_id"]) for item in self.unresolved_annotations(namespace)
+            )
+        )
+        live: list[str] = []
+        for record_id in ids:
+            record = await self._get(record_id)
+            if record is not None and record.status is RecordStatus.ACTIVATED:
+                live.append(record_id)
+        if not live:
+            return 0
+        scope = self._scope(namespace)
+        await self._outbox.enqueue(
+            scope,
+            WINDOW_STAGE,
+            {
+                "kind": "window",
+                "window_key": "reresolve",
+                "reason": "reresolve",
+                "record_ids": live,
+            },
+            force=True,
+        )
+        await self._outbox.drain(scope)
+        self._counts["unresolved_reresolved"] += len(live)
+        return len(live)
 
     async def _outbox_compensate(
         self,
@@ -2325,6 +2398,7 @@ class WindowPipeline:
         if self._rule_only:
             from memspine.derive.non_generative_facts import (
                 FactStageResult,
+                UnresolvedAnnotation,
                 UnresolvedFactCandidate,
                 compile_grounded_facts,
                 mine_grounded_facts,
@@ -2369,26 +2443,33 @@ class WindowPipeline:
                         )
                 compiled = compile_grounded_facts(result, records, scope)
                 facts.extend(compiled.envelopes)
-                unresolved.extend(compiled.unresolved)
                 message = record.source.message or {}
                 sender = message.get("sender") if isinstance(message, dict) else None
+                source = IngestionSourceSnapshot(
+                    namespace=record.namespace,
+                    record_id=record.record_id,
+                    source_id=record.record_id,
+                    source_version=record.version,
+                    content_hash=fingerprint_payload({"content": record.content}),
+                    sender=sender.get("id") if isinstance(sender, dict) else None,
+                    role=record.source.role,
+                    source_at=record.source_at,
+                    erasure_generation=_generation(snapshots, record.record_id),
+                )
                 annotations.append(
                     AnnotationBatch(
-                        source=IngestionSourceSnapshot(
-                            namespace=record.namespace,
-                            record_id=record.record_id,
-                            source_id=record.record_id,
-                            source_version=record.version,
-                            content_hash=fingerprint_payload({"content": record.content}),
-                            sender=sender.get("id") if isinstance(sender, dict) else None,
-                            role=record.source.role,
-                            source_at=record.source_at,
-                            erasure_generation=_generation(snapshots, record.record_id),
-                        ),
+                        source=source,
                         mentions=record.fingerprint.entity_mentions,
                         producer_revision="personal-rules:1",
                     )
                 )
+                # RM-42 (ADR-090 item 5): every unresolved candidate is kept, bound to the
+                # exact source version it was read from; one that names no source is counted.
+                for candidate in compiled.unresolved:
+                    if candidate.source_id != record.record_id:
+                        self._counts["rule_facts_unresolved_unbound"] += 1
+                        continue
+                    unresolved.append(UnresolvedAnnotation.of(candidate, source))
             for record_id in dict.fromkeys(excluded):
                 snapshot = snapshots.get(record_id) if snapshots is not None else None
                 if snapshot is None:
@@ -2707,6 +2788,9 @@ class WindowPipeline:
             )
             if prepared.rule_facts:
                 await self._store_rule_facts(ns, prepared)
+            if prepared.unresolved and insp.inspect_enabled():  # RM-42: visible, never facts
+                for annotation in prepared.unresolved:
+                    insp.unresolved_annotation(prepared.window_id, annotation)
 
     def _membership(self, ns: str, record_ids: Sequence[str]) -> dict[str, dict[str, Any]] | None:
         """The membership snapshots of ``record_ids`` (what the effect identity is built from);
