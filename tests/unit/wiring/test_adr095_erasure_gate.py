@@ -325,6 +325,44 @@ async def test_lexical_projection_tantivy(tmp_path: Path, hard: bool) -> None:
         assert _file_hits(tmp_path, NEEDLES) == {}
 
 
+async def test_lexical_rebuild_never_resurrects_a_hard_erased_record(tmp_path: Path) -> None:
+    """Regression (RM-135 follow-up): the erasure's lexical purge clears the index and re-deletes
+    the erased id, leaving a no-op delete commit. Tantivy's ``delete_all_documents`` then dropped
+    the first delete of the next rebuild, so replaying the redacted WRITE and the hard FORGET put
+    the erased record back in the index. Erase, rebuild twice, restart: still absent, no erased
+    term in any index file."""
+    eng = await _start(tmp_path, graph=None)
+    try:
+        gone, kept = await _seed(eng)
+        await eng.forget(gone.record_id, namespace=NS, hard=True)
+        lexical = eng._lexical
+        assert lexical is not None
+        assert not await lexical.exists(gone.record_id)
+        for _ in range(2):
+            await eng.rebuild()
+            assert not await lexical.exists(gone.record_id)
+            assert await lexical.exists(kept.record_id)  # live documents survive the rebuild
+            report = await eng.verify_forget(gone.record_id)
+            assert report["lexical_absent"] is True and report["clean"] is True
+    finally:
+        await eng.stop()
+    eng = await _start(tmp_path, graph=None)
+    try:
+        lexical = eng._lexical
+        assert lexical is not None
+        assert not await lexical.exists(gone.record_id)
+        assert await lexical.exists(kept.record_id)
+        assert (await eng.verify_forget(gone.record_id))["clean"] is True
+        index = lexical.connector.index  # type: ignore[attr-defined]
+        index.reload()
+        assert [n for n in NEEDLES if _doc_freq(index, n)] == []
+    finally:
+        await eng.stop()
+    reopened = tantivy.Index.open(str(tmp_path / "m.db.tantivy"))
+    assert [n for n in NEEDLES if _doc_freq(reopened, n)] == []
+    assert _file_hits(tmp_path / "m.db.tantivy", NEEDLES) == {}
+
+
 async def test_lexical_projection_fts5(tmp_path: Path) -> None:
     """The SQLite FTS5 lexical projection was removed (v0.2): no provider builds one and no
     FTS virtual table exists in the records database, so it holds no copy to erase. If it

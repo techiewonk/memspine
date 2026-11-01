@@ -331,8 +331,17 @@ class TantivyLexical:
         await asyncio.to_thread(self._commit_clear)
 
     def _commit_clear(self) -> None:
+        import tantivy
+
         with self._conn.lock:
-            self._conn.writer.delete_all_documents()
+            # Not ``delete_all_documents``: in tantivy 0.27 (it resets the writer's opstamp
+            # bookkeeping) once an earlier commit held only a no-op delete (a delete-by-term
+            # that matched nothing, as an erasure's re-delete of an already deleted id), the
+            # first delete-by-term committed after the clear is silently dropped. A rebuild
+            # replaying WRITE then hard FORGET then resurrected the erased record. A
+            # delete-by-query over every document is ordered like any other delete, and a
+            # segment left with no live document is still dropped at commit.
+            self._conn.writer.delete_documents_by_query(tantivy.Query.all_query())
             self._conn.commit()
             self._tombstoned = False
 
