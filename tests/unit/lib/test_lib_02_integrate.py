@@ -17,11 +17,11 @@ from memspine.derive.integrate import (
     replay,
     summarise,
 )
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment, Support
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 
 SCOPE = OwnerScope(tenant="t1", owner="u1")
@@ -50,7 +50,7 @@ def make(
     event_start: str | None = None,
     extras: dict | None = None,
     oid: str | None = None,
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     n = next(_n)
     oid = oid or f"oc_{n}"
     ev = None
@@ -60,7 +60,7 @@ def make(
             end=_ref(event_end) if event_end else None,
         )
     time = TimeAxes(event=ev, source_time=dt(day), recorded_at=dt(day))
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w{n}",
         assertion_key=AssertionKey(src=subject, rel=attr, dst=value, kind=attr),
         occurrence_id=oid,
@@ -309,7 +309,7 @@ def test_late_duplicate_keeps_state_consistent_with_in_order():
 # ----------------------------------------------------------------- replay convergence
 
 
-def _scenario(kind: str) -> list[AssertionEnvelope]:
+def _scenario(kind: str) -> list[SemanticEnvelope]:
     if kind == "chain":
         return [make(v, f"2025-0{i}-01", oid=f"c{i}") for i, v in enumerate("ABCDE", 1)]
     if kind == "mixed_trust":

@@ -60,9 +60,9 @@ from memspine.derive.integrate import (
     replay,
 )
 from memspine.derive.resolve import normalise_name
-from memspine.schemas.durable.assertion import AssertionEnvelope, IntegrationVerdict
 from memspine.schemas.durable.assessment import Support
 from memspine.schemas.durable.lineage import LineageEdge
+from memspine.schemas.durable.semantic import IntegrationVerdict, SemanticEnvelope
 
 __all__ = [
     "ChangeEvent",
@@ -274,11 +274,11 @@ def _words(text: str) -> frozenset[str]:
     return frozenset(normalise_name(text).split())
 
 
-def _scalar_text(e: AssertionEnvelope) -> str | None:
+def _scalar_text(e: SemanticEnvelope) -> str | None:
     return None if e.value is None else str(e.value).strip()
 
 
-def _values_agree(a: AssertionEnvelope, b: AssertionEnvelope, typo_ratio: float) -> bool:
+def _values_agree(a: SemanticEnvelope, b: SemanticEnvelope, typo_ratio: float) -> bool:
     va, vb = _scalar_text(a), _scalar_text(b)
     if va is None or vb is None:
         return True
@@ -291,7 +291,7 @@ def _values_agree(a: AssertionEnvelope, b: AssertionEnvelope, typo_ratio: float)
     return xa == xb or SequenceMatcher(None, xa, xb).ratio() >= typo_ratio
 
 
-def check_guard(a: AssertionEnvelope, b: AssertionEnvelope, *, value_typo: float = 0.88) -> Guard:
+def check_guard(a: SemanticEnvelope, b: SemanticEnvelope, *, value_typo: float = 0.88) -> Guard:
     """Code-only qualifier guard (O-13): ``"pass"`` or the first reason the two must not be merged."""
     if a.assessment.modality != b.assessment.modality:
         return "modality_differs"
@@ -343,11 +343,11 @@ class DupGroup:
     """A cluster of two or more near-duplicates; ``records`` is in event order, canonical first."""
 
     key: tuple[str, str, str | None, str]  # (tenant, owner, subject, attribute-or-kind)
-    records: tuple[AssertionEnvelope, ...]
+    records: tuple[SemanticEnvelope, ...]
     pairs: tuple[DupPair, ...]
 
     @property
-    def canonical(self) -> AssertionEnvelope:
+    def canonical(self) -> SemanticEnvelope:
         return self.records[0]
 
     @property
@@ -361,13 +361,13 @@ class DupScan:
     blocked: tuple[DupPair, ...]  # similar but stopped by the guard (``blocked_by_guard``)
 
 
-def _group_key(e: AssertionEnvelope) -> tuple[str, str, str | None, str]:
+def _group_key(e: SemanticEnvelope) -> tuple[str, str, str | None, str]:
     s = e.subject
     subj = None if s is None else (s.entity_id or s.surface.strip().casefold())
     return (e.scope.tenant, e.scope.owner, subj, normalise_name(e.attribute or e.kind))
 
 
-def _eligible(e: AssertionEnvelope) -> bool:
+def _eligible(e: SemanticEnvelope) -> bool:
     a = e.assessment
     return (
         e.status in ("active", "contested")
@@ -377,7 +377,7 @@ def _eligible(e: AssertionEnvelope) -> bool:
 
 
 def scan_near_duplicates(
-    records: Iterable[AssertionEnvelope],
+    records: Iterable[SemanticEnvelope],
     *,
     text_sim: TextSim | None = None,
     vec_sim: VecSim | None = None,
@@ -386,7 +386,7 @@ def scan_near_duplicates(
     """Find near-duplicate clusters and the pairs the guard blocked (see module docstring)."""
     th = thresholds or DupThresholds()
     tsim: TextSim = text_sim or shingle_similarity
-    by_key: dict[tuple[str, str, str | None, str], list[AssertionEnvelope]] = {}
+    by_key: dict[tuple[str, str, str | None, str], list[SemanticEnvelope]] = {}
     seen: set[str] = set()
     for e in records:
         rid = record_id(e)
@@ -395,7 +395,7 @@ def scan_near_duplicates(
         seen.add(rid)
         by_key.setdefault(_group_key(e), []).append(e)
 
-    def vec(a: AssertionEnvelope, b: AssertionEnvelope) -> float | None:
+    def vec(a: SemanticEnvelope, b: SemanticEnvelope) -> float | None:
         if vec_sim is None:
             return None
         ia, ib = record_id(a), record_id(b)
@@ -408,7 +408,7 @@ def scan_near_duplicates(
     blocked: list[DupPair] = []
     for key in sorted(by_key, key=lambda k: tuple("" if x is None else x for x in k)):
         recs = sorted(by_key[key], key=ordering_key)
-        clusters: list[tuple[list[AssertionEnvelope], list[DupPair]]] = []
+        clusters: list[tuple[list[SemanticEnvelope], list[DupPair]]] = []
         for e in recs:
             placed = False
             for members, pairs in clusters:
@@ -434,7 +434,7 @@ def scan_near_duplicates(
 
 
 def find_near_duplicates(
-    records: Iterable[AssertionEnvelope],
+    records: Iterable[SemanticEnvelope],
     *,
     text_sim: TextSim | None = None,
     vec_sim: VecSim | None = None,
@@ -470,7 +470,7 @@ class MergePlan:
     )
 
 
-def _family_of(e: AssertionEnvelope) -> str:
+def _family_of(e: SemanticEnvelope) -> str:
     for ev in e.evidence:
         if ev.role == "support":
             return ev.source_family
@@ -525,10 +525,10 @@ def merge_group(group: DupGroup) -> MergePlan:
     )
 
 
-def apply_merge(plan: MergePlan, records: Iterable[AssertionEnvelope]) -> list[AssertionEnvelope]:
+def apply_merge(plan: MergePlan, records: Iterable[SemanticEnvelope]) -> list[SemanticEnvelope]:
     """Return ``records`` with the plan applied: canonical gets the combined support, members are hidden."""
     drop = set(plan.member_ids)
-    out: list[AssertionEnvelope] = []
+    out: list[SemanticEnvelope] = []
     for e in records:
         rid = record_id(e)
         if rid == plan.canonical_id:
@@ -657,40 +657,40 @@ class ValueHistory:
         return self.line(key).current()
 
 
-def _start(e: AssertionEnvelope) -> datetime | None:
+def _start(e: SemanticEnvelope) -> datetime | None:
     ev = e.time.event
     if ev is not None and ev.start is not None:
         return ev.start.at
     return e.time.source_time or e.time.recorded_at
 
 
-def _end(e: AssertionEnvelope) -> datetime | None:
+def _end(e: SemanticEnvelope) -> datetime | None:
     ev = e.time.event
     return ev.end.at if ev is not None and ev.end is not None else None
 
 
-def _value_text(e: AssertionEnvelope) -> str:
+def _value_text(e: SemanticEnvelope) -> str:
     return str(e.value if e.value is not None else e.text)
 
 
-def _vkey(e: AssertionEnvelope) -> str:
+def _vkey(e: SemanticEnvelope) -> str:
     return _value_text(e).strip().casefold()
 
 
 def value_history(
-    assertions: Iterable[AssertionEnvelope], registry: CardinalityRegistry | None = None
+    assertions: Iterable[SemanticEnvelope], registry: CardinalityRegistry | None = None
 ) -> ValueHistory:
     """Build the per-(owner, subject, attribute) value lines via LIB-02's ``replay``."""
     reg = registry or CardinalityRegistry()
     stored = replay(list(assertions), reg).records
-    buckets: dict[tuple[str, str, str | None, str], list[AssertionEnvelope]] = {}
+    buckets: dict[tuple[str, str, str | None, str], list[SemanticEnvelope]] = {}
     for e in stored:
         buckets.setdefault(_group_key(e), []).append(e)
     lines: list[KeyHistory] = []
     for gk in sorted(buckets, key=lambda k: tuple("" if x is None else x for x in k)):
         recs = buckets[gk]
         spans: list[tuple[tuple, ValueSpan]] = []  # type: ignore[type-arg]  # CI-GREEN: pre-existing typing debt
-        merged: list[AssertionEnvelope] = []
+        merged: list[SemanticEnvelope] = []
         tentative: list[TentativeEntry] = []
         for e in recs:
             if e.status == "hidden":

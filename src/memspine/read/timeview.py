@@ -44,7 +44,7 @@ from typing import TYPE_CHECKING, Literal
 
 from pydantic import AwareDatetime, BaseModel, ConfigDict, model_validator
 
-from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 
 if TYPE_CHECKING:
@@ -167,7 +167,7 @@ class TimeHit(_Frozen):
     """
 
     record_id: str
-    assertion: AssertionEnvelope
+    assertion: SemanticEnvelope
     window: Literal["in", "undecidable"]
     uncertain_time: bool
     valid: bool | None = None
@@ -397,26 +397,26 @@ def _known_at(axes: TimeAxes, t: datetime) -> bool | None:
 _MIN_AWARE = datetime(1, 1, 1, tzinfo=UTC)
 
 
-def _record_id(e: AssertionEnvelope) -> str:
+def _record_id(e: SemanticEnvelope) -> str:
     return e.record_id or e.occurrence_id
 
 
-def _start_at(e: AssertionEnvelope) -> datetime | None:
+def _start_at(e: SemanticEnvelope) -> datetime | None:
     ev = e.time.event
     return ev.start.at if ev is not None and ev.start is not None else None
 
 
-def _end_at(e: AssertionEnvelope) -> datetime | None:
+def _end_at(e: SemanticEnvelope) -> datetime | None:
     ev = e.time.event
     return ev.end.at if ev is not None and ev.end is not None else None
 
 
-def _effective(e: AssertionEnvelope) -> datetime | None:
+def _effective(e: SemanticEnvelope) -> datetime | None:
     """Event start, else source time, else recorded time, else event end (same rule as LIB-02)."""
     return _start_at(e) or e.time.source_time or e.time.recorded_at or _end_at(e)
 
 
-def _order_key(e: AssertionEnvelope) -> tuple[datetime, datetime, datetime, str]:
+def _order_key(e: SemanticEnvelope) -> tuple[datetime, datetime, datetime, str]:
     """Event time, source time, recorded time, occurrence id: arrival order is irrelevant."""
     return (
         _effective(e) or _MIN_AWARE,
@@ -429,21 +429,21 @@ def _order_key(e: AssertionEnvelope) -> tuple[datetime, datetime, datetime, str]
 # ------------------------------------------------------------------------------------------- helpers
 
 
-def _subject(e: AssertionEnvelope) -> str:
+def _subject(e: SemanticEnvelope) -> str:
     s = e.subject
     return "" if s is None else (s.entity_id or s.surface.strip().casefold())
 
 
-def _attr(e: AssertionEnvelope) -> str:
+def _attr(e: SemanticEnvelope) -> str:
     return "_".join((e.attribute or e.kind).casefold().split())
 
 
-def _value(e: AssertionEnvelope) -> str:
+def _value(e: SemanticEnvelope) -> str:
     v = e.value if e.value is not None else e.text
     return str(v)
 
 
-def _is_live(e: AssertionEnvelope) -> bool:
+def _is_live(e: SemanticEnvelope) -> bool:
     ev = e.time.event
     closed = ev is not None and ev.end is not None and ev.end.at is not None
     return (
@@ -451,11 +451,11 @@ def _is_live(e: AssertionEnvelope) -> bool:
     )
 
 
-def _is_value(e: AssertionEnvelope) -> bool:
+def _is_value(e: SemanticEnvelope) -> bool:
     return e.status not in ("hidden", "tentative") and e.assessment.modality == "asserted"
 
 
-def _arrival_key(e: AssertionEnvelope) -> tuple[datetime, datetime, str]:
+def _arrival_key(e: SemanticEnvelope) -> tuple[datetime, datetime, str]:
     a = e.time.recorded_at or e.time.source_time
     s = e.time.source_time
     return (
@@ -465,7 +465,7 @@ def _arrival_key(e: AssertionEnvelope) -> tuple[datetime, datetime, str]:
     )
 
 
-def _reopen(e: AssertionEnvelope) -> AssertionEnvelope:
+def _reopen(e: SemanticEnvelope) -> SemanticEnvelope:
     """Drop what a later write inferred: an ``inferred`` event end and a superseded status."""
     ev = e.time.event
     upd: dict[str, object] = {}
@@ -477,7 +477,7 @@ def _reopen(e: AssertionEnvelope) -> AssertionEnvelope:
     return e.model_copy(update=upd) if upd else e
 
 
-def _closer_known(e: AssertionEnvelope, known: Sequence[AssertionEnvelope]) -> bool:
+def _closer_known(e: SemanticEnvelope, known: Sequence[SemanticEnvelope]) -> bool:
     """Is some known record of the same (subject, attribute) taking effect at ``e``'s inferred end?"""
     end = _end_at(e)
     key = (_subject(e), _attr(e))
@@ -488,9 +488,9 @@ def _closer_known(e: AssertionEnvelope, known: Sequence[AssertionEnvelope]) -> b
 
 
 def _as_known(
-    known_records: Iterable[AssertionEnvelope],
-    rederive: Callable[[list[AssertionEnvelope]], Sequence[AssertionEnvelope]] | None,
-) -> list[AssertionEnvelope]:
+    known_records: Iterable[SemanticEnvelope],
+    rederive: Callable[[list[SemanticEnvelope]], Sequence[SemanticEnvelope]] | None,
+) -> list[SemanticEnvelope]:
     """The store as it stood once exactly ``known_records`` were known.
 
     With ``rederive`` (e.g. a LIB-02 replay) the re-opened records are handed to it in arrival order.
@@ -499,7 +499,7 @@ def _as_known(
     recs = sorted(known_records, key=_arrival_key)
     if rederive is not None:
         return list(rederive([_reopen(e) for e in recs]))
-    out: list[AssertionEnvelope] = []
+    out: list[SemanticEnvelope] = []
     for e in recs:
         ev = e.time.event
         inferred = ev is not None and ev.end is not None and ev.end.basis == "inferred"
@@ -528,7 +528,7 @@ def _coverage(n: _Span, t: _Span) -> float:
     return min(1.0, (hi - lo) / (t.hi - t.lo))
 
 
-def temporal_score(assertion: AssertionEnvelope, view: TimeView) -> float | None:
+def temporal_score(assertion: SemanticEnvelope, view: TimeView) -> float | None:
     """Temporal-leg score in [0, 1] from event-interval overlap with the view's target period.
 
     * ``None`` (unscored, never 0) when the view has no event-time target (current, known_at, history), when the
@@ -558,7 +558,7 @@ def temporal_score(assertion: AssertionEnvelope, view: TimeView) -> float | None
 # ------------------------------------------------------------------------------------------- apply
 
 
-def _valid_verdict(e: AssertionEnvelope, view: TimeView) -> bool | None:
+def _valid_verdict(e: SemanticEnvelope, view: TimeView) -> bool | None:
     if view.mode in ("true_at", "both"):
         return _true_at(e.time, view.valid)  # type: ignore[arg-type]
     if view.mode == "range":
@@ -569,9 +569,9 @@ def _valid_verdict(e: AssertionEnvelope, view: TimeView) -> bool | None:
 
 
 def _history_runs(
-    records: Iterable[AssertionEnvelope], *, only_changed: bool
+    records: Iterable[SemanticEnvelope], *, only_changed: bool
 ) -> tuple[HistoryRun, ...]:
-    groups: dict[tuple[str, str], list[AssertionEnvelope]] = {}
+    groups: dict[tuple[str, str], list[SemanticEnvelope]] = {}
     for e in records:
         if _is_value(e):
             groups.setdefault((_subject(e), _attr(e)), []).append(e)
@@ -594,7 +594,7 @@ def _history_runs(
     return tuple(runs)
 
 
-def _live_values(records: Iterable[AssertionEnvelope]) -> tuple[LiveValue, ...]:
+def _live_values(records: Iterable[SemanticEnvelope]) -> tuple[LiveValue, ...]:
     rows = [
         LiveValue(subject=_subject(e), attribute=_attr(e), value=_value(e), record_id=_record_id(e))
         for e in records
@@ -605,8 +605,8 @@ def _live_values(records: Iterable[AssertionEnvelope]) -> tuple[LiveValue, ...]:
 
 def apply(
     view: TimeView,
-    assertions: Iterable[AssertionEnvelope],
-    rederive: Callable[[list[AssertionEnvelope]], Sequence[AssertionEnvelope]] | None = None,
+    assertions: Iterable[SemanticEnvelope],
+    rederive: Callable[[list[SemanticEnvelope]], Sequence[SemanticEnvelope]] | None = None,
 ) -> TimeViewResult:
     """Filter and annotate ``assertions`` under ``view``. Deterministic; independent of input order."""
     items = list(assertions)
@@ -622,8 +622,8 @@ def apply(
 
 def _apply(
     view: TimeView,
-    pool: list[AssertionEnvelope],
-    rederive: Callable[[list[AssertionEnvelope]], Sequence[AssertionEnvelope]] | None,
+    pool: list[SemanticEnvelope],
+    rederive: Callable[[list[SemanticEnvelope]], Sequence[SemanticEnvelope]] | None,
 ) -> TimeViewResult:
     out: list[str] = []
     state = pool  # records as the view sees them

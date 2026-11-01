@@ -55,7 +55,7 @@ from memspine.derive.temporal import (
     precision_interval,
 )
 from memspine.observability import tap
-from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TemporalRelation
 
 __all__ = [
@@ -534,10 +534,10 @@ def _stem(w: str) -> str:
     return w[:5]
 
 
-def _target(rel: RelFound, others: Sequence[AssertionEnvelope]) -> AssertionEnvelope | None:
+def _target(rel: RelFound, others: Sequence[SemanticEnvelope]) -> SemanticEnvelope | None:
     """The unique other envelope that best shares a content word with the relation's object."""
     want = {_stem(w) for w in rel.obj}
-    scored: list[tuple[int, AssertionEnvelope]] = []
+    scored: list[tuple[int, SemanticEnvelope]] = []
     for o in others:
         surface = " ".join(
             [o.text, o.object.surface if o.object else "", o.attribute or "", str(o.value or "")]
@@ -636,7 +636,7 @@ def happened_label_for(start: TemporalRef | None, end: TemporalRef | None = None
 _OPEN_START = frozenset({"since", "seit", "depuis", "desde", "from", "ab", "ever"})
 
 
-def _cited_texts(env: AssertionEnvelope) -> list[str]:
+def _cited_texts(env: SemanticEnvelope) -> list[str]:
     out: list[str] = []
     for e in env.evidence:
         if e.role == "support" and e.span is not None and e.span.quote:
@@ -645,7 +645,7 @@ def _cited_texts(env: AssertionEnvelope) -> list[str]:
     return out
 
 
-def _turn_record(env: AssertionEnvelope, by_id: dict[str, Any]) -> Any:
+def _turn_record(env: SemanticEnvelope, by_id: dict[str, Any]) -> Any:
     for e in env.evidence:
         if e.role == "support" and e.turn is not None and e.turn.source_id in by_id:
             return by_id[e.turn.source_id]
@@ -657,8 +657,8 @@ def build_stage(*, trust_valid_from: bool = False) -> EnvelopeStage:
     clock and serves as the session anchor (rung 3); with stamping on it is never a source time."""
 
     async def run(
-        envelopes: list[AssertionEnvelope], ctx: EnvelopeStageContext
-    ) -> list[AssertionEnvelope]:
+        envelopes: list[SemanticEnvelope], ctx: EnvelopeStageContext
+    ) -> list[SemanticEnvelope]:
         return apply_temporal(envelopes, ctx, trust_valid_from=trust_valid_from)
 
     return EnvelopeStage("temporal", STAGE_ORDER, run)
@@ -669,11 +669,11 @@ def _stamped(records: Sequence[Any]) -> list[datetime]:
 
 
 def apply_temporal(
-    envelopes: list[AssertionEnvelope],
+    envelopes: list[SemanticEnvelope],
     ctx: EnvelopeStageContext,
     *,
     trust_valid_from: bool = False,
-) -> list[AssertionEnvelope]:
+) -> list[SemanticEnvelope]:
     by_id = {getattr(r, "record_id", None): r for r in ctx.records}
     stamped = _stamped(ctx.records)
     window_time = stamped[0] if stamped else None
@@ -683,7 +683,7 @@ def apply_temporal(
         session_anchor = (
             cc if cc is not None else (ctx.records[0].valid_from if ctx.records else None)
         )
-    out: list[AssertionEnvelope] = []
+    out: list[SemanticEnvelope] = []
     for env in envelopes:
         out.append(_one(env, envelopes, by_id, window_time, session_anchor, ctx.notes))  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
     if tap.enabled():
@@ -692,13 +692,13 @@ def apply_temporal(
 
 
 def _one(
-    env: AssertionEnvelope,
-    window: Sequence[AssertionEnvelope],
+    env: SemanticEnvelope,
+    window: Sequence[SemanticEnvelope],
     by_id: dict[str, Any],
     window_time: datetime | None,
     session_anchor: datetime | None,
     notes: Counter[str],
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     ev = env.time.event
     start0 = ev.start if ev is not None else None
     end0 = ev.end if ev is not None else None

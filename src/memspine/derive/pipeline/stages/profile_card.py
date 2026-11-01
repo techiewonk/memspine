@@ -5,7 +5,7 @@
 * :func:`apply_session_ops` takes the profile ops call 2 proposed at session close
   (``ProposedProfileOp``), maps them to the library's ``ProfileOp`` and applies them through the
   guarded ``apply_ops`` (shape, evidence, stance, firm-evidence, staleness, trust, kappa_P bound,
-  EMA drift). The cited turns are the evidence: each becomes an ``AssertionEnvelope`` through
+  EMA drift). The cited turns are the evidence: each becomes an ``SemanticEnvelope`` through
   :func:`turn_assertion` (the engine stores no assertion envelopes yet, so a live turn record is
   the evidence unit).
 * The card lives in the event log: one ``profile_card`` MARKER per change, the latest wins
@@ -56,11 +56,11 @@ from memspine.derive.profile import (
 )
 from memspine.derive.session_close import ProposedProfileOp
 from memspine.observability import tap
-from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.schemas.durable.temporal import TimeAxes
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -114,7 +114,7 @@ def _aware(value: datetime | None) -> datetime | None:
     return value if value is not None and value.tzinfo is not None else None
 
 
-def turn_assertion(record: MemoryRecord, tenant: str, owner: str) -> AssertionEnvelope:
+def turn_assertion(record: MemoryRecord, tenant: str, owner: str) -> SemanticEnvelope:
     """Adapter: one live turn record as the evidence assertion the profile guard reads."""
     mods = [t[4:] for t in record.tags if t.startswith("mod:")]
     modality = next((_MODALITY_OF[m] for m in mods if m in _MODALITY_OF), "asserted")
@@ -129,7 +129,7 @@ def turn_assertion(record: MemoryRecord, tenant: str, owner: str) -> AssertionEn
         src_class = "external"
     live = record.status is RecordStatus.ACTIVATED and not record.quarantined
     family = role or "unknown"
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=record.record_id,
         assertion_key=AssertionKey(src=family, rel="turn", kind="turn"),
         occurrence_id=record.record_id,
@@ -159,8 +159,8 @@ def turn_assertion(record: MemoryRecord, tenant: str, owner: str) -> AssertionEn
 
 async def _evidence_index(
     ctx: PipelineContext, ids: Sequence[str], tenant: str, owner: str
-) -> dict[str, AssertionEnvelope]:
-    out: dict[str, AssertionEnvelope] = {}
+) -> dict[str, SemanticEnvelope]:
+    out: dict[str, SemanticEnvelope] = {}
     for rid in dict.fromkeys(ids):
         record = await live_record(ctx, rid)
         if record is not None and record.namespace == tenant:

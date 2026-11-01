@@ -24,11 +24,11 @@ from memspine.derive.integration_stage import (
     integration_stage,
 )
 from memspine.observability import tap
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 from memspine.services.llm.base import LLMRouter
 from memspine.store.records import MemoryRecord, SourceInfo
@@ -56,7 +56,7 @@ def env(
     extras: dict[str, Any] | None = None,
     entity_id: str | None = None,
     occ: str | None = None,
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     at = T0 + timedelta(days=day)
     time = TimeAxes(
         event=Interval(
@@ -65,7 +65,7 @@ def env(
         source_time=at,
     )
     oid = occ or f"occ-{value}-{day}"
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w-{oid}",
         assertion_key=AssertionKey(src=subject, rel=attr, dst="", kind=attr),
         occurrence_id=oid,
@@ -117,12 +117,12 @@ def ctx() -> EnvelopeStageContext:
 
 
 async def run(
-    envs: list[AssertionEnvelope],
+    envs: list[SemanticEnvelope],
     *,
     stored: list[MemoryRecord] | None = None,
     card: dict[str, str] | None = None,
     default: DefaultVerdict | None = None,
-) -> tuple[list[AssertionEnvelope], EnvelopeStageContext]:
+) -> tuple[list[SemanticEnvelope], EnvelopeStageContext]:
     async def live(_ns: str) -> list[MemoryRecord]:
         return list(stored or [])
 
@@ -133,7 +133,7 @@ async def run(
     return await stage.run(envs, c), c
 
 
-def ops(out: list[AssertionEnvelope]) -> list[str | None]:
+def ops(out: list[SemanticEnvelope]) -> list[str | None]:
     return [e.verdict.op if e.verdict else None for e in out]
 
 
@@ -261,7 +261,7 @@ async def test_other_subject_does_not_conflict() -> None:
 
 
 # --- A-B-A and order swap ---------------------------------------------------------------------
-def final_live(envs: list[AssertionEnvelope]) -> set[str]:
+def final_live(envs: list[SemanticEnvelope]) -> set[str]:
     """Replay the ladder over the whole set, arrival order given, and return the live value texts."""
     from memspine.derive.integrate import replay
 

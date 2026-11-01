@@ -40,6 +40,8 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, get_args
 
+from pydantic import ValidationError
+
 from memspine.config.constants import EDGE_LINEAGE_MAX_DEPTH
 from memspine.derive.edges import GraphDelta, GraphEdge, GraphNode, compile_edges
 from memspine.derive.fact_policy import FactPurpose
@@ -65,9 +67,9 @@ from memspine.memories.associative.entities import (
 from memspine.memories.associative.links import RESERVED_RELS
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.identity import AssertionKey, occurrence_id
+from memspine.schemas.durable.semantic import ClaimOutcome, Mention, SemanticEnvelope
 from memspine.scope import Scope
 from memspine.semantics.domains import (
     AnyTopicTagger,
@@ -160,16 +162,40 @@ def source_origin_for(provenance_class: str, channel: str) -> SourceOrigin | Non
     )
 
 
-def _lifecycle(record: MemoryRecord) -> tuple[str | None, str | None]:
-    """RM-57 status / outcome the record carries (``lifecycle:`` / ``outcome:`` tags).
+def _stored_claim(record: MemoryRecord) -> SemanticEnvelope | None:
+    """The canonical claim the record was written from (``fingerprint.envelope``), if valid."""
+    raw = record.fingerprint.envelope
+    if not isinstance(raw, dict):
+        return None
+    try:
+        return SemanticEnvelope.model_validate(raw)
+    except ValidationError:
+        _log.warning("graph.edge_compiler.invalid_stored_claim", record_id=record.record_id)
+        return None
 
-    An unknown value, or an outcome that does not fit the status axis, leaves both unknown."""
+
+def _tagged_outcome(record: MemoryRecord) -> ClaimOutcome:
+    """The claim outcome a record states with its RM-57 ``lifecycle:closed`` + ``outcome:`` tags.
+
+    An unknown value, or an outcome without a closed lifecycle, states none."""
     status, outcome = _tag(record, "lifecycle:"), _tag(record, "outcome:")
-    if status is None or status not in LIFECYCLE_STATUSES:
+    if status != "closed" or outcome not in LIFECYCLE_OUTCOMES:
+        return "none"
+    return outcome  # type: ignore[return-value]
+
+
+def _lifecycle(record: MemoryRecord, claim: SemanticEnvelope) -> tuple[str | None, str | None]:
+    """RM-57 lifecycle qualifiers of an edge (ADR-088: the outcome is read from the claim).
+
+    A claim outcome closes the lifecycle (``closed`` + outcome). Without one, the work-status
+    stage comes from the record's ``lifecycle:`` tag; an unknown stage, or an outcome tag that
+    does not fit the stage, leaves both unknown."""
+    status, outcome_tag = _tag(record, "lifecycle:"), _tag(record, "outcome:")
+    if claim.outcome != "none":
+        return ("closed", claim.outcome) if status in (None, "closed") else (None, None)
+    if status is None or status not in LIFECYCLE_STATUSES or outcome_tag is not None:
         return None, None
-    if outcome is not None and (outcome not in LIFECYCLE_OUTCOMES or status != "closed"):
-        return None, None
-    return status, outcome
+    return status, None
 
 
 def _vocabulary(predicate: str) -> tuple[str | None, str | None]:
@@ -245,7 +271,7 @@ class EdgeCompiler:
         """A semantic fact with a subject entity, live or superseded with a successor."""
         return is_fact(record, include_history=True, purpose=FactPurpose.EDGES)
 
-    def envelope(self, record: MemoryRecord) -> AssertionEnvelope:
+    def envelope(self, record: MemoryRecord) -> SemanticEnvelope:
         """The enriched assertion envelope of ``record`` (the F-02a envelope plus code-resolved roles)."""
         env = to_envelope(record)
         ns = record.namespace
@@ -274,19 +300,28 @@ class EdgeCompiler:
         )
         cited = list(record.source.parents) or [record.record_id]
         conversation = record.source.message_id or record.record_id
-        modality = env.assessment.modality
+        stored = _stored_claim(record)
+        modality = stored.assessment.modality if stored is not None else env.assessment.modality
+        negated = stored.assessment.negated if stored is not None else env.assessment.negated
         tag_set = set(record.tags)
-        if "retract" in tag_set:
+        if modality != "asserted" or negated:
+            pass  # ADR-088: a stored non-asserted claim keeps its own modality
+        elif "retract" in tag_set:
             modality = "negated"
         elif tag_set & _TENTATIVE_TAGS:
             hit = next((m for m in _TENTATIVE_MODALITIES if m in tag_set), "hypothetical")
             modality = hit  # type: ignore[assignment]
         elif record.provenance_class == "assistant_proposed":
             modality = "reported"  # proposed by the assistant, never confirmed by the user
+        outcome: ClaimOutcome = "none"
+        if modality not in ("hypothetical", "question"):
+            outcome = stored.outcome if stored is not None else _tagged_outcome(record)
         binding = "bound"
         if subj_node is None or obj_rejected:
             binding = "partly" if subj_node is not None or obj_node is not None else "unbound"
-        assessment = env.assessment.model_copy(update={"modality": modality, "binding": binding})
+        assessment = env.assessment.model_copy(
+            update={"modality": modality, "negated": negated, "binding": binding}
+        )
         subject = (
             Mention(
                 surface=record.entity or subj,
@@ -310,6 +345,8 @@ class EdgeCompiler:
                 "object": obj,
                 "assessment": assessment,
                 "kind": kind,
+                # ADR-088: the claim carries its outcome; the edge qualifiers read it from here.
+                "outcome": outcome,
             }
         )
 
@@ -324,7 +361,7 @@ class EdgeCompiler:
         """``sensitivity``: precomputed labels per record id (the async model path); a record
         without one is labelled here by the deterministic detectors. ``topics`` (RM-106):
         precomputed topic-tagger domains per record id (the ``gliner_topic`` source)."""
-        envs: list[AssertionEnvelope] = []
+        envs: list[SemanticEnvelope] = []
         meta: dict[str, dict[str, Any]] = {}
         skipped: dict[str, str] = {}
         for record in sorted(records, key=lambda r: r.record_id):
@@ -368,7 +405,7 @@ class EdgeCompiler:
                 "claim_id": record.record_id,
                 "binding": env.assessment.binding,
                 "origin": source_origin_for(record.provenance_class, record.source.channel),
-                "lifecycle": _lifecycle(record),
+                "lifecycle": _lifecycle(record, env),
                 "vocabulary": _vocabulary(env.assertion_key.rel),
             }
         delta = compile_edges(envs)

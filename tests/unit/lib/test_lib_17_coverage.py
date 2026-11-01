@@ -11,12 +11,12 @@ from memspine.derive.coverage import (
     plan_reextraction,
 )
 from memspine.schemas.durable import (
-    AssertionEnvelope,
     AssertionKey,
     Assessment,
     Evidence,
     Interval,
     OwnerScope,
+    SemanticEnvelope,
     TemporalRef,
     TimeAxes,
     TurnRef,
@@ -35,7 +35,7 @@ def env(
     binding: tuple[int, ...] = (),
     when: str | None = None,
     at: str | None = None,
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     key = AssertionKey(src=rid, rel="r", dst="d", kind="state")
     ev = [
         Evidence(
@@ -59,7 +59,7 @@ def env(
         ref = TemporalRef(text=when, precision="day", basis="explicit", at=at)
         time = TimeAxes(event=Interval(start=ref))
         prec = "day"
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=write_id(SCOPE, "c", 0, rid),
         assertion_key=key,
         occurrence_id=occurrence_id("e", [f"s#{cites[0]}"], key),

@@ -50,12 +50,12 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Literal
 
-from memspine.schemas.durable.assertion import (
-    AssertionEnvelope,
+from memspine.schemas.durable.assessment import can_supersede
+from memspine.schemas.durable.semantic import (
     AssertionStatus,
     IntegrationVerdict,
+    SemanticEnvelope,
 )
-from memspine.schemas.durable.assessment import can_supersede
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 
 __all__ = [
@@ -210,26 +210,26 @@ class IntegrationDecision:
 # --------------------------------------------------------------------------- helpers on envelopes
 
 
-def record_id(e: AssertionEnvelope) -> str:
+def record_id(e: SemanticEnvelope) -> str:
     return e.record_id or e.occurrence_id
 
 
-def _event_start(e: AssertionEnvelope) -> datetime | None:
+def _event_start(e: SemanticEnvelope) -> datetime | None:
     ev = e.time.event
     return ev.start.at if ev is not None and ev.start is not None else None
 
 
-def _event_end(e: AssertionEnvelope) -> datetime | None:
+def _event_end(e: SemanticEnvelope) -> datetime | None:
     ev = e.time.event
     return ev.end.at if ev is not None and ev.end is not None else None
 
 
-def _effective(e: AssertionEnvelope) -> datetime | None:
+def _effective(e: SemanticEnvelope) -> datetime | None:
     """Event start, else source time, else recorded time, else event end."""
     return _event_start(e) or e.time.source_time or e.time.recorded_at or _event_end(e)
 
 
-def ordering_key(e: AssertionEnvelope) -> tuple[datetime, datetime, datetime, str]:
+def ordering_key(e: SemanticEnvelope) -> tuple[datetime, datetime, datetime, str]:
     """Event time, then source time, then recorded time (then occurrence id for determinism)."""
     return (
         _effective(e) or _MIN,
@@ -239,23 +239,23 @@ def ordering_key(e: AssertionEnvelope) -> tuple[datetime, datetime, datetime, st
     )
 
 
-def _subject_key(e: AssertionEnvelope) -> str | None:
+def _subject_key(e: SemanticEnvelope) -> str | None:
     s = e.subject
     if s is None:
         return None
     return s.entity_id or s.surface.strip().casefold()
 
 
-def _attr_key(e: AssertionEnvelope) -> str:
+def _attr_key(e: SemanticEnvelope) -> str:
     return normalise_name(e.attribute or e.kind)
 
 
-def _value_key(e: AssertionEnvelope) -> str:
+def _value_key(e: SemanticEnvelope) -> str:
     v = e.value if e.value is not None else e.text
     return str(v).strip().casefold()
 
 
-def _family(e: AssertionEnvelope) -> str:
+def _family(e: SemanticEnvelope) -> str:
     for ev in e.evidence:
         if ev.role == "support":
             return ev.source_family
@@ -265,7 +265,7 @@ def _family(e: AssertionEnvelope) -> str:
     return e.src_class
 
 
-def _same_group(a: AssertionEnvelope, b: AssertionEnvelope) -> bool:
+def _same_group(a: SemanticEnvelope, b: SemanticEnvelope) -> bool:
     return (
         a.scope.tenant == b.scope.tenant
         and a.scope.owner == b.scope.owner
@@ -274,11 +274,11 @@ def _same_group(a: AssertionEnvelope, b: AssertionEnvelope) -> bool:
     )
 
 
-def _marked_transition(e: AssertionEnvelope) -> bool:
+def _marked_transition(e: SemanticEnvelope) -> bool:
     return bool(e.extras.get("transition") or e.extras.get("replaces"))
 
 
-def _tentative_reason(e: AssertionEnvelope) -> str | None:
+def _tentative_reason(e: SemanticEnvelope) -> str | None:
     a = e.assessment
     if a.modality not in ("asserted", "negated"):
         return "modality"
@@ -292,7 +292,7 @@ def _tentative_reason(e: AssertionEnvelope) -> str | None:
 
 @dataclass
 class _Occ:
-    env: AssertionEnvelope
+    env: SemanticEnvelope
     rid: str
     key: tuple[datetime, datetime, datetime, str]
     eff: datetime | None
@@ -341,7 +341,7 @@ class _Res:
     canonical_of: str | None = None
 
 
-def _mk_occ(e: AssertionEnvelope, incoming: bool) -> _Occ:
+def _mk_occ(e: SemanticEnvelope, incoming: bool) -> _Occ:
     return _Occ(
         env=e,
         rid=record_id(e),
@@ -463,7 +463,7 @@ def _finalise(res: dict[str, _Res], groups: list[_Group]) -> None:
 # --------------------------------------------------------------------------- integrate
 
 
-def _end_ref(end: datetime, by_env: AssertionEnvelope | None) -> TemporalRef:
+def _end_ref(end: datetime, by_env: SemanticEnvelope | None) -> TemporalRef:
     prec = "instant"
     if by_env is not None and by_env.time.event_precision != "unknown":
         prec = by_env.time.event_precision
@@ -471,8 +471,8 @@ def _end_ref(end: datetime, by_env: AssertionEnvelope | None) -> TemporalRef:
 
 
 def integrate(
-    incoming: AssertionEnvelope,
-    current: Iterable[AssertionEnvelope],
+    incoming: SemanticEnvelope,
+    current: Iterable[SemanticEnvelope],
     registry: CardinalityRegistry,
 ) -> IntegrationDecision:
     """Decide what ``incoming`` does to ``current`` (see module docstring). Pure and order-independent."""
@@ -612,7 +612,7 @@ def integrate(
 # --------------------------------------------------------------------------- applying and replay
 
 
-def _with_end(e: AssertionEnvelope, closure: Closure) -> AssertionEnvelope:
+def _with_end(e: SemanticEnvelope, closure: Closure) -> SemanticEnvelope:
     ev = e.time.event
     start = ev.start if ev is not None else None
     if closure.end is None:
@@ -623,10 +623,10 @@ def _with_end(e: AssertionEnvelope, closure: Closure) -> AssertionEnvelope:
 
 
 def apply_decision(
-    decision: IntegrationDecision, incoming: AssertionEnvelope, current: Sequence[AssertionEnvelope]
-) -> list[AssertionEnvelope]:
+    decision: IntegrationDecision, incoming: SemanticEnvelope, current: Sequence[SemanticEnvelope]
+) -> list[SemanticEnvelope]:
     """Return ``current`` updated by ``decision`` plus the stored incoming (pure helper for W2-10 and tests)."""
-    out: dict[str, AssertionEnvelope] = {record_id(e): e for e in current}
+    out: dict[str, SemanticEnvelope] = {record_id(e): e for e in current}
     for rid, status in decision.status_changes:
         if rid in out:
             cur = out[rid]
@@ -671,10 +671,10 @@ class FinalState:
         tuple[str, str, str, str], ...
     ] = ()  # (attribute, value, start, end) of closed values
     tentative: tuple[tuple[str, str], ...] = ()
-    records: tuple[AssertionEnvelope, ...] = field(default=(), compare=False)
+    records: tuple[SemanticEnvelope, ...] = field(default=(), compare=False)
 
 
-def summarise(records: Iterable[AssertionEnvelope]) -> FinalState:
+def summarise(records: Iterable[SemanticEnvelope]) -> FinalState:
     live: list[tuple[str, str]] = []
     contested: list[tuple[str, str]] = []
     hist: list[tuple[str, str, str, str]] = []
@@ -709,16 +709,16 @@ def summarise(records: Iterable[AssertionEnvelope]) -> FinalState:
 
 
 def replay(
-    assertions_in_any_order: Iterable[AssertionEnvelope], registry: CardinalityRegistry
+    assertions_in_any_order: Iterable[SemanticEnvelope], registry: CardinalityRegistry
 ) -> FinalState:
     """Integrate the assertions one by one in the given (arrival) order and summarise the stored set."""
-    store: list[AssertionEnvelope] = []
+    store: list[SemanticEnvelope] = []
     for a in assertions_in_any_order:
         store = apply_decision(integrate(a, store, registry), a, store)
     return summarise(store)
 
 
-def status_map(records: Iterable[AssertionEnvelope]) -> Mapping[str, str]:
+def status_map(records: Iterable[SemanticEnvelope]) -> Mapping[str, str]:
     return {record_id(e): e.status for e in records}
 
 

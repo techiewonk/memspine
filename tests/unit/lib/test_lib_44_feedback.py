@@ -20,11 +20,11 @@ from memspine.derive.feedback import (
 )
 from memspine.derive.integrate import CardinalityRegistry, integrate
 from memspine.schemas.durable import (
-    AssertionEnvelope,
     AssertionKey,
     Assessment,
     Evidence,
     OwnerScope,
+    SemanticEnvelope,
     Support,
     TimeAxes,
     TurnRef,
@@ -37,8 +37,8 @@ TURN = TurnRef(source_id="s1", source_version=1, seg_index=4)
 
 def target(
     value: str = "Bram", trust: float = 0.6, owner: str = "Ilse", rid: str | None = None
-) -> AssertionEnvelope:
-    return AssertionEnvelope(
+) -> SemanticEnvelope:
+    return SemanticEnvelope(
         write_id="wr_x",
         assertion_key=AssertionKey(src="Ilse", rel="lives_with", kind="state"),
         occurrence_id="oc_x",

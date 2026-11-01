@@ -47,8 +47,8 @@ from memspine.derive.gliner_mentions import (
 )
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
-from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.entity_mentions import EntityMention
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.services.extraction.base import ExtractionModels
 
 __all__ = [
@@ -607,8 +607,8 @@ def prepass_stage(prepass: Prepass) -> EnvelopeStage:
     """The order-500 envelope stage: flag (never add or drop) envelopes with an unseen name."""
 
     async def run(
-        envelopes: list[AssertionEnvelope], ctx: EnvelopeStageContext
-    ) -> list[AssertionEnvelope]:
+        envelopes: list[SemanticEnvelope], ctx: EnvelopeStageContext
+    ) -> list[SemanticEnvelope]:
         hints = await prepass.ahints(ctx.records, namespace=ctx.namespace)
         seen = hints.names() | {a.lower() for a in prepass.known_aliases(ctx.namespace)}
         records_by_id = {str(getattr(record, "record_id", "")): record for record in ctx.records}
@@ -619,7 +619,7 @@ def prepass_stage(prepass: Prepass) -> EnvelopeStage:
                 mentions_by_record.setdefault(str(getattr(record, "record_id", "")), []).append(
                     mention
                 )
-        out: list[AssertionEnvelope] = []
+        out: list[SemanticEnvelope] = []
         for env in envelopes:
             unseen = [
                 m.surface

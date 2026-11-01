@@ -65,7 +65,7 @@ from datetime import datetime
 from typing import Literal
 
 from memspine.derive.histories import ValueHistory
-from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.schemas.steps.shared import ProfileOp as SchemaProfileOp
 
 __all__ = [
@@ -403,11 +403,11 @@ def _sorted(entries: Iterable[ProfileEntry]) -> tuple[ProfileEntry, ...]:
     return tuple(sorted(entries, key=_order))
 
 
-def _rid(e: AssertionEnvelope) -> str:
+def _rid(e: SemanticEnvelope) -> str:
     return e.record_id or e.occurrence_id
 
 
-def _is_retire(e: AssertionEnvelope) -> bool:
+def _is_retire(e: SemanticEnvelope) -> bool:
     if e.status != "active" or e.assessment.binding != "bound":
         return False
     if e.assessment.modality == "negated":
@@ -416,7 +416,7 @@ def _is_retire(e: AssertionEnvelope) -> bool:
     return e.assessment.modality == "asserted" and ev is not None and ev.end is not None
 
 
-def _is_firm(e: AssertionEnvelope) -> bool:
+def _is_firm(e: SemanticEnvelope) -> bool:
     a = e.assessment
     return (
         e.status == "active"
@@ -452,7 +452,7 @@ class _Reject(Exception):
 def apply_ops(
     card: ProfileCard,
     proposed_ops: Iterable[ProfileOp | Mapping[str, object] | SchemaProfileOp],
-    evidence_index: Mapping[str, AssertionEnvelope],
+    evidence_index: Mapping[str, SemanticEnvelope],
     *,
     config: ProfileConfig | None = None,
     now: datetime | None = None,
@@ -527,14 +527,14 @@ def _shape(op: ProfileOp, cfg: ProfileConfig, now: datetime | None) -> None:
 
 
 def _evidence(
-    card: ProfileCard, op: ProfileOp, index: Mapping[str, AssertionEnvelope], *, need_cites: bool
-) -> list[AssertionEnvelope]:
+    card: ProfileCard, op: ProfileOp, index: Mapping[str, SemanticEnvelope], *, need_cites: bool
+) -> list[SemanticEnvelope]:
     ids = _cites(op)
     if not ids:
         if need_cites:
             raise _Reject("uncited")
         return []
-    found: list[AssertionEnvelope] = []
+    found: list[SemanticEnvelope] = []
     for cid in ids:
         e = index.get(cid)
         if e is None:
@@ -547,16 +547,16 @@ def _evidence(
     return found
 
 
-def _refs(es: Iterable[AssertionEnvelope]) -> tuple[SupportRef, ...]:
+def _refs(es: Iterable[SemanticEnvelope]) -> tuple[SupportRef, ...]:
     return tuple(SupportRef(_rid(e), e.assessment.source_trust) for e in es)
 
 
-def _stability(es: Iterable[AssertionEnvelope]) -> int:
+def _stability(es: Iterable[SemanticEnvelope]) -> int:
     es = list(es)
     return max(0, len(es) - 1) + sum(e.assessment.support.restated for e in es)
 
 
-def _attrs(*groups: Iterable[str], extra: Iterable[AssertionEnvelope] = ()) -> tuple[str, ...]:
+def _attrs(*groups: Iterable[str], extra: Iterable[SemanticEnvelope] = ()) -> tuple[str, ...]:
     out: set[str] = set()
     for g in groups:
         out.update(g)
@@ -568,7 +568,7 @@ def _apply_one(
     card: ProfileCard,
     entries: dict[tuple[str, str], ProfileEntry],
     op: ProfileOp,
-    index: Mapping[str, AssertionEnvelope],
+    index: Mapping[str, SemanticEnvelope],
     cfg: ProfileConfig,
     now: datetime | None,
 ) -> tuple[Literal["applied", "contested", "noop"], str]:
@@ -659,7 +659,7 @@ def _merge_refs(a: tuple[SupportRef, ...], b: tuple[SupportRef, ...]) -> tuple[S
     return a + tuple(s for s in b if s.assertion_id not in seen)
 
 
-def _new_count(cur: ProfileEntry, es: Iterable[AssertionEnvelope]) -> int:
+def _new_count(cur: ProfileEntry, es: Iterable[SemanticEnvelope]) -> int:
     have = set(cur.support_ids)
     fresh = [e for e in es if _rid(e) not in have]
     return len(fresh) + sum(e.assessment.support.restated for e in fresh)
@@ -675,7 +675,7 @@ def _with_contest(cur: ProfileEntry, note: ContestNote) -> ProfileEntry:
 
 def _confirm(
     cur: ProfileEntry,
-    firm: Sequence[AssertionEnvelope],
+    firm: Sequence[SemanticEnvelope],
     op: ProfileOp,
     cfg: ProfileConfig,
     *,
@@ -707,7 +707,7 @@ def _keep(
     entries: dict[tuple[str, str], ProfileEntry],
     op: ProfileOp,
     cur: ProfileEntry | None,
-    index: Mapping[str, AssertionEnvelope],
+    index: Mapping[str, SemanticEnvelope],
     cfg: ProfileConfig,
 ) -> tuple[Literal["applied", "contested", "noop"], str]:
     if cur is None:
@@ -728,7 +728,7 @@ def _remove(
     entries: dict[tuple[str, str], ProfileEntry],
     op: ProfileOp,
     cur: ProfileEntry | None,
-    index: Mapping[str, AssertionEnvelope],
+    index: Mapping[str, SemanticEnvelope],
 ) -> tuple[Literal["applied", "contested", "noop"], str]:
     if cur is None:
         raise _Reject("no_such_entry")
@@ -842,7 +842,7 @@ def reflection_plan(
     *,
     now: datetime,
     config: ProfileConfig | None = None,
-    evidence_index: Mapping[str, AssertionEnvelope] | None = None,
+    evidence_index: Mapping[str, SemanticEnvelope] | None = None,
 ) -> ReflectionPlan:
     """List the entries a reflection call should re-check, most urgent first. Adds no facts."""
     cfg = config or ProfileConfig()

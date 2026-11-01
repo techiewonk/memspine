@@ -10,11 +10,11 @@ import pytest
 from pydantic import ValidationError
 
 from memspine.memory import prospective as P
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 
 SCOPE = OwnerScope(tenant="t1", owner="u1")
@@ -41,10 +41,10 @@ def make(
     extras: dict | None = None,
     status: str = "active",
     speaker: str | None = None,
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     n = next(_n)
     time = TimeAxes(event=event, source_time=dt(said), recorded_at=dt(said))
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w{n}",
         assertion_key=AssertionKey(src=subject or "x", rel="plan", dst=text, kind="plan"),
         occurrence_id=f"oc{n}",

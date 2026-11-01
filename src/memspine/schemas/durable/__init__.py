@@ -1,6 +1,5 @@
 """Durable tier: persisted kinds with an integer ``schema_version``, current-format validation, frozen fixtures."""
 
-from memspine.schemas.durable.assertion import AssertionEnvelope  # transitional, next commit
 from memspine.schemas.durable.assessment import (
     Assessment,
     Support,
@@ -52,7 +51,6 @@ from memspine.schemas.durable.temporal import (
 __all__ = [
     "EVENT_KINDS",
     "AnnotationBatch",
-    "AssertionEnvelope",
     "AssertionKey",
     "Assessment",
     "ClaimProducer",

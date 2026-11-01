@@ -1,4 +1,4 @@
-"""LIB-05: ExtractionItem -> AssertionEnvelope compiler. Invented names only."""
+"""LIB-05: ExtractionItem -> SemanticEnvelope compiler. Invented names only."""
 
 from __future__ import annotations
 

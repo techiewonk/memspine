@@ -196,7 +196,7 @@ class RecordFingerprint(BaseModel):
     model_id: str | None = None
     #: The highest source event seq covered by derivation; None means it was not tracked.
     covers_seq: int | None = None
-    #: FU-GAPS (``write.envelope``): the compiled ``AssertionEnvelope`` as JSON (time axes, evidence
+    #: FU-GAPS (``write.envelope``): the compiled ``SemanticEnvelope`` as JSON (time axes, evidence
     #: roles, verdict), kept in this blob like ``covers_seq`` so no column or migration is needed.
     #: ``None`` = the record was not written from an envelope. Read it with ``Engine.get_envelope``.
     envelope: dict[str, Any] | None = None

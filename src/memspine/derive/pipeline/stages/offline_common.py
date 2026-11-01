@@ -14,11 +14,11 @@ from datetime import UTC, datetime
 from memspine.core.event_date import happened_of, label_start
 from memspine.derive.fact_policy import DERIVED_VIEW_CHANNELS, FactPurpose, is_evidence_fact
 from memspine.derive.resolve import normalise_name
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment, Support
 from memspine.schemas.durable.common import OwnerScope, Provenance
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -101,7 +101,7 @@ def _src_class(record: MemoryRecord) -> str:
     return "assistant_proposed" if "assistant_claim" in record.tags else "user_stated"
 
 
-def fact_envelope(record: MemoryRecord) -> AssertionEnvelope | None:
+def fact_envelope(record: MemoryRecord) -> SemanticEnvelope | None:
     """The record as the libraries read it, or ``None`` when it has no usable attribute or text.
 
     Event time is the ``happened:`` day when the fact carries one, else ``valid_from``. The attribute is the
@@ -138,7 +138,7 @@ def fact_envelope(record: MemoryRecord) -> AssertionEnvelope | None:
     if kind is None:
         kind = "state" if "kind:state" in record.tags else "event"
     family = record.source.principal or record.source.role or "unknown"
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w:{record.record_id}",
         assertion_key=AssertionKey(src=record.entity, rel=attribute, kind="fact"),
         occurrence_id=f"o:{record.record_id}",

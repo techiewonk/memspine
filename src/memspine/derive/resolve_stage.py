@@ -20,7 +20,7 @@ through :meth:`EntityRegistry.merge` and is undone by :meth:`EntityRegistry.spli
 
 Envelope fields written (W2-10 reads them):
 
-* ``subject.entity_id`` / ``object.entity_id`` (:class:`~memspine.schemas.durable.assertion.Mention`):
+* ``subject.entity_id`` / ``object.entity_id`` (:class:`~memspine.schemas.durable.semantic.Mention`):
   the canonical id (existing or new) or the provisional id of a pending mention. Already-set ids are kept.
 * ``extras["resolve"]["subject" | "object"]`` = ``{"verdict": existing|new|pending_merge, "method": ...,
   "confidence": float, "pending_with": [ids]}``. Key names avoid the reserved ``*_id`` suffix.
@@ -50,8 +50,8 @@ from memspine.derive.resolve import (
     resolve_pair,
 )
 from memspine.observability import tap
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.common import OwnerScope
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.store.events import EventKind, MemoryEvent
 
 __all__ = ["RESOLVE_ORDER", "EntityResolveStage", "ResolveSettings", "build_resolve_stage"]
@@ -162,10 +162,10 @@ class EntityResolveStage:
 
     # --- stage -----------------------------------------------------------------------------------
     async def run(
-        self, envelopes: list[AssertionEnvelope], ctx: EnvelopeStageContext
-    ) -> list[AssertionEnvelope]:
+        self, envelopes: list[SemanticEnvelope], ctx: EnvelopeStageContext
+    ) -> list[SemanticEnvelope]:
         await self._load()
-        out: list[AssertionEnvelope] = []
+        out: list[SemanticEnvelope] = []
         async with self._lock:
             for env in envelopes:
                 out.append(await self._resolve_envelope(env, ctx))
@@ -180,12 +180,12 @@ class EntityResolveStage:
             )
         return out
 
-    def _key(self, env: AssertionEnvelope, ctx: EnvelopeStageContext) -> ScopeKey:
+    def _key(self, env: SemanticEnvelope, ctx: EnvelopeStageContext) -> ScopeKey:
         return (env.scope.tenant, env.scope.owner)
 
     async def _resolve_envelope(
-        self, env: AssertionEnvelope, ctx: EnvelopeStageContext
-    ) -> AssertionEnvelope:
+        self, env: SemanticEnvelope, ctx: EnvelopeStageContext
+    ) -> SemanticEnvelope:
         key = self._key(env, ctx)
         update: dict[str, Any] = {}
         info: dict[str, Any] = dict(env.extras.get("resolve", {}))

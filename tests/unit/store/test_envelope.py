@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 from memspine import Engine
-from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.schemas.versioning import latest_version, validate_payload
 from memspine.store.envelope import from_envelope, to_envelope, validate_record_payload
 from memspine.store.layers import derive_axes, derive_layer, derive_provenance_class
@@ -128,12 +128,12 @@ def test_fingerprint_defaults_and_explicit_values_survive() -> None:
 )
 def test_envelope_round_trip(record: MemoryRecord) -> None:
     envelope = to_envelope(record)
-    assert isinstance(envelope, AssertionEnvelope)
+    assert isinstance(envelope, SemanticEnvelope)
     assert envelope.src_class == record.provenance_class
     assert envelope.record_id == record.record_id
     assert envelope.scope.owner == record.namespace and envelope.scope.tenant == "org"
     assert envelope.kind == record.type_tag
-    again = AssertionEnvelope.model_validate_json(envelope.model_dump_json())
+    again = SemanticEnvelope.model_validate_json(envelope.model_dump_json())
     assert from_envelope(again).model_dump() == record.model_dump()
     assert to_envelope(record).write_id == envelope.write_id  # deterministic
 

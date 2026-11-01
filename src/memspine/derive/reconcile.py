@@ -57,13 +57,13 @@ from memspine.derive.resolve import (
     PairDecision,
     resolve_pair,
 )
-from memspine.schemas.durable.assertion import (
-    AssertionEnvelope,
-    AssertionStatus,
-    IntegrationVerdict,
-)
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import (
+    AssertionStatus,
+    IntegrationVerdict,
+    SemanticEnvelope,
+)
 from memspine.schemas.durable.temporal import Interval
 
 __all__ = [
@@ -378,14 +378,14 @@ def _scope_key(s: OwnerScope) -> tuple[str, str]:
     return (s.tenant, s.owner)
 
 
-def _subject_key(e: AssertionEnvelope) -> str | None:
+def _subject_key(e: SemanticEnvelope) -> str | None:
     s = e.subject
     if s is None:
         return None
     return s.entity_id or s.surface.strip().casefold()
 
 
-def _attr_name(e: AssertionEnvelope, families: Mapping[str, str] | None) -> str:
+def _attr_name(e: SemanticEnvelope, families: Mapping[str, str] | None) -> str:
     a = normalise_name(e.attribute or e.kind)
     if families:
         fam = families.get(a)
@@ -394,12 +394,12 @@ def _attr_name(e: AssertionEnvelope, families: Mapping[str, str] | None) -> str:
     return a
 
 
-def _end_at(e: AssertionEnvelope) -> datetime | None:
+def _end_at(e: SemanticEnvelope) -> datetime | None:
     ev = e.time.event
     return ev.end.at if ev is not None and ev.end is not None else None
 
 
-def _integrable(e: AssertionEnvelope) -> bool:
+def _integrable(e: SemanticEnvelope) -> bool:
     # hidden records other than merged duplicates are ignored by the fold (and by us)
     return e.status != "hidden" or (e.verdict is not None and e.verdict.op == "merge")
 
@@ -409,8 +409,8 @@ def _group_ref(tenant: str, owner: str, subject: str | None, attr: str) -> str:
 
 
 def _repoint(
-    e: AssertionEnvelope, from_id: str, to_id: str
-) -> tuple[AssertionEnvelope, tuple[str, ...]]:
+    e: SemanticEnvelope, from_id: str, to_id: str
+) -> tuple[SemanticEnvelope, tuple[str, ...]]:
     roles: list[str] = []
     upd: dict[str, object] = {}
     if e.subject is not None and e.subject.entity_id == from_id:
@@ -424,7 +424,7 @@ def _repoint(
     return e.model_copy(update=upd), tuple(roles)
 
 
-def _rekey(e: AssertionEnvelope, from_id: str, to_id: str) -> AssertionEnvelope:
+def _rekey(e: SemanticEnvelope, from_id: str, to_id: str) -> SemanticEnvelope:
     """The envelope after re-pointing: mentions, key (when it carries the id) and aliases."""
     moved, roles = _repoint(e, from_id, to_id)
     if not roles:
@@ -510,7 +510,7 @@ def _resolve_pending(
 
 
 def sweep(
-    scope_records: Iterable[AssertionEnvelope],
+    scope_records: Iterable[SemanticEnvelope],
     registry: CardinalityRegistry,
     *,
     pending: Iterable[PendingMerge] = (),
@@ -586,7 +586,7 @@ def sweep(
     for m in merges:
         remap[(*_scope_key(m.scope), m.from_id)] = m.into_id
     rekeys: list[KeyChange] = []
-    projected: list[AssertionEnvelope] = []
+    projected: list[SemanticEnvelope] = []
     for r in records:
         cur = r
         sk = _scope_key(r.scope)
@@ -612,7 +612,7 @@ def sweep(
         projected.append(cur)
 
     # ---- 3. contradiction sweep over (owner, subject, attribute) groups
-    buckets: dict[tuple[str, str, str | None, str], list[AssertionEnvelope]] = defaultdict(list)
+    buckets: dict[tuple[str, str, str | None, str], list[SemanticEnvelope]] = defaultdict(list)
     for e in projected:
         if not _integrable(e):
             continue
@@ -723,7 +723,7 @@ def sweep(
     )
 
 
-def _as_family(e: AssertionEnvelope, family: str) -> AssertionEnvelope:
+def _as_family(e: SemanticEnvelope, family: str) -> SemanticEnvelope:
     """Copy of ``e`` judged under ``family`` (the id is unchanged, so decisions map back to the record)."""
     if normalise_name(e.attribute or e.kind) == family:
         return e
@@ -733,11 +733,9 @@ def _as_family(e: AssertionEnvelope, family: str) -> AssertionEnvelope:
 # --------------------------------------------------------------------------- applying a plan (pure)
 
 
-def apply_plan(
-    plan: ReconcilePlan, records: Iterable[AssertionEnvelope]
-) -> list[AssertionEnvelope]:
+def apply_plan(plan: ReconcilePlan, records: Iterable[SemanticEnvelope]) -> list[SemanticEnvelope]:
     """Return ``records`` after the plan: re-keys, then status changes, then closures (pure helper)."""
-    out: dict[str, AssertionEnvelope] = {record_id(e): e for e in records}
+    out: dict[str, SemanticEnvelope] = {record_id(e): e for e in records}
     for k in plan.rekeys:
         e = out.get(k.record_id)
         if e is None:

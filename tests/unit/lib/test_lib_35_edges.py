@@ -15,11 +15,11 @@ from memspine.derive.edges import (
     retract,
     visible_edges,
 )
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 
 SCOPE = OwnerScope(tenant="t1", owner="u1")
@@ -51,13 +51,13 @@ def make(
     key_aliases: list[str] | None = None,
     scope: OwnerScope = SCOPE,
     resolved: bool = True,
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     n = next(_n)
     ev = None
     if start or end:
         ev = Interval(start=ref(start) if start else None, end=ref(end) if end else None)
     time = TimeAxes(event=ev, source_time=dt(day), recorded_at=dt(day))
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w{n}",
         assertion_key=AssertionKey(src=subject, rel=rel, dst=obj or "", kind="state"),
         key_aliases=key_aliases or [],
@@ -333,7 +333,7 @@ def test_retract_unknown_id_is_harmless() -> None:
 # ----------------------------------------------------------------- determinism and rebuild
 
 
-def corpus() -> list[AssertionEnvelope]:
+def corpus() -> list[SemanticEnvelope]:
     return [
         make(
             "Ilse",

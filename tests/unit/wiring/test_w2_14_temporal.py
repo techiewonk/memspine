@@ -32,20 +32,20 @@ from memspine.derive.temporal_stage import (
 from memspine.read.legs.core import LegContext
 from memspine.read.legs.temporal import TemporalLeg
 from memspine.schemas.durable import (
-    AssertionEnvelope,
     AssertionKey,
     Assessment,
     Evidence,
     Interval,
     OwnerScope,
+    SemanticEnvelope,
     TemporalRef,
     TimeAxes,
     TurnRef,
     occurrence_id,
     write_id,
 )
-from memspine.schemas.durable.assertion import Mention
 from memspine.schemas.durable.evidence import Span
+from memspine.schemas.durable.semantic import Mention
 
 SCOPE = OwnerScope(tenant="t", owner="o")
 SRC = datetime(2023, 6, 15, 10, 0, tzinfo=UTC)  # a Thursday
@@ -59,11 +59,11 @@ def _env(
     until: str | None = None,
     quote: str | None = None,
     turn: str = "r1",
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     key = AssertionKey(src=rid, rel="r", dst="d", kind="event")
     start = TemporalRef(text=when) if when else None
     end = TemporalRef(text=until) if until else None
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=write_id(SCOPE, "c", 0, rid),
         assertion_key=key,
         occurrence_id=occurrence_id("e", [f"{turn}#0"], key),
@@ -103,7 +103,7 @@ def _ctx(source_at: datetime | None, *, valid_from: datetime | None = None) -> E
     )
 
 
-def _start(env: AssertionEnvelope) -> TemporalRef:
+def _start(env: SemanticEnvelope) -> TemporalRef:
     assert env.time.event is not None and env.time.event.start is not None
     return env.time.event.start
 
@@ -548,5 +548,5 @@ async def test_window_flag_off_keeps_the_text_only_behaviour(
 
 def test_json_roundtrip_of_a_written_envelope() -> None:
     (out,) = apply_temporal([_env("a", "x", when="in 2019")], _ctx(SRC))
-    again = AssertionEnvelope.model_validate(json.loads(out.model_dump_json()))
+    again = SemanticEnvelope.model_validate(json.loads(out.model_dump_json()))
     assert again.time.event_precision == "year" and Mention is not None

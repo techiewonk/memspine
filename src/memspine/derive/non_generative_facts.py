@@ -17,11 +17,10 @@ from pydantic import BaseModel, ConfigDict, Field
 from memspine.core.rule_miner import mine_rules
 from memspine.derive.compile import WindowLine
 from memspine.derive.envelope_compiler import EnvelopeCompiler
-from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
+from memspine.schemas.durable.semantic import ClaimProducer, PredicateTyping, SemanticEnvelope
 from memspine.schemas.durable.semantic import RoleBinding as DurableRoleBinding
-from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.semantics import RoleBindingCheck, SemanticRegistry, load_builtin_registry
 from memspine.semantics.specs import EntityType, ValueKind
 from memspine.store.records import MemoryRecord
@@ -104,7 +103,7 @@ class FactStageResult(_Candidate):
 
 
 class CompiledFactStage(_Candidate):
-    envelopes: tuple[AssertionEnvelope, ...] = ()
+    envelopes: tuple[SemanticEnvelope, ...] = ()
     unresolved: tuple[UnresolvedFactCandidate, ...] = ()
     generative_calls: Literal[0] = 0
 
@@ -189,6 +188,8 @@ def _binding_check(binding: DurableRoleBinding) -> RoleBindingCheck:
         unit=binding.unit,
         amount=binding.amount,
     )
+
+
 def compile_grounded_facts(
     result: FactStageResult,
     sources: Sequence[MemoryRecord],
@@ -207,7 +208,7 @@ def compile_grounded_facts(
     compiler = compiler or EnvelopeCompiler(prompt_hash="non-generative:1")
     registry = registry or load_builtin_registry()
     records = {record.record_id: record for record in sources}
-    envelopes: list[AssertionEnvelope] = []
+    envelopes: list[SemanticEnvelope] = []
     unresolved = list(result.unresolved)
     for candidate in result.facts:
         turn = candidate.evidence.turn
@@ -284,9 +285,7 @@ def compile_grounded_facts(
             [
                 {
                     "text": f"{candidate.subject} {candidate.predicate} {candidate.object}",
-                    "kind": (
-                        "state" if spec.cardinality in {"one", "contextual"} else "event"
-                    ),
+                    "kind": ("state" if spec.cardinality in {"one", "contextual"} else "event"),
                     "s": candidate.subject,
                     "r": candidate.predicate,
                     "o": candidate.object,
@@ -302,7 +301,7 @@ def compile_grounded_facts(
             unresolved.append(_unresolved(candidate, "compiler_rejected"))
             continue
         envelope = compiled.envelopes[0]
-        semantic = SemanticEnvelope(
+        typing = PredicateTyping(
             predicate=candidate.predicate,
             predicate_version=spec.version,
             registry_digest=registry.digest,
@@ -311,16 +310,19 @@ def compile_grounded_facts(
             object_entity_type=candidate.object_entity_type,
             cardinality=spec.cardinality,
             cardinality_scope=dict(candidate.cardinality_scope),
-            role_bindings=[
-                DurableRoleBinding.model_validate(binding.model_dump(), strict=True)
-                for binding in candidate.role_bindings
-            ],
-            assertion_owner=candidate.assertion_owner,
-            producer_revision=candidate.producer_revision,
         )
-        envelope = envelope.model_copy(update={"semantic": semantic})
-        # Revalidate after attaching the typed semantic payload; do not trust model_copy.
-        envelopes.append(AssertionEnvelope.model_validate(envelope.model_dump(), strict=True))
+        envelope = envelope.model_copy(
+            update={
+                "registry": typing,
+                "role_bindings": [
+                    DurableRoleBinding.model_validate(binding.model_dump(), strict=True)
+                    for binding in candidate.role_bindings
+                ],
+                "producer": ClaimProducer(kind="rules", revision=candidate.producer_revision),
+            }
+        )
+        # Revalidate after attaching the registry typing; do not trust model_copy.
+        envelopes.append(SemanticEnvelope.model_validate(envelope.model_dump(), strict=True))
     return CompiledFactStage(envelopes=tuple(envelopes), unresolved=tuple(unresolved))
 
 

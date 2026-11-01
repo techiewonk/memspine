@@ -1,4 +1,4 @@
-"""W2-06a: ExtractionItem -> AssertionEnvelope compile, per-item validation, one repair re-ask, dead letters
+"""W2-06a: ExtractionItem -> SemanticEnvelope compile, per-item validation, one repair re-ask, dead letters
 (``write.envelope``). Model-free: a stub window LLM that answers the ``structured`` prompt and the
 ``structured.repair`` re-ask, hash embedder."""
 

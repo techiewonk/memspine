@@ -1,4 +1,4 @@
-"""Mapping between the stored MemoryRecord and the durable AssertionEnvelope (F-02a, M-06).
+"""Mapping between the stored MemoryRecord and the durable SemanticEnvelope (F-02a, M-06).
 
 ``to_envelope`` is lossless: whatever the envelope cannot express is carried in ``extras`` as one JSON
 string (a string, not a dict: ``extras`` may not hold reserved key names at any depth), and ``from_envelope``
@@ -15,11 +15,16 @@ from typing import Any
 
 import orjson
 
-from memspine.schemas.durable.assertion import AssertionEnvelope, AssertionStatus, Mention
 from memspine.schemas.durable.assessment import Assessment, Support
 from memspine.schemas.durable.common import Fingerprint, OwnerScope, Provenance
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey, occurrence_id, write_id
+from memspine.schemas.durable.semantic import (
+    AssertionStatus,
+    ClaimProducer,
+    Mention,
+    SemanticEnvelope,
+)
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 from memspine.schemas.versioning import declare_kind, validate_payload
 from memspine.store.records import MemoryRecord, RecordStatus
@@ -36,7 +41,7 @@ RECORD_KIND = "memory_record"
 RECORD_SCHEMA_VERSION = 1
 declare_kind(RECORD_KIND, RECORD_SCHEMA_VERSION)
 
-#: Key of the lossless record copy inside ``AssertionEnvelope.extras``.
+#: Key of the lossless record copy inside ``SemanticEnvelope.extras``.
 _EXTRAS_KEY = "record_json"
 
 _STATUS_OUT: dict[RecordStatus, AssertionStatus] = {
@@ -104,7 +109,7 @@ def _time_axes(record: MemoryRecord, recorded: datetime) -> TimeAxes:
     )
 
 
-def to_envelope(record: MemoryRecord) -> AssertionEnvelope:
+def to_envelope(record: MemoryRecord) -> SemanticEnvelope:
     """The durable assertion envelope for ``record``."""
     ns = record.namespace
     scope = OwnerScope(tenant=ns.split("/", 1)[0], owner=ns)
@@ -144,7 +149,7 @@ def to_envelope(record: MemoryRecord) -> AssertionEnvelope:
         else None
     )
     time = _time_axes(record, recorded)
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=write_id(scope, conversation, recorded, record.content),
         assertion_key=key,
         occurrence_id=occurrence_id(conversation, parents or [record.record_id], key),
@@ -175,10 +180,11 @@ def to_envelope(record: MemoryRecord) -> AssertionEnvelope:
         prompt_hash=prompt_hash,
         derivation=derivation,
         extras={_EXTRAS_KEY: record.model_dump_json()},
+        producer=ClaimProducer(kind="record", revision=f"record:{record.version}"),
     )
 
 
-def from_envelope(envelope: AssertionEnvelope) -> MemoryRecord:
+def from_envelope(envelope: SemanticEnvelope) -> MemoryRecord:
     """The record for ``envelope``: its lossless copy when present, else built from the envelope alone."""
     raw = envelope.extras.get(_EXTRAS_KEY)
     base: dict[str, Any] = orjson.loads(raw) if isinstance(raw, str) else {}

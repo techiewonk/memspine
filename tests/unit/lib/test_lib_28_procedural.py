@@ -10,11 +10,11 @@ import pytest
 from pydantic import ValidationError
 
 from memspine.memory import procedural as R
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import TimeAxes
 
 SCOPE = OwnerScope(tenant="t1", owner="u1")
@@ -35,7 +35,7 @@ def howto(
     tags=None,
     owner="u1",
     status="active",
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     n = next(_n)
     ex: dict = {"procedure": name, "steps": list(STEPS if steps is None else steps)}
     if pre is not None:
@@ -43,7 +43,7 @@ def howto(
     if tags is not None:
         ex["tags"] = tags
     when = datetime.fromisoformat(day).replace(tzinfo=UTC)
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w{n}",
         assertion_key=AssertionKey(src="Ilse", rel="how_to", dst=name, kind=kind),
         occurrence_id=f"oc{n}",

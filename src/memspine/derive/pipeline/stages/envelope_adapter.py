@@ -1,7 +1,7 @@
 """Derive: adapter from today's ``MemoryRecord`` to the LIB envelopes (O4-03, O4-04).
 
 The offline libraries (``derive.reconcile``, ``derive.histories``, ``derive.integrate``) work on
-:class:`~memspine.schemas.durable.assertion.AssertionEnvelope`. The engine still stores
+:class:`~memspine.schemas.durable.semantic.SemanticEnvelope`. The engine still stores
 ``MemoryRecord``; this module projects a live semantic fact to an envelope (read-only, lossless for
 what the libraries read) and maps library statuses back to record lifecycle deltas.
 
@@ -14,11 +14,16 @@ from __future__ import annotations
 from datetime import datetime
 
 from memspine.derive.fact_policy import FactPurpose, is_evidence_fact
-from memspine.schemas.durable.assertion import AssertionEnvelope, AssertionStatus, Mention
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope, SrcClass
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import (
+    AssertionStatus,
+    ClaimProducer,
+    Mention,
+    SemanticEnvelope,
+)
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 from memspine.store.records import MemoryRecord
 
@@ -69,7 +74,7 @@ def _ref(at: datetime) -> TemporalRef:
 
 def to_envelope(
     record: MemoryRecord, namespace: str, *, include_history: bool = False
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     """Project ``record`` to an envelope. Keyed facts use (entity, attribute); unkeyed facts use the
     kind ``fact`` and no subject, so they only meet each other (near-duplicates)."""
     key = key_of(record)
@@ -88,7 +93,7 @@ def to_envelope(
     status: AssertionStatus = "contested" if "disputed" in record.tags else "active"
     retract = "retract" in record.tags
     attr = attribute or FACT_KIND
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=rid,
         assertion_key=AssertionKey(src=entity or rid, rel=attr, dst="", kind=attr),
         occurrence_id=rid,
@@ -118,4 +123,5 @@ def to_envelope(
         ),
         src_class=_src_class(record),
         status=status,
+        producer=ClaimProducer(kind="record", revision=f"record:{record.version}"),
     )

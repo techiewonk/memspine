@@ -32,7 +32,7 @@ from memspine.derive.failure_ledger import FailureLedger
 from memspine.exceptions import LLMError
 from memspine.observability import tap
 from memspine.prompts.structured import RepairItem, repair_messages
-from memspine.schemas.durable import AssertionEnvelope
+from memspine.schemas.durable import SemanticEnvelope
 from memspine.services.llm.base import LLMService, lenient_json
 
 __all__ = [
@@ -84,7 +84,7 @@ class InvalidItem:
 
 @dataclass(frozen=True)
 class Validated:
-    envelopes: tuple[AssertionEnvelope, ...] = ()
+    envelopes: tuple[SemanticEnvelope, ...] = ()
     invalid: tuple[InvalidItem, ...] = ()
     duplicates: int = 0
     parse_error: ParseFailure | None = None
@@ -173,7 +173,7 @@ def parse_reply(reply: str) -> list[Any] | None:
 
 @dataclass
 class ItemsOutcome:
-    envelopes: list[AssertionEnvelope] = field(default_factory=list)
+    envelopes: list[SemanticEnvelope] = field(default_factory=list)
     returned: int = 0
     valid: int = 0  # valid on the first pass
     repaired: int = 0  # valid only after the re-ask

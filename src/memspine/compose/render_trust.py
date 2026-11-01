@@ -39,8 +39,8 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from memspine.compose.budget import Accounting, EstimatingCounter, TokenCounter
-from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.assessment import is_tentative
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.schemas.public.read import RenderedLine
 
 __all__ = [
@@ -78,7 +78,7 @@ class TrustItem:
     handle (``"[3]"``) if the caller already assigned one, else rendering numbers lines in order.
     """
 
-    envelope: AssertionEnvelope
+    envelope: SemanticEnvelope
     alias: str | None = None
     quarantined: bool = False
     instruction_flag: bool = False
@@ -186,7 +186,7 @@ def neutralise(text: str, *, max_chars: int | None = None) -> tuple[str, bool]:
 # --- classification --------------------------------------------------------------------------------
 
 
-def _item(x: AssertionEnvelope | TrustItem) -> TrustItem:
+def _item(x: SemanticEnvelope | TrustItem) -> TrustItem:
     return x if isinstance(x, TrustItem) else TrustItem(x)
 
 
@@ -199,7 +199,7 @@ def _low_trust(item: TrustItem, style: TrustStyle) -> bool:
     )
 
 
-def classify(item: AssertionEnvelope | TrustItem, style: TrustStyle | None = None) -> TrustBand:
+def classify(item: SemanticEnvelope | TrustItem, style: TrustStyle | None = None) -> TrustBand:
     """The band of one item (precedence: quarantined, contested, tentative, low_trust, trusted)."""
     style = style or TrustStyle()
     it = _item(item)
@@ -232,14 +232,14 @@ def _label(s: str, limit: int = 40) -> str:
     return _ID_UNSAFE.sub("_", unicodedata.normalize("NFKC", s))[:limit] or "unknown"
 
 
-def _family(a: AssertionEnvelope) -> str:
+def _family(a: SemanticEnvelope) -> str:
     for e in a.evidence:
         if e.counts_as_evidence:
             return _label(e.source_family)
     return "derived" if a.src_class == "derived" else "unknown"
 
 
-def _when(a: AssertionEnvelope) -> str | None:
+def _when(a: SemanticEnvelope) -> str | None:
     if a.time.event is not None:
         for ref in (a.time.event.start, a.time.event.end):
             if ref is not None and ref.at is not None:
@@ -258,17 +258,17 @@ def _content(it: TrustItem, style: TrustStyle) -> tuple[str, bool, bool]:
     return _clean(a.text), False, False
 
 
-def _group_key(a: AssertionEnvelope) -> tuple[str, str, str, str, str]:
+def _group_key(a: SemanticEnvelope) -> tuple[str, str, str, str, str]:
     k = a.assertion_key
     return (a.scope.tenant, a.scope.owner, k.src, k.rel, k.kind)
 
 
-def _meta(a: AssertionEnvelope) -> str:
+def _meta(a: SemanticEnvelope) -> str:
     when = _when(a)
     return f"src: {_family(a)}" + (f"; {when}" if when else "")
 
 
-def _flags(neutralised: bool, a: AssertionEnvelope, like: bool) -> str:
+def _flags(neutralised: bool, a: SemanticEnvelope, like: bool) -> str:
     parts: list[str] = []
     if neutralised:
         parts.append(f"unverified: {_label(a.src_class)}")
@@ -297,7 +297,7 @@ def _single_line(it: TrustItem, style: TrustStyle, band: str) -> tuple[str, bool
 
 
 def _render(
-    items: Iterable[AssertionEnvelope | TrustItem], style: TrustStyle
+    items: Iterable[SemanticEnvelope | TrustItem], style: TrustStyle
 ) -> tuple[list[RenderedLine], dict[str, str], int]:
     its = [_item(x) for x in items]
     bands = [classify(i, style) for i in its]
@@ -385,7 +385,7 @@ def _render(
 
 
 def render(
-    items: Iterable[AssertionEnvelope | TrustItem],
+    items: Iterable[SemanticEnvelope | TrustItem],
     *,
     style: TrustStyle | None = None,
 ) -> list[RenderedLine]:
@@ -397,7 +397,7 @@ def render(
 
 
 def render_text(
-    items: Iterable[AssertionEnvelope | TrustItem],
+    items: Iterable[SemanticEnvelope | TrustItem],
     *,
     style: TrustStyle | None = None,
     counter: TokenCounter | None = None,

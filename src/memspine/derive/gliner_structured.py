@@ -1,7 +1,7 @@
 """Optional GLiNER2.5 structured candidate extraction.
 
 This adapter stops at typed, source-cited candidates. It does not create or
-write ``AssertionEnvelope`` records: mentions and relation proposals must pass
+write ``SemanticEnvelope`` records: mentions and relation proposals must pass
 the existing canonical grounding and integration stages before persistence.
 """
 

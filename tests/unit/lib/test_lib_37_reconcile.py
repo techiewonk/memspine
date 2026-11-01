@@ -20,11 +20,11 @@ from memspine.derive.reconcile import (
     sweep,
 )
 from memspine.derive.resolve import Candidate
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 
 _n = itertools.count(1)
@@ -50,7 +50,7 @@ def make(
     session: str = "s1",
     key_src: str | None = None,
     event_end: datetime | None = None,
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     n = next(_n)
     event = (
         Interval(end=TemporalRef(at=event_end, precision="day", basis="explicit"))
@@ -58,7 +58,7 @@ def make(
         else None
     )
     time = TimeAxes(event=event, source_time=dt(day), recorded_at=dt(day))
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w{n}",
         assertion_key=AssertionKey(
             src=key_src or entity or subject, rel=attr, dst=value, kind=attr
@@ -94,7 +94,7 @@ def reg(attr: str = "employer", card: str = "one", ns: str = "t1") -> Cardinalit
     return r
 
 
-def status_of(records: list[AssertionEnvelope]) -> dict[str, str]:
+def status_of(records: list[SemanticEnvelope]) -> dict[str, str]:
     return {r.value: r.status for r in records}  # type: ignore[misc]
 
 
@@ -411,9 +411,9 @@ TRUST = {"default": 0.9, "low": 0.3}
 SCORES: dict[str, float] = {}
 
 
-def _lab(item: ContradictionItem, a: Assertion, n: int, session: str) -> AssertionEnvelope:
+def _lab(item: ContradictionItem, a: Assertion, n: int, session: str) -> SemanticEnvelope:
     time = TimeAxes(source_time=dt(a.source_time), recorded_at=dt(a.source_time))
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w-{item.id}-{a.id}",
         assertion_key=AssertionKey(
             src=a.subject, rel=a.predicate, dst=a.value, kind=item.attribute
@@ -443,7 +443,7 @@ def _lab(item: ContradictionItem, a: Assertion, n: int, session: str) -> Asserti
     )
 
 
-def _sweep_item(it: ContradictionItem) -> tuple[ReconcilePlan, list[AssertionEnvelope]]:
+def _sweep_item(it: ContradictionItem) -> tuple[ReconcilePlan, list[SemanticEnvelope]]:
     r = CardinalityRegistry()
     r.declare("lab", it.attribute, it.cardinality)  # type: ignore[arg-type]
     recs = [_lab(it, a, n, f"session-{n}") for n, a in enumerate(it.existing)]

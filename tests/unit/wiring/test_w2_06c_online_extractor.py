@@ -25,7 +25,7 @@ from memspine.config.schema.write import WriteConfig
 from memspine.derive.online_extractor import OnlineExtractor
 from memspine.ingest import windows as ingest_windows
 from memspine.read.pending_barrier import PendingBarrier
-from memspine.schemas.durable import AnnotationBatch, AssertionEnvelope
+from memspine.schemas.durable import AnnotationBatch, SemanticEnvelope
 from memspine.services.llm.base import LLMRouter
 
 # --- config ---------------------------------------------------------------------------------------
@@ -189,7 +189,7 @@ async def test_no_model_online_extractor_deposits_grounded_rule_fact(
         assert facts[0].content == "Mira employed_by Acme"
         assert facts[0].source.parents
         assert "non_generative" in facts[0].tags
-        envelope = AssertionEnvelope.model_validate(facts[0].fingerprint.envelope)
+        envelope = SemanticEnvelope.model_validate(facts[0].fingerprint.envelope)
         assert envelope.semantic is not None
         assert envelope.semantic.predicate == "employed_by"
         assert envelope.semantic.object_entity_type == "organisation"

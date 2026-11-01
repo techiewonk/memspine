@@ -44,8 +44,8 @@ from typing import Literal
 from pydantic import ConfigDict, Field
 
 from memspine.schemas import InternalModel
-from memspine.schemas.durable.assertion import AssertionEnvelope, GroundingChecks
 from memspine.schemas.durable.evidence import TurnRef
+from memspine.schemas.durable.semantic import GroundingChecks, SemanticEnvelope
 
 __all__ = [
     "CheckOutcome",
@@ -189,8 +189,8 @@ def window_from_turns(turns: Iterable[tuple[TurnRef, str, str | None]]) -> dict[
     return out
 
 
-def claim_from_envelope(env: AssertionEnvelope, *, source_time: date | None = None) -> Claim:
-    """View an :class:`AssertionEnvelope` as a :class:`Claim` (citations keyed by :func:`turn_key`)."""
+def claim_from_envelope(env: SemanticEnvelope, *, source_time: date | None = None) -> Claim:
+    """View an :class:`SemanticEnvelope` as a :class:`Claim` (citations keyed by :func:`turn_key`)."""
     cites: list[Cite] = []
     for ev in env.evidence:
         if ev.turn is None:

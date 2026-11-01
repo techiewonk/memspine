@@ -27,11 +27,11 @@ from memspine.models.encoders.query.shape import content_words, is_ordering, is_
 from memspine.models.encoders.query.temporal_query import sentences
 from memspine.models.encoders.query.temporal_resolve import annotate as annotate_relative_dates
 from memspine.observability import tap
-from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope, Provenance
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.schemas.durable.temporal import TimeAxes
 from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
 
@@ -130,7 +130,7 @@ _CHANNEL_CLASS = {
 }
 
 
-def record_envelope(record: MemoryRecord, cites: Sequence[MemoryRecord] = ()) -> AssertionEnvelope:
+def record_envelope(record: MemoryRecord, cites: Sequence[MemoryRecord] = ()) -> SemanticEnvelope:
     """An assertion envelope for ``record`` (library input only; never stored).
 
     Evidence: the records in ``cites`` (a fact's source turns) as ``support`` turns, else the record
@@ -162,7 +162,7 @@ def record_envelope(record: MemoryRecord, cites: Sequence[MemoryRecord] = ()) ->
     else:
         status = "active"
     source_time = record.valid_from if record.valid_from.tzinfo is not None else None
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w:{record.record_id}",
         assertion_key=AssertionKey(
             src=record.entity or record.record_id,

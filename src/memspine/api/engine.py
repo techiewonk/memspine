@@ -246,7 +246,7 @@ if TYPE_CHECKING:
     from memspine.config.schema.model import GlinerConsumer
     from memspine.schemas.public.receipt import WaitResult
     from memspine.schemas.steps.shared import IntentStatus
-from memspine.schemas.durable import AssertionEnvelope, OwnerScope
+from memspine.schemas.durable import OwnerScope, SemanticEnvelope
 from memspine.schemas.durable.erasure import RetentionBoundary
 from memspine.semantics.domains import topic_hook
 from memspine.services.documents.base import DocumentStore
@@ -3991,7 +3991,7 @@ class Engine:
 
     async def get_envelope(
         self, record_id: str, namespace: str = "default"
-    ) -> AssertionEnvelope | None:
+    ) -> SemanticEnvelope | None:
         """FU-GAPS: the compiled assertion envelope a window fact was written from (time axes,
         evidence roles, integration verdict), or None when the record has none (it was not
         written under ``write.envelope``, or does not exist in ``namespace``). Same scope rules
@@ -3999,7 +3999,7 @@ class Engine:
         record = await self.get_record(record_id, namespace)
         if record is None or record.fingerprint.envelope is None:
             return None
-        return AssertionEnvelope.model_validate(record.fingerprint.envelope)
+        return SemanticEnvelope.model_validate(record.fingerprint.envelope)
 
     @scope_guard.viewer_guarded("list_records")
     async def list_records(

@@ -27,11 +27,11 @@ from memspine.derive.standing import (
     select_instructions,
     usefulness,
 )
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import TimeAxes
 
 _n = itertools.count(1)
@@ -54,10 +54,10 @@ def make(
     status: str = "active",
     src: str = "user_stated",
     oid: str | None = None,
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     n = next(_n)
     time = TimeAxes(source_time=dt(day), recorded_at=dt(day))
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w{n}",
         assertion_key=AssertionKey(src=subject, rel=attr, dst=value or text, kind=attr),
         occurrence_id=oid or f"oc_{n}",
@@ -86,11 +86,11 @@ def make(
     )
 
 
-def home(value: str, day: str, **kw) -> AssertionEnvelope:
+def home(value: str, day: str, **kw) -> SemanticEnvelope:
     return make(f"Ilse lives in {value}", day, value=value, **kw)
 
 
-def diet(value: str, day: str, **kw) -> AssertionEnvelope:
+def diet(value: str, day: str, **kw) -> SemanticEnvelope:
     return make(f"Ilse eats {value}", day, value=value, attr="diet", **kw)
 
 
@@ -100,7 +100,7 @@ def reg() -> CardinalityRegistry:
     return r
 
 
-def hist(*recs: AssertionEnvelope):
+def hist(*recs: SemanticEnvelope):
     return value_history(list(recs), reg())
 
 
@@ -405,7 +405,7 @@ def test_eviction_deterministic():
 # ------------------------------------------------------------------ standing instructions
 
 
-def rule(text="Always answer in Dutch", **kw) -> AssertionEnvelope:
+def rule(text="Always answer in Dutch", **kw) -> SemanticEnvelope:
     return make(text, "2025-01-01", attr="instruction", subject="Ilse", **kw)
 
 

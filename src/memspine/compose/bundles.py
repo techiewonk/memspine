@@ -16,8 +16,8 @@ from dataclasses import dataclass, field
 from typing import Literal, get_args
 
 from memspine.compose.budget import Accounting, Budget
-from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.evidence import Evidence
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.schemas.public.read import ContextBlock, EvidenceBundle, RenderedLine
 
 __all__ = [
@@ -78,7 +78,7 @@ def _key(e: Evidence) -> TurnKey:
     return (t.source_id, t.source_version, t.seg_index)
 
 
-def build_bundles(items: Iterable[AssertionEnvelope]) -> list[EvidenceBundle]:
+def build_bundles(items: Iterable[SemanticEnvelope]) -> list[EvidenceBundle]:
     """One bundle per assertion, carrying all of its support and binding evidence (stored order) and its
     time anchors (event start and end). ``context`` evidence is not part of a bundle. Input order is
     kept; a repeated ``record_id`` keeps its first occurrence. An assertion without a ``record_id`` is an

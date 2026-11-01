@@ -11,7 +11,7 @@ Pure and model-free. An :class:`Observation` is a derived L4 candidate about a *
 Decisions encoded:
 
 * Lineage (O4-05): every observation lists the ids of all assertions that support it (``support_ids``); trust is
-  ``<=`` the minimum trust of those parents (G1, :func:`memspine.schemas.durable.assertion.inherit_trust`).
+  ``<=`` the minimum trust of those parents (G1, :func:`memspine.schemas.durable.semantic.inherit_trust`).
 * Independence (S4-2, S4-3): several assertions on the same day for the same kind are one occurrence, the rest are
   counted as ``restated``. A preference restated by one source family is a stability signal, not corroboration,
   so its confidence is capped (``restated_cap``) unless more than one independent source family backs it.
@@ -38,7 +38,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from memspine.derive.histories import ValueHistory, value_history
 from memspine.derive.integrate import CardinalityRegistry, record_id
 from memspine.derive.resolve import normalise_name
-from memspine.schemas.durable.assertion import AssertionEnvelope, inherit_trust
+from memspine.schemas.durable.semantic import SemanticEnvelope, inherit_trust
 
 __all__ = [
     "Observation",
@@ -147,14 +147,14 @@ class _Occ:
     value_key: str
 
 
-def _start(e: AssertionEnvelope) -> datetime | None:
+def _start(e: SemanticEnvelope) -> datetime | None:
     ev = e.time.event
     if ev is not None and ev.start is not None:
         return ev.start.at
     return e.time.source_time or e.time.recorded_at
 
 
-def _eligible(e: AssertionEnvelope) -> bool:
+def _eligible(e: SemanticEnvelope) -> bool:
     return (
         e.status in ("active", "contested", "superseded")
         and e.assessment.modality == "asserted"
@@ -162,14 +162,14 @@ def _eligible(e: AssertionEnvelope) -> bool:
     )
 
 
-def _subject_key(e: AssertionEnvelope) -> str:
+def _subject_key(e: SemanticEnvelope) -> str:
     s = e.subject
     if s is None:
         return ""
     return s.entity_id or s.surface.strip().casefold()
 
 
-def _predicate(e: AssertionEnvelope) -> str:
+def _predicate(e: SemanticEnvelope) -> str:
     return normalise_name(e.attribute or e.kind)
 
 
@@ -177,12 +177,12 @@ def _digest(*parts: str) -> str:
     return hashlib.sha256("\x1f".join(parts).encode("utf-8")).hexdigest()[:16]
 
 
-def _family(e: AssertionEnvelope) -> str:
+def _family(e: SemanticEnvelope) -> str:
     fams = sorted({ev.source_family for ev in e.evidence if getattr(ev, "source_family", None)})
     return fams[0] if fams else (e.speaker or e.src_class)
 
 
-def _occ(e: AssertionEnvelope) -> _Occ | None:
+def _occ(e: SemanticEnvelope) -> _Occ | None:
     at = _start(e)
     if at is None:
         return None
@@ -201,7 +201,7 @@ def _occ(e: AssertionEnvelope) -> _Occ | None:
     )
 
 
-def _group_prefix(e: AssertionEnvelope) -> str:
+def _group_prefix(e: SemanticEnvelope) -> str:
     return f"{e.scope.tenant}|{e.scope.owner}|{_subject_key(e)}"
 
 
@@ -258,7 +258,7 @@ def _restated_of(buckets: list[list[_Occ]]) -> int:
 
 
 def _event_groups(
-    assertions: Iterable[AssertionEnvelope], cfg: PatternConfig
+    assertions: Iterable[SemanticEnvelope], cfg: PatternConfig
 ) -> tuple[dict[tuple[str, str], list[_Occ]], dict[tuple[str, str], list[_Occ]]]:
     """(event groups, preference groups), keyed by (tenant|owner|subject, predicate)."""
     events: dict[tuple[str, str], list[_Occ]] = defaultdict(list)
@@ -513,7 +513,7 @@ def trend_observations(
 
 
 def find_observations(
-    assertions: Iterable[AssertionEnvelope],
+    assertions: Iterable[SemanticEnvelope],
     *,
     config: PatternConfig | None = None,
     registry: CardinalityRegistry | None = None,

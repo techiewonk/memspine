@@ -26,11 +26,11 @@ from memspine.read.pipeline.state import (
     CUE_TAG,
     _PassiveScope,
 )
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment, Support
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
 from memspine.store.scope import validate_namespace
@@ -202,7 +202,7 @@ def _event_start(r: MemoryRecord) -> TemporalRef:
     )
 
 
-def _as_envelope(r: MemoryRecord) -> AssertionEnvelope:
+def _as_envelope(r: MemoryRecord) -> SemanticEnvelope:
     """R3-14 adapter: a record as the time view sees it. Event time = ``valid_from`` /
     ``invalid_at`` (else ``valid_to``, an inferred end); recorded time = ``recorded_at``."""
     start = _event_start(r)
@@ -226,7 +226,7 @@ def _as_envelope(r: MemoryRecord) -> AssertionEnvelope:
         source_time=_aware(r.source_at) if r.source_at is not None else None,
         recorded_at=_aware(r.recorded_at),
     )
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=r.record_id,
         assertion_key=AssertionKey(
             src=r.entity or "_", rel=r.attribute or "_", dst="_", kind="fact"

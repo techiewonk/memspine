@@ -1,4 +1,4 @@
-"""Compile the model's extraction output (``ExtractionItem``) into stored ``AssertionEnvelope`` objects (LIB-05).
+"""Compile the model's extraction output (``ExtractionItem``) into stored ``SemanticEnvelope`` objects (LIB-05).
 
 Pure and unwired (wired later by W2-06a). Imports only the stdlib, pydantic and ``memspine.schemas``.
 
@@ -16,7 +16,7 @@ What the rules come from:
 * S4-1 / ER-11: lines cited from the NEW part of the window are ``support`` evidence; cited CONTEXT lines are
   ``binding`` evidence and never count as support.
 * S5-1: ``source_trust`` is system-set from the cited line's role; the model's confidence is a hint only.
-* I-3: ``chg`` marks a change; it sets ``AssertionEnvelope.change_hint``.
+* I-3: ``chg`` marks a change; it sets ``SemanticEnvelope.change_hint``.
 
 Interpretations the owner may veto are listed in the docstrings of the functions that make them (modality
 mapping, binding, assertion key, support, source label).
@@ -36,14 +36,15 @@ from typing import Any
 from pydantic import BaseModel, ValidationError
 
 from memspine.schemas.durable import (
-    AssertionEnvelope,
     AssertionKey,
     Assessment,
+    ClaimProducer,
     Evidence,
     Interval,
     Mention,
     OwnerScope,
     Provenance,
+    SemanticEnvelope,
     Span,
     Support,
     TemporalRef,
@@ -79,7 +80,7 @@ __all__ = [
 ]
 
 CHANGE_KEY = "chg"
-"""Wire key of the I-3 change marker; it maps to ``AssertionEnvelope.change_hint``."""
+"""Wire key of the I-3 change marker; it maps to ``SemanticEnvelope.change_hint``."""
 
 SOURCE_HINT_EXTRA_KEY = "source_hint"
 SPAN_TEXT_EXTRA_KEY = "span_text"
@@ -132,7 +133,7 @@ class ParseFailure:
 
 @dataclass(frozen=True)
 class CompileResult:
-    envelopes: tuple[AssertionEnvelope, ...] = ()
+    envelopes: tuple[SemanticEnvelope, ...] = ()
     rejections: tuple[Rejection, ...] = ()
     notes: tuple[CompileNote, ...] = ()
     parse_error: ParseFailure | None = None
@@ -362,7 +363,7 @@ def compile_items(raw: str | Sequence[Any], ctx: CompileContext) -> CompileResul
     if failure is not None or items is None:
         return CompileResult(parse_error=failure)
 
-    envelopes: list[AssertionEnvelope] = []
+    envelopes: list[SemanticEnvelope] = []
     rejections: list[Rejection] = []
     notes: list[CompileNote] = []
     seen: set[tuple[str, str]] = set()
@@ -389,7 +390,7 @@ def compile_items(raw: str | Sequence[Any], ctx: CompileContext) -> CompileResul
 
 def _compile_one(
     index: int, item: Any, ctx: CompileContext, notes: list[CompileNote]
-) -> AssertionEnvelope | Rejection:
+) -> SemanticEnvelope | Rejection:
     if isinstance(item, BaseModel):
         item = item.model_dump()
     if not isinstance(item, Mapping):
@@ -531,7 +532,7 @@ def _compile_one(
     extras = dict(sorted(extras.items()))
 
     try:
-        return AssertionEnvelope(
+        return SemanticEnvelope(
             write_id=w_id,
             assertion_key=key,
             occurrence_id=o_id,
@@ -557,6 +558,8 @@ def _compile_one(
             epoch=ctx.epoch,
             erasure_generation=ctx.erasure_generation,
             prompt_hash=ctx.prompt_hash,
+            # ADR-088: the model path writes the same canonical claim; the revision is the prompt.
+            producer=ClaimProducer(kind="model", revision=ctx.prompt_hash or "model:unpinned"),
             extras=extras,
         )
     except ValidationError as exc:

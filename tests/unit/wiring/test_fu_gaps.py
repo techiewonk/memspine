@@ -228,7 +228,7 @@ async def test_get_envelope_reads_back_the_compiled_envelope(
     from test_w2_06a_envelope import ItemLLM, _engine
     from test_window_write import _send, _turns
 
-    from memspine.schemas.durable import AssertionEnvelope
+    from memspine.schemas.durable import SemanticEnvelope
 
     eng = await _engine(monkeypatch, ItemLLM())
     try:
@@ -237,7 +237,7 @@ async def test_get_envelope_reads_back_the_compiled_envelope(
         facts = await _facts(eng)
         assert facts
         got = [await eng.get_envelope(r.record_id, "a") for r in facts]
-        assert all(isinstance(e, AssertionEnvelope) for e in got)
+        assert all(isinstance(e, SemanticEnvelope) for e in got)
         env = got[0]
         assert env is not None and env.evidence and env.time.source_time is not None
         assert await eng.get_envelope("missing", "a") is None

@@ -24,11 +24,11 @@ from memspine.derive.profile import (
     record_use,
     reflection_plan,
 )
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment, Support
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 from memspine.schemas.steps.shared import ProfileOp as WireOp
 
@@ -55,7 +55,7 @@ def ev(
     end: str | None = None,
     restated: int = 0,
     oid: str | None = None,
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     n = next(_n)
     event = None
     if end:
@@ -63,7 +63,7 @@ def ev(
             end=TemporalRef(at=dt(end), precision="day", basis="explicit"),
         )
     time = TimeAxes(source_time=dt(day), recorded_at=dt(day), event=event)
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w{n}",
         assertion_key=AssertionKey(src="Ilse", rel=attr, dst=value or text, kind=attr),
         occurrence_id=oid or f"a{n}",
@@ -93,7 +93,7 @@ def ev(
     )
 
 
-def index(*es: AssertionEnvelope) -> dict[str, AssertionEnvelope]:
+def index(*es: SemanticEnvelope) -> dict[str, SemanticEnvelope]:
     return {e.occurrence_id: e for e in es}
 
 
@@ -699,7 +699,7 @@ def test_reflection_plan_reasons_and_order():
 
 def test_reflection_plan_uses_value_histories():
     cfg = ProfileConfig()
-    old = AssertionEnvelope
+    old = SemanticEnvelope
     a = ev("Ilse lives in Delft", "2026-01-10", attr="residence", value="Delft")
     card, _ = one(
         CARD, [op(section="identity", key="home", value="Delft", cites=[a.occurrence_id])], index(a)

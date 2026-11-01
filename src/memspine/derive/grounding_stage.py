@@ -52,8 +52,8 @@ from memspine.derive.ground import (
 )
 from memspine.ingest.provenance import AssentChecker, AssentVerdict
 from memspine.observability import tap
-from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
+from memspine.schemas.durable.semantic import SemanticEnvelope
 
 __all__ = [
     "GROUND_STAGE_ORDER",
@@ -327,8 +327,8 @@ class _Stage:
     confirmed_trust: float = 0.8
 
     async def run(
-        self, envelopes: list[AssertionEnvelope], ctx: EnvelopeStageContext
-    ) -> list[AssertionEnvelope]:
+        self, envelopes: list[SemanticEnvelope], ctx: EnvelopeStageContext
+    ) -> list[SemanticEnvelope]:
         window, offsets = self.checker.window(ctx.lines)
         by_key = {
             turn_key(
@@ -339,7 +339,7 @@ class _Stage:
             for n, ln in ctx.lines.items()
         }
         source_time = _source_date(ctx)
-        kept: list[AssertionEnvelope] = []
+        kept: list[SemanticEnvelope] = []
         for env in envelopes:
             claim = _shift_spans(claim_from_envelope(env, source_time=source_time), offsets)
             subjects = [env.subject.surface] if env.subject is not None else []
@@ -395,12 +395,12 @@ class _Stage:
 
     @staticmethod
     def _mark(
-        env: AssertionEnvelope,
+        env: SemanticEnvelope,
         v: GroundingVerdict,
         *,
         grounding: str,
         status: str | None = None,
-    ) -> AssertionEnvelope:
+    ) -> SemanticEnvelope:
         upd: dict[str, Any] = {"grounding": grounding, "checks": v.rules.to_checks()}
         if status is not None:
             upd["status"] = status
@@ -408,11 +408,11 @@ class _Stage:
 
     @staticmethod
     def _put_spans(
-        env: AssertionEnvelope,
+        env: SemanticEnvelope,
         v: GroundingVerdict,
         by_key: Mapping[str, tuple[int, Any]],
         offsets: Mapping[str, int],
-    ) -> AssertionEnvelope:
+    ) -> SemanticEnvelope:
         if not v.spans:
             return env
         found = {k: (s, e, t) for k, s, e, t in v.spans}
@@ -431,11 +431,11 @@ class _Stage:
 
     def _assent(
         self,
-        env: AssertionEnvelope,
+        env: SemanticEnvelope,
         ctx: EnvelopeStageContext,
         by_key: Mapping[str, tuple[int, Any]],
         notes: Counter[str],
-    ) -> AssertionEnvelope:
+    ) -> SemanticEnvelope:
         """An assistant proposal becomes ``user_confirmed`` only on a real user yes on the next line."""
         if env.src_class != "assistant_proposed":
             return env
@@ -484,7 +484,7 @@ class _Stage:
 
 
 def _asserter(
-    env: AssertionEnvelope, claim: Claim, window: Mapping[str, WindowTurn], lines: Mapping[int, Any]
+    env: SemanticEnvelope, claim: Claim, window: Mapping[str, WindowTurn], lines: Mapping[int, Any]
 ) -> str | None:
     """The envelope's asserter in the names the window shows: when it is the cited line's own speaker
     label (the compiler's), use the name printed on that line."""

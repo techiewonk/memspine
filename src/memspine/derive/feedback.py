@@ -31,11 +31,11 @@ from pydantic import AwareDatetime, ConfigDict, Field, model_validator
 
 from memspine.schemas import InternalModel
 from memspine.schemas.durable import (
-    AssertionEnvelope,
     Assessment,
     Evidence,
     OwnerScope,
     Provenance,
+    SemanticEnvelope,
     Support,
     TimeAxes,
     TurnRef,
@@ -201,7 +201,7 @@ def check_feedback(
 # --------------------------------------------------------------------------- assertions
 
 
-def _trust(base: float, target: AssertionEnvelope) -> float:
+def _trust(base: float, target: SemanticEnvelope) -> float:
     """An explicit say-so about a memory is at least as trusted as the memory (so it can retire it)."""
     return min(1.0, max(base, target.assessment.source_trust))
 
@@ -213,7 +213,7 @@ def _turn_id(turn: TurnRef) -> str:
 def _draft(
     event: FeedbackEvent,
     target_id: str,
-    target: AssertionEnvelope,
+    target: SemanticEnvelope,
     *,
     modality: Literal["asserted", "negated"],
     src_class: Literal["user_stated", "user_confirmed", "external"],
@@ -221,11 +221,11 @@ def _draft(
     text: str,
     trust: float,
     family: str,
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     assert event.source is not None  # guaranteed for non-rating kinds
     span = Span(start=0, end=len(event.quote), quote=event.quote) if event.quote else None
     support = Support(independent=1, families=[family])
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=write_id(
             target.scope,
             event.source.source_id,
@@ -266,12 +266,12 @@ def _draft(
 
 def to_assertions(
     event: FeedbackEvent,
-    targets: Mapping[str, AssertionEnvelope],
+    targets: Mapping[str, SemanticEnvelope],
     *,
     operators: Iterable[str] = (),
     owner_trust: float = DEFAULT_OWNER_TRUST,
     operator_trust: float = DEFAULT_OPERATOR_TRUST,
-) -> list[AssertionEnvelope]:
+) -> list[SemanticEnvelope]:
     """Draft assertions that carry ``event`` into integration. Never edits a record (S5-2).
 
     ``targets`` maps each target record id to the envelope it names (the recalled memory). Drafts
@@ -294,7 +294,7 @@ def to_assertions(
     operator = event.actor.kind == "operator"
     family = f"{'operator' if operator else 'person'}:{event.actor.principal}"
     base = operator_trust if operator else owner_trust
-    out: list[AssertionEnvelope] = []
+    out: list[SemanticEnvelope] = []
     for target_id in event.target_ids:
         target = targets.get(target_id)
         if target is None:

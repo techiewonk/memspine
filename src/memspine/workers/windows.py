@@ -84,7 +84,7 @@ from memspine.prompts.structured import (
     window_messages,
     window_schema,
 )
-from memspine.schemas.durable import AssertionEnvelope
+from memspine.schemas.durable import SemanticEnvelope
 from memspine.schemas.durable.common import OwnerScope
 from memspine.scope import Scope
 from memspine.services.concurrency import Priority, priority_scope
@@ -2383,8 +2383,8 @@ class WindowPipeline:
                 continue
             when = envelope.time.source_time or sources[0].source_at or sources[0].valid_from
             entity = envelope.subject.surface if envelope.subject is not None else envelope.speaker
-            semantic = envelope.semantic
-            predicate = semantic.predicate if semantic is not None else envelope.attribute
+            typing = envelope.registry
+            predicate = typing.predicate if typing is not None else envelope.attribute
             stored = await self._deposit_fact(
                 ns,
                 envelope.text,
@@ -2628,7 +2628,7 @@ class WindowPipeline:
                 )
             await self._dispute_peers(ns, env, getattr(stored, "record_id", None))
 
-    async def _dispute_peers(self, ns: str, env: AssertionEnvelope, new_id: str | None) -> None:
+    async def _dispute_peers(self, ns: str, env: SemanticEnvelope, new_id: str | None) -> None:
         """FU-GAPS: a contest keeps both values live, so the older peer carries ``disputed`` too
         (the new record got the tag at deposit). Only with ``write.integration``."""
         if self._mark_disputed is None or env.verdict is None or env.verdict.op != "contest":

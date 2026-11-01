@@ -41,8 +41,8 @@ from datetime import datetime
 from typing import Any, Literal
 
 from memspine.derive.integrate import record_id
-from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.assessment import is_tentative
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.store import keys
 
 __all__ = [
@@ -127,28 +127,28 @@ def _digest(domain: str, parts: list[Any]) -> str:
     return f"{domain}_{hashlib.sha256(blob.encode('utf-8')).hexdigest()[:32]}"
 
 
-def _assertion_id(env: AssertionEnvelope, key_digest: str) -> str:
+def _assertion_id(env: SemanticEnvelope, key_digest: str) -> str:
     return _digest("an", [env.scope.tenant, env.scope.owner, key_digest, env.occurrence_id])
 
 
-def assertion_node_id(env: AssertionEnvelope) -> str:
+def assertion_node_id(env: SemanticEnvelope) -> str:
     """The assertion node id: stable under scope + assertion key + occurrence (replay-safe)."""
     return _assertion_id(env, env.assertion_key.digest())
 
 
-def _edge_key(kind: str, label: str, src: str, dst: str, env: AssertionEnvelope) -> str:
+def _edge_key(kind: str, label: str, src: str, dst: str, env: SemanticEnvelope) -> str:
     """Kind + endpoints + occurrence (A-B-A: a returning value has a new occurrence, hence a new key)."""
     return keys.edge_key(
         kind, label, src, dst, env.occurrence_id, env.scope.tenant, env.scope.owner
     )
 
 
-def _value_node_id(env: AssertionEnvelope) -> str:
+def _value_node_id(env: SemanticEnvelope) -> str:
     v = env.value
     return _digest("vl", [env.scope.tenant, env.scope.owner, type(v).__name__, str(v)])
 
 
-def _time_node_id(env: AssertionEnvelope, anchor: datetime) -> str:
+def _time_node_id(env: SemanticEnvelope, anchor: datetime) -> str:
     # Keyed on the interval start (else end) and precision only: closing an interval later must not
     # change the edge key. The end lives on the edge as ``valid_to``.
     return _digest(
@@ -163,7 +163,7 @@ def _ref_at(ref: Any) -> datetime | None:
     return getattr(ref, "at", None) if ref is not None else None
 
 
-def _event_bounds(env: AssertionEnvelope) -> tuple[datetime | None, datetime | None]:
+def _event_bounds(env: SemanticEnvelope) -> tuple[datetime | None, datetime | None]:
     ev = env.time.event
     if ev is None:
         return None, None
@@ -195,7 +195,7 @@ def _mention_entity(
 
 
 def _extra_roles(
-    env: AssertionEnvelope, allowed: frozenset[str] | None
+    env: SemanticEnvelope, allowed: frozenset[str] | None
 ) -> list[tuple[str, str, bool]]:
     """``(role, entity_id, resolved)`` from the code-compiled ``graph['nary']['roles']`` (sorted)."""
     g = env.graph
@@ -215,11 +215,11 @@ def _extra_roles(
     return out
 
 
-def _is_tentative(env: AssertionEnvelope) -> bool:
+def _is_tentative(env: SemanticEnvelope) -> bool:
     return env.status == "tentative" or is_tentative(env.assessment)
 
 
-def _fallback_time(env: AssertionEnvelope) -> datetime | None:
+def _fallback_time(env: SemanticEnvelope) -> datetime | None:
     return env.time.source_time or env.time.recorded_at
 
 
@@ -227,7 +227,7 @@ def _fallback_time(env: AssertionEnvelope) -> datetime | None:
 
 
 def compile_edges(
-    envelopes: Iterable[AssertionEnvelope],
+    envelopes: Iterable[SemanticEnvelope],
     entity_ids: Mapping[str, str] | Collection[str] | None = None,
 ) -> GraphDelta:
     """Compile assertions into nodes and edges.
@@ -290,7 +290,7 @@ def compile_edges(
             kind: NodeKind,
             label: str | None,
             *,
-            env: AssertionEnvelope = env,
+            env: SemanticEnvelope = env,
             aid: str = aid,
             alias_ids: tuple[str, ...] = alias_ids,
             flags: dict[str, Any] = flags,
@@ -373,7 +373,7 @@ def _put(edges: dict[str, GraphEdge], edge: GraphEdge) -> None:
 
 def retract(
     assertion_ids: Iterable[str],
-    envelopes: Iterable[AssertionEnvelope] | None = None,
+    envelopes: Iterable[SemanticEnvelope] | None = None,
     entity_ids: Mapping[str, str] | Collection[str] | None = None,
 ) -> GraphDelta:
     """Delta that removes everything sourced from the given assertions (erasure, LIB-09 compatible).
@@ -386,7 +386,7 @@ def retract(
     """
     wanted = {str(a) for a in assertion_ids}
     envs = list(envelopes or [])
-    matched: list[AssertionEnvelope] = []
+    matched: list[SemanticEnvelope] = []
     ids: set[str] = set(wanted)
     for env in envs:
         aid = assertion_node_id(env)
@@ -413,7 +413,7 @@ def retract(
     )
 
 
-def _unhide(env: AssertionEnvelope) -> AssertionEnvelope:
+def _unhide(env: SemanticEnvelope) -> SemanticEnvelope:
     """Un-hide an envelope so retraction enumerates its keys even if it was merged away."""
     return env.model_copy(update={"status": "active"}) if env.status == "hidden" else env
 

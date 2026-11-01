@@ -30,7 +30,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field
 
 from memspine.schemas.base import InternalModel
-from memspine.schemas.durable.assertion import AssertionEnvelope, inherit_trust
+from memspine.schemas.durable.semantic import SemanticEnvelope, inherit_trust
 
 __all__ = [
     "HOWTO_KINDS",
@@ -156,7 +156,7 @@ def _strs(value: object) -> tuple[str, ...]:
     return tuple(s.strip() for s in value if isinstance(s, str) and s.strip())
 
 
-def howto_of(a: AssertionEnvelope, kinds: frozenset[str] = HOWTO_KINDS) -> HowTo | None:
+def howto_of(a: SemanticEnvelope, kinds: frozenset[str] = HOWTO_KINDS) -> HowTo | None:
     """Read a how-to from an assertion's fixed slots; ``None`` if it is not a usable how-to.
 
     Needs ``kind`` in ``kinds`` and a non-empty ``extras["steps"]`` list; the name is
@@ -206,7 +206,7 @@ def _procedure_id(scope_key: str, name: str) -> str:
 
 
 def build_procedures(
-    howtos: Iterable[HowTo | AssertionEnvelope],
+    howtos: Iterable[HowTo | SemanticEnvelope],
     *,
     existing: Iterable[Procedure] = (),
     min_repeats: int = 2,
@@ -222,7 +222,7 @@ def build_procedures(
         raise ValueError("min_repeats must be >= 1")
     items: list[HowTo] = []
     for h in howtos:
-        if isinstance(h, AssertionEnvelope):
+        if isinstance(h, SemanticEnvelope):
             h = howto_of(h)  # type: ignore[assignment]  # CI-GREEN: pre-existing typing debt
         if h is not None:
             items.append(h)  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt

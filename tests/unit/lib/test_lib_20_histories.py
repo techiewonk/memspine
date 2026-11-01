@@ -19,11 +19,11 @@ from memspine.derive.histories import (
     value_history,
 )
 from memspine.derive.integrate import CardinalityRegistry
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment, Support
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import TimeAxes
 
 _n = itertools.count(1)
@@ -46,10 +46,10 @@ def make(
     modality: str = "asserted",
     oid: str | None = None,
     support: Support | None = None,
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     n = next(_n)
     time = TimeAxes(source_time=dt(day), recorded_at=dt(day))
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w{n}",
         assertion_key=AssertionKey(src=subject, rel=attr, dst=value or text, kind=attr),
         occurrence_id=oid or f"oc_{n}",
@@ -78,7 +78,7 @@ def make(
     )
 
 
-def residence(value: str, day: str, **kw) -> AssertionEnvelope:
+def residence(value: str, day: str, **kw) -> SemanticEnvelope:
     return make(f"Femke lives in {value}", day, value=value, attr="residence", **kw)
 
 

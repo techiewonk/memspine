@@ -30,7 +30,7 @@ from typing import Literal
 from pydantic import AwareDatetime, ConfigDict, Field
 
 from memspine.schemas.base import InternalModel
-from memspine.schemas.durable.assertion import AssertionEnvelope, inherit_trust
+from memspine.schemas.durable.semantic import SemanticEnvelope, inherit_trust
 from memspine.schemas.durable.temporal import Interval, TemporalRef
 
 __all__ = [
@@ -304,21 +304,21 @@ class Reminder(InternalModel):
 # ------------------------------------------------------------------------------------------ derive
 
 
-def _assertion_id(a: AssertionEnvelope) -> str:
+def _assertion_id(a: SemanticEnvelope) -> str:
     return a.record_id or a.occurrence_id
 
 
-def _stamp(a: AssertionEnvelope, fallback: datetime) -> datetime:
+def _stamp(a: SemanticEnvelope, fallback: datetime) -> datetime:
     return a.time.source_time or a.time.recorded_at or fallback
 
 
-def _who(a: AssertionEnvelope) -> str:
+def _who(a: SemanticEnvelope) -> str:
     if a.subject is not None:
         return a.subject.surface
     return a.speaker or ""
 
 
-def _subject_key(a: AssertionEnvelope) -> str:
+def _subject_key(a: SemanticEnvelope) -> str:
     if a.subject is not None and a.subject.entity_id:
         return f"e:{a.subject.entity_id}"
     return f"s:{_norm_phrase(_who(a))}"
@@ -344,16 +344,16 @@ def _time_trigger(interval: Interval | None) -> tuple[datetime | None, datetime 
     return start, end
 
 
-def _cue_text(a: AssertionEnvelope, key: str) -> str | None:
+def _cue_text(a: SemanticEnvelope, key: str) -> str | None:
     v = a.extras.get(key)
     return v.strip() if isinstance(v, str) and v.strip() else None
 
 
 def derive_intentions(
-    assertions: Iterable[AssertionEnvelope],
+    assertions: Iterable[SemanticEnvelope],
     *,
     now: datetime,
-    cue_of: Callable[[AssertionEnvelope], tuple[str | None, str | None]] | None = None,
+    cue_of: Callable[[SemanticEnvelope], tuple[str | None, str | None]] | None = None,
 ) -> list[Intention]:
     """Build intentions from ``planned`` assertions.
 
@@ -365,7 +365,7 @@ def derive_intentions(
     fallback for an assertion carrying no source or recorded time.
     """
     _require_aware(now, "now")
-    groups: dict[tuple[str, str, frozenset[str]], list[AssertionEnvelope]] = {}
+    groups: dict[tuple[str, str, frozenset[str]], list[SemanticEnvelope]] = {}
     for a in assertions:
         if a.assessment.modality != "planned" or a.assessment.negated:
             continue
@@ -413,7 +413,7 @@ def derive_intentions(
 # ------------------------------------------------------------------------- completion / cancellation
 
 
-def _classify(a: AssertionEnvelope) -> Literal["done", "cancelled"] | None:
+def _classify(a: SemanticEnvelope) -> Literal["done", "cancelled"] | None:
     mod = a.assessment.modality
     if mod == "negated" or (mod == "planned" and a.assessment.negated):
         return "cancelled"
@@ -422,7 +422,7 @@ def _classify(a: AssertionEnvelope) -> Literal["done", "cancelled"] | None:
     return None
 
 
-def _matches(i: Intention, a: AssertionEnvelope, rules: ProspectiveRules) -> bool:
+def _matches(i: Intention, a: SemanticEnvelope, rules: ProspectiveRules) -> bool:
     # Same subject: equal normalised surfaces, or the shorter is a whole-word prefix of the longer
     # ("Aiko" vs "Aiko Tanaka"). Empty subjects never match.
     mine_who, theirs_who = _norm_phrase(i.who).split(), _norm_phrase(_who(a)).split()
@@ -442,7 +442,7 @@ def _matches(i: Intention, a: AssertionEnvelope, rules: ProspectiveRules) -> boo
 
 def detect_resolution(
     intentions: Sequence[Intention],
-    later: Iterable[AssertionEnvelope],
+    later: Iterable[SemanticEnvelope],
     *,
     now: datetime,
     rules: ProspectiveRules | None = None,

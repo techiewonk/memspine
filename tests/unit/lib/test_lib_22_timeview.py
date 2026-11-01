@@ -15,11 +15,11 @@ from memspine.read.timeview import (
     apply,
     temporal_score,
 )
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment, Support
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TemporalRelation, TimeAxes
 
 SCOPE = OwnerScope(tenant="t1", owner="u1")
@@ -50,7 +50,7 @@ def make(
     attr: str = "residence",
     oid: str | None = None,
     status: str = "active",
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     n = next(_n)
     if event is None and (start or end):
         event = Interval(start=start, end=end)
@@ -59,7 +59,7 @@ def make(
         source_time=dt(learned) if learned else None,
         recorded_at=dt(learned) if learned else None,
     )
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w{n}",
         assertion_key=AssertionKey(src=subject, rel=attr, dst=value, kind=attr),
         occurrence_id=oid or f"oc_{value}_{n}",
@@ -100,16 +100,16 @@ def replayer(recs):
     return replay(recs, registry()).records
 
 
-def store(*incoming: AssertionEnvelope) -> list[AssertionEnvelope]:
+def store(*incoming: SemanticEnvelope) -> list[SemanticEnvelope]:
     """Integrate in the given arrival order, like the write path would."""
     reg = registry()
-    cur: list[AssertionEnvelope] = []
+    cur: list[SemanticEnvelope] = []
     for a in incoming:
         cur = apply_decision(integrate(a, cur, reg), a, cur)
     return cur
 
 
-def ilse() -> list[AssertionEnvelope]:
+def ilse() -> list[SemanticEnvelope]:
     groningen = make(
         "Groningen",
         start=ref("2015-01-01", "year"),

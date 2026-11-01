@@ -17,11 +17,11 @@ from memspine.compose.render_trust import (
     render_text,
 )
 from memspine.schemas.durable import (
-    AssertionEnvelope,
     AssertionKey,
     Assessment,
     Evidence,
     OwnerScope,
+    SemanticEnvelope,
     TimeAxes,
     TurnRef,
     occurrence_id,
@@ -43,9 +43,9 @@ def env(
     src_class: str = "user_stated",
     family: str = "ann",
     rel: str = "city",
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     key = AssertionKey(src="ann", rel=rel, dst=dst, kind="state")
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=write_id(SCOPE, "c", 0, rid),
         assertion_key=key,
         occurrence_id=occurrence_id("e", [f"s#{rid}"], key),
@@ -260,7 +260,7 @@ def test_quarantined_labelled_mention_has_no_content() -> None:
 # --- sections, order, determinism ---------------------------------------------------------------
 
 
-def mixed() -> list[AssertionEnvelope | TrustItem]:
+def mixed() -> list[SemanticEnvelope | TrustItem]:
     return [
         env("low", "from the web", src_class="external"),
         env("ten", "will visit", modality="planned"),

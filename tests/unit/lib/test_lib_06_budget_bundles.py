@@ -16,12 +16,12 @@ from memspine.compose.budget import (
 )
 from memspine.compose.bundles import TurnText, build_bundles, pack
 from memspine.schemas.durable import (
-    AssertionEnvelope,
     AssertionKey,
     Assessment,
     Evidence,
     Interval,
     OwnerScope,
+    SemanticEnvelope,
     TemporalRef,
     TimeAxes,
     TurnRef,
@@ -60,7 +60,7 @@ def assertion(
     *,
     when: str | None = None,
     extra_context: bool = False,
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     key = AssertionKey(src=rid, rel="r", dst="d", kind="state")
     ev = [Evidence(role="support", turn=tr(i), source_family="spk") for i in support]
     ev += [Evidence(role="binding", turn=tr(i), source_family="spk") for i in binding]
@@ -74,7 +74,7 @@ def assertion(
         )
         time = TimeAxes(event=Interval(start=ref))
         prec = "day"
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=write_id(SCOPE, "c", 0, rid),
         assertion_key=key,
         occurrence_id=occurrence_id("e", [f"src#{support[0]}"], key),

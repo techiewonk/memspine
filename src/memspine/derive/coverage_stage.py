@@ -55,7 +55,7 @@ from memspine.derive.items import parse_reply
 from memspine.observability import tap
 from memspine.prompts.layout_aliases import render_known
 from memspine.prompts.structured import window_messages
-from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.services.llm.base import lenient_json
 
 __all__ = [
@@ -173,7 +173,7 @@ def _line_date(ln: Any) -> str:
     return f"{at:%Y-%m-%d}" if at is not None and hasattr(at, "strftime") else "unknown"
 
 
-def _names(envelopes: Sequence[AssertionEnvelope]) -> list[tuple[str, tuple[str, ...]]]:
+def _names(envelopes: Sequence[SemanticEnvelope]) -> list[tuple[str, tuple[str, ...]]]:
     seen: dict[str, None] = {}
     for env in envelopes:
         for ref in (env.subject, env.object):
@@ -201,8 +201,8 @@ class CoverageStage:
         return EnvelopeStage("coverage", COVERAGE_STAGE_ORDER, self.run)
 
     async def run(
-        self, envelopes: list[AssertionEnvelope], ctx: EnvelopeStageContext
-    ) -> list[AssertionEnvelope]:
+        self, envelopes: list[SemanticEnvelope], ctx: EnvelopeStageContext
+    ) -> list[SemanticEnvelope]:
         wlines, number = _window_lines(ctx)
         report = coverage(wlines, envelopes)
         before = report.ratio
@@ -210,13 +210,13 @@ class CoverageStage:
         ctx.notes["coverage.before_permille"] += round(before * 1000)
 
         def done(
-            out: list[AssertionEnvelope],
+            out: list[SemanticEnvelope],
             after: float,
             *,
             calls: int = 0,
             added: int = 0,
             bad: int = 0,
-        ) -> list[AssertionEnvelope]:
+        ) -> list[SemanticEnvelope]:
             ctx.notes["coverage.after_permille"] += round(after * 1000)
             self.stats.windows.append(
                 WindowCoverage(ctx.window_id, before, after, calls, added, bad)
@@ -261,7 +261,7 @@ class CoverageStage:
         compiled = compile_items(facts, ctx.compile_ctx)
         ctx.notes["coverage.rejected"] += len(compiled.rejections)
         have = {(e.write_id, e.occurrence_id) for e in envelopes}
-        fresh: list[AssertionEnvelope] = []
+        fresh: list[SemanticEnvelope] = []
         for env in compiled.envelopes:
             key = (env.write_id, env.occurrence_id)
             if key in have:
@@ -290,7 +290,7 @@ class CoverageStage:
     async def _ask(
         self,
         ctx: EnvelopeStageContext,
-        envelopes: Sequence[AssertionEnvelope],
+        envelopes: Sequence[SemanticEnvelope],
         win: Any,
         number: Mapping[int, int],
     ) -> str | None:
@@ -335,8 +335,8 @@ class CoverageStage:
             return None
 
     async def _ground(
-        self, fresh: list[AssertionEnvelope], ctx: EnvelopeStageContext
-    ) -> list[AssertionEnvelope]:
+        self, fresh: list[SemanticEnvelope], ctx: EnvelopeStageContext
+    ) -> list[SemanticEnvelope]:
         """The earlier stages (temporal, grounding) over the new envelopes only; keep ``grounded``."""
         if not fresh:
             return []

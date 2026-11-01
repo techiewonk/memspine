@@ -7,7 +7,7 @@ names its parts so they are documented in one place:
                     closed window is enqueued on the durable outbox (F-04) with a receipt (W2-01).
     2. extract      ``workers.windows.WindowPipeline`` makes ONE structured call per window or batch
                     (W2-06b ``PromptContextBuilder``) and ``process_items`` validates, repairs once
-                    and dead-letters (W2-06a), producing :class:`AssertionEnvelope`s.
+                    and dead-letters (W2-06a), producing :class:`SemanticEnvelope`s.
     3. stages       the envelope stage hook list (``derive/envelope_stages.py``, built by
                     ``ingest/windows.py:_envelope_stages``) runs in ``order`` over the envelopes:
                     W2-14 temporal (100), W2-08 grounding (200), W2-09 resolution (300),

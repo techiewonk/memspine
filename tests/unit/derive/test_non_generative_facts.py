@@ -103,6 +103,13 @@ def test_user_goal_is_typed_planned_not_asserted_world_state() -> None:
     assert len(result.facts) == 1
     assert result.facts[0].predicate == "has_goal"
     assert result.facts[0].modality == "planned"
+    scope = OwnerScope(tenant="tenant", owner="tenant/alice")
+    record = _record("I plan to visit Kyoto.")
+    compiled = compile_grounded_facts(mine_grounded_facts(record, scope), [record], scope)
+    assert len(compiled.envelopes) == 1
+    claim = compiled.envelopes[0]
+    assert claim.assessment.modality == "planned" and claim.outcome == "none"
+    assert not claim.asserts_fact  # ADR-088: a planned claim never reads as an asserted fact
 
 
 def test_candidate_is_registry_validated_and_compiled_to_canonical_envelope() -> None:
@@ -117,11 +124,13 @@ def test_candidate_is_registry_validated_and_compiled_to_canonical_envelope() ->
     assert envelope.attribute == "employed_by"
     assert envelope.assertion_key.rel == "employed_by"
     assert envelope.evidence[0].span is not None
-    semantic = envelope.semantic
-    assert semantic is not None
-    assert semantic.predicate == "employed_by"
-    assert semantic.object_entity_type == "organisation"
-    assert semantic.registry_digest
+    typing = envelope.registry
+    assert typing is not None
+    assert typing.predicate == "employed_by"
+    assert typing.object_entity_type == "organisation"
+    assert typing.registry_digest
+    assert envelope.producer is not None and envelope.producer.kind == "rules"
+    assert envelope.asserts_fact
 
 
 def _evidence(record: MemoryRecord, quote: str, *, role: str = "support") -> Evidence:
@@ -182,9 +191,8 @@ def test_typed_role_bindings_accept_required_roles_and_exact_evidence() -> None:
     )
 
     assert len(compiled.envelopes) == 1 and not compiled.unresolved
-    semantic = compiled.envelopes[0].semantic
-    assert semantic is not None
-    assert [item.role_name for item in semantic.role_bindings] == ["preferred", "alternative"]
+    claim = compiled.envelopes[0]
+    assert [item.role_name for item in claim.role_bindings] == ["preferred", "alternative"]
 
 
 def test_missing_or_over_cardinality_role_binding_stays_unresolved() -> None:
@@ -254,13 +262,11 @@ def test_role_without_required_exact_span_stays_unresolved() -> None:
 def test_explicit_negative_candidate_preserves_negative_modality() -> None:
     scope = OwnerScope(tenant="tenant", owner="tenant/alice")
     record = _record("I like coffee.")
-    candidate = mine_grounded_facts(record, scope).facts[0].model_copy(
-        update={"polarity": "negative"}
+    candidate = (
+        mine_grounded_facts(record, scope).facts[0].model_copy(update={"polarity": "negative"})
     )
 
-    compiled = compile_grounded_facts(
-        FactStageResult(facts=(candidate,)), [record], scope
-    )
+    compiled = compile_grounded_facts(FactStageResult(facts=(candidate,)), [record], scope)
 
     assert compiled.envelopes[0].assessment.modality == "negated"
 
@@ -269,8 +275,10 @@ def test_contextual_cardinality_requires_declared_scope_before_acceptance() -> N
     scope = OwnerScope(tenant="tenant", owner="tenant/alice")
     record = _record("I like coffee.")
     candidate = mine_grounded_facts(record, scope).facts[0]
-    spec = load_builtin_registry().predicates["likes"].model_copy(
-        update={"cardinality": "contextual", "cardinality_scope": ("context",)}
+    spec = (
+        load_builtin_registry()
+        .predicates["likes"]
+        .model_copy(update={"cardinality": "contextual", "cardinality_scope": ("context",)})
     )
     registry = SemanticRegistry([spec], [], [])
 
@@ -287,8 +295,8 @@ def test_contextual_cardinality_requires_declared_scope_before_acceptance() -> N
     )
 
     assert missing.unresolved[0].reason == "semantic_validation_failed"
-    assert accepted.envelopes[0].semantic is not None
-    assert accepted.envelopes[0].semantic.cardinality_scope == {"context": "food"}
+    assert accepted.envelopes[0].registry is not None
+    assert accepted.envelopes[0].registry.cardinality_scope == {"context": "food"}
 
 
 def test_cross_scope_or_changed_citation_is_rejected_before_compilation() -> None:
@@ -320,12 +328,12 @@ def test_same_scope_context_is_cited_as_binding_not_support() -> None:
     context = _record("Acme is the company we discussed.").model_copy(
         update={"record_id": "record-2"}
     )
-    candidate = mine_grounded_facts(source, scope).facts[0].model_copy(
-        update={"context_evidence": (_evidence(context, "Acme", role="binding"),)}
+    candidate = (
+        mine_grounded_facts(source, scope)
+        .facts[0]
+        .model_copy(update={"context_evidence": (_evidence(context, "Acme", role="binding"),)})
     )
 
-    compiled = compile_grounded_facts(
-        FactStageResult(facts=(candidate,)), [source, context], scope
-    )
+    compiled = compile_grounded_facts(FactStageResult(facts=(candidate,)), [source, context], scope)
 
     assert [item.role for item in compiled.envelopes[0].evidence] == ["support", "binding"]

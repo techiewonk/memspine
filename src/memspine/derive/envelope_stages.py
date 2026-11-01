@@ -1,7 +1,7 @@
 """Ordered post-compile stages over a window's assertion envelopes (W2-06c stage hook list).
 
 ``process_items`` (W2-06a, the extraction envelope) validates, repairs and compiles the model's items
-into :class:`AssertionEnvelope`s. Before they are deposited, the window pipeline runs them through
+into :class:`SemanticEnvelope`s. Before they are deposited, the window pipeline runs them through
 this ordered list of stages. Each Phase 2 write package plugs in here with its own module and one
 builder line in ``ingest/windows.py:_envelope_stages``, so the packages stay independent:
 
@@ -27,7 +27,7 @@ from typing import Any
 
 from memspine.observability import inspect as insp
 from memspine.observability import tap
-from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.semantic import SemanticEnvelope
 
 __all__ = ["EnvelopeStage", "EnvelopeStageContext", "run_envelope_stages"]
 
@@ -51,7 +51,7 @@ class EnvelopeStageContext:
 
 
 StageFn = Callable[
-    [list[AssertionEnvelope], EnvelopeStageContext], Awaitable[list[AssertionEnvelope]]
+    [list[SemanticEnvelope], EnvelopeStageContext], Awaitable[list[SemanticEnvelope]]
 ]
 
 
@@ -64,9 +64,9 @@ class EnvelopeStage:
 
 async def run_envelope_stages(
     stages: Sequence[EnvelopeStage],
-    envelopes: list[AssertionEnvelope],
+    envelopes: list[SemanticEnvelope],
     ctx: EnvelopeStageContext,
-) -> list[AssertionEnvelope]:
+) -> list[SemanticEnvelope]:
     """Run ``stages`` in ``order``; a no-op (same list) when there are none."""
     if not stages:
         return envelopes

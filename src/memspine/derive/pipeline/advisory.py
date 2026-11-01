@@ -51,11 +51,11 @@ from memspine.memory.prospective import (
     expire,
 )
 from memspine.observability import tap
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment, Support
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus, SkillStage
@@ -189,7 +189,7 @@ def plan_cues(text: str) -> tuple[str | None, str | None]:
     return (ev.group("cue").strip() if ev else None), None
 
 
-def record_assertion(record: MemoryRecord) -> AssertionEnvelope | None:
+def record_assertion(record: MemoryRecord) -> SemanticEnvelope | None:
     """A record as the prospective library sees it (library input only; never stored).
 
     ``mod:plan`` without ``mod:fact`` is a planned assertion (``pol:neg`` makes it a cancellation);
@@ -222,7 +222,7 @@ def record_assertion(record: MemoryRecord) -> AssertionEnvelope | None:
             extras["event_cue"] = event_cue
         if location_cue:
             extras["location_cue"] = location_cue
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w:{record.record_id}",
         assertion_key=AssertionKey(
             src=surface, rel=record.attribute or "note", kind=record.memory_type

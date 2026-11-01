@@ -18,11 +18,11 @@ from memspine.derive.patterns import (
     trend_observations,
     usefulness,
 )
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment, Support
 from memspine.schemas.durable.common import OwnerScope, Provenance
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import TimeAxes
 
 _n = itertools.count(1)
@@ -44,10 +44,10 @@ def make(
     trust: float = 0.9,
     restated: int = 0,
     owner: str = "u1",
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     n = next(_n)
     time = TimeAxes(source_time=dt(day), recorded_at=dt(day))
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w{n}",
         assertion_key=AssertionKey(src=subject, rel=attr or kind, dst=str(value or n), kind=kind),
         occurrence_id=f"oc_{n}",
@@ -77,7 +77,7 @@ def make(
     )
 
 
-def days(start: str, offsets: list[int], **kw) -> list[AssertionEnvelope]:
+def days(start: str, offsets: list[int], **kw) -> list[SemanticEnvelope]:
     base = dt(start)
     return [make((base + timedelta(days=o)).date().isoformat(), **kw) for o in offsets]
 
@@ -92,7 +92,7 @@ def reg() -> CardinalityRegistry:
     return r
 
 
-def weights(pairs) -> list[AssertionEnvelope]:
+def weights(pairs) -> list[SemanticEnvelope]:
     return [make(d, kind="weight", attr="weight", value=v) for d, v in pairs]
 
 

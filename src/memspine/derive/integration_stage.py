@@ -51,8 +51,8 @@ from memspine.derive.integrate import (
 )
 from memspine.derive.pipeline.stages.envelope_adapter import OWNER, is_fact, key_of, to_envelope
 from memspine.observability import tap
-from memspine.schemas.durable.assertion import AssertionEnvelope, IntegrationVerdict, Mention
 from memspine.schemas.durable.common import OwnerScope
+from memspine.schemas.durable.semantic import IntegrationVerdict, Mention, SemanticEnvelope
 from memspine.store.records import MemoryRecord
 
 __all__ = [
@@ -128,7 +128,7 @@ class LadderVerdict:
         return IntegrationVerdict(op=self.op, rung=self.rung, hint=self.hint)  # type: ignore[arg-type]
 
 
-def hints_of(env: AssertionEnvelope) -> list[str]:
+def hints_of(env: SemanticEnvelope) -> list[str]:
     """The extraction hints that seed the ladder (W-21): a changed-value mark, a transition, a
     ``replaces`` alias, and a state kind. Empty = no hint."""
     out: list[str] = []
@@ -151,7 +151,7 @@ class ConflictLadder:
         self.default = default or DefaultVerdict()
 
     def decide(
-        self, incoming: AssertionEnvelope, current: Sequence[AssertionEnvelope]
+        self, incoming: SemanticEnvelope, current: Sequence[SemanticEnvelope]
     ) -> LadderVerdict:
         hints = hints_of(incoming)
         hint = hints[0] if hints else None
@@ -176,9 +176,9 @@ class ConflictLadder:
     def _defer(
         self,
         decision: IntegrationDecision,
-        incoming: AssertionEnvelope,
+        incoming: SemanticEnvelope,
         hints: Sequence[str],
-        peers: Sequence[AssertionEnvelope],
+        peers: Sequence[SemanticEnvelope],
     ) -> bool:
         """An undeclared key with a live peer and nothing saying the value changed: K_C decides."""
         if not self.default.defer_without_hints or decision.declared or hints or not peers:
@@ -192,7 +192,7 @@ class ConflictLadder:
 
     @staticmethod
     def _verdict(
-        decision: IntegrationDecision, incoming: AssertionEnvelope, hint: str | None
+        decision: IntegrationDecision, incoming: SemanticEnvelope, hint: str | None
     ) -> LadderVerdict:
         op = _OPS[decision.outcome]
         rung = _RUNG.get(decision.reason, decision.reason)
@@ -210,7 +210,7 @@ class ConflictLadder:
 ListLive = Callable[[str], Awaitable[Sequence[MemoryRecord]]]
 
 
-def _subject_cf(env: AssertionEnvelope) -> str | None:
+def _subject_cf(env: SemanticEnvelope) -> str | None:
     s = env.subject
     if s is None:
         return None
@@ -219,9 +219,9 @@ def _subject_cf(env: AssertionEnvelope) -> str | None:
 
 def _live_index(
     records: Sequence[MemoryRecord], namespace: str
-) -> dict[tuple[str, str], list[AssertionEnvelope]]:
+) -> dict[tuple[str, str], list[SemanticEnvelope]]:
     """(casefolded entity, normalised attribute) -> projected live facts, entity id set to the key."""
-    idx: dict[tuple[str, str], list[AssertionEnvelope]] = defaultdict(list)
+    idx: dict[tuple[str, str], list[SemanticEnvelope]] = defaultdict(list)
     for r in records:
         if not is_fact(r, purpose=FactPurpose.INTEGRATION) or r.valid_to is not None:
             continue  # a closed interval is history and never competes
@@ -252,7 +252,7 @@ def _live_index(
     return idx
 
 
-def _trust_cap(env: AssertionEnvelope, ctx: EnvelopeStageContext) -> float:
+def _trust_cap(env: SemanticEnvelope, ctx: EnvelopeStageContext) -> float:
     """The trust the deposit will store: the envelope's source trust, capped at the least-trusted cited
     turn (derived content is never more trusted than its parents) and at the default trust the mined-fact
     door gives a derived record, so it compares with the trust of the stored facts it is weighed against."""
@@ -261,7 +261,7 @@ def _trust_cap(env: AssertionEnvelope, ctx: EnvelopeStageContext) -> float:
     return min([TRUST_DEFAULT, env.assessment.source_trust, *cited])  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
 
-def _working_copy(env: AssertionEnvelope, ctx: EnvelopeStageContext, key: str) -> AssertionEnvelope:
+def _working_copy(env: SemanticEnvelope, ctx: EnvelopeStageContext, key: str) -> SemanticEnvelope:
     """Align the incoming envelope with the projected stored ones: same tenant and owner, entity key,
     and the trust the deposit will store."""
     assert env.subject is not None
@@ -290,8 +290,8 @@ def integration_stage(
     dflt = default or DefaultVerdict()
 
     async def run(
-        envs: list[AssertionEnvelope], ctx: EnvelopeStageContext
-    ) -> list[AssertionEnvelope]:
+        envs: list[SemanticEnvelope], ctx: EnvelopeStageContext
+    ) -> list[SemanticEnvelope]:
         if not envs:
             return envs
         ns = ctx.namespace
@@ -299,9 +299,9 @@ def integration_stage(
         for attr, card in declared.items():
             registry.declare(ns, attr, card)  # type: ignore[arg-type]
         ladder = ConflictLadder(registry, dflt)
-        index: dict[tuple[str, str], list[AssertionEnvelope]] | None = None
-        seen: dict[tuple[str, str], list[AssertionEnvelope]] = defaultdict(list)
-        out: list[AssertionEnvelope] = []
+        index: dict[tuple[str, str], list[SemanticEnvelope]] | None = None
+        seen: dict[tuple[str, str], list[SemanticEnvelope]] = defaultdict(list)
+        out: list[SemanticEnvelope] = []
         for env in envs:
             key_s = _subject_cf(env)
             if env.attribute is None or key_s is None or storage_kind(env.kind) != "state":
@@ -331,8 +331,8 @@ def integration_stage(
 
 
 def _annotate(
-    env: AssertionEnvelope, v: LadderVerdict, ctx: EnvelopeStageContext, *, keyed: bool
-) -> AssertionEnvelope:
+    env: SemanticEnvelope, v: LadderVerdict, ctx: EnvelopeStageContext, *, keyed: bool
+) -> SemanticEnvelope:
     extras = {**env.extras, "integrate_outcome": v.outcome}
     if v.target is not None:
         extras["integrate_target"] = v.target
@@ -352,7 +352,7 @@ def _annotate(
     return env.model_copy(update={"verdict": v.as_verdict(), "extras": extras})
 
 
-def deposit_tags(env: AssertionEnvelope) -> list[str]:
+def deposit_tags(env: SemanticEnvelope) -> list[str]:
     """The record tags that carry the verdict through the mined-fact door (empty without a verdict)."""
     v = env.verdict
     if v is None:
@@ -372,7 +372,7 @@ def deposit_tags(env: AssertionEnvelope) -> list[str]:
     return tags
 
 
-def deposit_attribute(env: AssertionEnvelope) -> str | None:
+def deposit_attribute(env: SemanticEnvelope) -> str | None:
     """The attribute the deposit stores: dropped for a value that coexists (or is tentative), which the
     store would otherwise hold back as a zero-length contender; kept for everything else."""
     v = env.verdict

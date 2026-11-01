@@ -25,8 +25,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Literal
 
-from memspine.schemas.durable.assertion import Mention
 from memspine.schemas.durable.common import OwnerScope
+from memspine.schemas.durable.semantic import Mention
 
 __all__ = [
     "Candidate",

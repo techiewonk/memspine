@@ -37,7 +37,7 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from memspine.derive.resolve import normalise_name
-from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.semantic import SemanticEnvelope
 
 __all__ = [
     "COVERAGE_PURPOSE",
@@ -964,7 +964,7 @@ def _canon_number(n: str) -> str:
     return n.replace(",", ".")
 
 
-def _envelope_content(envs: Iterable[AssertionEnvelope]) -> _Content:
+def _envelope_content(envs: Iterable[SemanticEnvelope]) -> _Content:
     c = _Content()
     for e in envs:
         _add_text(c, e.text)
@@ -1047,7 +1047,7 @@ def _omissions(seg_index: int, spans: Sequence[SalientSpan], c: _Content) -> lis
 # --------------------------------------------------------------------------------------------------
 
 
-def _cites(env: AssertionEnvelope, line: WindowLine) -> bool:
+def _cites(env: SemanticEnvelope, line: WindowLine) -> bool:
     for ev in env.evidence:
         if ev.role not in ("support", "binding") or ev.turn is None:
             continue
@@ -1063,7 +1063,7 @@ def _cites(env: AssertionEnvelope, line: WindowLine) -> bool:
 
 
 def coverage(
-    window_lines: Sequence[WindowLine], envelopes: Sequence[AssertionEnvelope]
+    window_lines: Sequence[WindowLine], envelopes: Sequence[SemanticEnvelope]
 ) -> CoverageReport:
     """Check which NEW lines of an extraction window the accepted ``envelopes`` cover.
 

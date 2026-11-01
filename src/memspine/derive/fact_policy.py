@@ -33,6 +33,10 @@ STANDING        -         x         -            same
 *lifecycle* = non-empty content and status ACTIVATED (``+hist``: or ARCHIVED with a successor, not
 ``taint_archived``, when the caller asks for ``include_history``).
 
+*claim* (ADR-088): a record written from a stored :class:`SemanticEnvelope` claim whose modality
+is not ``asserted`` (planned, negated, hypothetical, reported, question) is never an evidence fact
+for any purpose but EDGES, where the edge compiler projects it as a tentative or negated edge.
+
 Explicit exceptions: none by default. A caller may pass ``allow_channels`` to whitelist a derived
 channel for one call; nothing in the engine does today.
 """
@@ -51,6 +55,7 @@ __all__ = [
     "FactPurpose",
     "is_derived_view",
     "is_evidence_fact",
+    "stored_claim_modality",
 ]
 
 
@@ -110,6 +115,14 @@ def is_derived_view(record: MemoryRecord) -> bool:
     return record.source.channel in DERIVED_VIEW_CHANNELS or bool(NON_FACT_TAGS & set(record.tags))
 
 
+def stored_claim_modality(record: MemoryRecord) -> str | None:
+    """The modality of the stored claim the record was written from, or None without one."""
+    claim = record.fingerprint.envelope
+    assessment = claim.get("assessment") if isinstance(claim, dict) else None
+    modality = assessment.get("modality") if isinstance(assessment, dict) else None
+    return modality if isinstance(modality, str) else None
+
+
 def is_evidence_fact(
     record: MemoryRecord,
     purpose: FactPurpose,
@@ -125,6 +138,8 @@ def is_evidence_fact(
         return False
     if NON_FACT_TAGS & set(record.tags):
         return False
+    if purpose is not FactPurpose.EDGES and stored_claim_modality(record) not in (None, "asserted"):
+        return False  # ADR-088: a planned / negated / tentative claim never reads as a fact
     lifecycle, need_entity, need_attribute = _RULES[purpose]
     if need_entity and not record.entity:
         return False

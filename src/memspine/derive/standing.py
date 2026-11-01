@@ -49,7 +49,7 @@ from typing import Literal
 
 from memspine.derive.histories import KeyHistory, ValueHistory, ValueSpan
 from memspine.derive.resolve import normalise_name
-from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.semantic import SemanticEnvelope
 
 __all__ = [
     "GroupKey",
@@ -445,7 +445,7 @@ class StandingInstruction:
 
 
 def propose_instruction(
-    assertion: AssertionEnvelope,
+    assertion: SemanticEnvelope,
     *,
     created_seq: int,
     scope: Scope = "global",

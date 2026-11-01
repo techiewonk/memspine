@@ -8,11 +8,11 @@ from datetime import UTC, datetime, timedelta
 from labelled.loader import Assertion, ContradictionItem, load_contradictions
 
 from memspine.derive.integrate import CardinalityRegistry, apply_decision, integrate
-from memspine.schemas.durable.assertion import AssertionEnvelope, Mention
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
 
 TRUST = {"default": 0.9, "low": 0.3}  # the coarse two-tier stand-in of SCHEMA.md
@@ -26,12 +26,12 @@ def _day(s: str) -> datetime:
 
 def _envelope(
     item: ContradictionItem, a: Assertion, n: int, event_end: datetime | None
-) -> AssertionEnvelope:
+) -> SemanticEnvelope:
     event = None
     if event_end is not None:
         event = Interval(end=TemporalRef(at=event_end, precision="day", basis="explicit"))
     time = TimeAxes(event=event, source_time=_day(a.source_time), recorded_at=_day(a.source_time))
-    return AssertionEnvelope(
+    return SemanticEnvelope(
         write_id=f"w-{item.id}-{a.id}",
         assertion_key=AssertionKey(
             src=a.subject, rel=a.predicate, dst=a.value, kind=item.attribute
@@ -64,7 +64,7 @@ def _envelope(
 def decide(item: ContradictionItem) -> str:
     reg = CardinalityRegistry()
     reg.declare("lab", item.attribute, item.cardinality)  # type: ignore[arg-type]
-    store: list[AssertionEnvelope] = []
+    store: list[SemanticEnvelope] = []
     for n, a in enumerate(item.existing):
         env = _envelope(item, a, n, None)
         store = apply_decision(integrate(env, store, reg), env, store)

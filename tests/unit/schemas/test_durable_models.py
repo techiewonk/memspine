@@ -496,6 +496,17 @@ def test_negation_never_supersedes() -> None:
 # --- ADR-088: SemanticEnvelope is the one canonical claim ------------------------------------------
 
 
+def test_assertion_envelope_is_removed_without_alias() -> None:
+    import importlib
+
+    import memspine.schemas.durable as durable
+
+    assert not hasattr(durable, "AssertionEnvelope")
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("memspine.schemas.durable.assertion")
+    assert kind_id(SemanticEnvelope) == "semantic_envelope"
+
+
 @pytest.mark.parametrize("outcome", ["none", "done", "missed", "failed", "declined"])
 def test_claim_outcome_uses_the_rm57_vocabulary(outcome: str) -> None:
     env = _envelope(
@@ -512,7 +523,7 @@ def test_claim_outcome_mirrors_the_lifecycle_outcomes() -> None:
     from memspine.schemas.durable.semantic import CLAIM_OUTCOMES
     from memspine.semantics.lifecycle import LIFECYCLE_OUTCOMES
 
-    assert CLAIM_OUTCOMES == ("none", *LIFECYCLE_OUTCOMES)
+    assert ("none", *LIFECYCLE_OUTCOMES) == CLAIM_OUTCOMES
 
 
 def test_claim_axes_reject_other_vocabularies() -> None:

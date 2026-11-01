@@ -34,7 +34,7 @@ from memspine.derive.prepass import (
     rule_hints,
 )
 from memspine.schemas.durable import OwnerScope
-from memspine.schemas.durable.assertion import Mention
+from memspine.schemas.durable.semantic import Mention
 from memspine.store.records import MemoryRecord, SourceInfo
 
 T0 = datetime(2023, 6, 1, 9, 0, tzinfo=UTC)
@@ -550,18 +550,18 @@ async def test_prepass_stage_binds_mentions_only_to_cited_source_and_roundtrips(
     assert [e.model_dump(mode="json") for e in annotated.evidence] == evidence
 
     # The durable read path validates the system-owned annotation after storage/reopen.
-    from memspine.schemas.durable.assertion import AssertionEnvelope
+    from memspine.schemas.durable.semantic import SemanticEnvelope
 
-    reloaded = AssertionEnvelope.model_validate(annotated.model_dump(mode="json"))
+    reloaded = SemanticEnvelope.model_validate(annotated.model_dump(mode="json"))
     assert reloaded.extras["gliner_mentions"] == annotations
     forged = annotated.model_dump(mode="json")
     forged["extras"]["gliner_mentions"][0]["source_namespace"] = "other-tenant"
     with pytest.raises(ValueError, match="namespace differs"):
-        AssertionEnvelope.model_validate(forged)
+        SemanticEnvelope.model_validate(forged)
     forged = annotated.model_dump(mode="json")
     forged["extras"]["gliner_mentions"][0]["source_version"] = 2
     with pytest.raises(ValueError, match="source is not cited"):
-        AssertionEnvelope.model_validate(forged)
+        SemanticEnvelope.model_validate(forged)
 
 
 @pytest.mark.skip(reason="real model inference is covered by the explicit offline smoke tool")

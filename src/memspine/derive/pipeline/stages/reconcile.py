@@ -36,7 +36,7 @@ from memspine.derive.reconcile import (
 from memspine.derive.resolve import Candidate
 from memspine.observability import tap
 from memspine.observability.logging import get_logger
-from memspine.schemas.durable.assertion import AssertionEnvelope
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 
@@ -53,7 +53,7 @@ def reconcile_namespace(
     pending: Iterable[PendingMerge] = (),
     entities: Iterable[Candidate] = (),
     queue: ReconcileQueue | None = None,
-) -> tuple[SweepReport, list[AssertionEnvelope], list[AssertionEnvelope]]:
+) -> tuple[SweepReport, list[SemanticEnvelope], list[SemanticEnvelope]]:
     """Pure: sweep one namespace's facts. Returns (report, envelopes before, envelopes after the plan).
 
     Every keyed attribute is declared cardinality ``one``: that is what the write-time conflict ladder
@@ -69,9 +69,9 @@ def reconcile_namespace(
     return report, envelopes, apply_plan(report.plan, envelopes)
 
 
-def _successors(after: list[AssertionEnvelope]) -> dict[tuple[str, str], str]:
+def _successors(after: list[SemanticEnvelope]) -> dict[tuple[str, str], str]:
     """(entity, attribute) -> record id of the group's current record (latest live in event order)."""
-    best: dict[tuple[str, str], AssertionEnvelope] = {}
+    best: dict[tuple[str, str], SemanticEnvelope] = {}
     for e in sorted(after, key=ordering_key):
         if e.status in ("superseded", "hidden") or e.subject is None or e.attribute is None:
             continue
@@ -197,7 +197,7 @@ async def _reconcile_one(ctx: PipelineContext, namespace: str, now: datetime) ->
     return counts
 
 
-def _closure_end(closure: object, env: AssertionEnvelope | None) -> datetime | None:
+def _closure_end(closure: object, env: SemanticEnvelope | None) -> datetime | None:
     end = getattr(closure, "end", None)
     if end is not None:
         return end  # type: ignore[no-any-return]

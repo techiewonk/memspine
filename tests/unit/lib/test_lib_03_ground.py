@@ -22,11 +22,11 @@ from memspine.derive.ground import (
     turn_key,
     window_from_turns,
 )
-from memspine.schemas.durable.assertion import AssertionEnvelope
 from memspine.schemas.durable.assessment import Assessment
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
 from memspine.schemas.durable.identity import AssertionKey, occurrence_id, write_id
+from memspine.schemas.durable.semantic import SemanticEnvelope
 
 
 def win(*rows: tuple[str, str, str]) -> dict[str, WindowTurn]:
@@ -359,7 +359,7 @@ def test_envelope_adapter_roundtrip():
     ref = TurnRef(source_id="src1", source_version=1, seg_index=0)
     scope = OwnerScope(tenant="t", owner="o")
     key = AssertionKey(src="ilse", rel="lives_in", dst="utrecht", kind="state")
-    env = AssertionEnvelope(
+    env = SemanticEnvelope(
         write_id=write_id(scope, "c", 0, "x"),
         assertion_key=key,
         occurrence_id=occurrence_id("e", ["s#0"], key),
