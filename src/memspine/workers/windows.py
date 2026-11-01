@@ -92,6 +92,7 @@ from memspine.services.llm.base import LLMService, lenient_json
 from memspine.services.llm.capabilities import schema_options
 from memspine.store.events import fingerprint_payload
 from memspine.store.records import MemoryRecord, RecordStatus
+from memspine.store.source_binding import source_binding
 
 __all__ = [
     "SECTION_MODES",
@@ -2676,9 +2677,6 @@ class WindowPipeline:
             await env.learned.load()
         transcript, _texts, people = build_transcript(records)
         lines = {
-            # TODO(RM-146 merge): set binding_hash=source_binding(rec).binding_hash here
-            # (memspine.store.source_binding, not in this base yet) so model-path claims built
-            # from window lines carry the source binding hash.
             n: WindowLine(
                 turn_id=rec.record_id,
                 source_id=rec.record_id,  # evidence names the turn record: parents come from it
@@ -2692,6 +2690,7 @@ class WindowPipeline:
                 # the normalized/prefixed transcript above, but those presentation-only prefix
                 # characters must never shift durable source offsets.
                 content=rec.content,
+                binding_hash=source_binding(rec).binding_hash,  # ADR-088: claims carry it
             )
             for n, rec in enumerate(records, 1)
         }

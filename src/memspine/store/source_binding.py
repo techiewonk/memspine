@@ -42,7 +42,7 @@ def source_binding(record: MemoryRecord) -> SourceBinding:
     sender_id = _text(sender.get("id")) if isinstance(sender, dict) else None
     sender_role = _text(message.get("role")) or record.source.role
     message_id = _text(message.get("message_id"))
-    created_value = message.get("created_at", message.get("timestamp"))
+    created_value = message.get("created_at")  # ADR-090: the one envelope spelling
     if isinstance(created_value, datetime):
         created_at: str | None = created_value.isoformat()
     else:
