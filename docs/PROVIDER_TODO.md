@@ -15,7 +15,7 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | EXCLUDED | 4 |
 | IN_PROGRESS | 24 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 51 |
+| OPEN | 54 |
 | PROPOSED | 1 |
 | REVIEW | 1 |
 
@@ -24,10 +24,10 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BI | 12 |
 | DS | 21 |
 | PA | 136 |
-| RM | 140 |
+| RM | 143 |
 | RS | 9 |
 
-Total: **318 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
+Total: **321 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
 <!-- CURRENT_SUMMARY_END -->
 
 ## Status and column legend
@@ -381,6 +381,9 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-138 | OPEN | P2 | Test maintainers | Mirror src 1:1 under tests/unit for modules added or renamed since 7ac861e9 | Standards review 2026-11-01: no direct test for trust/pipeline/audit_chain.py, trust/pipeline/retention.py, services/storage/baseline.py, migrations.py, provider_tables.py; misnamed mirrors for ingest/discovery.py, source_provenance.py, stages/decay.py, edge_compiler.py, store/rebuild.py | Add or rename tests along the src path, starting with the modules that have none | Prereq: none |
 | RM-139 | OPEN | P2 | Engine maintainers | Remove generation-era wording and paths; move carried-over thresholds to constants | Standards review 2026-11-01: docstrings describe legacy paths (api/engine.py, derive/write.py, offline_door.py, context.py write.lineage_table, read/pipeline/timeview.py, ingest/gateway.py); stale adopted-legacy comment in onnx_catalogue.py; deprecated Kuzu phrase in services/graph/ladybug.py; bare thresholds in communities.py, close.py, decay.py | Remove generation-only paths or rename real optional features (D-110); move thresholds to config/constants.py with doc citations | Prereq: none |
 | RM-140 | OPEN | P3 | Observability maintainer | Logging consistency: structlog in tap sinks, memory.rebuild log line, documented stdlib logging in clients | Standards review 2026-11-01: observability/tap_sinks.py uses stdlib logging; store/rebuild.py never logs memory.rebuild; clients use stdlib logging because clients-isolated forbids observability imports | Switch tap_sinks to structlog; log memory.rebuild; state the clients logging rule in CLIENT_ADAPTER_FACTORY_STANDARD.md | Prereq: none |
+| RM-141 | OPEN | P1 | Runtime maintainer | Outbox fence and runner fixes: hold the fence through projection, generation-check mark_sources, fence is not a retryable hole, failure path honours authorize result | Code review 2026-11-01 (verified against code): outbox.py lease/erasure checks are unlocked SELECTs at authorize and finalize only, so a forget during runner.py projection writes erased facts; mark_sources reactivates erased rows without a generation check; runner _Fenced subclasses Exception and becomes a retryable hole; failure path ignores authorize complete and raises effect replay result differs | Fence with row locks or a generation compare-and-set at commit with rollback of uncommitted projection; generation check in mark_sources; _Fenced handled before generic exceptions; failure path keeps the original error; tests for each race | Prereq: none |
+| RM-142 | OPEN | P1 | Ingestion maintainer | Discovery cursor fixes: out-of-order apply, empty source_record_ids stall, policy supersession readers | Code review 2026-11-01 (verified against code): ingest/discovery.py advances the cursor by created_at of applied intents, so an intent applied late is never discovered; an applied intent with empty source_record_ids breaks without advancing and stalls the scope; cancelled_by_policy_revision and supersedes_offset have no reader, so old and new policy items both run | Cursor over apply order (or rescan unapplied below the cursor); skip and record empty intents; runner honours cancellation and supersession; tests per scenario | Prereq: RM-131 merge |
+| RM-143 | OPEN | P1 | Ingestion / window maintainers | Window crash-safety fixes: membership before staging, draft restore flag, annotation source mismatch, fact count | Code review 2026-11-01 (verified against code): workers/windows.py observe writes mark_sources before staging/draft, so a crash between them makes has_source skip replay and lose the turn; _restore_draft marks restored before load succeeds, losing open turns on a transient error; annotation batches use live turns while effect identity uses all record_ids, so a role-blocked turn turns the offset into a permanent hole with repeated deposits; reported fact count exceeds stored facts | Stage and draft in the same transaction as membership (or membership last); set the restore flag only on success; build annotation identity from the same live set; count stored facts; crash-injection tests | Prereq: RM-129 and RM-131 merges |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)
