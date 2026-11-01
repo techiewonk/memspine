@@ -256,6 +256,28 @@ def _excluded(window: Window | None, member_ids: Sequence[str]) -> list[str]:
     return [t.record_id for t in window.turns if t.record_id not in live]
 
 
+def _evidence_sources(envelope: Any) -> list[str]:
+    """The distinct source records an envelope's evidence cites, in order."""
+    return list(
+        dict.fromkeys(
+            evidence.turn.source_id for evidence in envelope.evidence if evidence.turn is not None
+        )
+    )
+
+
+def _snapshot_matches(snapshot: Mapping[str, Any] | None, record: MemoryRecord) -> bool:
+    """Whether a live record is still exactly the version its membership snapshot pinned."""
+    return snapshot is not None and (
+        int(snapshot.get("source_version", -1)) == record.version
+        and snapshot.get("content_hash") == fingerprint_payload({"content": record.content})
+    )
+
+
+def _generation(snapshots: Mapping[str, Mapping[str, Any]] | None, record_id: str) -> int:
+    snapshot = snapshots.get(record_id) if snapshots is not None else None
+    return int(snapshot.get("erasure_generation", 0)) if snapshot is not None else 0
+
+
 def _conversation_id(record: MemoryRecord) -> str | None:
     """Canonical conversation boundary, absent on pre-metadata/raw records."""
     message = record.source.message
@@ -680,6 +702,13 @@ class WindowPipeline:
         self._persist_lock = asyncio.Lock()
         self._recovered = outbox is None
         self._draft_restored: set[str] = set()
+        self._restore_lock = asyncio.Lock()
+        #: RM-143 (a): record ids whose observe is in progress (discovery must not replay them)
+        #: and accepted sources whose membership waits until their work is durable.
+        self._observing: set[str] = set()
+        self._unmarked: dict[str, tuple[str, dict[str, Any]]] = {}
+        #: record id -> forgotten while its membership was being written
+        self._marking: dict[str, bool] = {}
         #: W2-05 (stream segmentation): time-gap/adaptive segmenter and the call batcher.
         self._seg = segmentation or SegmentationSettings()
         self._clock = clock
@@ -746,20 +775,26 @@ class WindowPipeline:
         return store
 
     async def _restore_draft(self, namespace: str) -> None:
-        """Restore an incomplete window once per namespace after a restart."""
+        """Restore an incomplete window once per namespace after a restart.
+
+        RM-143 (b): the namespace counts as restored only once the draft and its turns were
+        read; a transient error leaves it unrestored, so the next call tries again."""
         if (
             self._outbox is None
             or not hasattr(self._outbox, "load_draft")
             or namespace in self._draft_restored
         ):
             return
-        self._draft_restored.add(namespace)
+        async with self._restore_lock:  # two first writes must not restore the draft twice
+            if namespace not in self._draft_restored:
+                await self._restore_draft_once(namespace)
+
+    async def _restore_draft_once(self, namespace: str) -> None:
+        assert self._outbox is not None
         payload = await self._outbox.load_draft(self._scope(namespace), WINDOW_STAGE)
         if not payload:
+            self._draft_restored.add(namespace)
             return
-        store = self._store(namespace)
-        store.session = payload.get("session")
-        store.conversation_id = payload.get("conversation_id")
         restored: list[WindowTurn] = []
         for item in payload.get("turns", []):
             record = await self._get(str(item["record_id"]))
@@ -775,6 +810,12 @@ class WindowPipeline:
                 tokens=int(item.get("tokens", 0)),
             )
             restored.append(turn)
+        # Every read succeeded: from here the turns live in memory, so a second restore
+        # would add them twice.
+        self._draft_restored.add(namespace)
+        store = self._store(namespace)
+        store.session = payload.get("session")
+        store.conversation_id = payload.get("conversation_id")
         if payload.get("policy_revision") != self._policy_revision:
             if restored:
                 self._enqueue(
@@ -822,22 +863,70 @@ class WindowPipeline:
         self._recover_in_background()
         ns = record.namespace
         await self._restore_draft(ns)
+        self._observing.add(record.record_id)
+        try:
+            await self._observe(record, session)
+        finally:
+            self._observing.discard(record.record_id)
+        # RM-143 (a): membership last. Discovery treats an active membership row as "this turn
+        # is in durable window state"; written before the item and the draft, a crash between
+        # them made discovery skip the replay and lost the turn. Written after them, a crash
+        # leaves the turn in durable work without membership, which discovery repairs.
+        await self._flush_marks()
+        if self._async and not self._stopped and self._outbox is not None:
+            self._ensure_worker(ns, self._store(ns))
+
+    @staticmethod
+    def _source_of(record: MemoryRecord) -> dict[str, Any]:
+        """The versioned source snapshot the effect door fences on."""
+        return {
+            "record_id": record.record_id,
+            "source_id": record.record_id,
+            "source_version": record.version,
+            "content_hash": fingerprint_payload({"content": record.content}),
+        }
+
+    def _staged_ids(self) -> set[str]:
+        return {
+            str(rid)
+            for _, payload in self._staged
+            for rid in payload.get("record_ids", ())  # a "closed" item has none
+        }
+
+    async def _flush_marks(self) -> None:
+        """Publish the membership of accepted turns whose work is durable now (RM-143 (a)).
+
+        A turn still in an unaccepted staged item (deferred by backpressure) or in an observe
+        that has not persisted the draft yet waits; it is published by a later flush."""
+        if self._outbox is None or not self._unmarked:
+            return
+        waiting = self._staged_ids() | self._observing
+        ready: dict[str, list[dict[str, Any]]] = {}
+        for record_id, (ns, source) in list(self._unmarked.items()):
+            if record_id not in waiting:
+                del self._unmarked[record_id]  # claimed: a concurrent flush never marks it too
+                self._marking[record_id] = False
+                ready.setdefault(ns, []).append(source)
+        for ns, sources in ready.items():
+            try:
+                await self._outbox.mark_sources(self._scope(ns), WINDOW_STAGE, sources)
+            except BaseException:
+                for source in sources:  # not published: a later flush tries again
+                    record_id = str(source["record_id"])
+                    if not self._marking.pop(record_id, False):
+                        self._unmarked[record_id] = (ns, source)
+                raise
+            for source in sources:
+                record_id = str(source["record_id"])
+                if self._marking.pop(record_id, False):
+                    # forgotten while the membership was being written: its erase found no
+                    # row to fence, so fence the row just written
+                    await self._outbox.erase_source(self._scope(ns), WINDOW_STAGE, record_id)
+
+    async def _observe(self, record: MemoryRecord, session: str | None) -> None:
+        ns = record.namespace
         if self._outbox is not None:
-            # The effect door snapshots this before inference.  Publishing the
-            # exact version/hash first prevents a worker from authorizing an
-            # output against membership alone.
-            await self._outbox.mark_sources(
-                self._scope(ns),
-                WINDOW_STAGE,
-                [
-                    {
-                        "record_id": record.record_id,
-                        "source_id": record.record_id,
-                        "source_version": record.version,
-                        "content_hash": fingerprint_payload({"content": record.content}),
-                    }
-                ],
-            )
+            self._unmarked[record.record_id] = (ns, self._source_of(record))
         store = self._store(ns)
         conversation_id = _conversation_id(record)
         # The source/session id may deliberately identify one physical transcript containing
@@ -879,7 +968,9 @@ class WindowPipeline:
         if session is not None:
             store.session_windows.setdefault(session, 0)
         self._arm_idle(ns, store)
-        await self._persist_staged()
+        # The workers wake after the membership is published (``observe``): a worker woken
+        # here would meet the source fence for this turn and stop until the next write.
+        await self._persist_staged(wake=False)
         await self._persist_draft(ns, store)
 
     def _scope(self, ns: str) -> OwnerScope:
@@ -956,7 +1047,7 @@ class WindowPipeline:
         if self._async and self._outbox is None:
             self._ensure_worker(ns, store)
 
-    async def _persist_staged(self, *, force: bool = False) -> None:
+    async def _persist_staged(self, *, force: bool = False, wake: bool = True) -> None:
         """Outbox mode: write the items ``_enqueue`` staged (in order), then wake the workers.
         Staging keeps the segmenter code synchronous and in its old order; the database write
         happens here, off the event loop (``InlineRunner.enqueue``).
@@ -1010,7 +1101,7 @@ class WindowPipeline:
                     self._staged = staged[accepted:] + self._staged
         finally:
             if self._async and not self._stopped:
-                for ns in dict.fromkeys(n for n, _ in staged[:accepted]):
+                for ns in dict.fromkeys(n for n, _ in staged[:accepted]) if wake else ():
                     self._ensure_worker(ns, self._store(ns))
                 if deferred_s is not None:
                     self._retry_persist_later(deferred_s)
@@ -1026,6 +1117,7 @@ class WindowPipeline:
             self._persist_retry = None
             if not self._stopped:
                 await self._persist_staged()
+                await self._flush_marks()
 
         self._persist_retry = loop.create_task(again())
 
@@ -1123,6 +1215,7 @@ class WindowPipeline:
                     store.session = None
                 await self._persist_staged(force=True)  # an explicit flush defers nothing
                 await self._persist_draft(ns, store)
+                await self._flush_marks()
             if store.worker is not None and not store.worker.done():
                 await asyncio.shield(store.worker)
             await self._drain(ns, store, final=True)
@@ -1152,6 +1245,7 @@ class WindowPipeline:
         self._enqueue_closed(namespace, store, session)
         await self._persist_staged(force=True)
         await self._persist_draft(namespace, store)
+        await self._flush_marks()
         if store.worker is not None and not store.worker.done():
             await asyncio.shield(store.worker)
         await self._drain(namespace, store, final=True)
@@ -1316,8 +1410,12 @@ class WindowPipeline:
 
     async def _discovery_prepare(
         self, scope: OwnerScope, offset: int, payload: dict[str, Any]
-    ) -> tuple[str, ...]:
-        """Resolve a discovery manifest to sources missing from durable window state."""
+    ) -> tuple[str, tuple[str, ...], tuple[str, ...]]:
+        """Resolve a discovery manifest to ``(namespace, replay, repair)``: the sources missing
+        from durable window state (replayed through ``observe``), and the sources that are in a
+        durable item or draft but have no active membership (RM-143 (a): a crash after the
+        work was persisted and before the membership was published; only the membership is
+        written again)."""
         if payload.get("kind") != "required_derivation":
             raise ValueError("window discovery item has an unknown kind")
         manifest = payload.get("manifest")
@@ -1331,17 +1429,39 @@ class WindowPipeline:
             raise ValueError("window discovery manifest has no namespace")
         window_scope = self._scope(namespace)
         assert self._outbox is not None
-        return tuple(
-            record_id
-            for record_id in ids
-            if not self._outbox.contains_record(window_scope, WINDOW_STAGE, record_id)
-        )
+        replay: list[str] = []
+        repair: list[str] = []
+        for record_id in ids:
+            if (
+                record_id in self._observing
+                or record_id in self._unmarked
+                or record_id in self._marking
+            ):
+                continue  # this process is accepting it right now: never observe it twice
+            if not self._outbox.contains_record(window_scope, WINDOW_STAGE, record_id):
+                replay.append(record_id)
+            elif not self._outbox.has_source(window_scope, WINDOW_STAGE, record_id):
+                repair.append(record_id)
+        return namespace, tuple(replay), tuple(repair)
 
     async def _discovery_commit(
-        self, scope: OwnerScope, offset: int, record_ids: tuple[str, ...]
+        self, scope: OwnerScope, offset: int, prepared: tuple[str, tuple[str, ...], tuple[str, ...]]
     ) -> None:
-        """Replay missing raw records through the one canonical window observer."""
-        for record_id in record_ids:
+        """Replay missing raw records through the one canonical window observer, and publish
+        the missing membership of records already in durable work."""
+        namespace, replay, repair = prepared
+        sources: list[dict[str, Any]] = []
+        for record_id in repair:
+            record = await self._get(record_id)
+            if record is None or record.status is not RecordStatus.ACTIVATED:
+                continue  # forgotten meanwhile: its membership stays absent (the fence holds)
+            sources.append(self._source_of(record))
+        if sources:
+            assert self._outbox is not None
+            # An erased (inactive) row is never reactivated: ``mark_sources`` refuses it.
+            await self._outbox.mark_sources(self._scope(namespace), WINDOW_STAGE, sources)
+            self._counts["membership_repaired"] += len(sources)
+        for record_id in replay:
             record = await self._get(record_id)
             if record is None or record.status is RecordStatus.DELETED:
                 continue
@@ -1761,6 +1881,9 @@ class WindowPipeline:
         window whose call is running is cancelled (its reply may restate the turn); pending
         call-1 edges that cite or cover it are dropped; cached replies for windows that held it
         are deleted."""
+        self._unmarked.pop(record_id, None)  # never publish the membership of a forgotten turn
+        if record_id in self._marking:
+            self._marking[record_id] = True  # being published right now: fenced after the write
         if self._outbox is not None:
             # Advance the fence before touching queues or in-flight flags.  A
             # worker returning from inference can no longer authorize effects.
@@ -2019,6 +2142,18 @@ class WindowPipeline:
             facts: list[Any] = []
             unresolved: list[Any] = []
             annotations: list[Any] = []
+            # RM-143 (c): the effect identity is fenced on every source of the window item, so
+            # the annotation batches cover exactly that set. A source that is not a live input
+            # (role-blocked, quarantined, deleted, or changed since its membership snapshot)
+            # gets an explicit empty batch and yields nothing.
+            snapshots = self._membership(ns, window.record_ids)
+            live_ids = {
+                r.record_id
+                for r in records
+                if snapshots is None or _snapshot_matches(snapshots.get(r.record_id), r)
+            }
+            excluded = [rid for rid in window.record_ids if rid not in live_ids]
+            records = [r for r in records if r.record_id in live_ids]
             for record in records:
                 if self._non_generative_extractor is None:
                     result = mine_grounded_facts(record, scope)
@@ -2055,11 +2190,26 @@ class WindowPipeline:
                             sender=sender.get("id") if isinstance(sender, dict) else None,
                             role=record.source.role,
                             source_at=record.source_at,
+                            erasure_generation=_generation(snapshots, record.record_id),
                         ),
                         mentions=record.fingerprint.entity_mentions,
                         producer_revision="personal-rules:1",
                     )
                 )
+            for record_id in dict.fromkeys(excluded):
+                snapshot = snapshots.get(record_id) if snapshots is not None else None
+                if snapshot is None:
+                    continue  # no membership (no outbox): no effect identity to match
+                annotations.append(
+                    AnnotationBatch(
+                        source=IngestionSourceSnapshot.model_validate(snapshot),
+                        producer_revision="personal-rules:1",
+                    )
+                )
+            if excluded:
+                self._counts["annotation_sources_excluded"] += len(excluded)
+            # RM-143 (d): report only the facts that will be deposited (see _storable_facts).
+            facts = self._storable_facts(facts, records)
             member_ids = [record.record_id for record in records]
             window_id = fingerprint_payload({"ns": ns, "turns": member_ids})[:12]
             self._counts["windows_processed"] += 1
@@ -2365,19 +2515,32 @@ class WindowPipeline:
             if prepared.rule_facts:
                 await self._store_rule_facts(ns, prepared)
 
+    def _membership(self, ns: str, record_ids: Sequence[str]) -> dict[str, dict[str, Any]] | None:
+        """The membership snapshots of ``record_ids`` (what the effect identity is built from);
+        None without a durable outbox."""
+        if self._outbox is None or not hasattr(self._outbox, "source_snapshots"):
+            return None
+        rows = self._outbox.source_snapshots(self._scope(ns), WINDOW_STAGE, list(record_ids))
+        return {str(row["record_id"]): dict(row) for row in rows}
+
+    def _storable_facts(
+        self, envelopes: Sequence[Any], records: Sequence[MemoryRecord]
+    ) -> list[Any]:
+        """The rule envelopes ``_store_rule_facts`` deposits: a deposit door exists and at least
+        one evidence source is a live input of the window. The effect count is planned before
+        the deposits, so it is taken from this same filter (RM-143 (d))."""
+        if self._deposit_fact is None:
+            return []
+        live = {record.record_id for record in records}
+        return [env for env in envelopes if any(sid in live for sid in _evidence_sources(env))]
+
     async def _store_rule_facts(self, ns: str, prepared: _Prepared) -> None:
         """Deposit canonical envelopes compiled from deterministic candidates."""
         if self._deposit_fact is None:
             return
         by_id = {record.record_id: record for record in prepared.records}
         for envelope in prepared.rule_facts:
-            source_ids = list(
-                dict.fromkeys(
-                    evidence.turn.source_id
-                    for evidence in envelope.evidence
-                    if evidence.turn is not None
-                )
-            )
+            source_ids = _evidence_sources(envelope)
             sources = [by_id[source_id] for source_id in source_ids if source_id in by_id]
             if not sources or prepared.job.cancelled:
                 continue

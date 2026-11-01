@@ -398,6 +398,16 @@ class InlineRunner:
             and any(str(turn.get("record_id")) == record_id for turn in draft.get("turns", []))
         )
 
+    def source_snapshots(
+        self, scope: OwnerScope, stage: str, record_ids: Sequence[str]
+    ) -> list[dict[str, Any]]:
+        """The membership snapshots the effect door fences on (empty when one is missing)."""
+        return self.store.source_snapshots(scope, stage, record_ids)
+
+    def has_source(self, scope: OwnerScope, stage: str, record_id: str) -> bool:
+        """Whether ``record_id`` has an active (accepted, not erased) membership row."""
+        return self.store.has_source(scope, stage, record_id)
+
     async def mark_sources(
         self, scope: OwnerScope, stage: str, sources: Sequence[dict[str, Any]]
     ) -> None:
