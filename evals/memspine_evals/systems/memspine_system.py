@@ -260,6 +260,9 @@ class MemspineSystem:
         self._inspect_content = bool(inspect_content)
         #: F5: the zone the dataset's naive wall-clock stamps are read in (IANA name).
         self._zone = stamp_zone(stamp_timezone)
+        #: RM-146 (ADR-090 civil time): the same zone is declared on every dated message as
+        #: ``tz``, so a date-only or naive stamp resolves in it instead of staying civil text.
+        self._zone_name = "UTC" if stamp_timezone.upper() == "UTC" else stamp_timezone
         if context_order not in CONTEXT_ORDERS:
             raise ValueError(
                 f"context_order must be one of {CONTEXT_ORDERS}, got {context_order!r}"
@@ -681,6 +684,7 @@ class MemspineSystem:
                 # the stamping stage (write.stamping) reads the source time from the message, as in the
                 # batch path below; valid_from alone left single-turn writes undated (precision unknown)
                 one["created_at"] = stamp_source_time(turns[0], stamp)
+                one["tz"] = self._zone_name
             records = await self._engine.ingest_messages(
                 [one],
                 namespace=self.namespace,
@@ -695,6 +699,7 @@ class MemspineSystem:
                 stamp = parse_turn_stamp(turn, self._zone)
                 if stamp is not None:
                     message["created_at"] = stamp_source_time(turn, stamp)
+                    message["tz"] = self._zone_name
                 messages.append(message)
             records = await self._engine.ingest_messages(
                 messages,

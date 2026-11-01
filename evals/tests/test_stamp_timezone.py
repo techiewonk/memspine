@@ -62,3 +62,37 @@ def test_cli_flag() -> None:
         ["c0-1", "--dataset", "locomo", "--stamp-timezone", "America/Chicago"]
     )
     assert args.stamp_timezone == "America/Chicago"
+
+
+class _CaptureEngine:
+    def __init__(self) -> None:
+        self.calls: list[tuple[list[dict[str, object]], dict[str, object]]] = []
+
+    async def ingest_messages(
+        self, messages: list[dict[str, object]], **kw: object
+    ) -> list[object]:
+        self.calls.append((messages, kw))
+        return []
+
+
+@pytest.mark.parametrize("batch", [1, 2])
+def test_dated_messages_declare_the_configured_zone(batch: int) -> None:
+    """RM-146 (ADR-090 civil time): the dataset zone is declared as the message ``tz``, so a
+    date-only stamp resolves in it; ``valid_from`` is aware."""
+    import asyncio
+
+    from memspine_evals.contracts import Turn
+
+    system = ms.MemspineSystem(config={}, stamp_timezone="Asia/Kolkata", batch_turns=batch)
+    engine = _CaptureEngine()
+    system._engine = engine
+    turns = [
+        Turn(turn_id=f"t{i}", session_id="s1", speaker="A", text="x", timestamp="2024-03-02")
+        for i in range(batch)
+    ]
+    asyncio.run(system._engine_write(turns, ["A: x"] * batch, "s1"))
+    messages, kw = engine.calls[0]
+    assert all(m["tz"] == "Asia/Kolkata" and m["created_at"] == "2024-03-02" for m in messages)
+    if batch == 1:
+        valid_from = kw["valid_from"]
+        assert isinstance(valid_from, datetime) and valid_from.tzinfo is not None

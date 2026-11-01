@@ -95,7 +95,14 @@ def test_build_closes_each_session_and_writes_l2_episodes(monkeypatch: pytest.Mo
         try:
             assert llm.prompts == 2  # one call-2 per ingested session
             assert sorted(built.meta["session_close"]) == ["s1", "s2"]
-            assert all(v["hook"]["status"] == "ok" for v in built.meta["session_close"].values())
+            # A session's hook may already have run when its window closed (session-keyed
+            # windows, RM-131); the done marker then makes the explicit close a no-op.
+            # ``llm.prompts == 2`` above pins one call-2 per session either way.
+            assert all(
+                v["hook"]["status"] == "ok"
+                or (v["hook"]["status"] == "skipped" and v["hook"]["reason"] == "already done")
+                for v in built.meta["session_close"].values()
+            )
             records = await system._engine._require_started().list_records("eval", "semantic")
             assert len(_episodes(records)) == 2
         finally:
