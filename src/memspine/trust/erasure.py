@@ -17,7 +17,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-__all__ = ["PARTITION_MARKER", "redact_record", "retained_fields", "scrub_partition_nodes"]
+__all__ = [
+    "LINKS_KEY",
+    "PARTITION_MARKER",
+    "redact_record",
+    "retained_fields",
+    "scrub_partition_nodes",
+]
 
 #: The MARKER payload (``community_partition``, KB-12) whose node ids
 #: (``ent:<ns>:<canonical name>``) name entities: erasure renames them.
@@ -48,7 +54,35 @@ _DELTA_SCRUB: dict[str, object] = {
     "tags_add": [],
     "tags": [],
 }
+#: ADR-095 (message ``metadata`` copy class): fields of a snapshot's ``source.message`` envelope
+#: that identify the subject: the caller's verbatim ``metadata`` bag and the SHA-256 of every raw
+#: input field (a hash of a short field such as the content or a name is reversible by guessing;
+#: the retry check that reads it is moot once the record is erased, and the message-identity
+#: tombstone refuses any reuse of the id).
+_MESSAGE_SCRUB: dict[str, object] = {"metadata": None, "input_fingerprints": {}}
+#: The envelope sender's display name (``id`` and ``kind`` are opaque identifiers).
+_SENDER_SCRUB: dict[str, object] = {"name": None}
+#: WRITE payload key holding the record's entity links (``memories.associative.entity_index``
+#: ``LINKS_KEY``; named here so ``trust`` does not import a memory type). Each link carries the
+#: mention's name fingerprint (an unsalted hash of the canonical name, reversible by dictionary),
+#: its type and its candidate ids. An erased record's links project nothing (its names are gone),
+#: so the whole list goes: rebuild reads entity ids only from live links.
+LINKS_KEY = "entity_links"
+_LINKS_SCRUB: dict[str, object] = {LINKS_KEY: []}
 _Carrier = tuple[dict[str, Any], dict[str, object]]
+
+
+def _snapshot_carriers(snapshot: dict[str, Any]) -> list[_Carrier]:
+    """A record snapshot, plus the parts of its ``source.message`` envelope that identify it."""
+    found: list[_Carrier] = [(snapshot, _SNAPSHOT_SCRUB)]
+    source = snapshot.get("source")
+    message = source.get("message") if isinstance(source, dict) else None
+    if isinstance(message, dict):
+        found.append((message, _MESSAGE_SCRUB))
+        sender = message.get("sender")
+        if isinstance(sender, dict):
+            found.append((sender, _SENDER_SCRUB))
+    return found
 
 
 def _carriers(node: dict[str, Any], record_id: str) -> list[_Carrier]:
@@ -60,11 +94,18 @@ def _carriers(node: dict[str, Any], record_id: str) -> list[_Carrier]:
     - a lifecycle delta: ``{record_id, "set": {...}}`` (the cold-tier compress
       DECAY_TRANSITION puts the plaintext zstd'd in ``set``; tag patches add tags).
     """
-    if node.get("record_id") != record_id:
-        return []
     found: list[_Carrier] = []
+    snapshot = node.get("record")
+    if (
+        isinstance(snapshot, dict)
+        and snapshot.get("record_id") == record_id
+        and isinstance(node.get(LINKS_KEY), list)
+    ):
+        found.append((node, _LINKS_SCRUB))  # a WRITE's entity links, beside its snapshot
+    if node.get("record_id") != record_id:
+        return found
     if any(field in node for field in ("content", "content_fingerprint", "namespace")):
-        found.append((node, _SNAPSHOT_SCRUB))
+        found.extend(_snapshot_carriers(node))
     delta = node.get("set")
     if isinstance(delta, dict) and any(field in delta for field in _DELTA_SCRUB):
         found.append((delta, _DELTA_SCRUB))
@@ -96,7 +137,7 @@ def _merge_carriers(node: dict[str, Any], record_id: str) -> list[_Carrier]:
     erasing the survivor must erase the absorbed copy too."""
     dropped = node.get("dropped_record")
     if node.get("kept_record_id") == record_id and isinstance(dropped, dict):
-        return [(dropped, _SNAPSHOT_SCRUB)]
+        return _snapshot_carriers(dropped)
     return []
 
 
@@ -117,12 +158,13 @@ def _group_siblings(items: list[Any], record_id: str) -> list[_Carrier]:
     if not groups:
         return []
     return [
-        (item, _SNAPSHOT_SCRUB)
+        carrier
         for item in items
         if isinstance(item, dict)
         and item.get("record_id") != record_id
         and item.get("group") is not None
         and item.get("group") in groups
+        for carrier in _snapshot_carriers(item)
     ]
 
 

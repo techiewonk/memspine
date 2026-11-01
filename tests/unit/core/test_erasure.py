@@ -2,7 +2,46 @@
 
 from __future__ import annotations
 
-from memspine.trust.erasure import redact_record, retained_fields
+from memspine.memories.associative.entity_index import LINKS_KEY as INDEX_LINKS_KEY
+from memspine.trust.erasure import LINKS_KEY, redact_record, retained_fields
+
+
+def test_entity_links_beside_the_snapshot_are_scrubbed_and_detected() -> None:
+    """ADR-095: a WRITE's entity links carry name fingerprints (reversible by dictionary)."""
+    assert LINKS_KEY == INDEX_LINKS_KEY == "entity_links"
+    link = {"name_fp": "77858394ab35e922", "entity_id": "ent:ns:x", "type": "person"}
+    payload = {"record": _snapshot("r1", "Alice"), "entity_links": [link]}
+    other = {"record": _snapshot("r2", "Bob"), "entity_links": [dict(link)]}
+    assert "entity_links" in retained_fields(payload, "r1")
+    assert redact_record(payload, "r1")
+    assert payload["entity_links"] == []
+    assert not retained_fields(payload, "r1")
+    assert not redact_record(other, "r1")  # another record's links stay
+    assert other["entity_links"] == [link]
+
+
+def test_message_envelope_metadata_sender_name_and_input_hashes_are_scrubbed() -> None:
+    """ADR-095 (message metadata copy class)."""
+    message = {
+        "message_id": "m1",
+        "sender": {"id": "u1", "kind": "human", "name": "Xanthippe"},
+        "metadata": {"crm": "TCK-1"},
+        "input_fingerprints": {"content": "ab" * 32},
+        "source_provenance": {"origin": "raw_message", "source_id": "m1"},
+    }
+    record = {**_snapshot("r1", "secret"), "source": {"role": "user", "message": message}}
+    payload = {"record": record}
+    assert {"metadata", "input_fingerprints", "name"} <= retained_fields(payload, "r1")
+    assert redact_record(payload, "r1")
+    assert message["metadata"] is None and message["input_fingerprints"] == {}
+    assert message["sender"] == {"id": "u1", "kind": "human", "name": None}
+    assert message["message_id"] == "m1"  # opaque ids stay
+    assert not retained_fields(payload, "r1")
+    # an absorbed duplicate's envelope goes with the survivor
+    dropped = {**_snapshot("r2", "x"), "source": {"message": {"metadata": {"k": "v"}}}}
+    merged = {"kept_record_id": "r1", "dropped_record": dropped}
+    assert redact_record(merged, "r1")
+    assert dropped["source"]["message"]["metadata"] is None
 
 
 def _snapshot(record_id: str, content: str, history: list[dict] | None = None) -> dict:
