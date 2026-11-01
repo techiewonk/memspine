@@ -29,3 +29,21 @@ same name merge on asserted edges (DS-10). Mention surface nodes reuse the `ent:
 
 Same-name people stay distinct unless evidence joins them. Entity seeding and lookup go
 through the name index (RM-110 cache) instead of parsing node ids.
+
+## Amendment 2026-11-01 (direction review)
+
+- The entity id is minted once, inside the committed effect payload, and recorded in the
+  event log. Projectors and replay never mint ids. A replay-equality test rebuilds the
+  graph and the index and compares entity ids.
+- A `unique_name` link has status `provisional` until cited identity evidence (an alias,
+  coreference or an explicit merge) confirms it. This partially supersedes ADR-078 E1 and
+  contract C03 for exact-name links within one namespace.
+- Uniqueness is checked against the complete name index at the source's known sequence.
+  A capped, truncated or deferred lookup never auto-links.
+- The name index is a rebuildable projection in `storage.records`, built from entity,
+  alias, link and merge events. It extends the RM-110 entity cache and is never a second
+  source of truth.
+- A compatible type means the same entity type, or either side untyped. Anything else is a
+  clash, which gives a new provisional entity.
+- Auto-link never crosses namespaces. Grantee merges (RM-55, F13) keep their visibility
+  rules.

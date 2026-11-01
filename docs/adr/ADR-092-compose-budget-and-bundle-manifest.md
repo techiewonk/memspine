@@ -22,3 +22,13 @@ The live packer is not checked against the benchmarked `read/tiers.fit_units` (D
 - A parity test asserts the live packer selects the same units as `fit_units` on fixtures.
 - RS-07: only the read-time span-dedup experiment is selected. It is adopted only if answer
   support on the RS-05 set does not drop.
+
+## Amendment 2026-11-01 (direction review)
+
+- The hard cap uses the same token counter the packer already uses for budgeting
+  (compose/pack.py), so the cap and the accounting cannot disagree. The optional render
+  tokenizer does not set the cap.
+- Truncation falls back to a whitespace boundary when no sentence boundary fits, which
+  works for any script.
+- The `incomplete` hit status is the contract's `partial` state; one name is used, as the
+  contract spells it.

@@ -45,3 +45,16 @@ Several gaps were confirmed in the 2026-11-01 triage:
 
 Callers that relied on silent extras or naive times get explicit errors or civil text.
 Recovery has one story for all writes.
+
+## Amendment 2026-11-01 (direction review)
+
+- `write.stamp_default_tz` is removed together with `read.naive_timezone`. A zone counts
+  only when the source or envelope declares it.
+- Civil time uses the contract representation (`text_precision`, `precision=unknown`;
+  ENRICHMENT_SCHEMA_CONTRACTS).
+- The `metadata` bag is stored verbatim, erased with its source and scanned like content
+  where a firewall scan exists. It is never interpreted for identity, time or role.
+- Window key: `conversation_id` when present, else `session_id`, else the inherited parent
+  conversation (RM-36), else a per-namespace default window.
+- BI-04 is reopened under the ADR-087 closing rule: its isolation claim is not met until
+  session-keyed windows land.

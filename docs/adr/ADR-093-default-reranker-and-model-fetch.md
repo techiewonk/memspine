@@ -27,3 +27,15 @@ for a default. RM-44 found no documented weight download for CI or users.
 
 Default reads gain about 20 to 60 ms of CPU cost per read. The latency budgets are
 re-measured with the reranker on.
+
+## Amendment 2026-11-01 (direction review)
+
+- Sequencing: `memspine models fetch` and the CI weight cache land first (moved to wave 2).
+  The base/simple default flips to MiniLM only after they exist and the RM-25/RS-06 CPU
+  measurement and PA-053 budgets are recorded. A test asserts that a cold offline
+  `Engine()` fails with the fetch hint.
+- Every catalogue file entry pins a SHA-256 content digest. int8 variants are separate
+  digested entries. The current MiniLM entry (`Xenova/ms-marco-MiniLM-L-6-v2`, pinned
+  revision, `onnx/model.onnx`) gains its digest.
+- "simple" is a profile and not a template; the default applies to `base`, so every
+  template that extends it inherits the default. `core` stays bare.

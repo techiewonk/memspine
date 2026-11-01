@@ -24,3 +24,13 @@ The phase C gate includes one test per copy class:
 
 A forget during in-flight background work must leave no copy after the effect commit.
 Unsupported copy classes fail the gate rather than being skipped silently.
+
+## Amendment 2026-11-01 (direction review)
+
+Further copy classes:
+- the entity name index;
+- the message `metadata` bag;
+- open-window drafts;
+- truncated packed excerpts.
+
+Each wave that adds a copy class adds its erasure test in the same wave.
