@@ -290,14 +290,15 @@ class EdgeCompiler:
         subj_ok = bool(subj) and self.policy.accepts(subj)  # type: ignore[union-attr]
         subj_node = links.get(subj) if subj_ok else None
         obj_node: str | None = None
-        obj_rejected = False
+        # The claim names an object the subject node is not: it must bind too. Rejected by the
+        # policy, or accepted but without an entity link, the object side is unbound.
+        obj_unbound = False
         if dst_raw:
             dst = canonical_entity(dst_raw)
             if dst and dst != subj:
                 if self.policy.accepts(dst):  # type: ignore[union-attr]
                     obj_node = links.get(dst)
-                else:
-                    obj_rejected = True
+                obj_unbound = obj_node is None
         key = AssertionKey(
             src=env.assertion_key.src,
             rel=rel,
@@ -323,7 +324,7 @@ class EdgeCompiler:
         if modality not in ("hypothetical", "question"):
             outcome = stored.outcome if stored is not None else _tagged_outcome(record)
         binding = "bound"
-        if subj_node is None or obj_rejected:
+        if subj_node is None or obj_unbound:
             binding = "partly" if subj_node is not None or obj_node is not None else "unbound"
         assessment = env.assessment.model_copy(
             update={"modality": modality, "negated": negated, "binding": binding}

@@ -300,6 +300,29 @@ async def test_scope_keyed_edges_use_tenant_and_owner() -> None:
     assert twin.namespace != rec.namespace
 
 
+def test_an_unlinked_object_is_never_bound() -> None:
+    """A claim with an accepted object but no entity link for it binds only partly (the
+    object side is unbound), never ``bound`` without an object entity."""
+    rec = MemoryRecord(
+        namespace=NS,
+        memory_type="semantic",
+        content="Alice works at Acme",
+        entity="Alice",
+        tags=["kind:state", "rel:works_at", "dst:Acme"],
+    )
+    on = EdgeCompiler()
+    both = on.envelope(rec, _ids(rec)[rec.record_id])
+    assert both.assessment.binding == "bound" and both.object is not None
+    assert both.object.entity_id is not None
+    subject_only = {"alice": _ids(rec)[rec.record_id]["alice"]}
+    env = on.envelope(rec, subject_only)
+    assert env.object is not None and env.object.entity_id is None
+    assert env.assessment.binding == "partly"
+    assert on.envelope(rec, {}).assessment.binding == "unbound"
+    meta = on.compile([rec], NS, entity_ids={rec.record_id: subject_only}).meta[rec.record_id]
+    assert meta["binding"] == "partly"
+
+
 async def test_stage_uses_typed_scope_and_is_scheduled_when_enabled() -> None:
     eng = _engine()
     await eng.start()
