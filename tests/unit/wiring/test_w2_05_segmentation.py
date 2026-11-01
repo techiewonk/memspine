@@ -288,7 +288,8 @@ async def test_fixed_caps_and_gap_disabled_use_one_call_per_window(
         # a 2-hour hole inside one session: shared does not cut on it
         await _send(eng, "a", "s1", _chat(5) + _chat(5, start=T0 + timedelta(hours=2), first=5))
         stats = await eng.flush_windows()
-        assert isinstance(eng._windows._stores["a"].segmenter, WindowSegmenter)
+        # ADR-090: one segmenter per open window; they share the namespace topic statistics
+        assert isinstance(eng._windows._stores["a"].topic, WindowSegmenter)
         assert eng._windows._seg is not None and eng._windows._batcher is None
         assert "time_gap" not in stats["windows_by_reason"]
         assert stats["windows"] == 2 and stats["calls"] == len(llm.calls) == 2

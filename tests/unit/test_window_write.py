@@ -711,11 +711,14 @@ async def test_session_closed_hook_records_boundary_when_processing_disabled(
         events = await storage.read_events(after_seq=0, limit=10000)
         marks = [e for e in events if (e.payload or {}).get("marker") == "session_closed"]
         assert [m.payload["session_id"] for m in marks] == ["s1"]
-        # a second session starting closes the first implicitly
+        # ADR-090 (DS-07): a second session starting never closes the first; each closes on
+        # its own close (or at the end of the stream)
         await _send(eng, "a", "s2", _turns("walk", 2))
         await _send(eng, "a", "s3", _turns("swim", 2))
         await eng.flush_windows(final=False)
-        assert eng.window_stats()["sessions_closed"] == 2  # s1 (explicit) and s2 (implicit)
+        assert eng.window_stats()["sessions_closed"] == 1  # s1 (explicit) only
+        await eng.flush_windows()
+        assert eng.window_stats()["sessions_closed"] == 3  # s2 and s3 at the end of the stream
         assert (await eng.close_session("zzz", None))["status"] == "skipped"
     finally:
         await eng.stop()

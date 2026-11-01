@@ -285,6 +285,15 @@ def _conversation_id(record: MemoryRecord) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
+def _session_id(record: MemoryRecord) -> str | None:
+    """A stored turn's session: the message envelope's, else the episodic session key."""
+    message = record.source.message
+    value = message.get("session_id") if isinstance(message, dict) else None
+    if isinstance(value, str) and value:
+        return value
+    return record.source.message_id or None
+
+
 def _note_io(messages: Sequence[Mapping[str, str]], reply: str) -> None:
     """TI-1: hand the rendered prompt and the raw reply of this model call to the window call
     that is capturing them (``write.extract.io``)."""
@@ -614,16 +623,57 @@ class _Job:
     queued_at: float = 0.0
 
 
+#: ADR-090 item 2: the window of a turn with no conversation, session or reply parent.
+_DEFAULT_WINDOW = "namespace"
+
+
+@dataclass
+class _Open:
+    """One open window of a namespace (ADR-090 item 2), keyed by ``conversation:<id>``, else
+    ``session:<id>``, else the reply parent's window (RM-36), else :data:`_DEFAULT_WINDOW`.
+    Interleaved windows never cut or close each other; idle and close cuts apply per window."""
+
+    key: str
+    segmenter: StreamSegmenter
+    session: str | None = None
+    conversation_id: str | None = None
+    idle: asyncio.TimerHandle | None = None
+    touch: int = 0
+    #: record id -> (source version, content hash) of each open turn, for the restart draft
+    sources: dict[str, tuple[int, str]] = field(default_factory=dict)
+
+
+class _OpenTurnsView:
+    """Read view over every open window of a namespace: what one segmenter per namespace used
+    to expose (``open_turns``, and the namespace's own topic level)."""
+
+    def __init__(self, store: _Store) -> None:
+        self._store = store
+
+    @property
+    def open_turns(self) -> list[WindowTurn]:
+        return [t for w in self._store.windows.values() for t in w.segmenter.open_turns]
+
+    @property
+    def pairs(self) -> int:
+        return self._store.topic.pairs
+
+    @property
+    def topic_level(self) -> float | None:
+        return self._store.topic.topic_level
+
+
 @dataclass
 class _Store:
-    segmenter: StreamSegmenter
+    #: holds the namespace's topic statistics; every window's segmenter shares them
+    topic: StreamSegmenter
+    windows: dict[str, _Open] = field(default_factory=dict)
+    #: sessions with an observed turn that were not closed yet (insertion order), and the latest
+    open_sessions: dict[str, None] = field(default_factory=dict)
+    last_session: str | None = None
     queue: deque[_Job] = field(default_factory=deque)
     run_lock: asyncio.Lock = field(default_factory=asyncio.Lock)
     worker: asyncio.Task[None] | None = None
-    idle: asyncio.TimerHandle | None = None
-    touch: int = 0
-    session: str | None = None
-    conversation_id: str | None = None
     pending: list[WindowEdgeBatch] = field(default_factory=list)
     inflight: _Job | None = None
     #: W2-05: the jobs of a batched call in hand (a forget cancels the one it touches)
@@ -632,6 +682,10 @@ class _Store:
     session_windows: Counter[str] = field(default_factory=Counter)
     #: W2-06b: the last turns of the previous window (the CONTEXT part of the prompt)
     tails: dict[str | None, list[str]] = field(default_factory=dict)
+
+    @property
+    def segmenter(self) -> _OpenTurnsView:
+        return _OpenTurnsView(self)
 
 
 class WindowPipeline:
@@ -776,9 +830,60 @@ class WindowPipeline:
     def _store(self, namespace: str) -> _Store:
         store = self._stores.get(namespace)
         if store is None:
-            store = _Store(segmenter=StreamSegmenter(self.settings, segmentation=self._seg))
+            store = _Store(topic=StreamSegmenter(self.settings, segmentation=self._seg))
             self._stores[namespace] = store
         return store
+
+    def _window(self, store: _Store, key: str) -> _Open:
+        """The open window ``key`` of ``store`` (created empty on first use)."""
+        win = store.windows.get(key)
+        if win is None:
+            segmenter = StreamSegmenter(
+                self.settings, segmentation=self._seg, _stats=store.topic._stats
+            )
+            win = store.windows[key] = _Open(key=key, segmenter=segmenter)
+        return win
+
+    @staticmethod
+    def _prune(store: _Store, win: _Open) -> None:
+        """Forget a window left with no open turn (its timer goes with it)."""
+        if win.segmenter.open_turns:
+            return
+        if win.idle is not None:
+            win.idle.cancel()
+            win.idle = None
+        if store.windows.get(win.key) is win:
+            del store.windows[win.key]
+
+    async def _window_key(
+        self, record: MemoryRecord, session: str | None
+    ) -> tuple[str, str | None, str | None]:
+        """ADR-090 amendment: ``(window key, conversation id, session)`` of a turn. The key is
+        the conversation, else the session, else the inherited reply-parent conversation or
+        session (RM-36: an omitted session inherits the stored parent's), else the
+        namespace's default window."""
+        conversation_id = _conversation_id(record)
+        if conversation_id is not None:
+            return f"conversation:{conversation_id}", conversation_id, session
+        if session is not None:
+            return f"session:{session}", None, session
+        parent_id = next(
+            (
+                t[len(constants.REPLY_TO_PREFIX) :]
+                for t in record.tags
+                if t.startswith(constants.REPLY_TO_PREFIX)
+            ),
+            None,
+        )
+        parent = await self._get(parent_id) if parent_id else None
+        if parent is not None and parent.namespace == record.namespace:
+            parent_conversation = _conversation_id(parent)
+            parent_session = _session_id(parent)
+            if parent_conversation is not None:
+                return f"conversation:{parent_conversation}", parent_conversation, parent_session
+            if parent_session is not None:
+                return f"session:{parent_session}", None, parent_session
+        return _DEFAULT_WINDOW, None, None
 
     async def _restore_draft(self, namespace: str) -> None:
         """Restore an incomplete window once per namespace after a restart.
@@ -796,15 +901,25 @@ class WindowPipeline:
                 await self._restore_draft_once(namespace)
 
     async def _restore_draft_once(self, namespace: str) -> None:
+        """ADR-090 item 2: the draft holds the open turns of every window of the namespace,
+        each with its window key, session, conversation, source version and content hash. A
+        turn whose record changed since (another version or content) is never used from the
+        draft: it is refreshed, i.e. observed again from the current record."""
         assert self._outbox is not None
         payload = await self._outbox.load_draft(self._scope(namespace), WINDOW_STAGE)
         if not payload:
             self._draft_restored.add(namespace)
             return
-        restored: list[WindowTurn] = []
+        by_key: dict[str, list[tuple[WindowTurn, dict[str, Any]]]] = {}
+        stale: list[tuple[MemoryRecord, str | None]] = []
         for item in payload.get("turns", []):
             record = await self._get(str(item["record_id"]))
-            if record is None or record.status is RecordStatus.DELETED:
+            if record is None or record.status is not RecordStatus.ACTIVATED:
+                continue
+            if item.get("source_version") != record.version or item.get(
+                "content_hash"
+            ) != fingerprint_payload({"content": record.content}):
+                stale.append((record, item.get("session")))
                 continue
             when = item.get("when")
             turn = WindowTurn(
@@ -815,48 +930,66 @@ class WindowPipeline:
                 vector=item.get("vector"),
                 tokens=int(item.get("tokens", 0)),
             )
-            restored.append(turn)
+            by_key.setdefault(str(item.get("window_key") or _DEFAULT_WINDOW), []).append(
+                (turn, item)
+            )
         # Every read succeeded: from here the turns live in memory, so a second restore
         # would add them twice.
         self._draft_restored.add(namespace)
         store = self._store(namespace)
-        store.session = payload.get("session")
-        store.conversation_id = payload.get("conversation_id")
-        if payload.get("policy_revision") != self._policy_revision:
-            if restored:
+        current = payload.get("policy_revision") == self._policy_revision
+        for key, entries in by_key.items():
+            win = self._window(store, key)
+            for turn, item in entries:
+                win.sources[turn.record_id] = (int(item["source_version"]), item["content_hash"])
+                win.session = turn.session
+                if item.get("conversation_id"):
+                    win.conversation_id = str(item["conversation_id"])
+                if turn.session is not None:
+                    store.open_sessions[turn.session] = None
+                    store.last_session = turn.session
+                    store.session_windows.setdefault(turn.session, 0)
+            turns = [turn for turn, _ in entries]
+            if not current:  # another policy: the restored turns are cut as they are
                 self._enqueue(
-                    namespace,
-                    store,
-                    Window(restored, "flush", session=restored[0].session),
+                    namespace, store, Window(turns, "flush", session=turns[0].session), win
                 )
-        else:
-            for turn in restored:
-                for closed in store.segmenter.add(turn):
-                    self._enqueue(namespace, store, closed)
+            else:
+                for turn in turns:
+                    for closed in win.segmenter.add(turn):
+                        self._enqueue(namespace, store, closed, win)
+            self._prune(store, win)
+            if key in store.windows:
+                self._arm_idle(namespace, store, win)
+        if stale:
+            self._counts["draft_turns_stale"] += len(stale)
+            tap.event("write.window.draft_stale", turns=len(stale))
         await self._persist_staged()
         await self._persist_draft(namespace, store)
+        for record, session in stale:  # refreshed through the one canonical observer
+            await self.observe(record, session if isinstance(session, str) else None)
 
     async def _persist_draft(self, namespace: str, store: _Store) -> None:
         if self._outbox is None or not hasattr(self._outbox, "save_draft"):
             return
-        turns = store.segmenter.open_turns
-        payload = None
-        if turns:
-            payload = {
-                "policy_revision": self._policy_revision,
-                "session": store.session,
-                "conversation_id": store.conversation_id,
-                "turns": [
+        turns: list[dict[str, Any]] = []
+        for win in store.windows.values():
+            for turn in win.segmenter.open_turns:
+                version, content_hash = win.sources.get(turn.record_id, (0, ""))
+                turns.append(
                     {
                         "record_id": turn.record_id,
+                        "window_key": win.key,
                         "session": turn.session,
+                        "conversation_id": win.conversation_id,
+                        "source_version": version,
+                        "content_hash": content_hash,
                         "when": turn.when.isoformat() if turn.when is not None else None,
                         "vector": list(turn.vector) if turn.vector is not None else None,
                         "tokens": turn.tokens,
                     }
-                    for turn in turns
-                ],
-            }
+                )
+        payload = {"policy_revision": self._policy_revision, "turns": turns} if turns else None
         await self._outbox.save_draft(self._scope(namespace), WINDOW_STAGE, payload)
 
     async def observe(self, record: MemoryRecord, session: str | None) -> None:
@@ -934,20 +1067,10 @@ class WindowPipeline:
         if self._outbox is not None:
             self._unmarked[record.record_id] = (ns, self._source_of(record))
         store = self._store(ns)
-        conversation_id = _conversation_id(record)
-        # The source/session id may deliberately identify one physical transcript containing
-        # several independent conversations. Close only the window at that boundary; the
-        # session-close hook still belongs to the physical session below.
-        if (
-            conversation_id is not None
-            and store.conversation_id is not None
-            and conversation_id != store.conversation_id
-        ):
-            window = store.segmenter.close("flush")
-            if window is not None:
-                self._enqueue(ns, store, window)
+        key, conversation_id, session = await self._window_key(record, session)
+        win = self._window(store, key)
         if conversation_id is not None:
-            store.conversation_id = conversation_id
+            win.conversation_id = conversation_id
         vector: list[float] | None = None
         if self._embed is not None and self.settings.topic_k > 0.0:
             try:
@@ -963,17 +1086,22 @@ class WindowPipeline:
             tokens=estimate_tokens(record.content),
         )
         self._counts["turns"] += 1
-        # A new session started: the old one is closed. Its open window is cut by the
-        # segmenter below; the sentinel runs after it in queue order.
-        closing = store.session if store.session is not None and session != store.session else None
-        for window in store.segmenter.add(turn):
-            self._enqueue(ns, store, window)
-        if closing is not None:
-            self._enqueue_closed(ns, store, closing)
-        store.session = session
+        win.sources[record.record_id] = (
+            record.version,
+            fingerprint_payload({"content": record.content}),
+        )
+        # DS-06/DS-07: only this turn's own window is cut; another conversation or session of
+        # the namespace is never flushed or closed by it.
+        for window in win.segmenter.add(turn):
+            self._enqueue(ns, store, window, win)
+        win.session = session
         if session is not None:
             store.session_windows.setdefault(session, 0)
-        self._arm_idle(ns, store)
+            store.open_sessions[session] = None
+            store.last_session = session
+        self._prune(store, win)
+        if key in store.windows:
+            self._arm_idle(ns, store, win)
         # The workers wake after the membership is published (``observe``): a worker woken
         # here would meet the source fence for this turn and stop until the next write.
         await self._persist_staged(wake=False)
@@ -982,15 +1110,18 @@ class WindowPipeline:
     def _scope(self, ns: str) -> OwnerScope:
         return OwnerScope(tenant=_TENANT, owner=ns)
 
-    def _enqueue(self, ns: str, store: _Store, window: Window) -> None:
+    def _enqueue(self, ns: str, store: _Store, window: Window, win: _Open) -> None:
+        for record_id in window.record_ids:
+            win.sources.pop(record_id, None)
         if self._outbox is not None:
             self._staged.append(
                 (
                     ns,
                     {
                         "kind": "window",
+                        "window_key": win.key,
                         "session": window.session,
-                        "conversation_id": store.conversation_id,
+                        "conversation_id": win.conversation_id,
                         "reason": window.reason,
                         "record_ids": window.record_ids,
                         **(
@@ -1006,7 +1137,7 @@ class WindowPipeline:
                 ns,
                 window=window,
                 members=frozenset(window.record_ids),
-                conversation_id=store.conversation_id,
+                conversation_id=win.conversation_id,
                 tokens=window.tokens,
                 queued_at=self._clock(),
             )
@@ -1129,26 +1260,30 @@ class WindowPipeline:
 
     # -- timers and workers ---------------------------------------------------------------
 
-    def _arm_idle(self, ns: str, store: _Store) -> None:
+    def _arm_idle(self, ns: str, store: _Store, win: _Open) -> None:
+        """(Re)arm the idle timer of one window; a write to another window never touches it."""
+        win.touch += 1
         if not self._async or self.settings.idle_s <= 0.0:
             return
-        if store.idle is not None:
-            store.idle.cancel()
-        store.touch += 1
-        token = store.touch
+        if win.idle is not None:
+            win.idle.cancel()
+        token = win.touch
         loop = asyncio.get_running_loop()
-        store.idle = loop.call_later(
-            self.settings.idle_s, lambda: loop.create_task(self._idle_cut(ns, store, token))
+        win.idle = loop.call_later(
+            self.settings.idle_s, lambda: loop.create_task(self._idle_cut(ns, store, win, token))
         )
 
-    async def _idle_cut(self, ns: str, store: _Store, token: int) -> None:
-        if self._stopped or token != store.touch:
-            return  # a later write re-armed the timer
-        window = store.segmenter.close("idle")
+    async def _idle_cut(self, ns: str, store: _Store, win: _Open, token: int) -> None:
+        if self._stopped or token != win.touch:
+            return  # a later write to this window re-armed its timer
+        win.idle = None
+        window = win.segmenter.close("idle")
+        self._prune(store, win)
         if window is not None:
-            self._enqueue(ns, store, window)
+            self._enqueue(ns, store, window, win)
             await self._persist_staged()
             await self._persist_draft(ns, store)
+            await self._flush_marks()
 
     def _ensure_worker(self, ns: str, store: _Store) -> None:
         if store.worker is not None and not store.worker.done():
@@ -1209,16 +1344,20 @@ class WindowPipeline:
             store = self._stores.get(ns)
             if store is None:
                 continue
-            if store.idle is not None:
-                store.idle.cancel()
-                store.idle = None
+            for win in store.windows.values():
+                if win.idle is not None:
+                    win.idle.cancel()
+                    win.idle = None
             if final:
-                window = store.segmenter.close("flush")
-                if window is not None:
-                    self._enqueue(ns, store, window)
-                if store.session is not None:
-                    self._enqueue_closed(ns, store, store.session)
-                    store.session = None
+                for win in list(store.windows.values()):
+                    window = win.segmenter.close("flush")
+                    if window is not None:
+                        self._enqueue(ns, store, window, win)
+                    self._prune(store, win)
+                for session in list(store.open_sessions):
+                    self._enqueue_closed(ns, store, session)
+                store.open_sessions.clear()
+                store.last_session = None
                 await self._persist_staged(force=True)  # an explicit flush defers nothing
                 await self._persist_draft(ns, store)
                 await self._flush_marks()
@@ -1237,16 +1376,20 @@ class WindowPipeline:
         store = self._stores.get(namespace)
         if store is None:
             return {"status": "skipped", "reason": "no window state for this namespace"}
-        session = session_id if session_id is not None else store.session
+        session = session_id if session_id is not None else store.last_session
         if session is None:
             return {"status": "skipped", "reason": "no open session"}
-        open_turns = store.segmenter.open_turns
-        if open_turns and open_turns[-1].session == session:
-            window = store.segmenter.close("session_end")
-            if window is not None:
-                self._enqueue(namespace, store, window)
-        if store.session == session:
-            store.session = None
+        # Only the windows of this session are cut; every other window stays open.
+        for win in list(store.windows.values()):
+            open_turns = win.segmenter.open_turns
+            if open_turns and open_turns[-1].session == session:
+                window = win.segmenter.close("session_end")
+                if window is not None:
+                    self._enqueue(namespace, store, window, win)
+                self._prune(store, win)
+        store.open_sessions.pop(session, None)
+        if store.last_session == session:
+            store.last_session = next(reversed(store.open_sessions), None)
         before = self._counts["sessions_closed"]
         self._enqueue_closed(namespace, store, session)
         await self._persist_staged(force=True)
@@ -1289,8 +1432,9 @@ class WindowPipeline:
             await self._outbox.stop(_STOP_GRACE_S)
         self._prefetched.clear()
         for store in self._stores.values():
-            if store.idle is not None:
-                store.idle.cancel()
+            for win in store.windows.values():
+                if win.idle is not None:
+                    win.idle.cancel()
             if store.batch_timer is not None:
                 store.batch_timer.cancel()
                 store.batch_timer = None
@@ -1943,8 +2087,11 @@ class WindowPipeline:
             )
         store = self._stores.get(namespace)
         if store is not None:
-            if store.segmenter.discard(record_id):
-                self._counts["turns_dropped_forget"] += 1
+            for win in list(store.windows.values()):
+                if win.segmenter.discard(record_id):
+                    self._counts["turns_dropped_forget"] += 1
+                    win.sources.pop(record_id, None)
+                    self._prune(store, win)
             for job in list(store.queue):
                 if job.window is None or record_id not in job.members:
                     continue
@@ -2982,7 +3129,7 @@ class WindowPipeline:
             out["outbox"] = True
             out["jobs_persisted"] = c["jobs_persisted"]
         topic = {
-            ns: {"pairs": s.segmenter.pairs, "level": s.segmenter.topic_level}
+            ns: {"pairs": s.topic.pairs, "level": s.topic.topic_level}
             for ns, s in self._stores.items()
         }
         out["topic_level"] = topic
