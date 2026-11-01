@@ -5,13 +5,13 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from memspine.compose.budget import Budget, EstimatingCounter
+from memspine.compose.budget import Budget
 from memspine.compose.bundles import TurnKey, TurnText, build_bundles, pack
 from memspine.compose.pack import AssembledContext, HitManifest, enforce_budget, truncated_copy
 from memspine.compose.pipeline.render import (
     BUNDLE_TAG,
     activate_counter,
-    current_counter,
+    read_counter,
     record_envelope,
     tok,
 )
@@ -594,10 +594,12 @@ async def bundle_selected(
     gets a dependency manifest in ``assembled.hits`` (needed, included and dropped turns), and a
     fact whose needed turn was cut is ``partial``. The budget is a hard cap: when nothing else
     entered, an oversize first record is cut to the room left (sentence, else whitespace
-    boundary); one that does not fit even cut is left out and ``budget_status`` is ``oversize``.
+    boundary); one that does not fit even cut is skipped, and ``budget_status`` is ``oversize``
+    only when nothing fitted. Every count uses :func:`read_counter`, the counter of the packer
+    and of the final guard, so a record cut to exactly the room is never trimmed again.
     """
     cfg = eng._config().read
-    counter = current_counter() or EstimatingCounter()
+    counter = read_counter()  # ADR-092: the packer's and the guard's own counter
     boundary = min(assembled.boundary_index, len(assembled.records))
     facts: dict[str, tuple[MemoryRecord, list[MemoryRecord]]] = {}
     needed: dict[str, list[MemoryRecord]] = {}
@@ -632,7 +634,7 @@ async def bundle_selected(
     if bundles and fact_room > 0:
         packed = pack(
             bundles,
-            Budget(total=fact_room, counter=counter),  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
+            Budget(total=fact_room, counter=counter),
             order=[b.record_id for b in bundles],
             turns=turn_text,
             early_break_after_n_skips=cfg.exact_budget_max_skips,
@@ -669,7 +671,7 @@ async def bundle_selected(
     remaining = max(0, room - spent)
     kept_other: dict[str, MemoryRecord] = {}
     hits: dict[str, HitManifest] = {}
-    oversize = False
+    unfit = False
     skips = 0
     for record in others:
         if record.record_id in cited:
@@ -682,12 +684,13 @@ async def bundle_selected(
         if cost <= remaining:
             kept_other[record.record_id] = record
             remaining -= cost
-        elif not kept_other and not included_ids and not stable and not oversize:
-            # Never an empty context: the first record enters, cut to the room (ADR-092).
+        elif not kept_other and not included_ids and not stable:
+            # Never an empty context: the first record enters, cut to the room (ADR-092). One
+            # that does not fit even cut is skipped; the next record may still open it.
             cut = truncated_copy(record, remaining, counter.count)
             if cut is None:
-                oversize = True
-                dropped.append({"id": record.record_id, "reason": "oversize"})
+                unfit = True
+                dropped.append({"id": record.record_id, "reason": "unfit"})
                 continue
             earlier = assembled.hits.get(record.record_id)
             original = earlier.original_tokens if earlier and earlier.truncated else cost
@@ -733,8 +736,8 @@ async def bundle_selected(
     assembled.boundary_index = len(stable)
     assembled.tokens_used = sum(counter.count(r.content) for r in assembled.records)
     assembled.hits = {**assembled.carry_over(stable), **hits}
-    if oversize or assembled.tokens_used > budget_tokens:
-        assembled.budget_status = "oversize"  # not even a cut fitted, or the stable prefix is over
+    if (unfit and not assembled.records) or assembled.tokens_used > budget_tokens:
+        assembled.budget_status = "oversize"  # nothing fitted even cut, or the prefix is over
     if tap.enabled():
         tap.event("compose.pack.dropped", dropped=dropped, n_dropped=len(dropped))
         tap.event(

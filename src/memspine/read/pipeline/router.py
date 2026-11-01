@@ -9,12 +9,10 @@ from collections.abc import (
 from datetime import timedelta
 from typing import Any
 
-from memspine.compose.pack import (
-    AssembledContext,
-    estimate_tokens,
-)
+from memspine.compose.pack import AssembledContext
 from memspine.compose.pack import ranked as rank_pairs
 from memspine.compose.pipeline.pack import enforce_read_budget
+from memspine.compose.pipeline.render import tok
 from memspine.config import constants
 from memspine.core import trace_sink
 from memspine.core.language import language_scope
@@ -1183,9 +1181,14 @@ async def _read_planned(
                         eng, query, validate_namespace(namespace), result.context
                     ),
                 )
-            # ADR-092: the final budget guard, after every overlay and the typed header.
-            guarded = enforce_read_budget(eng, result.context, eng._reply_budget(budget_tokens))
-            result = ReadResult(result.mode, eng._consent_context(guarded))
+            # ADR-092: the #50 consent filter, then the final budget guard, after every overlay
+            # and the typed header. Consent first: the guard then measures, trims and labels
+            # exactly the context returned (a guard before consent could trim records to make
+            # room for ones consent then removes, and report ``trimmed`` for a context that
+            # would fit), and nothing runs after the guard.
+            consented = eng._consent_context(result.context)
+            guarded = enforce_read_budget(eng, consented, eng._reply_budget(budget_tokens))
+            result = ReadResult(result.mode, guarded)
             read_request._cache_put(eng, cache_key, result)
         if outer:
             ids = [r.record_id for r in result.context.records]  # type: ignore[union-attr]  # CI-GREEN: pre-existing typing debt
@@ -1301,7 +1304,7 @@ async def _read_routed(
             ns, [(r, 0.0) for r in eng._inflate_all(live, ns)], hide=full_hide
         )
         records = [r for r, _ in decorated]
-        cost = sum(estimate_tokens(r.content) for r in records)
+        cost = sum(tok(r.content) for r in records)
         if records and cost <= budget_tokens:
             # N4: judged again on the rendered text; a full read that the dated
             # render pushes over budget falls back rather than being cut.

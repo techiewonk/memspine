@@ -8,7 +8,7 @@ from typing import Any
 
 from memspine.compose.pack import AssembledContext
 from memspine.compose.pipeline.pack import bundle_selected, enforce_read_budget
-from memspine.compose.pipeline.render import _gisted, activate_counter, tok
+from memspine.compose.pipeline.render import _gisted, activate_counter, read_counter, tok
 from memspine.config import constants
 from memspine.core.concentration import collapse_concentrated
 from memspine.core.evidence import evidence_signal, second_round_probe
@@ -107,10 +107,10 @@ async def assemble(
             )
         ),
     ):
+        # #50 consent runs inside _assemble, before the final budget guard (ADR-092).
         context = await eng._assemble(
             query, namespace, budget_tokens, top_k, shared=shared, session_id=session_id
         )
-        context = eng._consent_context(context)
         if outer:
             ids = [r.record_id for r in context.records]
             await eng._audit_read("assemble", namespace, ids)
@@ -161,7 +161,8 @@ async def _assemble(
     final = await eng._read_overlay(
         query, ns, eng._attach_headers(rendered, headers), session_id, shared=shared
     )
-    final = enforce_read_budget(eng, final, budget)  # ADR-092: after every overlay
+    # ADR-092: #50 consent, then the final guard, after every overlay (see read()).
+    final = enforce_read_budget(eng, eng._consent_context(final), budget)
     if tap.enabled():
         tap.event(
             "compose.budget",
@@ -668,16 +669,6 @@ def _window_sides(eng: Any, window: int) -> tuple[int, int]:
     return (window if before is None else before, window if after is None else after)
 
 
-class _CharCounter:
-    """The pipeline's own token estimate (chars // 4 + 1), as a LIB-24 counter."""
-
-    name = "estimate:chars/4+1"
-    accounting = "estimated"
-
-    def count(self, text: str) -> int:
-        return len(text) // 4 + 1
-
-
 async def _expand_neighbours(
     eng: Any,
     ns: str,
@@ -730,7 +721,7 @@ async def _expand_neighbours(
         before=before,
         after=after,
         budget=max(0, budget_tokens - used),
-        counter=_CharCounter(),  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
+        counter=read_counter(),
     )
     seen = {r.record_id for r in chosen}
     added = 0

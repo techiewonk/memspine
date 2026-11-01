@@ -7,12 +7,13 @@ import re
 import secrets
 from collections.abc import Sequence
 from contextvars import ContextVar
+from dataclasses import dataclass, replace
 from datetime import datetime
 from functools import lru_cache
 from typing import Any
 
-from memspine.compose.budget import CallableCounter, EstimatingCounter, TokenCounter
-from memspine.compose.pack import AssembledContext, estimate_tokens, truncated_copy
+from memspine.compose.budget import Accounting, CallableCounter, TokenCounter
+from memspine.compose.pack import AssembledContext, drop_records, estimate_tokens, truncated_copy
 from memspine.compose.render_trust import TrustItem, TrustStyle, classify, find_directives
 from memspine.compose.render_trust import render as render_trust_lines
 from memspine.config import constants
@@ -41,6 +42,24 @@ BUNDLE_TAG = "evidence_bundle_line"
 # --- R3-09a: the active token counter -------------------------------------------------------------
 
 _COUNTER: ContextVar[TokenCounter | None] = ContextVar("memspine_compose_counter", default=None)
+
+
+@dataclass
+class PackerEstimate:
+    """The packer's own estimate (:func:`memspine.compose.pack.estimate_tokens`,
+    ``len // 4 + 1``) as a :class:`TokenCounter`. ADR-092: the read path counts with ONE
+    function, so the packer, the bundle packer, the render fit, the overlays and the final
+    budget guard cannot disagree (the library :class:`EstimatingCounter` rounds ``len / 4``
+    up, one token less on multiples of 4)."""
+
+    name: str = "estimate:len//4+1"
+    accounting: Accounting = "estimated"
+
+    def count(self, text: str) -> int:
+        return estimate_tokens(text)
+
+
+PACKER_ESTIMATE = PackerEstimate()
 
 
 class _OfflineOnly(RuntimeError):
@@ -86,7 +105,7 @@ def _hf_counter(name: str) -> TokenCounter | None:
 @lru_cache(maxsize=8)
 def resolve_counter(name: str | None) -> TokenCounter:
     """The reader's tokenizer if it resolves OFFLINE (cached HF tokenizer or cached tiktoken
-    encoding), else the labelled chars/4 estimate. Never downloads."""
+    encoding), else the labelled packer estimate (:data:`PACKER_ESTIMATE`). Never downloads."""
     if name:
         if name.startswith("tiktoken:"):
             found = _tiktoken_counter(name[9:])
@@ -96,7 +115,7 @@ def resolve_counter(name: str | None) -> TokenCounter:
             found = _hf_counter(name) or _tiktoken_counter(name)
         if found is not None:
             return found
-    return EstimatingCounter()  # type: ignore[return-value]  # CI-GREEN: pre-existing typing debt
+    return PACKER_ESTIMATE
 
 
 def activate_counter(eng: Any) -> TokenCounter | None:
@@ -112,10 +131,15 @@ def current_counter() -> TokenCounter | None:
     return _COUNTER.get()
 
 
-def tok(text: str) -> int:
-    """Tokens of ``text`` under the active counter (the estimate when none is active)."""
+def read_counter() -> TokenCounter:
+    """The one counter of the read path: the active one, else :data:`PACKER_ESTIMATE`."""
     counter = _COUNTER.get()
-    return estimate_tokens(text) if counter is None else counter.count(text)
+    return PACKER_ESTIMATE if counter is None else counter
+
+
+def tok(text: str) -> int:
+    """Tokens of ``text`` under :func:`read_counter` (the packer estimate when none is active)."""
+    return read_counter().count(text)
 
 
 # --- adapters: records to library inputs ---------------------------------------------------
@@ -336,6 +360,7 @@ def _render(
     if read_cfg.render != "dated":
         assembled.records = [*stable, *volatile]
         return assembled
+    before_fit = list(volatile)
     while True:
         rendered = eng._render_volatile(volatile, gap_markers=read_cfg.gap_markers)
         used = sum(tok(r.content) for r in [*stable, *rendered])
@@ -359,10 +384,17 @@ def _render(
             rendered = [cut[0]]
             assembled.hits = {**assembled.hits, cut[1].record_id: cut[1]}
             used = sum(tok(r.content) for r in [*stable, *rendered])
+    # ADR-092: the fit's removals go through the shared manifest step, so a bundle turn line
+    # it cut moves from its fact's included turns to its dropped turns (the hit is partial).
+    survivors = {id(r) for r in volatile}
+    pruned = drop_records(
+        replace(assembled, records=[*stable, *before_fit]),
+        [True] * len(stable) + [id(r) in survivors for r in before_fit],
+        tok,
+    )
     assembled.records = [*stable, *rendered]
     assembled.tokens_used = used
-    kept = {r.record_id for r in assembled.records}
-    assembled.hits = {rid: hit for rid, hit in assembled.hits.items() if rid in kept}
+    assembled.hits = pruned.hits
     if budget_tokens is not None and used > budget_tokens:
         assembled.budget_status = "oversize"
     return assembled

@@ -45,3 +45,23 @@ The live packer is not checked against the benchmarked `read/tiers.fit_units` (D
   consistent: a removed hit leaves `hits`; a removed included turn becomes a dropped turn.
 - The routed budget is clamped at zero, so headers larger than the budget never hand the
   packer a negative budget.
+
+## Amendment 2026-11-01 (review fixes)
+
+- An opening record that cannot fit even truncated is skipped (traced `unfit`), and the next
+  record is tried the same way. `oversize` means no record fitted at all; it no longer
+  empties a context that a smaller record would fill.
+- Truncation finds every engine wrapper wherever the render placed it (after an H5 date, an
+  H22 gap marker or an I39 `[about: ...]` prefix): the B6 untrusted note (closed by its own
+  nonce), the E1 instruction flag and the T5-02 neutralised quote with its directive
+  brackets. The cut lands only inside the wrapped body, after the leading render markers, and
+  every closing marker is kept or put back.
+- Every record-dropping step on the read path (render fit, relevance gate, consent filter,
+  final guard) calls one helper, `compose.pack.drop_records`. A removed included turn becomes
+  a dropped turn. The stable-prefix boundary is the count of kept stable-prefix records.
+- Consent runs before the final guard, on `read` and on `assemble`. The guard then measures
+  and labels exactly the context returned, and nothing runs after it.
+- One counter on the read path: `compose.pipeline.render.read_counter()`, which is the active
+  reader tokenizer or the packer estimate `len // 4 + 1`. The bundle packer, the overlays,
+  the gate, the consent filter and the guard all use it. The library `EstimatingCounter`
+  (`ceil(len / 4)`) is no longer used on the read path.

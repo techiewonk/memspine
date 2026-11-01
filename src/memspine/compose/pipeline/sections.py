@@ -6,9 +6,9 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
-from memspine.compose.pack import AssembledContext, estimate_tokens
+from memspine.compose.pack import AssembledContext
 from memspine.compose.pack import ranked as rank_pairs
-from memspine.compose.pipeline.render import _unrendered
+from memspine.compose.pipeline.render import _unrendered, tok
 from memspine.config import constants
 from memspine.core.escaping import escape_markers
 from memspine.core.event_date import happened_of
@@ -87,7 +87,7 @@ async def _graph_facts_section(
     once. Lines are kept nearest first while the block fits ``allowance``, then
     shown oldest first. The block's parents are the facts it shows, so the read
     below leaves them out (no record twice)."""
-    if allowance <= estimate_tokens(constants.GRAPH_FACTS_MARKER):
+    if allowance <= tok(constants.GRAPH_FACTS_MARKER):
         return None
     try:
         reached = await eng._graph_walk(ns, query, history=True)
@@ -114,7 +114,7 @@ async def _graph_facts_section(
             continue  # one line per fact, however many records restate it
         line = graph_fact_line(shown, await eng._edge_sources(storage, record))
         trial = {**lines, record.record_id: (shown, line)}
-        if estimate_tokens(render_graph_facts([v[1] for v in eng._by_time(trial)])) <= allowance:
+        if tok(render_graph_facts([v[1] for v in eng._by_time(trial)])) <= allowance:
             lines = trial
             kept.append(shown)
     if not kept:
@@ -355,7 +355,7 @@ async def _lead_section(
         candidates.extend((timelines, b) for b in await eng._timeline_blocks(ns, scored))
     for target, record in candidates:
         wrapped = eng._wrap_untrusted(record)
-        cost = estimate_tokens(wrapped.content)
+        cost = tok(wrapped.content)
         if used + cost > allowance:
             continue
         target.append(wrapped)
@@ -463,7 +463,7 @@ async def _cards_section(
     if temporal and not event_only and read_cfg.cards_skip_temporal:
         return None
     allowance = int(budget_tokens * read_cfg.cards_budget_share)
-    if allowance <= estimate_tokens(constants.CARDS_MARKER):
+    if allowance <= tok(constants.CARDS_MARKER):
         return None
     # A2 (ADR-055): list cards only for list and count questions.
     drop_lists = read_cfg.list_cards_only_aggregate and not (
@@ -504,7 +504,7 @@ async def _cards_section(
     for record, _ in hits:
         trial = [*kept, eng._wrap_for_context(record)]
         text = eng._cards_text(trial, said, claims, event_dates, happened_first=event_only)
-        if estimate_tokens(text) <= allowance:
+        if tok(text) <= allowance:
             kept = trial
     if not kept:
         return None
@@ -615,7 +615,7 @@ async def _slots_section(eng: Any, ns: str, query: str, budget_tokens: int) -> M
     for entity in sorted(slots):
         for record in sorted(slots[entity], key=lambda r: r.attribute or ""):
             line = f"- {' '.join(record.content.split())}"
-            if estimate_tokens("\n".join([constants.SLOTS_MARKER, *lines, line])) > allowance:
+            if tok("\n".join([constants.SLOTS_MARKER, *lines, line])) > allowance:
                 break
             lines.append(line)
             kept.append(record)
@@ -680,7 +680,7 @@ async def _subject_card(eng: Any, ns: str, query: str, budget_tokens: int) -> Me
                     *([] if head in lines else [head]),
                     line,
                 ]
-                if estimate_tokens("\n".join(trial)) > allowance:
+                if tok("\n".join(trial)) > allowance:
                     break
                 if head not in lines:
                     lines.append(head)
@@ -746,7 +746,7 @@ async def _recent_section(eng: Any, ns: str, query: str, budget_tokens: int) -> 
     kept: list[MemoryRecord] = []
     for record in reversed(latest):  # newest first while it fits, shown oldest first
         line = f"- {escape_markers(' '.join(record.content.split()))}"
-        if estimate_tokens("\n".join([constants.RECENT_MARKER, line, *lines])) > allowance:
+        if tok("\n".join([constants.RECENT_MARKER, line, *lines])) > allowance:
             break
         lines.insert(0, line)
         kept.insert(0, record)
@@ -813,7 +813,7 @@ async def _session_digest_section(
         text = " … ".join(" ".join(sentence.split()) for _, _, sentence, _ in best)
         line = f"- {s.start:%Y-%m-%d}: {escape_markers(text)}"
         trial = [*lines, line]
-        if estimate_tokens("\n".join([constants.SESSION_DIGEST_MARKER, *trial])) > allowance:
+        if tok("\n".join([constants.SESSION_DIGEST_MARKER, *trial])) > allowance:
             break
         lines = trial
         kept += [turn for _, _, _, turn in best if turn not in kept]
@@ -851,7 +851,7 @@ async def _novelty_section(
     kept: list[MemoryRecord] = []
     for record in sorted(known, key=chrono_key, reverse=True):
         line = f"- {' '.join(record.content.split())}"
-        if estimate_tokens("\n".join([constants.NOVELTY_MARKER, *lines, line])) > allowance:
+        if tok("\n".join([constants.NOVELTY_MARKER, *lines, line])) > allowance:
             break
         lines.append(line)
         kept.append(record)
@@ -887,7 +887,7 @@ async def _profile_section(
         return None
     allowance = int(budget_tokens * read_cfg.profile_budget_share)
     names = query_names(query)
-    if allowance <= estimate_tokens(render_profile(names, [])):
+    if allowance <= tok(render_profile(names, [])):
         return None
     k = constants.PROFILE_HEADER_TOP_K
     hits = await eng._search(
@@ -906,7 +906,7 @@ async def _profile_section(
     kept: list[MemoryRecord] = []
     for record in about or insights:
         trial = [*kept, eng._wrap_for_context(record)]
-        if estimate_tokens(render_profile(names if about else [], trial)) <= allowance:
+        if tok(render_profile(names if about else [], trial)) <= allowance:
             kept = trial
     if not kept:
         return None
@@ -944,7 +944,7 @@ async def _profile_card_section(
         read_cfg.profile_card_header_budget,
         int(budget_tokens * constants.PROFILE_PACK_MAX_SHARE),
     )
-    if allowance <= estimate_tokens(PROFILE_CARD_HEADER_MARKER):
+    if allowance <= tok(PROFILE_CARD_HEADER_MARKER):
         return None
     storage = eng._require_started()
     card = await read_latest_card(storage, ns)
@@ -966,7 +966,7 @@ async def _profile_card_section(
             continue  # fail closed: the line may disclose information from any cited source
         line = card_entry_line(entry, [r.record_id for r in live], now)
         trial = [*shown, (entry, line, live)]
-        if estimate_tokens(render_card_header([t[1] for t in trial])) <= allowance:
+        if tok(render_card_header([t[1] for t in trial])) <= allowance:
             shown = trial
     if not shown:
         return None
@@ -997,7 +997,7 @@ async def _packed_profile_section(
         read_cfg.profile_header_budget,
         int(budget_tokens * constants.PROFILE_PACK_MAX_SHARE),
     )
-    if allowance <= estimate_tokens(constants.PROFILE_PACK_MARKER):
+    if allowance <= tok(constants.PROFILE_PACK_MARKER):
         return None
 
     def is_summary(r: MemoryRecord) -> bool:
@@ -1053,7 +1053,7 @@ async def _entity_summary_section(
     admission gate (status, quarantine, trust floor, integrity) and the
     per-record context wrappers; the block's parents are the summaries shown,
     so the read below leaves them out."""
-    if eng._associative is None or allowance <= estimate_tokens(constants.ENTITY_SUMMARIES_MARKER):
+    if eng._associative is None or allowance <= tok(constants.ENTITY_SUMMARIES_MARKER):
         return None
     try:
         seeds = await eng._graph_seeds(ns, query)
@@ -1092,7 +1092,7 @@ async def _entity_summary_section(
         name = escape_markers(entity_summary_name(record))
         line = f"About {name}: {' '.join(shown.content.split())}"
         trial = [*lines, line]
-        if estimate_tokens("\n".join([constants.ENTITY_SUMMARIES_MARKER, *trial])) <= allowance:
+        if tok("\n".join([constants.ENTITY_SUMMARIES_MARKER, *trial])) <= allowance:
             lines = trial
             kept.append(shown)
     if not kept:
@@ -1186,7 +1186,7 @@ def _count_section(
     kept: list[tuple[MemoryRecord, str]] = []
     for occurrence in distinct_occurrences(found, event_days=days):
         trial = [*kept, occurrence]
-        if estimate_tokens(render_occurrences(trial)) <= allowance:
+        if tok(render_occurrences(trial)) <= allowance:
             kept = trial
     if not kept:
         return headers

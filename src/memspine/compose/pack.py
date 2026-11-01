@@ -10,7 +10,7 @@ prefix cache stays warm across turns.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Iterable, Mapping
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from typing import ClassVar, Literal
 
@@ -27,6 +27,7 @@ __all__ = [
     "AssemblyPolicy",
     "BudgetStatus",
     "HitManifest",
+    "drop_records",
     "enforce_budget",
     "estimate_tokens",
     "truncate_to_fit",
@@ -87,8 +88,8 @@ class AssemblyOptions(PolicyOptions):
 
 #: ADR-092: ``within`` = the context fits its budget as packed; ``trimmed`` = it fits because
 #: the final budget guard (:func:`enforce_budget`) removed records or blocks added after the
-#: packer; ``oversize`` = it does not fit, or the first record did not fit even truncated (it
-#: was left out): a documented exception (E5 protected blocks, a stable prefix larger than the
+#: packer; ``oversize`` = it does not fit, or no record fitted even truncated (the context is
+#: empty; an unfit record that a later one replaced is only skipped): a documented exception (E5 protected blocks, a stable prefix larger than the
 #: budget) can leave the context over it.
 BudgetStatus = Literal["within", "trimmed", "oversize"]
 
@@ -160,6 +161,55 @@ class AssembledContext:
         return {r.record_id: self.hits[r.record_id] for r in records if r.record_id in self.hits}
 
 
+def drop_records(
+    context: AssembledContext,
+    keep: Sequence[bool],
+    count: Callable[[str], int],
+    *,
+    records: Sequence[MemoryRecord] | None = None,
+) -> AssembledContext:
+    """ADR-092: ``context`` without the records ``keep`` marks False, manifests consistent.
+
+    The ONE step every record-dropping stage of the read path calls (render fit, relevance
+    gate, consent filter, final budget guard), so none leaves a stale manifest:
+
+    * a removed record's hit leaves ``hits``;
+    * a hit's included turn that was removed (and is not still shown) becomes a dropped turn,
+      so the hit is ``partial``;
+    * ``boundary_index`` is the number of KEPT records of the stable prefix, so a removal
+      inside the prefix never moves volatile records behind the boundary;
+    * ``tokens_used`` is recounted with ``count`` (the read path's one counter).
+
+    ``records`` (default ``context.records``) is the list ``keep`` indexes, in context order.
+    Abstention, evidence and ``budget_status`` are carried; a new context is returned."""
+    listed = list(context.records if records is None else records)
+    if len(keep) != len(listed):
+        raise ValueError("keep must mark every record")
+    boundary = min(context.boundary_index, len(listed))
+    present = [r for r, k in zip(listed, keep, strict=True) if k]
+    present_ids = {r.record_id for r in present}
+    removed = {r.record_id for r, k in zip(listed, keep, strict=True) if not k} - present_ids
+    hits: dict[str, HitManifest] = {}
+    for rid, hit in context.hits.items():
+        if rid not in present_ids:
+            continue
+        moved = tuple(t for t in hit.included_turns if t in removed)
+        if moved:
+            hit = replace(
+                hit,
+                included_turns=tuple(t for t in hit.included_turns if t not in removed),
+                dropped_turns=(*hit.dropped_turns, *moved),
+            )
+        hits[rid] = hit
+    return replace(
+        context,
+        records=present,
+        boundary_index=sum(1 for i in range(boundary) if keep[i]),
+        tokens_used=sum(count(r.content) for r in present),
+        hits=hits,
+    )
+
+
 # --- ADR-092 / DS-15: the hard cap -----------------------------------------------------------
 
 #: Sentence terminators of common scripts: Latin, ellipsis, CJK full-width, Devanagari danda,
@@ -170,28 +220,67 @@ _FULLWIDTH = "\u3002\uff01\uff1f"
 _SENTENCE_END = re.compile(
     rf"[{_TERMINATORS}]+[\"'\u201d\u2019\u300d\u300f)\]]*(?=\s|$)|[{_FULLWIDTH}]+"
 )
-#: Wrappers the engine puts around a record (E1 instruction flag, B6 untrusted note) stay
-#: whole: a cut never lands inside one, and an untrusted note keeps its closing marker.
-_UNTRUSTED_HEAD = re.compile(r"\[UNTRUSTED NOTE, trust [^\]]*\] ")
-_UNTRUSTED_TAIL = re.compile(r" \[END UNTRUSTED NOTE [0-9a-f]+\]$")
+#: Wrappers the engine puts around a record stay whole wherever the render placed them (after
+#: an H5 date, an H22 gap marker or an I39 ``[about: ...]`` prefix): the cut lands only inside
+#: the wrapped body and every closing marker is kept. B6 untrusted note (closed by its own
+#: nonce), E1 instruction flag (no closing marker), T5-02 neutralised quotes with their
+#: directive brackets (a cut inside them is closed again: see :func:`_closers`).
+_UNTRUSTED_HEAD = re.compile(r"\[UNTRUSTED NOTE, trust [^\]]*\bref ([0-9a-f]+):[^\]]*\] ")
+#: Leading render markers (``[2024-05-01 Wed] ``, ``[3 days later] ``, ``[about: X] ``,
+#: ``[unverified: ...] ``): kept whole, a cut never lands inside one.
+_LEAD_MARKERS = re.compile(r"(?:\[[^\[\]\n]*\] )*")
+_QUOTE_OPEN, _QUOTE_CLOSE = "⟪", "⟫"  # the T5-02 directive brackets
 
 
 def _split_wrappers(text: str) -> tuple[str, str, str]:
+    """``(head, body, tail)``: the engine wrappers around ``text`` and what they wrap. The
+    head is everything up to the innermost wrapper opening (render prefixes included), the
+    tail every closing marker after the body."""
     head, body, tail = "", text, ""
     flag = constants.INSTRUCTION_FLAG_MARKER + "\n"
     while True:
-        opened = _UNTRUSTED_HEAD.match(body)
-        closed = _UNTRUSTED_TAIL.search(body) if opened is not None else None
-        if opened is not None and closed is not None and closed.start() >= opened.end():
-            head += body[: opened.end()]
-            tail = body[closed.start() :] + tail
-            body = body[opened.end() : closed.start()]
-            continue
-        if body.startswith(flag):
-            head += flag
-            body = body[len(flag) :]
+        opened = _UNTRUSTED_HEAD.search(body)
+        if opened is not None:
+            closing = f" [END UNTRUSTED NOTE {opened.group(1)}]"
+            end = body.rfind(closing)
+            if end >= opened.end():
+                head += body[: opened.end()]
+                tail = body[end:] + tail
+                body = body[opened.end() : end]
+                continue
+        at = body.find(flag)
+        if at >= 0:
+            head += body[: at + len(flag)]
+            body = body[at + len(flag) :]
             continue
         return head, body, tail
+
+
+def _closers(prefix: str) -> tuple[str, str] | None:
+    """``(prefix, closers)``: the closing marks a cut ``prefix`` needs so that no T5-02 quote
+    (``"``, backslash-escaped inside) and no directive bracket stays open. A dangling escape
+    backslash is dropped (it would escape the closing quote). None when nothing is left."""
+    in_quote = False
+    brackets = 0
+    escaped = False
+    for char in prefix:
+        if escaped:
+            escaped = False
+        elif in_quote and char == "\\":
+            escaped = True
+        elif char == '"':
+            in_quote = not in_quote
+            if not in_quote:
+                brackets = 0
+        elif char == _QUOTE_OPEN:
+            brackets += 1
+        elif char == _QUOTE_CLOSE and brackets:
+            brackets -= 1
+    if escaped:
+        prefix = prefix[:-1].rstrip()
+    if not prefix:
+        return None
+    return prefix, _QUOTE_CLOSE * brackets + ('"' if in_quote else "")
 
 
 def _best_cut(cuts: list[int], fits: Callable[[int], bool]) -> int | None:
@@ -215,25 +304,46 @@ def truncate_to_fit(text: str, budget: int, count: Callable[[str], int]) -> str 
 
     The cut lands at a sentence boundary; when no sentence fits, at a whitespace boundary
     (works for any script that separates words). None when neither fits: the caller reports
-    ``oversize``. Engine wrappers stay whole. ``text`` itself when it already fits."""
+    ``oversize``. ``text`` itself when it already fits.
+
+    Engine wrappers stay whole wherever the render put them: the cut lands inside the wrapped
+    body only, after any leading render marker, and every closing marker is kept (an untrusted
+    note's ``[END UNTRUSTED NOTE <nonce>]``; a neutralised quote's closing ``"`` and directive
+    bracket are put back when the cut lands inside them)."""
     if budget <= 0:
         return None
     if count(text) <= budget:
         return text
     head, body, tail = _split_wrappers(text)
+    lead = _LEAD_MARKERS.match(body)
+    floor = lead.end() if lead is not None else 0
+
+    def candidate(cut: int) -> str | None:
+        if not body[floor:cut].strip():
+            return None
+        closed = _closers(body[:cut].rstrip())
+        if closed is None or not closed[0][floor:].strip():
+            return None
+        return head + closed[0] + closed[1] + tail
 
     def fits(cut: int) -> bool:
-        return count(head + body[:cut].rstrip() + tail) <= budget
+        shown = candidate(cut)
+        return shown is not None and count(shown) <= budget
 
-    sentence = sorted({m.end() for m in _SENTENCE_END.finditer(body) if m.end() < len(body)})
+    sentence = sorted(
+        {m.end() for m in _SENTENCE_END.finditer(body) if floor < m.end() < len(body)}
+    )
     cut = _best_cut(sentence, fits) if sentence else None
     if cut is None:
-        spaces = [i for i in range(1, len(body)) if body[i].isspace() and not body[i - 1].isspace()]
+        spaces = [
+            i
+            for i in range(floor + 1, len(body))
+            if body[i].isspace() and not body[i - 1].isspace()
+        ]
         cut = _best_cut(spaces, fits) if spaces else None
     if cut is None:
         return None
-    prefix = body[:cut].rstrip()
-    return head + prefix + tail if prefix else None
+    return candidate(cut)
 
 
 def truncated_copy(
@@ -366,8 +476,9 @@ class AssemblyPolicy(BindablePolicy):
 
         ADR-092 (DS-15): without the E5 fit stage the budget is a hard cap, counted with
         ``cost``. A first record larger than the budget is cut at a sentence (else whitespace)
-        boundary and marked truncated in ``hits``; one that cannot fit even truncated is left
-        out and the result says ``budget_status="oversize"``.
+        boundary and marked truncated in ``hits``; one that cannot fit even truncated is
+        skipped (traced as ``unfit``) and the next record is tried the same way. Only when
+        nothing fits at all does the result say ``budget_status="oversize"``.
         """
         count = cost or estimate_tokens
         skips = 0
@@ -376,19 +487,26 @@ class AssemblyPolicy(BindablePolicy):
         fit_stage = compression is not None and compression.assembly_enabled()
         tracing = trace_sink.FORENSICS.get() is not None
         hits: dict[str, HitManifest] = {}
-        oversize = False
+        unfit: list[str] = []  # opening records that did not fit even truncated (skipped)
 
         def opening(pair: tuple[MemoryRecord, float]) -> tuple[MemoryRecord, float] | None:
-            """The first record, cut to the budget when it is larger (ADR-092)."""
-            nonlocal oversize
+            """The first record, cut to the budget when it is larger (ADR-092). None when not
+            even a cut fits: the record is skipped and the next one may open the context."""
             cut = truncated_copy(pair[0], budget_tokens, count)
             if cut is None:
-                oversize = True
+                unfit.append(pair[0].record_id)
                 if tracing:
                     trace_sink.cut(
-                        "oversize", pair[0].record_id, cost=count(pair[0].content),
-                        budget=budget_tokens,
+                        "unfit", pair[0].record_id, cost=count(pair[0].content),
+                        budget=budget_tokens, note="skipped: does not fit even truncated",
                     )  # fmt: skip
+                tap.event(
+                    "compose.pack.dropped",
+                    ids=[pair[0].record_id],
+                    reason="unfit",
+                    cost=count(pair[0].content),
+                    budget=budget_tokens,
+                )
                 return None
             hits[pair[0].record_id] = cut[1]
             return cut[0], pair[1]
@@ -421,7 +539,7 @@ class AssemblyPolicy(BindablePolicy):
                 abstained=True,
                 tokens_used=used,
                 hits=hits,
-                budget_status="oversize" if oversize else "within",
+                budget_status="oversize" if unfit and not personas else "within",
             )
         before_floor = [r.record_id for r, _ in scored] if tracing else []
         if raw_scores:  # I30: the floor reads the raw reranker scores, min-max or not
@@ -474,14 +592,15 @@ class AssemblyPolicy(BindablePolicy):
                     if not fit_stage:  # ADR-092: the first record, cut to the budget
                         remaining.remove(pair)
                         opened = opening(pair)
-                        if opened is not None:
-                            selected.append(opened)
-                            tokens_used += count(opened[0].content)
+                        if opened is None:
+                            continue  # skipped: the next slot (or MMR) may open the context
+                        selected.append(opened)
+                        tokens_used += count(opened[0].content)
                         break
                 remaining.remove(pair)
                 selected.append(pair)
                 tokens_used += need
-        while remaining and not oversize:
+        while remaining:
             best_index = -1
             best_value = float("-inf")
             for index, (candidate, score) in enumerate(remaining):
@@ -535,10 +654,10 @@ class AssemblyPolicy(BindablePolicy):
                 break
             if not fit_stage and tokens_used + need > budget_tokens:
                 # ADR-092: nothing selected yet, so this record opens the context, cut to
-                # the budget; when not even a cut fits, the context is empty and oversize.
+                # the budget; when not even a cut fits, it is skipped and the next one tries.
                 opened = opening((candidate, score))
                 if opened is None:
-                    break
+                    continue
                 candidate = opened[0]
                 need = count(candidate.content)
             selected.append((candidate, score))
@@ -586,8 +705,11 @@ class AssemblyPolicy(BindablePolicy):
             abstained=False,
             tokens_used=tokens_used,
             hits={rid: hit for rid, hit in hits.items() if rid in kept},
-            # E5 protected blocks may stay over the budget (documented): oversize too.
-            budget_status="oversize" if oversize or tokens_used > budget_tokens else "within",
+            # Oversize only when NOTHING fitted (every opening record was unfit); E5 protected
+            # blocks may stay over the budget (documented): oversize too.
+            budget_status=(
+                "oversize" if (unfit and not records) or tokens_used > budget_tokens else "within"
+            ),
         )
 
 
@@ -687,28 +809,10 @@ def enforce_budget(
         if kept[i] and not mandatory(i) and _is_block(records[i]):
             drop(i, "block")
 
-    removed = gone()
-    present = [r for i, r in enumerate(records) if kept[i]]
-    present_ids = {r.record_id for r in present}
-    hits: dict[str, HitManifest] = {}
-    for rid, hit in context.hits.items():
-        if rid not in present_ids:
-            continue
-        moved = tuple(t for t in hit.included_turns if t in removed)
-        if moved:
-            hit = replace(
-                hit,
-                included_turns=tuple(t for t in hit.included_turns if t not in removed),
-                dropped_turns=(*hit.dropped_turns, *moved),
-            )
-        hits[rid] = hit
-    context.records = present
-    context.boundary_index = sum(1 for i in range(boundary) if kept[i])
-    context.tokens_used = total
-    context.hits = hits
-    context.budget_status = (
+    status: BudgetStatus = (
         "oversize" if total > budget or context.budget_status == "oversize" else "trimmed"
     )
+    context = replace(drop_records(context, kept, count), budget_status=status)
     if tap.enabled():
         tap.event(
             "compose.budget.trimmed",

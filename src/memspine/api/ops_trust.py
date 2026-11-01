@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Any
 
-from memspine.compose.pack import AssembledContext, estimate_tokens
-from memspine.compose.pipeline.render import record_envelope
+from memspine.compose.pack import AssembledContext, drop_records
+from memspine.compose.pipeline.render import record_envelope, tok
 from memspine.compose.pipeline.sections import _without_entity
 from memspine.config import constants
 from memspine.core.fact_chain import fact_projection_on
@@ -132,27 +133,13 @@ def _consent_context(eng: Any, context: AssembledContext) -> AssembledContext:
     records assembly adds from elsewhere (persona, full-mode listing)."""
     if not eng._config().consent.enabled:
         return context
-    kept: list[MemoryRecord] = []
-    boundary = context.boundary_index
-    tokens = context.tokens_used
-    for index, record in enumerate(context.records):
-        if eng._consent_ok(record):
-            kept.append(record)
-            continue
-        tokens -= estimate_tokens(record.content)
-        if index < context.boundary_index:
-            boundary -= 1
-    if len(kept) == len(context.records):
+    keep = [bool(eng._consent_ok(record)) for record in context.records]
+    if all(keep):
         return context
-    return AssembledContext(
-        records=kept,
-        boundary_index=boundary,
-        abstained=context.abstained or not kept,
-        tokens_used=max(0, tokens),
-        evidence=context.evidence,
-        hits=context.carry_over(kept),
-        budget_status=context.budget_status,
-    )
+    # ADR-092: the shared manifest step (boundary over the kept stable prefix, a removed
+    # included turn becomes a dropped turn, tokens with the read path's one counter).
+    pruned = drop_records(context, keep, tok)
+    return replace(pruned, abstained=context.abstained or not pruned.records)
 
 
 async def _withheld_texts(eng: Any) -> list[str]:

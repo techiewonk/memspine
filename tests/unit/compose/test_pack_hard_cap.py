@@ -116,9 +116,18 @@ def test_oversize_first_record_is_truncated_and_marked() -> None:
     assert long.content != ctx.records[0].content  # the stored record is untouched
 
 
-def test_first_record_that_cannot_fit_even_truncated_is_oversize() -> None:
+def test_first_record_that_cannot_fit_even_truncated_is_skipped() -> None:
     giant = _rec("x" * 400 + " tail")
-    ctx = _policy().assemble([(giant, 0.9), (_rec("short"), 0.5)], budget_tokens=10)
+    short = _rec("short")
+    ctx = _policy().assemble([(giant, 0.9), (short, 0.5)], budget_tokens=10)
+    assert [r.record_id for r in ctx.records] == [short.record_id]
+    assert ctx.budget_status == "within" and not ctx.abstained
+
+
+def test_nothing_fitting_even_truncated_is_oversize() -> None:
+    giant = _rec("x" * 400 + " tail")
+    other = _rec("y" * 300)
+    ctx = _policy().assemble([(giant, 0.9), (other, 0.5)], budget_tokens=10)
     assert ctx.records == [] and ctx.tokens_used == 0
     assert ctx.budget_status == "oversize" and not ctx.abstained
 

@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import secrets
 from collections.abc import Sequence
+from dataclasses import replace
 from typing import Any
 
-from memspine.compose.pack import AssembledContext, estimate_tokens
+from memspine.compose.pack import AssembledContext, drop_records
+from memspine.compose.pipeline.render import tok as read_tokens
 from memspine.config import constants
 from memspine.core import trace_sink
 from memspine.core.evidence import evidence_signal
@@ -419,17 +421,12 @@ async def _gate(eng: Any, query: str, result: ReadResult, ns: str | None = None)
         return ReadResult(result.mode, AssembledContext(abstained=True))
     if not dropped:
         return result
-    context = result.context
-    kept = [r for r in context.records if r.record_id not in dropped]
-    return ReadResult(
-        result.mode,
-        AssembledContext(
-            records=kept,
-            boundary_index=min(context.boundary_index, len(kept)),
-            abstained=False,
-            tokens_used=sum(estimate_tokens(r.content) for r in kept),
-            evidence=context.evidence,
-            hits=context.carry_over(kept),
-            budget_status=context.budget_status,
-        ),
+    # ADR-092: the shared manifest step: the boundary counts the KEPT stable-prefix records (a
+    # gated record inside the prefix no longer pushes volatile records behind it), and a hit
+    # whose included turn the gate dropped lists it as dropped.
+    context = drop_records(
+        result.context,
+        [r.record_id not in dropped for r in result.context.records],
+        read_tokens,  # the read path's one counter (``tok`` is a local name below)
     )
+    return ReadResult(result.mode, replace(context, abstained=False))

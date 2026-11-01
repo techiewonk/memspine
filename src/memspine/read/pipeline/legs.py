@@ -13,10 +13,8 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from memspine.compose.pack import (
-    AssembledContext,
-    estimate_tokens,
-)
+from memspine.compose.pack import AssembledContext
+from memspine.compose.pipeline.render import tok
 from memspine.config import constants
 from memspine.core.owner_check import (
     entity_note,
@@ -944,7 +942,7 @@ async def _asset_overlay(
                 added.extend(lines)
         if added:
             context.records = records
-            context.tokens_used += sum(estimate_tokens(t) for t in added)
+            context.tokens_used += sum(tok(t) for t in added)
         if (fx := _FORENSICS.get()) is not None and audit:
             fx["asset_evidence"] = audit
     except Exception as exc:  # an enhancer, never a gate
@@ -954,7 +952,7 @@ async def _asset_overlay(
 
 class _TokenCounter:
     def count(self, text: str) -> int:
-        return estimate_tokens(text)
+        return tok(text)
 
 
 async def _external_overlay(
@@ -1148,9 +1146,7 @@ async def _read_overlay(
                 context.boundary_index += 1
                 audit["query_contract_header"] = answer_line
         context.records = records
-        context.tokens_used += sum(
-            estimate_tokens(t) for t in [*notes, head or "", answer_line or ""]
-        )
+        context.tokens_used += sum(tok(t) for t in [*notes, head or "", answer_line or ""])
         if (fx := _FORENSICS.get()) is not None and audit:
             fx["read_overlay"] = audit
     except Exception as exc:  # an enhancer, never a gate

@@ -7,7 +7,8 @@ from collections.abc import Callable, Sequence
 from time import perf_counter
 from typing import Any
 
-from memspine.compose.pack import AssembledContext, estimate_tokens
+from memspine.compose.pack import AssembledContext
+from memspine.compose.pipeline.render import tok
 from memspine.config import constants
 from memspine.core.agentic import clean_query, evidence_view, fuse_new, merge_budget
 from memspine.core.event_ledger import (
@@ -247,7 +248,7 @@ def _agentic_assemble(
             records=records,
             boundary_index=min(context.boundary_index, len(kept_records)),
             abstained=False,
-            tokens_used=sum(estimate_tokens(r.content) for r in records),
+            tokens_used=sum(tok(r.content) for r in records),
             evidence=context.evidence,
         ),
     )
@@ -330,9 +331,7 @@ async def _event_ledger_extend(
         events,
         heading=constants.EVENT_LEDGER_MARKER,
         max_events=constants.EVENT_LEDGER_MAX_EVENTS,
-        fits=lambda t: (
-            estimate_tokens(t) <= max(1, int(constants.EVENT_LEDGER_BLOCK_SHARE * budget_tokens))
-        ),
+        fits=lambda t: tok(t) <= max(1, int(constants.EVENT_LEDGER_BLOCK_SHARE * budget_tokens)),
     )
     info["events"] = len(events)
     if not events:
@@ -362,7 +361,7 @@ async def _event_ledger_extend(
             records=records,
             boundary_index=min(context.boundary_index, len(kept)),
             abstained=False,
-            tokens_used=sum(estimate_tokens(r.content) for r in records),
+            tokens_used=sum(tok(r.content) for r in records),
             evidence=context.evidence,
         ),
     )

@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Any
 
-from memspine.compose.pack import estimate_tokens
+from memspine.compose.pipeline.render import tok
 from memspine.config import constants
 from memspine.models.encoders.query.shape import (
     is_aggregation,
@@ -713,7 +713,7 @@ def add_typed_header(eng: Any, query: str, ns: str, context: Any) -> Any:
         records.insert(0, eng._lead_record(ns, line, evid))
         context.records = records
         context.boundary_index += 1
-        context.tokens_used += estimate_tokens(line)
+        context.tokens_used += tok(line)
         tap.event("read.contract.header", chars=len(line), header=tap.content(line))
     except Exception as exc:  # an enhancer, never a gate
         _log.warning("read.contract_rules_header_failed", error=str(exc))

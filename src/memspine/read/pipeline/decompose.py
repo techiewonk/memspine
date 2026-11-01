@@ -17,7 +17,8 @@ from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from typing import Any
 
-from memspine.compose.pack import AssembledContext, estimate_tokens
+from memspine.compose.pack import AssembledContext
+from memspine.compose.pipeline.render import tok
 from memspine.config import constants
 from memspine.models.encoders.query.temporal_query import _speaker_name
 from memspine.observability import tap
@@ -109,14 +110,14 @@ def merge(
     boundary = len(records)
     hint = rules.combine_hint(plan)
     records.append(eng._lead_record(ns, hint, every))
-    tokens = estimate_tokens(hint)
+    tokens = tok(hint)
     for entity, mine in blocks:
         header = rules.entity_header(entity, len(mine))
         records.append(eng._lead_record(ns, header, mine or every))
-        tokens += estimate_tokens(header)
+        tokens += tok(header)
         records.extend(mine)
-        tokens += sum(estimate_tokens(r.content) for r in mine)
-    tokens += sum(estimate_tokens(p.content) for p in persona)
+        tokens += sum(tok(r.content) for r in mine)
+    tokens += sum(tok(p.content) for p in persona)
     mode = results[0].mode
     return ReadResult(
         mode,
