@@ -262,3 +262,43 @@ async def test_the_reported_fact_count_is_the_stored_count(with_door: bool) -> N
     reported = pipeline._outbox_effect_results(("window", prepared))["facts"]["count"]
     await pipeline._commit_job("a", pipeline._store("a"), prepared)
     assert reported == len(stored) == (1 if with_door else 0)
+
+
+async def test_a_forget_during_the_commit_leaves_no_fact_of_the_fenced_projection(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """RM-141 compensate hook, through the real engine: a turn of the window is forgotten
+    while the window's facts are being deposited. The fence refuses the projection after the
+    commit, the compensation removes the facts already deposited, and the retry derives the
+    window again from the remaining turn only."""
+    eng = await _engine(monkeypatch, FakeWindowLLM(), tmp_path / "comp.db", outbox=True)
+    try:
+        pipeline = eng._windows
+        assert pipeline is not None and pipeline._deposit_fact is not None
+        await _send(eng, "a", "s1", _turns("trip", 2))
+        turns = sorted(
+            await eng.retrieve(namespace="a", memory_type="episodic"), key=lambda r: r.valid_from
+        )
+        kept, erased = turns
+        real_deposit = pipeline._deposit_fact
+        deposited: list[Any] = []
+
+        async def deposit(*args: Any, **kwargs: Any) -> object:
+            stored = await real_deposit(*args, **kwargs)
+            deposited.append(stored)
+            if len(deposited) == 1:  # the first fact is in; the erasure lands mid-commit
+                await eng.forget(erased.record_id, namespace="a", hard=True)
+            return stored
+
+        pipeline._deposit_fact = deposit
+        await eng.flush_windows("a")
+        assert deposited[0] is not None  # the kept turn's fact was projected ...
+        assert await _facts(eng) == []  # ... and compensated when the fence refused it
+        assert pipeline._counts["windows_compensated"] == 1
+        await eng.flush_windows("a")  # the retry: the rewritten item holds the kept turn only
+        facts = await _facts(eng)
+        assert [f.source.parents for f in facts] == [[kept.record_id]]
+        erased_text = erased.content.split(": ", 1)[1]
+        assert not any(erased_text in f.content for f in facts)
+    finally:
+        await eng.stop()

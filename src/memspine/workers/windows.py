@@ -346,6 +346,9 @@ GetRecord = Callable[[str], Awaitable[MemoryRecord | None]]
 #: ``(namespace, record_id)``: tag a live record ``disputed`` through a normal tag-update event;
 #: True when the tag was added (FU-GAPS).
 MarkDisputedFn = Callable[[str, str], Awaitable[bool]]
+#: ``(namespace, window_id) -> removed``: remove the derived records (facts, summaries) one window
+#: deposited (RM-141 compensation of a projection the fence refused after the fact).
+RemoveDerivedFn = Callable[[str, str], Awaitable[int]]
 Embed = Callable[[list[str]], Awaitable[list[list[float]]]]
 
 
@@ -661,6 +664,7 @@ class WindowPipeline:
         mark_disputed: MarkDisputedFn | None = None,
         rule_only: bool = False,
         non_generative_extractor: Any = None,
+        remove_derived: RemoveDerivedFn | None = None,
     ) -> None:
         #: W2-06b (the base prompt layout): one call per window or batch, NEW / CONTEXT / KNOWN.
         self._ctx = context_builder
@@ -678,6 +682,7 @@ class WindowPipeline:
         self._deposit_episode = deposit_episode
         #: FU-GAPS (``write.integration``): marks the older live peer of a contest ``disputed``.
         self._mark_disputed = mark_disputed
+        self._remove_derived = remove_derived
         self._embed = embed
         self._lock = lock or (lambda _ns: nullcontext())
         self._cache = cache if use_cache else None
@@ -750,6 +755,7 @@ class WindowPipeline:
                 prepare=self._outbox_prepare,
                 commit=self._outbox_commit,
                 effect_results=self._outbox_effect_results,
+                compensate=self._outbox_compensate,
             )
         #: (namespace, session) -> what the session-closed hook returned (the last 100).
         self.closed_results: dict[tuple[str, str], object] = {}
@@ -1853,6 +1859,46 @@ class WindowPipeline:
                 "policy_revision": self._policy_revision,
             }
         return results
+
+    async def _outbox_compensate(
+        self,
+        scope: OwnerScope,
+        offset: int,
+        prepared: Any,
+        effects: Sequence[Mapping[str, Any]],
+    ) -> None:
+        """RM-141 compensation: the fence refused a projection after the commit (a source was
+        erased or changed while the deposits ran). Remove everything this window projected:
+
+        * facts and summaries: the derived records tagged ``window:<id>`` (``remove_derived``);
+        * edges: the window's pending call-1 edge batch;
+        * annotations: they exist only as the effect row's artifact, which the erasure (or the
+          source change) already deleted with the effect.
+
+        The offset is not checkpointed, so a later drain derives the item again from its
+        rewritten sources."""
+        if prepared is None:
+            return
+        kind, body = prepared
+        if kind != "window" or body is None:
+            return
+        ns = scope.owner
+        body.job.cancelled = True
+        store = self._store(ns)
+        before = len(store.pending)
+        store.pending = [b for b in store.pending if b.window_id != body.window_id]
+        removed = before - len(store.pending)
+        if self._remove_derived is not None:
+            removed += await self._remove_derived(ns, body.window_id)
+        await self._purge_window_cache([r.record_id for r in body.records])
+        self._counts["windows_compensated"] += 1
+        self._counts["derived_compensated"] += removed
+        tap.event(
+            "write.window.compensated",
+            id=body.window_id,
+            layers=sorted({str(e.get("layer")) for e in effects}),
+            removed=removed,
+        )
 
     async def resume_deferred(self, namespace: str) -> int:
         """Derive the windows a spent budget parked (W2-12). Does nothing while the namespace's

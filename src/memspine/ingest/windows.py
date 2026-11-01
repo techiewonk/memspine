@@ -252,7 +252,30 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         mark_disputed=_mark_disputed(eng) if config.write.integration else None,
         rule_only=rule_only,
         non_generative_extractor=configured_fact_extractor,
+        remove_derived=_remove_window_derived(eng),
     )
+
+
+def _remove_window_derived(eng: Any) -> Any:
+    """RM-141: the compensation door of the window stage. Hard-forgets the derived records one
+    window deposited (facts and summaries carry ``window:<id>``), so a projection the outbox
+    fence refused after the commit leaves nothing behind. Returns how many were removed."""
+
+    async def remove(namespace: str, window_id: str) -> int:
+        storage = eng._require_started()
+        tag = f"window:{window_id}"
+        ids = [
+            r.record_id
+            for r in await storage.list_records(namespace, "semantic")
+            if tag in r.tags and r.status is not RecordStatus.DELETED
+        ]
+        for record_id in ids:
+            await eng.forget(
+                record_id, namespace=namespace, hard=True, actor="system", reason="window_fenced"
+            )
+        return len(ids)
+
+    return remove
 
 
 def _mark_disputed(eng: Any) -> Any:
@@ -469,9 +492,7 @@ def _resolve_stage(eng: Any, config: MemspineConfig) -> Any:
     return stage.as_stage()
 
 
-def _segmentation(
-    config: MemspineConfig, *, model_batching: bool = True
-) -> SegmentationSettings:
+def _segmentation(config: MemspineConfig, *, model_batching: bool = True) -> SegmentationSettings:
     """W2-05: The base segmenter and optional batching settings."""
     w = config.write
     return SegmentationSettings(
