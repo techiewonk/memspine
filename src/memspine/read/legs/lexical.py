@@ -37,6 +37,7 @@ __all__ = [
     "LexicalScorer",
     "Tokeniser",
     "UnicodeTokeniser",
+    "forget_stems",
     "make_scorer",
     "make_tokeniser",
     "register_scorer",
@@ -103,6 +104,12 @@ def _stem(language: str, word: str) -> tuple[str, ...]:
     if analyzer is None:
         return (word,)
     return tuple(analyzer.analyze(word))
+
+
+def forget_stems() -> None:
+    """ADR-095 (caches copy class): drop the process-wide stem memo. It is keyed by the words
+    of queries and record content, so an erasure clears it (it refills on the next read)."""
+    _stem.cache_clear()
 
 
 def _bigrams(run: str) -> list[str]:

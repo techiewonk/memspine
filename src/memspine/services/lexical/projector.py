@@ -25,6 +25,10 @@ class LexicalProjector(Projector):
         #: starts at 0 and the index is rebuilt from the log.
         self.name = name
 
+    @property
+    def store(self) -> LexicalStore:
+        return self._store
+
     async def apply(self, event: MemoryEvent) -> None:
         if event.kind is EventKind.WRITE:
             record = MemoryRecord.model_validate(event.payload["record"])

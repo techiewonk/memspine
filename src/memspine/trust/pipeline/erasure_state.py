@@ -25,17 +25,19 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
 from memspine.exceptions import MemspineError
 from memspine.observability import tap
 from memspine.schemas.durable.common import OwnerScope
+from memspine.schemas.durable.erasure import ErasureManifest
 from memspine.schemas.durable.lineage import LineageEdge, LineageRole
 from memspine.store import lineage as lineage_store
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.scope import validate_namespace
+from memspine.trust.erasure import retained_fields
 from memspine.trust.erasure_plan import (
     ErasurePlan,
     ErasureState,
@@ -46,6 +48,7 @@ from memspine.trust.erasure_plan import (
     manifest,
     plan_erasure,
     purge_steps,
+    reapply_on_restore,
     visible,
 )
 
@@ -60,8 +63,10 @@ __all__ = [
     "enabled",
     "forget",
     "load",
+    "manifests",
     "mark_dropped",
     "queue",
+    "reapply_manifests",
     "release",
     "resume_purges",
     "status",
@@ -614,3 +619,65 @@ async def release(eng: Any, record_ids: Sequence[str], namespace: str = "default
     if tap.enabled():
         tap.event("trust.erasure.release", released=len(ids), remaining=len(state(eng).hidden))
     return len(ids)
+
+
+# ------------------------------------------------------------------ backup restore
+
+
+async def manifests(eng: Any) -> list[ErasureManifest]:
+    """ADR-095: every erasure manifest in the log, oldest first (ids and generations only, never
+    content). An operator keeps these outside the backups, so a restore can re-apply them."""
+    storage = eng._require_started()
+    found: list[ErasureManifest] = []
+    after = 0
+    while True:
+        batch = await storage.read_events(after_seq=after, limit=1000)
+        if not batch:
+            return found
+        for ev in batch:
+            payload = ev.payload if ev.kind is EventKind.MARKER else {}
+            if payload.get("marker") == MARKER_MANIFEST and isinstance(
+                payload.get("manifest"), dict
+            ):
+                found.append(ErasureManifest.model_validate(payload["manifest"]))
+        after = max(e.seq for e in batch if e.seq is not None)
+
+
+async def reapply_manifests(eng: Any, applied: Iterable[ErasureManifest]) -> list[str]:
+    """ADR-095 (restored backups): re-erase every id the manifests name that a restored backup
+    brought back, in the read model or as identifying data in the log. A backup taken before an
+    erasure holds the erased record and none of its manifests; this re-runs the hard forget
+    (hide, redact, purge) for each such id under the namespace of its manifest's scope, so the
+    restored deployment ends where the live one was. Idempotent: an id with no row and nothing
+    left in the log is skipped. Returns the re-erased ids."""
+    storage = eng._require_started()
+    listed = list(applied)
+    owner: dict[str, str] = {}
+    for m in listed:
+        for rid in m.ids.record_ids:
+            owner.setdefault(rid, m.scope.tenant)
+    if not owner:
+        return []
+    restored: set[str] = set()
+    for rid in owner:
+        row = await storage.get_record(rid)
+        if row is not None:
+            restored.add(rid)
+            owner[rid] = row.namespace
+    pending = set(owner) - restored
+    after = 0
+    while pending:
+        batch = await storage.read_events(after_seq=after, limit=1000)
+        if not batch:
+            break
+        for ev in batch:
+            for rid in [r for r in pending if retained_fields(ev.payload, r)]:
+                pending.discard(rid)
+                restored.add(rid)
+        after = max(e.seq for e in batch if e.seq is not None)
+    again = sorted(reapply_on_restore(listed, restored))
+    for rid in again:
+        await eng.forget(rid, namespace=owner[rid], hard=True, actor="system", reason="restore")
+    if again and tap.enabled():
+        tap.event("trust.erasure.reapply", reapplied=len(again), manifests=len(listed))
+    return again

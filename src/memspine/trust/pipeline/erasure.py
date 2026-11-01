@@ -268,8 +268,38 @@ async def _forget_many(
     purge = getattr(eng._vector, "purge_deleted", None)
     if callable(purge) and not await purge():
         _log.warning("memory.forget_vector_purge_incomplete", namespace=ns, record_id=ids[0])
+    if not await _purge_lexical(eng, storage):
+        _log.warning("memory.forget_lexical_purge_incomplete", namespace=ns, record_id=ids[0])
     if eng._sql is not None:
         await eng._sql.checkpoint()
+
+
+async def _purge_lexical(eng: Any, storage: RecordsStore) -> bool:
+    """ADR-095 (lexical copy class): a Tantivy delete only tombstones the document, so the
+    erased record's terms stay in its segment until a merge the binding cannot force. When the
+    index holds tombstoned documents, rebuild the lexical projection from the (now redacted)
+    log: every old segment ends fully deleted and is dropped at commit. One pass over the log,
+    like the vector purge's table rewrite. Returns False when the log cannot be replayed
+    (rolling or ephemeral, D-45): the terms then stay until a merge."""
+    lexical = getattr(eng, "_lexical", None)
+    if lexical is None or not getattr(lexical, "holds_deleted_terms", False):
+        return True
+    from memspine.exceptions import RebuildUnavailableError
+    from memspine.services.lexical.projector import LexicalProjector
+    from memspine.store.replay import rebuild
+
+    for projector in eng._projectors:
+        if isinstance(projector, LexicalProjector) and projector.store is lexical:
+            try:
+                await rebuild(storage, projector)
+            except RebuildUnavailableError:
+                return False
+            lost = eng.__dict__.get("_erasure_state")
+            if lost is not None:  # the replay re-feeds erasure-hidden dependants: drop them again
+                for rid in sorted(lost.hidden):
+                    await lexical.delete(rid)
+            return True
+    return False
 
 
 async def _scrub_alias_markers(storage: RecordsStore, record_ids: Sequence[str]) -> list[int]:

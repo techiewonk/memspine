@@ -137,6 +137,10 @@ class TantivyLexical:
         # commit, which every read and flush() performs first. Whether a call defers
         # is the caller's context (_DEFERRING), not shared state of this handle.
         self._token = next(_STORE_TOKENS)
+        #: ADR-095: a delete only tombstones the document; its terms and postings stay in the
+        #: segment until a merge, which tantivy-py cannot force. Set by every delete, cleared by
+        #: :meth:`clear` (a fully deleted segment is dropped at commit).
+        self._tombstoned = False
 
     @property
     def connector(self) -> TantivyConnector:
@@ -300,6 +304,13 @@ class TantivyLexical:
         with self._conn.lock:
             self._conn.writer.delete_documents_by_term("record_id", record_id)
             self._conn.commit()
+            self._tombstoned = True
+
+    @property
+    def holds_deleted_terms(self) -> bool:
+        """ADR-095: True when a deleted document's terms may still sit in a segment (a delete
+        since the last :meth:`clear`). Erasure then rebuilds the index from the redacted log."""
+        return self._tombstoned
 
     async def exists(self, record_id: str) -> bool:
         """M7 ``forget --verify`` support: is this record still indexed? The
@@ -323,6 +334,7 @@ class TantivyLexical:
         with self._conn.lock:
             self._conn.writer.delete_all_documents()
             self._conn.commit()
+            self._tombstoned = False
 
     async def close(self) -> None:
         """Commit documents still held (never dropped); the connector's owner closes it."""

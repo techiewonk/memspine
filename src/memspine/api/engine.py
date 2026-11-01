@@ -253,7 +253,7 @@ if TYPE_CHECKING:
     from memspine.schemas.public.receipt import WaitResult
     from memspine.schemas.steps.shared import IntentStatus
 from memspine.schemas.durable import OwnerScope, SemanticEnvelope
-from memspine.schemas.durable.erasure import RetentionBoundary
+from memspine.schemas.durable.erasure import ErasureManifest, RetentionBoundary
 from memspine.semantics.domains import topic_hook
 from memspine.services.documents.base import DocumentStore
 from memspine.services.graph.base import GraphStore
@@ -2360,9 +2360,7 @@ class Engine:
             *(gw.wait(intent_id, capabilities, timeout_s) for intent_id in intent_ids)
         )
         by_intent = dict(zip(intent_ids, waited, strict=True))
-        return {
-            message_id: by_intent[str(rows[message_id]["intent_id"])] for message_id in wanted
-        }
+        return {message_id: by_intent[str(rows[message_id]["intent_id"])] for message_id in wanted}
 
     async def _prefetch_neighbours(
         self, ns: str, contents: Sequence[str]
@@ -3964,7 +3962,13 @@ class Engine:
 
     async def _purge_caches(self, texts: Sequence[str]) -> None:
         """#43: drop the embedding and extraction cache entries of erased texts, and
-        the read-side caches keyed by text (N60 sentence vectors, N30 date spans)."""
+        the read-side caches keyed by text (N60 sentence vectors, N30 date spans, the
+        lexical leg's stem memo, ADR-095) and the cached read results."""
+        from memspine.read.legs.lexical import forget_stems
+
+        if texts:
+            forget_stems()
+        self.__dict__.pop("_read_result_cache", None)
         return await trust_erasure._purge_caches(self, texts)
 
     async def _forget_locked(
@@ -4223,6 +4227,16 @@ class Engine:
     async def erasure_resume_purges(self) -> list[str]:
         """T5-04: re-run every purge job that is not done; returns the manifest ids now done."""
         return await trust_erasure_state.resume_purges(self)
+
+    async def erasure_manifests(self) -> list[ErasureManifest]:
+        """ADR-095: every erasure manifest in the log (ids and generations, never content).
+        Keep them outside the backups: :meth:`reapply_erasure_manifests` needs them on restore."""
+        return await trust_erasure_state.manifests(self)
+
+    async def reapply_erasure_manifests(self, manifests: Sequence[ErasureManifest]) -> list[str]:
+        """ADR-095: after restoring a backup, re-erase every id the given manifests name that the
+        backup brought back (hard forget: hidden, redacted, purged). Returns the re-erased ids."""
+        return await trust_erasure_state.reapply_manifests(self, manifests)
 
     def retention_boundary(self, namespace: str = "default") -> RetentionBoundary | None:
         """T5-05: the last retention boundary and rebuild mode planned for
