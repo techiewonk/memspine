@@ -124,6 +124,18 @@ def _validate_temporal_storage(config: object) -> None:
         raise ConfigError("Temporal workers require filesystem-backed SQLite storage")
 
 
+def _plain_activity(
+    fn: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]],
+) -> Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]:
+    """A fresh function object per Activity: ``activity.defn`` annotates its target, which a
+    bound method cannot carry."""
+
+    async def call(request: dict[str, Any]) -> dict[str, Any]:
+        return await fn(request)
+
+    return call
+
+
 class TemporalRunner:
     """Durable :class:`TaskRunner` backed by a Temporal worker.
 
@@ -208,6 +220,8 @@ class TemporalRunner:
         self.tls = tls
         self._api_key = api_key
         self._pipelines: dict[str, Pipeline] = {}
+        #: RM-132: further Activities (the outbox drain step), wrapped by ``activity.defn`` at start.
+        self._activities: dict[str, Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]] = {}
         self._client: object | None = None
         self._worker: object | None = None
         self._worker_task: asyncio.Task[None] | None = None
@@ -235,18 +249,39 @@ class TemporalRunner:
             raise ConfigError("pipeline must be callable")
         self._pipelines[name] = pipeline
 
+    def register_activity(
+        self, name: str, fn: Callable[[dict[str, Any]], Awaitable[dict[str, Any]]]
+    ) -> None:
+        """Register one more Activity (RM-132: ``runtime.temporal_outbox.OutboxActivity``).
+
+        ``fn`` is a plain async callable over a JSON object; it is wrapped by ``activity.defn``
+        at ``start`` so this module and the caller stay importable without ``temporalio``."""
+        if self._started or self._closing:
+            raise RuntimeError("activities must be registered before TemporalRunner.start()")
+        reserved = {"memspine.run_pipeline", *self._activities}
+        if not isinstance(name, str) or not name.strip() or name in reserved:
+            raise ConfigError("activity names must be non-empty and unique")
+        if not callable(fn):
+            raise ConfigError("activity must be callable")
+        self._activities[name] = fn
+
+    @property
+    def client(self) -> object | None:
+        """The connected Temporal client after ``start`` (to kick outbox drain workflows)."""
+        return self._client
+
     async def start(self) -> None:
         if self._started:
             return
-        if not self._pipelines:
-            raise ConfigError("TemporalRunner needs at least one registered pipeline")
+        if not self._pipelines and not self._activities:
+            raise ConfigError("TemporalRunner needs at least one registered pipeline or activity")
         try:
             from resonate.resonate import Resonate
             from resonate.retry import Never
             from temporalio import activity
             from temporalio.worker import Worker
 
-            from memspine.workers.temporal_workflow import PipelineWorkflow
+            from memspine.workers.temporal_workflow import OutboxDrainWorkflow, PipelineWorkflow
         except ImportError as exc:
             raise MissingServiceError("Temporal worker", "temporal") from exc
 
@@ -405,6 +440,9 @@ class TemporalRunner:
                 calls.pop(call_id, None)
 
         activity_function = activity.defn(name="memspine.run_pipeline")(run_pipeline)
+        extra_activities = [
+            activity.defn(name=name)(_plain_activity(fn)) for name, fn in self._activities.items()
+        ]
         try:
             runtime = Resonate(
                 env={},
@@ -428,8 +466,8 @@ class TemporalRunner:
             worker = Worker(
                 client,
                 task_queue=self.task_queue,
-                activities=[activity_function],
-                workflows=[PipelineWorkflow],
+                activities=[activity_function, *extra_activities],
+                workflows=[PipelineWorkflow, OutboxDrainWorkflow],
                 max_concurrent_activities=self.max_concurrent_activities,
             )
             self._worker = worker

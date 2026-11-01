@@ -891,13 +891,29 @@ class InlineRunner:
             raise _fence_for(done)
         return prepared
 
-    async def _run_claim(self, claim: Claim, report: DrainReport) -> None:
+    async def _run_claim(
+        self,
+        claim: Claim,
+        report: DrainReport,
+        *,
+        limit: int | None = None,
+        on_offset: Callable[[int], None] | None = None,
+    ) -> bool:
+        """Walk the claimed range, checkpointing each offset, then commit the job. With ``limit``
+        (RM-132: the Temporal Activity's bounded batch) at most ``limit`` offsets run; when the
+        range is longer the job is NOT committed and ``False`` is returned, so the caller hands
+        it back (``release``) and the next claim resumes at the watermark. ``on_offset`` is told
+        each offset before it runs (an Activity heartbeat). Inline drains pass neither."""
         job, epoch = claim.job, claim.lease.epoch
         handler = self._handlers[job.stage]
         start = self.book.progress(job.scope, job.stage).watermark + 1
         for offset in range(start, job.target_offset + 1):
+            if limit is not None and offset - start >= limit:
+                return False
             if self._stopping:
                 raise _Stop
+            if on_offset is not None:
+                on_offset(offset)
             if not (await self._io(self.book.heartbeat, job.job_id, epoch, self.lease_ttl)).ok:
                 raise _Fenced
             failed: dict[int, tuple[str, str | None]] = {}
@@ -932,6 +948,7 @@ class InlineRunner:
             epoch=epoch,
             through=job.target_offset,
         )
+        return True
 
     async def _retry_holes(self, scope: OwnerScope | None, stage: str, report: DrainReport) -> None:
         """Retry holes under a fresh durable lease, never as an unfenced callback."""
