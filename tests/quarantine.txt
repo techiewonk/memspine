@@ -7,3 +7,4 @@
 # (strict=False) and the session summary lists every quarantined test that ran.
 # Remove the entry when the row closes.
 tests/unit/wiring/test_rm104_graph_leg_frontier.py::test_search_results_identical_with_and_without_frontier  # RM-144 scores drift ~1e-6 about 1 run in 3 (also at d61cd78b)
+tests/unit/wiring/test_rm115_batch_records.py::test_batch_lookup_matches_per_id_lookup  # RM-144 same 6th-decimal score drift, about 1 run in 3 (also on f380d5fd)
