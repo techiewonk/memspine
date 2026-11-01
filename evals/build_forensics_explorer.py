@@ -1447,6 +1447,9 @@ def build(args) -> dict:
         top = (mf.get("system") or {}).get("config") or {}
         rdr = (mf.get("reader") or {}).get("params") or {}
         jdg = mf.get("judge") or {}
+        # ADR-082 model block; a historical manifest keeps top-level embedding / read.rerank_model
+        sysm = sysc.get("model") or {}
+        rerank_chain = (sysm.get("rerank") or {}).get("chain")
         info = dict(
             system=(mf.get("system") or {}).get("system_id"),
             reader_model=(mf.get("reader") or {}).get("model"),
@@ -1458,7 +1461,7 @@ def build(args) -> dict:
             read_mode=top.get("read_mode"),
             build_sleep=top.get("build_sleep"),
             batch_turns=top.get("batch_turns"),
-            embedding=sysc.get("embedding"),
+            embedding=(sysm.get("embedding") or {}).get("settings") or sysc.get("embedding"),
             read_cfg={
                 k: v
                 for k, v in (sysc.get("read") or {}).items()
@@ -1468,7 +1471,8 @@ def build(args) -> dict:
                     "list_mode", "relevance_gate", "speaker_vote_mode", "assembly",
                     "replay_window_before", "replay_window_after", "abstain_on_raw",
                 )
-            },
+            }
+            | ({} if rerank_chain is None else {"rerank_chain": rerank_chain}),
             perspective=bool(
                 json.dumps(sysc).find("perspective") >= 0
                 and (sysc.get("memories", {}).get("episodic", {}).get("policies", {}).get("perspective"))

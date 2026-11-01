@@ -124,22 +124,26 @@ def make_stub() -> Any:
             user = str(messages[-1].get("content", ""))
             self.prompts[kind + ": " + " ".join(user.split())[:58]] += 1
             if kind == "window_extract":
-                # W1 call 1: one grounded fact per transcript line ("[n] [date] Speaker: text")
+                # W1 call 1: one grounded fact per transcript line ("[n] [date] Speaker: text"), in
+                # the envelope item's compact keys (prompts.structured._ITEM_SCHEMA)
                 facts = []
                 for line in re.findall(r"^\[(\d+)\] \[[\d-]+\] (.+)$", user, re.M):
                     n, body = line
                     who, _, said = body.partition(": ")
                     facts.append(
                         {
-                            "entity": who,
-                            "attribute": "event",
+                            "s": who,
+                            "r": "said",
+                            "o": None,
+                            "text": f"{who} said {said[:120]}",
                             "kind": "event",
-                            "value": f"{who} said {said[:120]}",
-                            "turns": [int(n)],
+                            "mode": "asserted",
+                            "neg": False,
+                            "when": None,
+                            "lines": [int(n)],
                             "span": " ".join(said.split()[:8]),
-                            "persons": [who],
-                            "topic": "activities",
-                            "confidence": 0.8,
+                            "source": "user_stated",
+                            "speaker": who,
                         }
                     )
                 return json.dumps({"facts": facts})
@@ -195,12 +199,11 @@ def make_stub() -> Any:
 def cpu_config(arm: dict[str, Any]) -> dict[str, Any]:
     """The arm with only its machine-bound keys swapped: hash embedder, reranker off, in-process store."""
     cfg = copy.deepcopy(arm)
-    cfg.setdefault("model", {}).setdefault("embedding", {})["provider"] = "hash"
-    read = cfg["read"]
-    for key in ("rerank", "rerank_model", "rerank_device", "rerank_keep", "rerank_floor"):
-        read.pop(key, None)  # PA-107 flat arm keys
+    # the whole slot: the arm's settings belong to its own provider (st), not to hash
+    cfg.setdefault("model", {})["embedding"] = {"provider": "hash"}
     cfg["model"]["rerank"] = {"chain": []}  # ADR-082: an empty chain is off
-    cfg["storage"] = {"path": "tempdir"}
+    # ADR-081: the SQLite path lives in the storage.records slot ("tempdir" = per-item file).
+    cfg["storage"] = {"records": {"provider": "sqlite", "settings": {"path": "tempdir"}}}
     return cfg
 
 

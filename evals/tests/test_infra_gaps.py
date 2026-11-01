@@ -443,6 +443,28 @@ def test_rerank_check(tmp_path: Path, calls: int, failures: int, mode: str, expe
     assert (failed_rerank_checks(tmp_path, summaries) == ["gap"]) is (expected == "FAILED")
 
 
+class _SilentRerankSystem(_RerankSystem):
+    """The arm's chain asks for a reranker; the engine reports no rerank mode and no call."""
+
+    async def query(self, text: str, budget_tokens: int, top_k: int) -> RetrievedContext:
+        ctx = await VerbatimSystem.query(self, text, budget_tokens, top_k)
+        return RetrievedContext(
+            text=ctx.text,
+            tokens=ctx.tokens,
+            evidence=ctx.evidence,
+            truncated=ctx.truncated,
+            meta={**dict(ctx.meta), "reranked": False, "rerank_calls": 0},
+        )
+
+
+def test_rerank_check_fails_from_the_config_chain_alone(tmp_path: Path) -> None:
+    """B11 under ADR-082: a non-empty ``model.rerank.chain`` with no rerank call is FAILED."""
+    reader = OpenAICompatReader(model="m")
+    reader._httpx = _fake_httpx({"prompt_tokens": 5, "completion_tokens": 2}, [])
+    _, _, summary = _run(tmp_path, reader, system=_SilentRerankSystem(0, 0, "jina"))
+    assert summary["rerank_check"] == "FAILED"
+
+
 def test_rerank_check_not_applicable_for_a_plain_system(tmp_path: Path) -> None:
     reader = OpenAICompatReader(model="m")
     reader._httpx = _fake_httpx({"prompt_tokens": 5, "completion_tokens": 2}, [])

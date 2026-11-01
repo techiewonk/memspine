@@ -115,6 +115,30 @@ def load_jsonl(path: Path) -> list[dict]:
     ]
 
 
+def _embedder_label(cfg: dict) -> str:
+    """The run's embedder: ``model.embedding`` (ADR-082), else a historical manifest's
+    top-level ``embedding`` block (result files are never rewritten)."""
+    slot = (cfg.get("model") or {}).get("embedding") or {}
+    model = (slot.get("settings") or {}).get("model") or slot.get("provider")
+    if model:
+        return str(model)
+    return str((cfg.get("embedding") or {}).get("model", "BAAI/bge-small-en-v1.5 (default)"))
+
+
+def _reranker_label(cfg: dict) -> str:
+    """The run's reranker: the ``model.rerank.chain`` entries (ADR-082), else a historical
+    manifest's ``read.rerank_model`` / ``read.rerank``."""
+    chain = ((cfg.get("model") or {}).get("rerank") or {}).get("chain")
+    if chain is not None:
+        names = [
+            str((entry.get("settings") or {}).get("model") or entry.get("provider"))
+            for entry in chain
+        ]
+        return " -> ".join(names) or "off"
+    read = cfg.get("read") or {}
+    return str(read.get("rerank_model") or read.get("rerank", "off"))
+
+
 def as_list(v) -> list[str]:
     if isinstance(v, list):
         return [str(x) for x in v]
@@ -973,11 +997,8 @@ def summarise(
         "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
         "config": cfg or None,
         "models": {
-            "embedder": (cfg.get("embedding") or {}).get(
-                "model", "BAAI/bge-small-en-v1.5 (default)"
-            ),
-            "reranker": (cfg.get("read") or {}).get("rerank_model")
-            or (cfg.get("read") or {}).get("rerank", "off"),
+            "embedder": _embedder_label(cfg),
+            "reranker": _reranker_label(cfg),
             "reader": reader.get("model") or reader.get("reader_id"),
             "judge": judge.get("model") or judge.get("judge_id"),
         },

@@ -447,7 +447,10 @@ class EvalRunner:
         when no reranker is configured (or no question ran)."""
         audit = self.rerank
         engine_cfg = dict(self.system.describe().get("config") or {})
-        mode = (engine_cfg.get("read") or {}).get("rerank") or audit["mode"]
+        # ADR-082: a non-empty model.rerank.chain asks for a reranker (read.rerank is retired)
+        chain = ((engine_cfg.get("model") or {}).get("rerank") or {}).get("chain")
+        asked = any(dict(entry).get("provider") not in (None, "off") for entry in chain or ())
+        mode = ("chain" if asked else None) or audit["mode"]
         if mode in (None, "off") or audit["queries"] <= 0:
             return "not_applicable"
         return "FAILED" if audit["calls"] == 0 or audit["failures"] > 0 else "ok"
