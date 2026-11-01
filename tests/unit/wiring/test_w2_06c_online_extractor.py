@@ -190,9 +190,15 @@ async def test_no_model_online_extractor_deposits_grounded_rule_fact(
         assert facts[0].source.parents
         assert "non_generative" in facts[0].tags
         envelope = SemanticEnvelope.model_validate(facts[0].fingerprint.envelope)
-        assert envelope.semantic is not None
-        assert envelope.semantic.predicate == "employed_by"
-        assert envelope.semantic.object_entity_type == "organisation"
+        assert envelope.registry is not None
+        assert envelope.registry.predicate == "employed_by"
+        assert envelope.registry.object_entity_type == "organisation"
+        assert envelope.producer is not None and envelope.producer.kind == "rules"
+        assert (envelope.assessment.modality, envelope.status, envelope.outcome) == (
+            "asserted",
+            "active",
+            "none",
+        )
         status = (await eng.ingestion_status(["rule-1"], namespace="a"))["rule-1"]
         assert status.counts == {"L1": 1, "L2": 0}
         assert not status.failures
