@@ -4,7 +4,7 @@ import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
-from sqlalchemy import insert, select
+from sqlalchemy import insert, select, update
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from memspine.ingest.discovery import (
@@ -96,10 +96,7 @@ async def test_discovery_crash_rolls_back_item_and_cursor(tmp_path) -> None:
         await discover_committed_derivations(
             db, scope_key="scope:alice", discovered_at=NOW, fault=crash
         )
-    assert (
-        await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW)
-        == 1
-    )
+    assert await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW) == 1
     async with db.connect() as conn:
         rows = (await conn.execute(select(outbox_item))).all()
     assert len(rows) == 1
@@ -135,9 +132,7 @@ async def test_explicit_policy_activation_requeues_only_unfinished(tmp_path) -> 
         == 1
     )
     async with db.connect() as conn:
-        rows = (
-            await conn.execute(select(outbox_item).order_by(outbox_item.c.item_offset))
-        ).all()
+        rows = (await conn.execute(select(outbox_item).order_by(outbox_item.c.item_offset))).all()
     assert len(rows) == 2
     assert json.loads(rows[0].payload)["cancelled_by_policy_revision"] == "policy:two"
     replacement = json.loads(rows[1].payload)
@@ -178,6 +173,37 @@ async def test_completed_manifest_is_not_backfilled_on_activation(tmp_path) -> N
     await db.dispose()
 
 
+@pytest.mark.parametrize("flag", ["erased", "excluded", "revoked"])
+async def test_erased_excluded_or_revoked_item_is_never_requeued(tmp_path, flag: str) -> None:
+    """RM-43: an unfinished item whose payload is marked erased/excluded/revoked stays
+    untouched on activation: no cancellation stamp and no replacement item."""
+    db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / f'{flag}.db'}")
+    await ensure_schema(db)
+    await _put_intent(db, "gone", NOW)
+    await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW)
+    async with db.begin() as conn:
+        row = (await conn.execute(select(outbox_item))).one()
+        marked = json.dumps({**json.loads(row.payload), flag: True}, sort_keys=True)
+        await conn.execute(update(outbox_item).values(payload=marked))
+    assert (
+        await activate_derivation_policy(
+            db,
+            scope_key="scope:alice",
+            stage="derivation",
+            policy_revision="policy:two",
+            registry_digest="registry:two",
+            activated_at=NOW,
+            runner_quiesced=True,
+        )
+        == 0
+    )
+    async with db.connect() as conn:
+        rows = (await conn.execute(select(outbox_item))).all()
+    assert len(rows) == 1
+    assert "cancelled_by_policy_revision" not in json.loads(rows[0].payload)
+    await db.dispose()
+
+
 async def test_window_discovery_activation_uses_namespace_queue_scope(tmp_path) -> None:
     db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'window-activation.db'}")
     await ensure_schema(db)
@@ -203,9 +229,7 @@ async def test_window_discovery_activation_uses_namespace_queue_scope(tmp_path) 
     )
     async with db.connect() as conn:
         rows = (
-            await conn.execute(
-                select(outbox_item).where(outbox_item.c.stage == "window.discovery")
-            )
+            await conn.execute(select(outbox_item).where(outbox_item.c.stage == "window.discovery"))
         ).all()
     assert len(rows) == 2
     assert {(row.tenant, row.owner) for row in rows} == {("default", "alice")}
