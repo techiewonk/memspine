@@ -47,9 +47,13 @@ Each wave: build in worktrees (one stream per agent), merge, run chunked tests, 
 | Wave | Streams (parallel) | Tracker rows |
 |---|---|---|
 | 1 Tooling + evidence | Revision-bound `record_verification_run.py`, quarantine list + `perf` marker; lock upgrade + ladybug 0.22 trial; RM-122 close | RM-128, PA-113, RM-122 |
-| 2 Schema | SemanticEnvelope canonical (RM-24, RM-57, DS-19); opaque entity ids + auto-link + `surface:` prefix (DS-10, RM-34, RM-127) | RM-129, RM-130 |
+| 2 Schema | SemanticEnvelope canonical (RM-24, RM-57, DS-19), merged first; opaque entity ids + auto-link + `surface:` prefix (DS-10, RM-34, RM-127), rebased on it; `memspine models fetch` + CI cache (moved from wave 4) | RM-129, RM-130, RM-134 (fetch part) |
 | 3 Ingestion | One durable write path (DS-05); session-keyed windows + draft versions (DS-06, DS-07); strict messages + civil time (DS-08, DS-09); unresolved annotations (RM-42); Temporal outbox Activity (DS-17) | RM-131, RM-132 |
 | 4 Read/compose + models | Hard budget + bundle manifest + parity (DS-13..DS-15); MiniLM default + `models fetch` (RS-09, RM-44); model-path parity (DS-04, DS-11, DS-12, DS-18) | RM-133, RM-134 |
 | 5 Fixtures + evals + erasure | F1..F12 fixtures (RM-22, RM-54); family domains + activation (RM-107, RM-62, RM-63); eval rewrite (RM-19..RM-21, PA-107); erasure gate (DS-16) | RM-135 |
 | 6 Perf + services | CPU envelope (RM-25, RM-26, RS-06); PA-053 measurement; compose stack + RM-16/RM-31; RS-05 set; RS-07 dedup | RM-136 |
 | 7 Freeze | Phase C recorded run (RM-15, PA-039); PR packet (PA-095) | — |
+
+## Direction review amendments (2026-11-01)
+
+ADR-088, 089, 090, 092, 093 and 095 carry amendments: kept claim vocabularies, event-logged entity ids, provisional unique-name links, `write.stamp_default_tz` removed, reranker default only after the fetch command, the CI cache and measurement exist, and more erasure copy classes. Merge order is RM-129, then RM-130, then RM-131. BI-04 is reopened.
