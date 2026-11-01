@@ -27,6 +27,8 @@ from memspine.memories.resource.extraction import _paragraph_chunks
 from memspine.schemas.public import QuotaExceeded
 from memspine.schemas.public.errors import QuotaExceededError
 from memspine.services.llm.base import LLMRouter
+from memspine.services.storage.intake_sql import SqlIntakeLedger
+from memspine.services.storage.intake_tables import INTAKE_TABLES
 from memspine.store import lineage as lineage_store
 from memspine.store.events import EventKind
 from memspine.store.records import RecordStatus
@@ -109,7 +111,7 @@ async def test_default_config_uses_canonical_gateway(tmp_path: Path) -> None:
         names = {r[0] for r in con.execute("select name from sqlite_master where type='table'")}
     finally:
         con.close()
-    assert set(intake_store.INTAKE_TABLES) <= names
+    assert set(INTAKE_TABLES) <= names
 
 
 # ------------------------------------------------------------------------------------------ idempotency
@@ -461,7 +463,7 @@ async def test_reingest_edit_retires_and_repoints_through_lineage(tmp_path: Path
         from memspine.schemas.steps.shared import Scope
 
         skey = scope_key(Scope(tenant="acme", user="docs"))
-        ov = await intake_store.load_overlay(db, skey, str(doc.resolve()), [])
+        ov = await intake_store.load_overlay(SqlIntakeLedger(db), skey, str(doc.resolve()), [])
         assert ov.get_source(skey, str(doc.resolve())).latest_version == 2
     finally:
         await eng.stop()
@@ -534,7 +536,7 @@ async def test_crash_at_commit_boundary_then_restart_is_exactly_once(
         n = len(await eng2._require_started().read_events(0, 10_000))
         await eng2.ingest_messages(TURNS, namespace=NS, session_id="s1")
         assert len(await eng2._require_started().read_events(0, 10_000)) == n
-        assert await intake_store.pending_intents(eng2._require_started()._client.engine) == []
+        assert await intake_store.pending_intents(eng2._require_started().intake_ledger()) == []
     finally:
         await eng2.stop()
 

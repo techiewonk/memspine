@@ -9,6 +9,12 @@ capability (MongoDB) cannot serve them, so a configuration that asks for one is 
 naming every gap at once, instead of silently falling back to process memory or failing at the
 first write. :func:`validate_records_features` runs in ``check_capabilities`` (container
 bootstrap), after the locality rules.
+
+RM-137: the intake ledger (accepted intents, message identities and the raw-to-derivation
+discovery that feeds the outbox) is a capability port of its own
+(``services/storage/intake_port.py``), declared as ``intake_ledger`` on the descriptor. A
+records provider without it cannot run background derivation, so the configurations that need
+it are refused here too, naming the capability.
 """
 
 from __future__ import annotations
@@ -22,9 +28,12 @@ from memspine.providers.registry import (
     get_registry,
     requirements_available,
 )
+from memspine.services.storage.intake_port import INTAKE_LEDGER_CAPABILITY
 
 __all__ = [
     "RecordsFeatureError",
+    "intake_ledger_gaps",
+    "records_has_capability",
     "records_has_sql",
     "sql_feature_gaps",
     "validate_records_features",
@@ -35,13 +44,18 @@ class RecordsFeatureError(ConfigError):
     """The selected records provider cannot serve a configured feature."""
 
 
-def records_has_sql(config: MemspineConfig) -> bool:
-    """Whether the selected records provider declares SQL access (True when unknown: the
+def records_has_capability(config: MemspineConfig, capability: str) -> bool:
+    """Whether the selected records provider declares ``capability`` (True when unknown: the
     unknown name is reported by the provider build with the registry's valid list)."""
     descriptor = get_registry("storage_backends").find(config.storage.records.provider)
     if not isinstance(descriptor, ProviderDescriptor):
         return True
-    return "sql" in descriptor.declared_capabilities
+    return capability in descriptor.declared_capabilities
+
+
+def records_has_sql(config: MemspineConfig) -> bool:
+    """Whether the selected records provider declares SQL access."""
+    return records_has_capability(config, "sql")
 
 
 def _ladybug_installed() -> bool:
@@ -91,15 +105,32 @@ def sql_feature_gaps(config: MemspineConfig, *, enabled: Collection[str]) -> lis
     return gaps
 
 
+def intake_ledger_gaps(config: MemspineConfig) -> list[str]:
+    """Every configured feature that needs the ``intake_ledger`` capability (RM-137)."""
+    gaps: list[str] = []
+    if config.write.window_extract in ("facts", "facts_graph", "all"):
+        gaps.append(
+            "write.window_extract: background derivation discovers committed intake intents "
+            f"through the {INTAKE_LEDGER_CAPABILITY!r} capability of storage.records"
+        )
+    return gaps
+
+
 def validate_records_features(config: MemspineConfig, *, enabled: Collection[str]) -> None:
     """Refuse, before any provider opens, a configuration whose features the records provider
-    cannot serve (only a records provider without SQL has gaps today)."""
-    if records_has_sql(config):
-        return
-    gaps = sql_feature_gaps(config, enabled=enabled)
+    cannot serve (only a records provider without SQL or the intake ledger has gaps today)."""
+    has_sql = records_has_sql(config)
+    gaps = [] if has_sql else sql_feature_gaps(config, enabled=enabled)
+    if not records_has_capability(config, INTAKE_LEDGER_CAPABILITY):
+        gaps += intake_ledger_gaps(config)
     if gaps:
         provider = config.storage.records.provider
+        reason = (
+            f"does not declare the {INTAKE_LEDGER_CAPABILITY!r} capability"
+            if has_sql
+            else "has no SQL access"
+        )
         raise RecordsFeatureError(
-            f"storage.records.provider {provider!r} has no SQL access, so these configured "
+            f"storage.records.provider {provider!r} {reason}, so these configured "
             "features cannot run on it:\n  - " + "\n  - ".join(gaps)
         )

@@ -244,6 +244,24 @@ forbidden_modules =
     memspine.providers.builtin
 allow_indirect_imports = True
 
+; RM-137 (D-22): ingestion reaches the intake ledger, message identities and derivation
+; discovery only through the services/storage/intake_port.py capability port; the SQL lives
+; in services/storage/intake_sql.py. No baseline lines: ingest has no exception.
+[importlinter:contract:ingest-no-sql]
+name = ingest never imports sqlalchemy or the SQL storage modules (intake port only)
+type = forbidden
+source_modules =
+    memspine.ingest
+forbidden_modules =
+    sqlalchemy
+    memspine.services.storage.intake_sql
+    memspine.services.storage.intake_tables
+    memspine.services.storage.outbox_tables
+    memspine.services.storage.sql_base
+    memspine.services.storage.sqlite
+    memspine.services.storage.postgres
+allow_indirect_imports = True
+
 [importlinter:contract:providers-composition-only]
 name = providers (factories) never import consumers
 type = forbidden

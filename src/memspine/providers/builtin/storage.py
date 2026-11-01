@@ -27,6 +27,7 @@ from memspine.providers.registry import STORAGE_BACKENDS, Locality, ProviderDesc
 from memspine.providers.shared import own_shared, resource_key
 from memspine.providers.sql import ManagedSqlAccess
 from memspine.services.base import CapabilityManifest
+from memspine.services.storage.intake_port import INTAKE_LEDGER_CAPABILITY
 from memspine.services.storage.sql_base import SqlStorage
 
 
@@ -258,7 +259,7 @@ def register() -> None:
             SqliteBuilder(),
             sqlite_placement,
             (),
-            {"sql", "sql.sqlite", "transactions", "sync_sql"},
+            {"sql", "sql.sqlite", "transactions", "sync_sql", INTAKE_LEDGER_CAPABILITY},
         ),
         (
             "postgres",
@@ -266,7 +267,14 @@ def register() -> None:
             PostgresBuilder(),
             postgres_placement,
             (DependencyRequirement("package", "psycopg"),),
-            {"sql", "sql.postgres", "sql.shared_leases", "transactions", "sync_sql"},
+            {
+                "sql",
+                "sql.postgres",
+                "sql.shared_leases",
+                "transactions",
+                "sync_sql",
+                INTAKE_LEDGER_CAPABILITY,
+            },
         ),
     ):
         if name not in STORAGE_BACKENDS:

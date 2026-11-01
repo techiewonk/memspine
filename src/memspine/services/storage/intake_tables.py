@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from sqlalchemy import Column, Integer, MetaData, String, Table, Text
+from sqlalchemy import Column, Index, Integer, MetaData, String, Table, Text
 
 intake_metadata = MetaData()
 
@@ -37,6 +37,9 @@ intake_intent = Table(
     Column("required_derivation", Text, nullable=False),
     Column("apply", Text, nullable=True),
     Column("created_at", String, nullable=False),
+    # RM-137: applied intents are never deleted, so the per-scope scans (discovery's
+    # anti-join, pending/applied listings) need this instead of a full-table scan.
+    Index("ix_intake_intent_scope_status", "scope_key", "status", "created_at"),
 )
 
 # Public message identity is deliberately separate from raw records. ``data`` contains only the

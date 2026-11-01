@@ -1,8 +1,9 @@
-"""Durable ledger for the intake gateway (W2-01; LIB-30 ``IntakeStore`` over SQL).
+"""Durable ledger for the intake gateway (W2-01; LIB-30 ``IntakeStore`` over the intake port).
 
 ``IntakeBook`` (``ingest.intake``) is pure and synchronous; its state lives in an injected store. This
-module persists that state in the engine's own database. Its tables are part of the current
-fresh SQL baseline:
+module persists that state through the records store's intake ledger
+(:class:`~memspine.services.storage.intake_port.IntakeLedger`, RM-137); the SQL ledger's tables
+are part of the current fresh SQL baseline:
 
 ``intake_source``  one row per (scope, source): latest version, version records, live segments (JSON).
 ``intake_write``   one row per S3-3 write id, with the real record id once the record exists.
@@ -13,6 +14,8 @@ A call is *committed* when :func:`commit` returns: the source state, the new wri
 and the apply payload are written in ONE transaction, so a crash leaves either nothing or all of it.
 The apply payload is what lets the next ``start()`` finish an interrupted write; it is cleared (set to
 NULL) as soon as the records exist, so no source text stays in the ledger.
+
+This module owns the state codec and the message-identity extraction; the port owns storage.
 """
 
 from __future__ import annotations
@@ -21,10 +24,6 @@ import json
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict
 from typing import Any
-
-from sqlalchemy import delete, insert, select, update
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncEngine
 
 from memspine.ingest.intake import (
     InMemoryIntakeStore,
@@ -35,22 +34,9 @@ from memspine.ingest.intake import (
 )
 from memspine.schemas.durable.ingestion import RequiredDerivation
 from memspine.schemas.public.receipt import Readiness, Receipt
-from memspine.services.storage.intake_tables import (
-    INTAKE_TABLES as INTAKE_TABLES,
-)
-from memspine.services.storage.intake_tables import (
-    conversation_identity,
-    intake_intent,
-    intake_source,
-    intake_write,
-    message_identity,
-)
-from memspine.services.storage.intake_tables import (
-    intake_metadata as intake_metadata,
-)
+from memspine.services.storage.intake_port import IntakeLedger, MessageClaim
 
 __all__ = [
-    "INTAKE_TABLES",
     "Overlay",
     "applied_intent",
     "applied_scope_keys",
@@ -58,15 +44,15 @@ __all__ = [
     "ensure_schema",
     "intents_by_id",
     "load_overlay",
+    "message_claims",
     "pending_intents",
     "record_ids",
     "set_readiness",
 ]
 
 
-async def ensure_schema(engine: AsyncEngine) -> None:
-    async with engine.begin() as conn:
-        await conn.run_sync(intake_metadata.create_all)
+async def ensure_schema(ledger: IntakeLedger) -> None:
+    await ledger.ensure_schema()
 
 
 # -------------------------------------------------------------------------------------------- codecs
@@ -116,118 +102,94 @@ class Overlay(InMemoryIntakeStore):
 
 
 async def load_overlay(
-    engine: AsyncEngine, skey: str, source_id: str, write_ids: Sequence[str]
+    ledger: IntakeLedger, skey: str, source_id: str, write_ids: Sequence[str]
 ) -> Overlay:
     """Source state, the named write ids and every receipt they point at, as a sync store."""
     ov = Overlay()
-    intent_ids: set[str] = set()
-    async with engine.connect() as conn:
-        row = (
-            await conn.execute(
-                select(intake_source.c.state).where(
-                    intake_source.c.scope_key == skey, intake_source.c.source_id == source_id
-                )
-            )
-        ).first()
-        if row is not None:
-            state = _state_from_json(row.state)
+
+    def intent_ids_of(state_json: str | None, writes: Mapping[str, str]) -> set[str]:
+        intent_ids: set[str] = set()
+        if state_json is not None:
+            state = _state_from_json(state_json)
             ov._sources[(skey, source_id)] = state
             intent_ids.update(v.intent_id for v in state.versions.values())
-        if write_ids:
-            rows = (
-                await conn.execute(
-                    select(intake_write.c.write_id, intake_write.c.data).where(
-                        intake_write.c.scope_key == skey,
-                        intake_write.c.write_id.in_(list(write_ids)),
-                    )
-                )
-            ).all()
-            for r in rows:
-                live = _live_from_json(json.loads(r.data))
-                ov._writes[(skey, r.write_id)] = live
-                intent_ids.add(live.intent_id)
-        if intent_ids:
-            intent_rows = (
-                await conn.execute(
-                    select(
-                        intake_intent.c.intent_id,
-                        intake_intent.c.receipt,
-                        intake_intent.c.readiness,
-                    ).where(intake_intent.c.intent_id.in_(sorted(intent_ids)))
-                )
-            ).all()
-            for intent_row in intent_rows:
-                ov._receipts[intent_row.intent_id] = Receipt.model_validate_json(
-                    intent_row.receipt
-                ).model_copy(
-                    update={"readiness": Readiness.model_validate_json(intent_row.readiness)}
-                )
-                ov._readiness[intent_row.intent_id] = Readiness.model_validate_json(
-                    intent_row.readiness
-                )
+        for wid, data in writes.items():
+            live = _live_from_json(json.loads(data))
+            ov._writes[(skey, wid)] = live
+            intent_ids.add(live.intent_id)
+        return intent_ids
+
+    found = await ledger.load_slice(skey, source_id, write_ids, intent_ids_of)
+    for intent_id, (receipt, readiness) in found.intents.items():
+        ov._receipts[intent_id] = Receipt.model_validate_json(receipt).model_copy(
+            update={"readiness": Readiness.model_validate_json(readiness)}
+        )
+        ov._readiness[intent_id] = Readiness.model_validate_json(readiness)
     return ov
 
 
-async def intents_by_id(engine: AsyncEngine, ids: Iterable[str]) -> dict[str, dict[str, Any]]:
-    out: dict[str, dict[str, Any]] = {}
-    wanted = sorted(set(ids))
-    if not wanted:
-        return out
-    async with engine.connect() as conn:
-        rows = (
-            await conn.execute(select(intake_intent).where(intake_intent.c.intent_id.in_(wanted)))
-        ).all()
-    for r in rows:
-        out[r.intent_id] = dict(r._mapping)
-    return out
+async def intents_by_id(ledger: IntakeLedger, ids: Iterable[str]) -> dict[str, dict[str, Any]]:
+    return await ledger.intents_by_id(ids)
 
 
-async def pending_intents(engine: AsyncEngine) -> list[dict[str, Any]]:
+async def pending_intents(ledger: IntakeLedger) -> list[dict[str, Any]]:
     """Accepted-but-not-applied intents, oldest first (a restart finishes them in order)."""
-    async with engine.connect() as conn:
-        rows = (
-            await conn.execute(
-                select(intake_intent)
-                .where(intake_intent.c.status == "accepted")
-                .order_by(intake_intent.c.created_at, intake_intent.c.intent_id)
-            )
-        ).all()
-    return [dict(r._mapping) for r in rows]
+    return await ledger.pending_intents()
 
 
-async def applied_scope_keys(engine: AsyncEngine) -> list[str]:
+async def applied_scope_keys(ledger: IntakeLedger) -> list[str]:
     """Scopes with committed raw intents, used by restart reconciliation."""
-    async with engine.connect() as conn:
-        rows = (
-            await conn.execute(
-                select(intake_intent.c.scope_key)
-                .where(intake_intent.c.status == "applied")
-                .distinct()
-                .order_by(intake_intent.c.scope_key)
-            )
-        ).all()
-    return [str(row.scope_key) for row in rows]
+    return await ledger.applied_scope_keys()
 
 
-async def record_ids(engine: AsyncEngine, skey: str, write_ids: Sequence[str]) -> dict[str, str]:
+async def record_ids(ledger: IntakeLedger, skey: str, write_ids: Sequence[str]) -> dict[str, str]:
     if not write_ids:
         return {}
-    async with engine.connect() as conn:
-        rows = (
-            await conn.execute(
-                select(intake_write.c.write_id, intake_write.c.record_id).where(
-                    intake_write.c.scope_key == skey,
-                    intake_write.c.write_id.in_(list(write_ids)),
-                    intake_write.c.record_id.is_not(None),
-                )
-            )
-        ).all()
-    return {r.write_id: r.record_id for r in rows}
+    return await ledger.record_ids(skey, write_ids)
 
 
 # --------------------------------------------------------------------------------------------- writes
+def message_claims(apply_payload: str) -> list[MessageClaim]:
+    """The public message identities an acceptance reserves (``messages`` adapter only)."""
+    payload = json.loads(apply_payload)
+    claims: list[MessageClaim] = []
+    if payload.get("adapter") != "messages":
+        return claims
+    for item in payload.get("fresh", []):
+        turn = item.get("turn", {})
+        meta = turn.get("_message_envelope")
+        if not isinstance(meta, Mapping):
+            continue
+        mid, cid, sid = (
+            meta.get("message_id"),
+            meta.get("conversation_id"),
+            meta.get("session_id"),
+        )
+        if not (
+            isinstance(mid, str)
+            and mid
+            and isinstance(cid, str)
+            and cid
+            and isinstance(sid, str)
+            and sid
+        ):
+            raise ValueError(
+                "message identity requires message_id, conversation_id, and session_id"
+            )
+        claims.append(
+            MessageClaim(
+                message_id=mid,
+                conversation_id=cid,
+                session_id=sid,
+                write_id=item["wid"],
+                data=json.dumps(dict(meta), sort_keys=True),
+            )
+        )
+    return claims
+
+
 async def commit(
-    engine: AsyncEngine,
+    ledger: IntakeLedger,
     change: IntakeChange,
     *,
     namespace: str,
@@ -235,8 +197,8 @@ async def commit(
     created_at: str,
     required_derivation: RequiredDerivation,
 ) -> None:
-    """The one transaction of an accept: source state, new write ids, receipt, apply payload."""
-    skey = change.scope_key
+    """The one transaction of an accept: source state, new write ids, receipt, apply payload,
+    message identities."""
     state = SourceState(
         change.source_id,
         change.kind,
@@ -244,141 +206,45 @@ async def commit(
         {change.version: change.version_record},
         change.live,
     )
-    try:
-        async with engine.begin() as conn:
-            row = (
-                await conn.execute(
-                    select(intake_source.c.state).where(
-                        intake_source.c.scope_key == skey,
-                        intake_source.c.source_id == change.source_id,
-                    )
-                )
-            ).first()
-            if row is None:
-                await conn.execute(
-                    insert(intake_source).values(
-                        scope_key=skey, source_id=change.source_id, state=_state_to_json(state)
-                    )
-                )
-            else:
-                prev = _state_from_json(row.state)
-                versions = {**prev.versions, change.version: change.version_record}
-                merged = SourceState(
-                    change.source_id,
-                    change.kind,
-                    max(prev.latest_version, change.version),
-                    versions,
-                    change.live,
-                )
-                await conn.execute(
-                    update(intake_source)
-                    .where(
-                        intake_source.c.scope_key == skey,
-                        intake_source.c.source_id == change.source_id,
-                    )
-                    .values(state=_state_to_json(merged))
-                )
-            fresh = set(change.new_write_ids)
-            for seg in change.live:
-                if seg.write_id in fresh:
-                    await conn.execute(
-                        insert(intake_write).values(
-                            scope_key=skey,
-                            write_id=seg.write_id,
-                            source_id=change.source_id,
-                            record_id=None,
-                            data=json.dumps(_live_to_json(seg), sort_keys=True),
-                        )
-                    )
-            await conn.execute(
-                insert(intake_intent).values(
-                    intent_id=change.receipt.intent_id,
-                    scope_key=skey,
-                    namespace=namespace,
-                    source_id=change.source_id,
-                    status="accepted",
-                    receipt=change.receipt.model_dump_json(),
-                    readiness=change.readiness.model_dump_json(),
-                    required_derivation=required_derivation.model_dump_json(),
-                    apply=apply_payload,
-                    created_at=created_at,
-                )
+
+    def merge_state(previous: str | None) -> str:
+        if previous is None:
+            return _state_to_json(state)
+        prev = _state_from_json(previous)
+        versions = {**prev.versions, change.version: change.version_record}
+        return _state_to_json(
+            SourceState(
+                change.source_id,
+                change.kind,
+                max(prev.latest_version, change.version),
+                versions,
+                change.live,
             )
-            payload = json.loads(apply_payload)
-            if payload.get("adapter") == "messages":
-                for item in payload.get("fresh", []):
-                    turn = item.get("turn", {})
-                    meta = turn.get("_message_envelope")
-                    if not isinstance(meta, Mapping):
-                        continue
-                    mid, cid, sid = (
-                        meta.get("message_id"),
-                        meta.get("conversation_id"),
-                        meta.get("session_id"),
-                    )
-                    if not all(isinstance(v, str) and v for v in (mid, cid, sid)):
-                        raise ValueError(
-                            "message identity requires message_id, conversation_id, and session_id"
-                        )
-                    old = (
-                        await conn.execute(
-                            select(message_identity).where(
-                                message_identity.c.namespace == namespace,
-                                message_identity.c.message_id == mid,
-                            )
-                        )
-                    ).first()
-                    if old is not None:
-                        if json.loads(old.data).get("erased") is True:
-                            raise ValueError(f"message_id {mid!r} was erased and cannot be reused")
-                        if (
-                            old.intent_id == change.receipt.intent_id
-                            and old.conversation_id == cid
-                            and old.session_id == sid
-                        ):
-                            continue
-                        raise ValueError(
-                            f"message_id identity conflict for {mid!r} in namespace {namespace!r}"
-                        )
-                    conversation = (
-                        await conn.execute(
-                            select(conversation_identity).where(
-                                conversation_identity.c.namespace == namespace,
-                                conversation_identity.c.conversation_id == cid,
-                            )
-                        )
-                    ).first()
-                    if conversation is not None and conversation.session_id != sid:
-                        raise ValueError(
-                            f"conversation_id {cid!r} is already assigned to session_id {conversation.session_id!r}"
-                        )
-                    if conversation is None:
-                        await conn.execute(
-                            insert(conversation_identity).values(
-                                namespace=namespace,
-                                conversation_id=cid,
-                                session_id=sid,
-                                intent_id=change.receipt.intent_id,
-                            )
-                        )
-                    await conn.execute(
-                        insert(message_identity).values(
-                            namespace=namespace,
-                            message_id=mid,
-                            conversation_id=cid,
-                            session_id=sid,
-                            intent_id=change.receipt.intent_id,
-                            write_id=item["wid"],
-                            record_id=None,
-                            data=json.dumps(dict(meta), sort_keys=True),
-                        )
-                    )
-    except IntegrityError as exc:
-        raise ValueError("message or conversation identity conflict in namespace") from exc
+        )
+
+    fresh = set(change.new_write_ids)
+    await ledger.record_intent(
+        scope_key=change.scope_key,
+        source_id=change.source_id,
+        merge_state=merge_state,
+        new_writes=[
+            (seg.write_id, json.dumps(_live_to_json(seg), sort_keys=True))
+            for seg in change.live
+            if seg.write_id in fresh
+        ],
+        intent_id=change.receipt.intent_id,
+        namespace=namespace,
+        receipt=change.receipt,
+        readiness=change.readiness,
+        required_derivation=required_derivation,
+        apply_payload=apply_payload,
+        created_at=created_at,
+        messages=message_claims(apply_payload),
+    )
 
 
 async def applied_intent(
-    engine: AsyncEngine,
+    ledger: IntakeLedger,
     *,
     intent_id: str,
     skey: str,
@@ -390,74 +256,42 @@ async def applied_intent(
 ) -> None:
     """The apply finished: real record ids into the write rows, the live state, the receipt; the
     apply payload (source text) is dropped. One transaction."""
-    async with engine.begin() as conn:
-        for wid, rid in real_ids.items():
-            await conn.execute(
-                update(intake_write)
-                .where(intake_write.c.scope_key == skey, intake_write.c.write_id == wid)
-                .values(record_id=rid)
+
+    def relink_state(stored: str) -> str:
+        state = _state_from_json(stored)
+        live = tuple(
+            LiveSegment(
+                s.seg_index,
+                s.write_id,
+                s.event_id,
+                real_ids.get(s.write_id, s.record_id),
+                s.content_fp,
+                s.version,
+                s.intent_id,
             )
-            await conn.execute(
-                update(message_identity)
-                .where(
-                    message_identity.c.intent_id == intent_id, message_identity.c.write_id == wid
-                )
-                .values(record_id=rid)
-            )
-        row = (
-            await conn.execute(
-                select(intake_source.c.state).where(
-                    intake_source.c.scope_key == skey, intake_source.c.source_id == source_id
-                )
-            )
-        ).first()
-        if row is not None and real_ids:
-            state = _state_from_json(row.state)
-            live = tuple(
-                LiveSegment(
-                    s.seg_index,
-                    s.write_id,
-                    s.event_id,
-                    real_ids.get(s.write_id, s.record_id),
-                    s.content_fp,
-                    s.version,
-                    s.intent_id,
-                )
-                for s in state.live
-            )
-            await conn.execute(
-                update(intake_source)
-                .where(intake_source.c.scope_key == skey, intake_source.c.source_id == source_id)
-                .values(
-                    state=_state_to_json(
-                        SourceState(
-                            state.source_id, state.kind, state.latest_version, state.versions, live
-                        )
-                    )
-                )
-            )
-        await conn.execute(
-            update(intake_intent)
-            .where(intake_intent.c.intent_id == intent_id)
-            .values(
-                status="applied",
-                apply=None,
-                receipt=receipt.model_dump_json(),
-                readiness=readiness.model_dump_json(),
-                required_derivation=required_derivation.model_dump_json(),
-            )
+            for s in state.live
+        )
+        return _state_to_json(
+            SourceState(state.source_id, state.kind, state.latest_version, state.versions, live)
         )
 
+    await ledger.apply_intent(
+        intent_id=intent_id,
+        scope_key=skey,
+        source_id=source_id,
+        real_ids=real_ids,
+        relink_state=relink_state,
+        receipt=receipt,
+        readiness=readiness,
+        required_derivation=required_derivation,
+    )
 
-async def set_readiness(engine: AsyncEngine, intent_id: str, readiness: Readiness) -> None:
-    async with engine.begin() as conn:
-        await conn.execute(
-            update(intake_intent)
-            .where(intake_intent.c.intent_id == intent_id)
-            .values(readiness=readiness.model_dump_json())
-        )
+
+async def set_readiness(ledger: IntakeLedger, intent_id: str, readiness: Readiness) -> None:
+    await ledger.set_readiness(intent_id, readiness)
 
 
-async def forget_intent(engine: AsyncEngine, intent_id: str) -> None:  # pragma: no cover - ops hook
-    async with engine.begin() as conn:
-        await conn.execute(delete(intake_intent).where(intake_intent.c.intent_id == intent_id))
+async def forget_intent(
+    ledger: IntakeLedger, intent_id: str
+) -> None:  # pragma: no cover - ops hook
+    await ledger.forget_intent(intent_id)

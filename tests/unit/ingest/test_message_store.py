@@ -11,14 +11,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from memspine import Engine
 from memspine.ingest import gateway, intake_store
 from memspine.ingest.intake import IntakeBook
-from memspine.ingest.intake_store import (
-    Overlay,
-    conversation_identity,
-    intake_intent,
-    intake_source,
-    intake_write,
-    message_identity,
-)
+from memspine.ingest.intake_store import Overlay
 from memspine.ingest.message_store import (
     backfill_from_storage,
     lookup_conversations,
@@ -26,6 +19,14 @@ from memspine.ingest.message_store import (
 )
 from memspine.schemas.durable import OwnerScope, RequiredDerivation
 from memspine.schemas.steps.shared import Scope, Segment, SourceEnvelope
+from memspine.services.storage.intake_sql import SqlIntakeLedger
+from memspine.services.storage.intake_tables import (
+    conversation_identity,
+    intake_intent,
+    intake_source,
+    intake_write,
+    message_identity,
+)
 
 
 @pytest.fixture
@@ -65,10 +66,12 @@ async def test_identity_projection_is_durable_without_raw_text(engine: Engine) -
             session_id="session-1",
         )
     )[0]
-    db = await gateway.gateway_of(engine)._engine()
+    ledger = await gateway.gateway_of(engine)._ledger()
+    assert isinstance(ledger, SqlIntakeLedger)
+    db = ledger.engine
 
-    messages = await lookup_messages(db, "identity-test", ["missing", "message-1"])
-    conversations = await lookup_conversations(db, "identity-test", ["conversation-1"])
+    messages = await lookup_messages(ledger, "identity-test", ["missing", "message-1"])
+    conversations = await lookup_conversations(ledger, "identity-test", ["conversation-1"])
     assert messages["message-1"]["record_id"] == record.record_id
     assert messages["message-1"]["intent_status"] == "applied"
     assert messages["message-1"]["session_id"] == "session-1"
@@ -76,7 +79,7 @@ async def test_identity_projection_is_durable_without_raw_text(engine: Engine) -
     assert "content" not in messages["message-1"]
     assert "private raw text" not in str(messages)
     assert conversations["conversation-1"]["session_id"] == "session-1"
-    assert await lookup_messages(db, "other-namespace", ["message-1"]) == {}
+    assert await lookup_messages(ledger, "other-namespace", ["message-1"]) == {}
 
     async with db.begin() as conn:
         await conn.execute(
@@ -89,7 +92,7 @@ async def test_identity_projection_is_durable_without_raw_text(engine: Engine) -
             .where(message_identity.c.message_id == "message-1")
             .values(record_id=None)
         )
-    pending = await lookup_messages(db, "identity-test", ["message-1"])
+    pending = await lookup_messages(ledger, "identity-test", ["message-1"])
     assert pending["message-1"]["intent_status"] == "accepted"
     assert pending["message-1"]["record_id"] is None
     async with db.begin() as conn:
@@ -114,12 +117,12 @@ async def test_identity_projection_is_durable_without_raw_text(engine: Engine) -
             )
         )
     assert await backfill_from_storage(engine._require_started()) == 1
-    restored = await lookup_messages(db, "identity-test", ["message-1"])
+    restored = await lookup_messages(ledger, "identity-test", ["message-1"])
     assert restored["message-1"]["record_id"] == record.record_id
     assert restored["message-1"]["intent_status"] is None
 
     await engine.forget(record.record_id, namespace="identity-test", hard=True)
-    erased = await lookup_messages(db, "identity-test", ["message-1"])
+    erased = await lookup_messages(ledger, "identity-test", ["message-1"])
     assert erased["message-1"]["erased"] is True
     assert erased["message-1"]["record_id"] is None
     assert set(erased["message-1"]) == {
@@ -149,7 +152,7 @@ async def test_identity_projection_is_durable_without_raw_text(engine: Engine) -
 
 async def test_identity_conflict_rolls_back_the_entire_acceptance(tmp_path) -> None:
     db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'identity-conflict.db'}")
-    await intake_store.ensure_schema(db)
+    await intake_store.ensure_schema(SqlIntakeLedger(db))
 
     async def acceptance(source_id: str, conversation_id: str, text: str):
         overlay = Overlay()
@@ -181,6 +184,7 @@ async def test_identity_conflict_rolls_back_the_entire_acceptance(tmp_path) -> N
         return change, payload
 
     first, first_payload = await acceptance("source-1", "conversation-1", "one")
+
     def manifest(change, source_id: str) -> RequiredDerivation:
         return RequiredDerivation(
             intent_id=change.receipt.intent_id,
@@ -195,7 +199,7 @@ async def test_identity_conflict_rolls_back_the_entire_acceptance(tmp_path) -> N
         )
 
     await intake_store.commit(
-        db,
+        SqlIntakeLedger(db),
         first,
         namespace="ns",
         apply_payload=json.dumps(first_payload),
@@ -205,7 +209,7 @@ async def test_identity_conflict_rolls_back_the_entire_acceptance(tmp_path) -> N
     second, second_payload = await acceptance("source-2", "conversation-2", "two")
     with pytest.raises(ValueError, match="message_id identity conflict"):
         await intake_store.commit(
-            db,
+            SqlIntakeLedger(db),
             second,
             namespace="ns",
             apply_payload=json.dumps(second_payload),

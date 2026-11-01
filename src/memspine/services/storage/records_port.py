@@ -32,9 +32,10 @@ Facets (each a Protocol; :class:`RecordsStore` is their union):
 RM-112 widened the read-model and erasure facets with the helpers the engine calls
 (``quarantined_ids``, ``recent_contents``, ``layer_counts``, ``count_quarantined``,
 ``list_quarantined``, ``scrub_marker_payloads``), so the engine needs nothing beyond this port
-from ``storage.records``. SQL-only features (the outbox job book, the side tables, the intake
-book, ``sql_adjacency``, pgvector) are refused for a records store without SQL by
-:mod:`memspine.providers.records_features`.
+from ``storage.records``. SQL-only features (the outbox job book, the side tables,
+``sql_adjacency``, pgvector) are refused for a records store without SQL by
+:mod:`memspine.providers.records_features`. The intake book is its own capability port
+(RM-137, :mod:`memspine.services.storage.intake_port`, capability ``intake_ledger``).
 """
 
 from __future__ import annotations

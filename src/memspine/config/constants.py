@@ -945,3 +945,9 @@ OUTBOX_CANCELLED_KEY = "cancelled_by_policy_revision"
 # RM-142: the discovery row of an applied intent that had no raw records (all turns excluded):
 # discovered, with no outbox item.
 DISCOVERY_NO_WORK_OFFSET = -1
+# RM-137 (ADR-090 discovery): a discovery transaction that loses a race (SQLite busy past the
+# busy timeout, a Postgres unique conflict) is retried this many times, sleeping
+# attempt * INTAKE_DISCOVERY_RETRY_S between tries; then it raises and reconciliation
+# (``recover`` at start) picks the intent up. Bounded, not tuned.
+INTAKE_DISCOVERY_ATTEMPTS = 5
+INTAKE_DISCOVERY_RETRY_S = 0.02

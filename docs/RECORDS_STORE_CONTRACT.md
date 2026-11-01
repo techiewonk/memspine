@@ -152,10 +152,17 @@ every gap at once.
 | `storage.vector: pgvector` | the vectors live in the Postgres records database |
 | `storage.graph: sql_adjacency` | the graph lives in the SQL records database; `auto` resolves only to `ladybug` and fails naming `storage.graph` when it is not installed |
 
-Two more need SQL and fail at call time, naming the gap: the intake gateway
-(`ingest_messages`, `ingest_data` and `ingest_asset` use the intake book and the message index)
-and the provider-change controller. The side-file import and the projection switch diagnostics
-are skipped. Moving these onto the port is follow-up work.
+The intake gateway (`ingest_messages`, `ingest_data` and `ingest_asset`: the intake book, the
+message index and raw-to-derivation discovery) sits behind its own capability port since RM-137:
+`services/storage/intake_port.py` `IntakeLedger`, implemented for SQLite and Postgres by
+`services/storage/intake_sql.py` (`SqlStorage.intake_ledger()`; conformance suite
+`tests/unit/services/storage/test_intake_ledger_conformance.py`) and declared as the
+`intake_ledger` descriptor capability. MongoDB does not declare it (discovery feeds the SQL
+outbox job book, which MongoDB lacks too): `write.window_extract` is refused at boot naming the
+capability, the gateway calls fail naming it, and `Engine.write` keeps its direct path.
+`memspine.ingest` imports no `sqlalchemy` (import contract `ingest-no-sql`).
+The provider-change controller still needs SQL and fails at call time. The side-file import and
+the projection switch diagnostics are skipped.
 
 ## MongoDB (RM-112, 2026-10-23)
 

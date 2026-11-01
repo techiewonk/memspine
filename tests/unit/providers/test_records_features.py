@@ -74,8 +74,32 @@ def test_every_sql_only_feature_is_listed_at_once() -> None:
         "write.window_extract",
         "pgvector",
         "sql_adjacency",
+        "'intake_ledger' capability",  # RM-137: background derivation needs the ledger
     ):
         assert key in message, key
+
+
+def test_background_derivation_needs_the_intake_ledger_capability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """RM-137: a SQL records provider that declared no ``intake_ledger`` is refused at boot
+    for window derivation, naming the capability (MongoDB is covered above)."""
+    sqlite = MemspineConfig.model_validate({"runtime": _RUNTIME})
+    sqlite = _with(sqlite, "write", window_extract="facts")
+    validate_records_features(sqlite, enabled={"semantic"})  # sqlite declares it
+    real = records_features.records_has_capability
+    monkeypatch.setattr(
+        records_features,
+        "records_has_capability",
+        lambda config, capability: capability != "intake_ledger" and real(config, capability),
+    )
+    with pytest.raises(RecordsFeatureError) as caught:
+        validate_records_features(sqlite, enabled={"semantic"})
+    message = str(caught.value)
+    assert "does not declare the 'intake_ledger' capability" in message
+    assert "write.window_extract" in message
+    off = _with(sqlite, "write", window_extract="off")
+    validate_records_features(off, enabled={"semantic"})  # nothing needs the ledger
 
 
 def test_graph_auto_needs_ladybug_without_sql(monkeypatch: pytest.MonkeyPatch) -> None:

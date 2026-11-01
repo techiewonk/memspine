@@ -16,6 +16,7 @@ from memspine.ingest.intake_store import ensure_schema
 from memspine.runtime.runner import InlineRunner
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.ingestion import RequiredDerivation
+from memspine.services.storage.intake_sql import SqlIntakeLedger
 from memspine.services.storage.intake_tables import intake_derivation_discovery, intake_intent
 from memspine.services.storage.outbox_tables import outbox_item, outbox_progress
 
@@ -60,19 +61,19 @@ async def _put_intent(db, intent: str, created_at: datetime, *, status: str = "a
 
 async def test_discovery_atomically_advances_and_is_idempotent(tmp_path) -> None:
     db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'discovery.db'}")
-    await ensure_schema(db)
+    await ensure_schema(SqlIntakeLedger(db))
     await _put_intent(db, "a", NOW)
     await _put_intent(db, "b", NOW + timedelta(seconds=1), status="accepted")
 
     assert (
         await discover_committed_derivations(
-            db, scope_key="scope:alice", discovered_at=NOW + timedelta(minutes=1)
+            SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW + timedelta(minutes=1)
         )
         == 1
     )
     assert (
         await discover_committed_derivations(
-            db, scope_key="scope:alice", discovered_at=NOW + timedelta(minutes=2)
+            SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW + timedelta(minutes=2)
         )
         == 0
     )
@@ -87,7 +88,7 @@ async def test_discovery_atomically_advances_and_is_idempotent(tmp_path) -> None
 
 async def test_discovery_crash_rolls_back_item_and_cursor(tmp_path) -> None:
     db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'discovery-crash.db'}")
-    await ensure_schema(db)
+    await ensure_schema(SqlIntakeLedger(db))
     await _put_intent(db, "a", NOW)
 
     def crash(boundary: str) -> None:
@@ -96,9 +97,14 @@ async def test_discovery_crash_rolls_back_item_and_cursor(tmp_path) -> None:
 
     with pytest.raises(RuntimeError, match="simulated crash"):
         await discover_committed_derivations(
-            db, scope_key="scope:alice", discovered_at=NOW, fault=crash
+            SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW, fault=crash
         )
-    assert await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW) == 1
+    assert (
+        await discover_committed_derivations(
+            SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW
+        )
+        == 1
+    )
     async with db.connect() as conn:
         rows = (await conn.execute(select(outbox_item))).all()
     assert len(rows) == 1
@@ -107,13 +113,15 @@ async def test_discovery_crash_rolls_back_item_and_cursor(tmp_path) -> None:
 
 async def test_explicit_policy_activation_requeues_only_unfinished(tmp_path) -> None:
     db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'activation.db'}")
-    await ensure_schema(db)
+    await ensure_schema(SqlIntakeLedger(db))
     await _put_intent(db, "a", NOW)
-    await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW)
+    await discover_committed_derivations(
+        SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW
+    )
 
     with pytest.raises(ValueError, match="quiesced"):
         await activate_derivation_policy(
-            db,
+            SqlIntakeLedger(db),
             scope_key="scope:alice",
             stage="derivation",
             policy_revision="policy:two",
@@ -123,7 +131,7 @@ async def test_explicit_policy_activation_requeues_only_unfinished(tmp_path) -> 
         )
     assert (
         await activate_derivation_policy(
-            db,
+            SqlIntakeLedger(db),
             scope_key="scope:alice",
             stage="derivation",
             policy_revision="policy:two",
@@ -145,9 +153,11 @@ async def test_explicit_policy_activation_requeues_only_unfinished(tmp_path) -> 
 
 async def test_completed_manifest_is_not_backfilled_on_activation(tmp_path) -> None:
     db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'completed.db'}")
-    await ensure_schema(db)
+    await ensure_schema(SqlIntakeLedger(db))
     await _put_intent(db, "done", NOW)
-    await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW)
+    await discover_committed_derivations(
+        SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW
+    )
     async with db.begin() as conn:
         await conn.execute(
             insert(outbox_progress).values(
@@ -162,7 +172,7 @@ async def test_completed_manifest_is_not_backfilled_on_activation(tmp_path) -> N
         )
     assert (
         await activate_derivation_policy(
-            db,
+            SqlIntakeLedger(db),
             scope_key="scope:alice",
             stage="derivation",
             policy_revision="policy:two",
@@ -180,16 +190,18 @@ async def test_erased_excluded_or_revoked_item_is_never_requeued(tmp_path, flag:
     """RM-43: an unfinished item whose payload is marked erased/excluded/revoked stays
     untouched on activation: no cancellation stamp and no replacement item."""
     db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / f'{flag}.db'}")
-    await ensure_schema(db)
+    await ensure_schema(SqlIntakeLedger(db))
     await _put_intent(db, "gone", NOW)
-    await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW)
+    await discover_committed_derivations(
+        SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW
+    )
     async with db.begin() as conn:
         row = (await conn.execute(select(outbox_item))).one()
         marked = json.dumps({**json.loads(row.payload), flag: True}, sort_keys=True)
         await conn.execute(update(outbox_item).values(payload=marked))
     assert (
         await activate_derivation_policy(
-            db,
+            SqlIntakeLedger(db),
             scope_key="scope:alice",
             stage="derivation",
             policy_revision="policy:two",
@@ -208,10 +220,10 @@ async def test_erased_excluded_or_revoked_item_is_never_requeued(tmp_path, flag:
 
 async def test_window_discovery_activation_uses_namespace_queue_scope(tmp_path) -> None:
     db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'window-activation.db'}")
-    await ensure_schema(db)
+    await ensure_schema(SqlIntakeLedger(db))
     await _put_intent(db, "window", NOW)
     await discover_committed_derivations(
-        db,
+        SqlIntakeLedger(db),
         scope_key="scope:alice",
         stage="window.discovery",
         discovered_at=NOW,
@@ -219,7 +231,7 @@ async def test_window_discovery_activation_uses_namespace_queue_scope(tmp_path) 
 
     assert (
         await activate_derivation_policy(
-            db,
+            SqlIntakeLedger(db),
             scope_key="scope:alice",
             stage="window.discovery",
             policy_revision="policy:two",
@@ -242,16 +254,31 @@ async def test_intent_applied_out_of_creation_order_is_still_discovered(tmp_path
     """RM-142 (1): A (t1) stays accepted while B (t2) applies and is discovered; when recovery
     later applies A, the next scan still enqueues A (no creation-order cursor skips it)."""
     db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'order.db'}")
-    await ensure_schema(db)
+    await ensure_schema(SqlIntakeLedger(db))
     await _put_intent(db, "a", NOW, status="accepted")
     await _put_intent(db, "b", NOW + timedelta(seconds=1))
-    assert await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW) == 1
+    assert (
+        await discover_committed_derivations(
+            SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW
+        )
+        == 1
+    )
     async with db.begin() as conn:
         await conn.execute(
             update(intake_intent).where(intake_intent.c.intent_id == "a").values(status="applied")
         )
-    assert await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW) == 1
-    assert await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW) == 0
+    assert (
+        await discover_committed_derivations(
+            SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW
+        )
+        == 1
+    )
+    assert (
+        await discover_committed_derivations(
+            SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW
+        )
+        == 0
+    )
     async with db.connect() as conn:
         rows = (await conn.execute(select(outbox_item))).all()
     assert sorted(json.loads(r.payload)["intent_id"] for r in rows) == ["a", "b"]
@@ -261,7 +288,7 @@ async def test_intent_applied_out_of_creation_order_is_still_discovered(tmp_path
 async def test_applied_intent_without_records_does_not_stall_the_scope(tmp_path) -> None:
     """RM-142 (2): an applied intent with no raw records is discovered with no work."""
     db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'empty.db'}")
-    await ensure_schema(db)
+    await ensure_schema(SqlIntakeLedger(db))
     empty = _manifest("empty").model_copy(update={"source_record_ids": ()})
     async with db.begin() as conn:
         await conn.execute(
@@ -279,7 +306,12 @@ async def test_applied_intent_without_records_does_not_stall_the_scope(tmp_path)
             )
         )
     await _put_intent(db, "later", NOW + timedelta(seconds=1))
-    assert await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW) == 1
+    assert (
+        await discover_committed_derivations(
+            SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW
+        )
+        == 1
+    )
     async with db.connect() as conn:
         rows = (await conn.execute(select(outbox_item))).all()
         marks = {
@@ -288,18 +320,25 @@ async def test_applied_intent_without_records_does_not_stall_the_scope(tmp_path)
         }
     assert [json.loads(r.payload)["intent_id"] for r in rows] == ["later"]
     assert marks == {"empty": DISCOVERY_NO_WORK_OFFSET, "later": 0}
-    assert await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW) == 0
+    assert (
+        await discover_committed_derivations(
+            SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW
+        )
+        == 0
+    )
     await db.dispose()
 
 
 async def test_activation_points_discovery_at_the_superseding_item(tmp_path) -> None:
     """RM-142 (3): activation repoints discovery at the replacement offset."""
     db = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'supersede.db'}")
-    await ensure_schema(db)
+    await ensure_schema(SqlIntakeLedger(db))
     await _put_intent(db, "a", NOW)
-    await discover_committed_derivations(db, scope_key="scope:alice", discovered_at=NOW)
+    await discover_committed_derivations(
+        SqlIntakeLedger(db), scope_key="scope:alice", discovered_at=NOW
+    )
     await activate_derivation_policy(
-        db,
+        SqlIntakeLedger(db),
         scope_key="scope:alice",
         stage="derivation",
         policy_revision="policy:two",

@@ -983,7 +983,9 @@ class Engine:
         # Finish any accepted intake the last run did not apply.
         from memspine.ingest import gateway as intake_gateway
 
-        if self._sql is not None:  # RM-112: the intake book and message index are SQL tables
+        # RM-112/RM-137: the intake book and message index are the records store's intake
+        # ledger (SQLite/Postgres); a records store without one (MongoDB) has neither.
+        if intake_gateway.accepts_writes(self):
             await intake_gateway.recover(self)
             # Rebuild the lightweight source-identity projection for stores imported
             # before it existed. This runs at startup, never on each message call.
@@ -2296,7 +2298,7 @@ class Engine:
         if not wanted:
             return {}
         gw = ingest_gateway.gateway_of(self)
-        rows = await lookup_messages(await gw._engine(), ns, wanted)
+        rows = await lookup_messages(await gw._ledger(), ns, wanted)
         missing = [message_id for message_id in wanted if message_id not in rows]
         erased = [
             message_id
@@ -2337,7 +2339,7 @@ class Engine:
         if not wanted:
             return {}
         gw = ingest_gateway.gateway_of(self)
-        rows = await lookup_messages(await gw._engine(), ns, wanted)
+        rows = await lookup_messages(await gw._ledger(), ns, wanted)
         missing = [message_id for message_id in wanted if message_id not in rows]
         erased = [
             message_id
@@ -3908,10 +3910,13 @@ class Engine:
         await trust_erasure._forget_many(
             self, storage, ns, record_ids, hard, subject_names=subject_names
         )
-        if hard and self._sql is not None:
+        if hard:
             from memspine.ingest.message_store import tombstone_records
+            from memspine.services.storage.intake_port import intake_ledger_of
 
-            await tombstone_records(self._sql.engine, record_ids)
+            ledger = intake_ledger_of(storage)
+            if ledger is not None:
+                await tombstone_records(ledger, record_ids)
 
     async def _erased_entity_nodes(
         self, ns: str, names: Sequence[str], *, forced: Sequence[str] = ()

@@ -41,8 +41,6 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy.ext.asyncio import AsyncEngine
-
 from memspine.config import constants
 from memspine.derive import role_filter
 from memspine.derive.intent import DerivationIntent
@@ -70,11 +68,17 @@ from memspine.ingest.message_helpers import (
 from memspine.ingest.message_schema import ValidatedMessageBatch
 from memspine.memories.procedural.skills import make_skill_record
 from memspine.observability import tap
+from memspine.observability.logging import get_logger
 from memspine.schemas.durable.ingestion import RequiredDerivation
 from memspine.schemas.public import QuotaExceeded, WaitResult
 from memspine.schemas.public.errors import QuotaExceededError
 from memspine.schemas.public.receipt import CAPABILITIES, Readiness, Receipt
 from memspine.schemas.steps.shared import AssetRef, Scope, Segment, SourceEnvelope
+from memspine.services.storage.intake_port import (
+    INTAKE_LEDGER_CAPABILITY,
+    IntakeLedger,
+    intake_ledger_of,
+)
 from memspine.store.records import (
     MemoryRecord,
     PiiTier,
@@ -97,6 +101,8 @@ __all__ = [
     "recover",
     "submit_write",
 ]
+
+_log = get_logger(__name__)
 
 #: ADR-090 (DS-05): the record (and ladder action) each ``write`` adapter apply produced, by
 #: write id, for the ``Engine.write`` call waiting on it in this task.
@@ -330,7 +336,7 @@ class IntakeGateway:
         self.last_receipt: Receipt | None = None
         self.last_new: set[str] = set()  # record ids this gateway call wrote (not replayed or kept)
         self.quota_check: Callable[[IntakeCost], QuotaExceeded | None] | None = None
-        self._db: AsyncEngine | None = None
+        self._ledger_seen: IntakeLedger | None = None
         self._message_recovery_needed = False
         self._locks: dict[str, asyncio.Lock] = {}
         self.versioner = SourceVersioner(eng)
@@ -340,23 +346,23 @@ class IntakeGateway:
         if self.fault is not None:
             self.fault(name)
 
-    async def _engine(self) -> AsyncEngine:
+    async def _ledger(self) -> IntakeLedger:
         storage = self.eng._require_started()
-        if getattr(storage, "_client", None) is None:
-            # RM-112: the intake book and the message index are SQL tables of the records
-            # database; a records store without SQL (MongoDB) has neither.
+        ledger = intake_ledger_of(storage)
+        if ledger is None:
+            # RM-112/RM-137: the intake book and the message index live in the records
+            # store's intake ledger; a records store without one (MongoDB) has neither.
             provider = self.eng._config().storage.records.provider
             raise ConfigError(
                 "ingestion through the intake gateway (ingest_messages, ingest_data, "
-                "ingest_asset) needs a SQL records store: storage.records.provider "
-                f"{provider!r} keeps no intake book or message index; use write() or a "
-                "SQLite/Postgres records store"
+                f"ingest_asset) needs the {INTAKE_LEDGER_CAPABILITY!r} capability of "
+                f"storage.records: provider {provider!r} keeps no intake book or message "
+                "index; use write() or a SQLite/Postgres records store"
             )
-        db: AsyncEngine = storage._client.engine
-        if db is not self._db:
-            await store.ensure_schema(db)
-            self._db = db
-        return db
+        if ledger is not self._ledger_seen:
+            await store.ensure_schema(ledger)
+            self._ledger_seen = ledger
+        return ledger
 
     def _lock(self, skey: str) -> asyncio.Lock:
         return self._locks.setdefault(skey, asyncio.Lock())
@@ -368,7 +374,7 @@ class IntakeGateway:
         """Accept ``env`` and make its new segments records. ``adapter`` + ``args`` are what the apply
         needs besides the segments (persisted with the intent so a restart can finish it)."""
         eng = self.eng
-        db = await self._engine()
+        db = await self._ledger()
         self.last_new = set()
         validated = validate_source(env)
         venv = validated.envelope
@@ -502,14 +508,14 @@ class IntakeGateway:
 
     # -- apply ------------------------------------------------------------------------------------
     async def _resume_many(self, intent_ids: Sequence[str] | set[str]) -> None:
-        db = await self._engine()
+        db = await self._ledger()
         rows = await store.intents_by_id(db, intent_ids)
         for iid in sorted(rows, key=lambda i: (rows[i]["created_at"], i)):
             if rows[iid]["status"] == "accepted":
                 await self._finish(db, iid, json.loads(rows[iid]["apply"]), resume=True)
 
     async def _finish(
-        self, db: AsyncEngine, intent_id: str, payload: dict[str, Any], *, resume: bool
+        self, db: IntakeLedger, intent_id: str, payload: dict[str, Any], *, resume: bool
     ) -> tuple[Receipt, dict[str, str]]:
         skey = payload["skey"]
         landed = await self._apply(payload, resume=resume)
@@ -548,14 +554,33 @@ class IntakeGateway:
         # outbox.  The derivation handler feeds only missing sources through
         # WindowPipeline.observe, so its persisted segmentation remains the
         # single window authority.
+        #
+        # RM-137: only the intent just applied is scanned here (the full anti-join is
+        # recover()'s). The records are durable and the intent is applied, so a discovery
+        # failure must not fail the write (a caller retry would duplicate it): it is logged
+        # and left to reconciliation, which finds the undiscovered intent at the next start.
         pipeline = getattr(self.eng, "_windows", None)
         if pipeline is not None and getattr(pipeline, "_outbox", None) is not None:
-            await discover_committed_derivations(
-                db,
-                scope_key=skey,
-                stage="window.discovery",
-                discovered_at=datetime.now(UTC),
-            )
+            try:
+                await discover_committed_derivations(
+                    db,
+                    scope_key=skey,
+                    stage="window.discovery",
+                    discovered_at=datetime.now(UTC),
+                    intent_ids=(intent_id,),
+                )
+            except Exception as exc:
+                _log.warning(
+                    "memory.write",
+                    step="intake.discovery_deferred",
+                    intent_id=intent_id,
+                    error=type(exc).__name__,
+                )
+                tap.event(
+                    "write.intake.discovery_deferred",
+                    intent_id=intent_id,
+                    error=type(exc).__name__,
+                )
         tap.event(
             "write.intake.applied",
             intent_id=intent_id,
@@ -626,7 +651,7 @@ class IntakeGateway:
                         if rid is None:
                             rid = (
                                 await store.record_ids(
-                                    await self._engine(), p["skey"], [by_index.get(ref, "")]
+                                    await self._ledger(), p["skey"], [by_index.get(ref, "")]
                                 )
                             ).get(by_index.get(ref, ""))
                         if rid is not None:
@@ -785,7 +810,7 @@ class IntakeGateway:
                 )
             landed.update({w: r.record_id for w, r in recs.items()})
         if p["retract"]:
-            db = await self._engine()
+            db = await self._ledger()
             gone = await store.record_ids(db, p["skey"], p["retract"])
             self._boundary("pre_retire")
             await self.versioner.retire(
@@ -837,7 +862,7 @@ class IntakeGateway:
 
     async def _result(
         self,
-        db: AsyncEngine,
+        db: IntakeLedger,
         skey: str,
         receipt: Receipt,
         *,
@@ -857,7 +882,7 @@ class IntakeGateway:
 
     # -- status -----------------------------------------------------------------------------------
     async def receipt(self, intent_id: str) -> Receipt | None:
-        db = await self._engine()
+        db = await self._ledger()
         row = (await store.intents_by_id(db, [intent_id])).get(intent_id)
         if row is None:
             return None
@@ -867,7 +892,7 @@ class IntakeGateway:
 
     async def required_derivation(self, intent_id: str) -> RequiredDerivation | None:
         """Return the policy manifest pinned in the raw-acceptance transaction."""
-        db = await self._engine()
+        db = await self._ledger()
         row = (await store.intents_by_id(db, [intent_id])).get(intent_id)
         if row is None:
             return None
@@ -875,7 +900,7 @@ class IntakeGateway:
 
     async def status(self, intent_id: str, timeout: float = 0.0) -> DerivationIntent:  # noqa: ASYNC109
         """Refresh the intent's readiness from the engine and report it per layer (W-02)."""
-        db = await self._engine()
+        db = await self._ledger()
         row = (await store.intents_by_id(db, [intent_id]))[intent_id]
         readiness = Readiness.model_validate_json(row["readiness"])
         receipt = Receipt.model_validate_json(row["receipt"])
@@ -959,7 +984,7 @@ def gateway_of(eng: Any) -> IntakeGateway:
 async def recover(eng: Any) -> int:
     """Finish every accepted-but-unapplied intent (called from ``start()``). Returns how many."""
     gw = gateway_of(eng)
-    db = await gw._engine()
+    db = await gw._ledger()
     done = 0
     for row in await store.pending_intents(db):
         async with gw._lock(row["scope_key"]):
@@ -1013,8 +1038,9 @@ def _write_kwargs(args: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def accepts_writes(eng: Any) -> bool:
-    """Whether direct writes can go through the intake ledger (a SQL records store)."""
-    return getattr(eng._require_started(), "_client", None) is not None
+    """Whether direct writes can go through the intake ledger (a records store that offers
+    the ``intake_ledger`` capability: SQLite or Postgres)."""
+    return intake_ledger_of(eng._require_started()) is not None
 
 
 async def submit_write(eng: Any, kwargs: Mapping[str, Any]) -> MemoryRecord:

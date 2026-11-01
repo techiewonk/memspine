@@ -14,6 +14,7 @@ from memspine.ingest.message_schema import ValidatedMessageBatch
 from memspine.ingest.message_store import lookup_conversations, lookup_messages
 from memspine.ingest.source_provenance import message_provenance
 from memspine.observability import tap
+from memspine.services.storage.intake_port import IntakeLedger
 from memspine.store.records import MemoryRecord
 from memspine.store.scope import validate_namespace
 
@@ -43,7 +44,7 @@ async def ingest_messages(
     locks = eng.__dict__.setdefault("_message_ingest_locks", {})
     async with locks.setdefault(ns, asyncio.Lock()):
         gw = gateway.gateway_of(eng)
-        db = await gw._engine()
+        db = await gw._ledger()
         if getattr(gw, "_message_recovery_needed", False):
             await gateway.recover(eng)
             gw._message_recovery_needed = False
@@ -76,7 +77,7 @@ async def ingest_messages(
 
 async def _ingest_once(
     eng: Any,
-    db: Any,
+    db: IntakeLedger,
     messages: Sequence[Mapping[str, Any]],
     ns: str,
     actor: str,

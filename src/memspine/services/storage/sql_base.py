@@ -55,6 +55,7 @@ from memspine.trust.erasure import redact_record, scrub_partition_nodes
 if TYPE_CHECKING:
     from memspine.schemas.durable.common import OwnerScope
     from memspine.schemas.durable.lineage import LineageEdge
+    from memspine.services.storage.intake_port import IntakeLedger
     from memspine.services.storage.records_port import (
         LeasePort,
         OutboxItem,
@@ -293,6 +294,16 @@ class SqlStorage(ServiceAdapter):
         if store is None:
             store = self.__dict__["_entity_index_store"] = SqlEntityIndexStore(self._client.engine)
         return store
+
+    def intake_ledger(self) -> IntakeLedger:
+        """RM-137: the intake ledger, message identity index and derivation discovery
+        (:class:`~memspine.services.storage.intake_port.IntakeLedger`) of this database."""
+        from memspine.services.storage.intake_sql import SqlIntakeLedger
+
+        ledger: IntakeLedger | None = self.__dict__.get("_intake_ledger")
+        if ledger is None:
+            ledger = self.__dict__["_intake_ledger"] = SqlIntakeLedger(self._client.engine)
+        return ledger
 
     def projection_bindings(self) -> ProjectionBindingPort:
         return SqlProjectionBindingStore(self._client.engine)
