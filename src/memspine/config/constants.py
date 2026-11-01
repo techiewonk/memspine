@@ -961,9 +961,8 @@ BUNDLE_TURNS = 2
 # DS-12 (ADR-090 item 6): the bounded KNOWN refresh over the RM-130 entity index. One window's
 # refresh reads at most KNOWN_REFRESH_PAGES pages of KNOWN_REFRESH_PAGE name rows past its cursor
 # and keeps at most KNOWN_MAX_ENTITIES entities per namespace; past either bound the set is
-# deferred (incomplete). A caught-up refresh re-reads the last KNOWN_LOOKBACK_SEQ sequence numbers
-# so a row another process projected late is not skipped. Bounds, not tuned.
+# deferred (incomplete). Completeness is proven against the index's per-namespace projection
+# watermark (RM-154), not a sequence lookback. Bounds, not tuned.
 KNOWN_REFRESH_PAGE = 256
 KNOWN_REFRESH_PAGES = 4
 KNOWN_MAX_ENTITIES = 4096
-KNOWN_LOOKBACK_SEQ = 64

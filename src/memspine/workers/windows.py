@@ -1609,11 +1609,8 @@ class WindowPipeline:
         configured extractor found (DS-18), bound to the source here; the batch is recorded
         even when they do not bind (the source changed): never a fact either way."""
         mentions: list[Any] = list(record.fingerprint.entity_mentions)
-        revision = "personal-rules:1"
         found = tuple(getattr(result, "mentions", ()) or ())
         if found:
-            identity = str(getattr(self._non_generative_extractor, "identity", "configured"))
-            revision = f"personal-rules:1+{identity}"
             try:
                 bound = bind_gliner_mentions(record, found)
             except GlinerMentionError:
@@ -1621,7 +1618,18 @@ class WindowPipeline:
                 bound = ()
             held = {(m.start, m.end, m.label) for m in mentions}
             mentions.extend(m for m in bound if (m.start, m.end, m.label) not in held)
-        return AnnotationBatch(source=source, mentions=tuple(mentions), producer_revision=revision)
+        return AnnotationBatch(
+            source=source, mentions=tuple(mentions), producer_revision=self._rules_revision()
+        )
+
+    def _rules_revision(self) -> str:
+        """RM-154: the rules path's producer revision, from configuration only: the configured
+        extractor's identity whenever one is configured, whatever it found (an empty result is
+        still that extractor's), the same for every batch of an item, excluded sources too."""
+        if self._non_generative_extractor is None:
+            return "personal-rules:1"
+        identity = str(getattr(self._non_generative_extractor, "identity", "configured"))
+        return f"personal-rules:1+{identity}"
 
     async def _with_model_annotations(self, ns: str, prepared: Any) -> Any:
         """DS-04 (ADR-090 item 6): the model path's per-source annotation batches.
@@ -1648,14 +1656,16 @@ class WindowPipeline:
         live_ids = {r.record_id for r in records}
         excluded = [rid for rid in window.record_ids if rid not in live_ids]
         by_record: dict[str, list[Any]] = {}
-        revision = "window-extraction:base"
-        pre = self._prepass
-        if pre is not None and pre.uses_gliner and prepared.records:
-            hints = await pre.ahints(prepared.records, namespace=ns)
-            revision = f"prepass:{pre.producer_id}"
+        pre = self._prepass if self._prepass is not None and self._prepass.uses_gliner else None
+        # RM-154: the revision comes from configuration, never from what was found or read.
+        revision = f"prepass:{pre.producer_id}" if pre is not None else "window-extraction:base"
+        if pre is not None and records:
+            # RM-154: only the live snapshot inputs reach the model (a stale or erased source's
+            # text is never run, and so never cached as hints either).
+            hints = await pre.ahints(records, namespace=ns)
             for line, mention in hints.gliner_mentions:
-                if 1 <= line <= len(prepared.records):
-                    rid = prepared.records[line - 1].record_id
+                if 1 <= line <= len(records):
+                    rid = records[line - 1].record_id
                     by_record.setdefault(rid, []).append(mention)
         batches: list[AnnotationBatch] = []
         for record in records:
@@ -1915,6 +1925,11 @@ class WindowPipeline:
                         reason="no_live_turns",
                     )
                 continue
+            if not self._rule_only:
+                records = self._snapshot_live(ns, job.window, records)
+                if not records:
+                    out[i] = self._stale_only(job, ns)
+                    continue
             verdict = await self._prepass_verdict(records, namespace=ns)
             if verdict == "skip":
                 out[i] = self._skipped(job, records, ns)
@@ -2313,6 +2328,8 @@ class WindowPipeline:
         for ready in self._prefetched.values():  # W2-05: a batched call's results, not committed
             if ready is not None and record_id in ready.job.members:
                 ready.job.cancelled = True
+        if self._prepass is not None:  # RM-154: hints cached from the forgotten source go too
+            self._prepass.forget_records(namespace, [record_id])
         keys = self._keys_by_record.pop(record_id, set())
         if self._cache is not None:
             for key in keys:
@@ -2575,7 +2592,7 @@ class WindowPipeline:
                         self._counts["rule_facts_unresolved_unbound"] += 1
                         continue
                     unresolved.append(UnresolvedAnnotation.of(candidate, source))
-            annotations.extend(_excluded_batches(excluded, snapshots, "personal-rules:1"))
+            annotations.extend(_excluded_batches(excluded, snapshots, self._rules_revision()))
             if excluded:
                 self._counts["annotation_sources_excluded"] += len(excluded)
             # RM-143 (d): report only the facts that will be deposited (see _storable_facts).
@@ -2604,6 +2621,12 @@ class WindowPipeline:
                 tuple(unresolved),
                 tuple(annotations),
             )
+        # RM-154: the model path reads only the live snapshot inputs, like the rules path: a
+        # stale or erased source's text reaches no model (window call, KNOWN pre-pass, GLiNER
+        # hints, envelope stages), so nothing is computed or cached from it.
+        records = self._snapshot_live(ns, window, records)
+        if not records:
+            return self._stale_only(job, ns)
         if not episode_only:
             verdict = await self._prepass_verdict(records, namespace=ns)
             if verdict == "skip":
@@ -2728,6 +2751,26 @@ class WindowPipeline:
             self._counts["windows_prepass_episode_only"] += 1
             return "episode_only"
         return "skip"
+
+    def _snapshot_live(
+        self, ns: str, window: Window, records: list[MemoryRecord]
+    ) -> list[MemoryRecord]:
+        """RM-154: the records still exactly the version their membership snapshot pinned (every
+        record without a durable outbox)."""
+        snapshots = self._membership(ns, window.record_ids)
+        if snapshots is None:
+            return records
+        live = [r for r in records if _snapshot_matches(snapshots.get(r.record_id), r)]
+        if len(live) < len(records):
+            self._counts["turns_excluded_stale"] += len(records) - len(live)
+        return live
+
+    def _stale_only(self, job: _Job, ns: str) -> _Prepared:
+        """RM-154: a window none of whose live turns matches its snapshot: no model call; the
+        annotation step still records an explicit empty batch per source."""
+        window_id = fingerprint_payload({"ns": ns, "turns": []})[:12]
+        tap.event("write.window.skipped", reason="stale_sources", id=window_id)
+        return _Prepared(job, [], {}, [], window_id, 0, False)
 
     def _skipped(self, job: _Job, records: list[MemoryRecord], ns: str) -> _Prepared:
         """A window whose extraction call was skipped: nothing to deposit, no call, no cache."""

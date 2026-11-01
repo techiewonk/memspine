@@ -457,6 +457,9 @@ class Prepass:
         self._fresh: dict[str, list[str]] = {}
         self._cache: OrderedDict[tuple[str, ...], Hints] = OrderedDict()
         self._cache_size = cache_size
+        #: RM-154: (namespace, record id) -> the cache keys whose records include it
+        self._keys_by_record: dict[tuple[str, str], set[tuple[str, ...]]] = {}
+        self._records_by_key: dict[tuple[str, ...], list[tuple[str, str]]] = {}
         self.skipped = 0
 
     @property
@@ -500,6 +503,43 @@ class Prepass:
         marker = f"namespace:{namespace}"
         for key in [k for k in self._cache if len(k) > 1 and k[1] == marker]:
             del self._cache[key]
+            self._records_by_key.pop(key, None)
+        for held in [k for k in self._keys_by_record if k[0] == namespace]:
+            del self._keys_by_record[held]
+
+    def forget_records(self, namespace: str, record_ids: Iterable[str]) -> None:
+        """RM-154 (ADR-095): drop every cached hint set computed from any of ``record_ids``
+        (a forget or an erasure of the source); other cached windows stay."""
+        for record_id in record_ids:
+            for key in self._keys_by_record.pop((namespace, str(record_id)), set()):
+                self._cache.pop(key, None)
+                for source in self._records_by_key.pop(key, ()):
+                    keys = self._keys_by_record.get(source)
+                    if keys is not None:
+                        keys.discard(key)
+                        if not keys:
+                            del self._keys_by_record[source]
+
+    def _put(
+        self, key: tuple[str, ...], hints: Hints, records: Sequence[Any], namespace: str
+    ) -> None:
+        self._cache[key] = hints
+        sources = [
+            (namespace, str(record_id))
+            for record in records
+            if (record_id := getattr(record, "record_id", None)) is not None
+        ]
+        self._records_by_key[key] = sources
+        for source in sources:
+            self._keys_by_record.setdefault(source, set()).add(key)
+        while len(self._cache) > self._cache_size:
+            evicted, _ = self._cache.popitem(last=False)
+            for source in self._records_by_key.pop(evicted, ()):
+                keys = self._keys_by_record.get(source)
+                if keys is not None:
+                    keys.discard(evicted)
+                    if not keys:
+                        del self._keys_by_record[source]
 
     def known_aliases(self, namespace: str) -> list[str]:
         """The aliases learned in ``namespace`` plus the configured extra source's for it."""
@@ -518,9 +558,7 @@ class Prepass:
             known_aliases=self.known_aliases(namespace),
             gliner=(self._gliner if hasattr(self._gliner, "entities") else None),
         )
-        self._cache[key] = out
-        while len(self._cache) > self._cache_size:
-            self._cache.popitem(last=False)
+        self._put(key, out, records, namespace)
         return out
 
     async def ahints(self, records: Sequence[Any], *, namespace: str) -> Hints:
@@ -565,9 +603,7 @@ class Prepass:
                 )
             base = _with_gliner_spans(base, extra)
             base = replace(base, gliner_mentions=tuple(mentions))
-        self._cache[key] = base
-        while len(self._cache) > self._cache_size:
-            self._cache.popitem(last=False)
+        self._put(key, base, records, namespace)
         return base
 
     @staticmethod

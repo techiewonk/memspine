@@ -315,7 +315,13 @@ def _known_from_store(eng: Any, cap: int) -> KnownSource:
     hooks and are not read here."""
     from memspine.memories.associative.known_entities import KnownEntityCursor
 
-    cursor = KnownEntityCursor(lambda: eng._storage, limit=max(cap, 1))
+    cursor = KnownEntityCursor(
+        lambda: eng._storage,
+        # RM-154: the index projector proves completeness (its per-namespace watermark) and
+        # tells the cursor of every name removal (forget, erasure, reset).
+        projector=lambda: getattr(eng, "_entity_index", None),
+        limit=max(cap, 1),
+    )
 
     async def source(ns: str, text: str) -> Sequence[KnownEntity]:
         if getattr(eng, "_associative", None) is None:

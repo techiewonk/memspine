@@ -46,8 +46,9 @@ compiled graph rows under the RM-55/F13 visibility rules.
 
 from __future__ import annotations
 
+import weakref
 from collections.abc import Collection, Iterable, Mapping, Sequence
-from typing import Any
+from typing import Any, Protocol
 
 import fastuuid
 
@@ -77,15 +78,18 @@ from memspine.trust.erasure import LINKS_KEY
 __all__ = [
     "ALIAS_MARKER",
     "ENTITY_STATUSES",
+    "GONE_KIND",
     "INDEX_PROJECTOR",
     "LINKS_KEY",
     "LINK_MARKER",
     "MERGE_MARKER",
     "EntityIndexProjector",
+    "NameEvictionListener",
     "alias_event",
     "entity_link_event",
     "entity_names",
     "entity_status",
+    "index_watermark",
     "link_names",
     "merge_event",
     "record_entity_ids",
@@ -113,6 +117,20 @@ _RELINKABLE = frozenset({"new", "deferred"})
 _INDEX_KINDS = (EventKind.WRITE, EventKind.MARKER, EventKind.FORGET)
 #: Merge chains followed to a group representative (a cycle or deeper chain stops there).
 _MAX_CHAIN = 16
+#: RM-154: the row kind of the name-removal signal. One row per (namespace, projector
+#: instance): ``key`` is the instance, ``data.count`` its removals in the namespace so far. A
+#: KNOWN cursor of another process sees the count change and reads the namespace again. Each
+#: instance writes only its own row (no lost update between processes); the row carries no
+#: name and no entity id (ADR-095).
+GONE_KIND = "gone"
+
+
+class NameEvictionListener(Protocol):
+    """RM-154: told by :class:`EntityIndexProjector` when name rows go (a forget, an erasure,
+    a re-write that moves a record's links, a reset). ``namespace`` None is every namespace;
+    ``entity_ids`` None is every entity of the namespace."""
+
+    def evict(self, namespace: str | None, entity_ids: frozenset[str] | None) -> None: ...
 
 
 def _store(storage: Any) -> EntityIndexStore:
@@ -149,16 +167,21 @@ def link_names(
 # ------------------------------------------------------------------ the write path
 
 
-async def _index_complete(
-    storage: Any, namespace: str, projector: EntityIndexProjector | None = None
-) -> bool:
-    """Is the name index complete for ``namespace`` at the log head?
+#: :func:`_namespace_mark` of a storage without an event log (the index is all there is).
+_NO_LOG = -1
+
+
+async def _namespace_mark(
+    storage: Any, namespace: str, projector: EntityIndexProjector | None
+) -> int | None:
+    """The log sequence up to which the name index provably holds every event of ``namespace``
+    (None: it is behind; ``_NO_LOG`` without an event log).
 
     Freshness is per namespace: events of other namespaces past the mark never make it stale.
     The namespace's own pending events (another process's writes, not yet in the shared index)
     are caught up by applying them to ``projector`` (applies are idempotent), at most
-    ``_CATCH_UP_PAGES`` pages of the log; a longer backlog counts as incomplete (never an
-    auto-link). Without a projector any pending event of the namespace is incomplete."""
+    ``_CATCH_UP_PAGES`` pages of the log; a longer backlog counts as behind. Without a
+    projector any pending event of the namespace is behind."""
     # The scan starts where this process last scanned the namespace to the head (its own
     # in-order mark is no start: another process's event may sit below it), else at the
     # durable mark (startup catch-up brought the index there).
@@ -170,15 +193,15 @@ async def _index_complete(
             after = 0
     reader = getattr(storage, "read_events", None)
     if not callable(reader):
-        return True
+        return _NO_LOG
     for _ in range(_CATCH_UP_PAGES):
         try:
             pending = await reader(after_seq=after, limit=_CATCH_UP_PAGE)
         except Exception:
-            return False
+            return None
         relevant = [e for e in pending if e.namespace == namespace and e.kind in _INDEX_KINDS]
         if relevant and projector is None:
-            return False
+            return None
         for event in relevant:
             assert projector is not None
             await projector.catch_up(event)
@@ -187,8 +210,31 @@ async def _index_complete(
         if projector is not None:
             projector.mark_scanned(namespace, after)
         if len(pending) < _CATCH_UP_PAGE:
-            return True
-    return False
+            return after
+    return None
+
+
+async def _index_complete(
+    storage: Any, namespace: str, projector: EntityIndexProjector | None = None
+) -> bool:
+    """Is the name index complete for ``namespace`` at the log head? (A capped catch-up is
+    incomplete: never an auto-link.)"""
+    return await _namespace_mark(storage, namespace, projector) is not None
+
+
+async def index_watermark(
+    storage: Any, namespace: str, projector: EntityIndexProjector | None = None
+) -> int | None:
+    """RM-154 (DS-12): the name index's per-namespace projection watermark.
+
+    Every event of ``namespace`` at or below the returned log sequence is applied to the index
+    (the namespace's backlog is caught up first, as for the write path's uniqueness check), so
+    every name row whose seq is at or below it is present now and no later projection adds one.
+    None when that cannot be proven: the backlog is longer than the bounded catch-up, or there
+    is no event log to compare with. A reader is complete only once it has read every row up
+    to the watermark."""
+    mark = await _namespace_mark(storage, namespace, projector)
+    return None if mark is None or mark == _NO_LOG else mark
 
 
 async def _representative(store: EntityIndexStore, namespace: str, entity_id: str) -> str:
@@ -605,6 +651,32 @@ class EntityIndexProjector(Projector):
         self.caught_up: dict[str, int] = {}
         #: seqs this process applied past the namespace's scan mark (a catch-up skips them)
         self._own: dict[str, set[int]] = {}
+        #: RM-154: in-process caches of index names (the KNOWN cursors), told of removals
+        self._listeners: weakref.WeakSet[Any] = weakref.WeakSet()
+        #: RM-154: this instance's key in the removal signal rows, and its removal counts
+        self.instance = str(fastuuid.uuid4())
+        self._removals: dict[str, int] = {}
+
+    def add_listener(self, listener: NameEvictionListener) -> None:
+        """Tell ``listener`` of every name removal this projector applies (held weakly)."""
+        self._listeners.add(listener)
+
+    async def _names_removed(self, ns: str, entity_ids: Iterable[str], seq: int | None) -> None:
+        """Name rows of ``entity_ids`` went: signal it in the index (other processes) and to
+        this process's listeners (evicted now, not at their next refresh)."""
+        gone = frozenset(entity_ids)
+        if not gone:
+            return
+        count = self._removals[ns] = self._removals.get(ns, 0) + 1
+        await self.store.put(
+            [
+                EntityIndexRow(
+                    ns, GONE_KIND, self.instance, "", "", data={"count": count}, seq=seq or 0
+                )
+            ]
+        )
+        for listener in list(self._listeners):
+            listener.evict(ns, gone)
 
     @property
     def store(self) -> EntityIndexStore:
@@ -644,6 +716,7 @@ class EntityIndexProjector(Projector):
                 event.namespace,
                 str(event.payload.get("record_id", "")),
                 hard=bool(event.payload.get("hard")),
+                seq=event.seq,
             )
         elif event.kind is EventKind.MARKER:
             marker = event.payload.get("marker")
@@ -722,15 +795,18 @@ class EntityIndexProjector(Projector):
             )
             linked.add(entity_id)
         await store.put(rows)
-        await self._drop_orphans(ns, previous - linked)
+        await self._names_removed(ns, await self._drop_orphans(ns, previous - linked), seq)
         entity_cache.invalidate(self._storage, ns)
 
-    async def _drop_orphans(self, ns: str, entity_ids: Iterable[str]) -> None:
-        """Remove each entity no record links to any more (with its names and merges)."""
+    async def _drop_orphans(self, ns: str, entity_ids: Iterable[str]) -> list[str]:
+        """Remove each entity no record links to any more (with its names and merges); returns
+        the removed ids."""
         store = self.store
+        dropped: list[str] = []
         for entity_id in sorted(entity_ids):
             if await store.select(ns, "link", entity_id=entity_id):
                 continue
+            dropped.append(entity_id)
             await store.delete(ns, "entity", key=entity_id)
             await store.delete(ns, "name", entity_id=entity_id)
             for row in [
@@ -738,11 +814,15 @@ class EntityIndexProjector(Projector):
                 *await store.select(ns, "merge", ref=entity_id),
             ]:
                 await store.delete(ns, "merge", key=row.key)
+        return dropped
 
-    async def _forget(self, ns: str, record_id: str, *, hard: bool = False) -> None:
+    async def _forget(
+        self, ns: str, record_id: str, *, hard: bool = False, seq: int | None = None
+    ) -> None:
         if not record_id:
             return
         store = self.store
+        removed: set[str] = set()
         previous = {r.entity_id for r in await store.select(ns, "link", key=record_id)}
         await store.delete(ns, "link", key=record_id)
         cites = await store.select(ns, "cite", key=record_id)
@@ -764,9 +844,11 @@ class EntityIndexProjector(Projector):
                     await store.delete(
                         ns, "name", key=alias.key, entity_id=alias.entity_id, ref=alias.ref
                     )
+                    removed.add(alias.entity_id)
                     await self._contest(ns, [alias.entity_id])
                 await store.delete(ns, "cite", entity_id=cite.entity_id, ref="alias")
-        await self._drop_orphans(ns, previous)
+        removed.update(await self._drop_orphans(ns, previous))
+        await self._names_removed(ns, removed, seq)
         entity_cache.invalidate(self._storage, ns)
 
     async def _alias_rows(self, ns: str, alias_id: str) -> list[EntityIndexRow]:
@@ -922,3 +1004,5 @@ class EntityIndexProjector(Projector):
         self.caught_up.clear()
         self._own.clear()
         entity_cache.invalidate(self._storage)
+        for listener in list(self._listeners):
+            listener.evict(None, None)
