@@ -17,20 +17,24 @@ def _sender_id(message: Mapping[str, Any]) -> str | None:
 
 
 def message_provenance(message: Mapping[str, Any], *, source_id: str) -> SourceProvenance:
-    """Adapt one canonical message without inferring trust or assertion ownership."""
-    metadata = message.get("metadata")
-    meta = metadata if isinstance(metadata, Mapping) else {}
-    origin = meta.get("source_origin", "raw_message")
+    """Adapt one canonical message without inferring trust or assertion ownership.
+
+    ADR-090: the axes come from the typed ``provenance`` envelope field (origin, assertion
+    owner, asset, explicit fetch), never from the caller's ``metadata`` bag, which is stored
+    verbatim and never interpreted. The trust tier is the firewall's assessment, never declared
+    by the caller, so it is always None here."""
+    declared = message.get("provenance")
+    axes = declared if isinstance(declared, Mapping) else {}
+    origin: Any = axes.get("origin") or "raw_message"
     if origin not in SOURCE_ORIGINS:
         raise ValueError(f"unknown source_origin {origin!r}")
     return SourceProvenance(
         origin=origin,
         source_id=source_id,
         sender_id=_sender_id(message),
-        assertion_owner_id=meta.get("assertion_owner_id"),
-        trust_tier=meta.get("trust_tier"),
-        asset_id=meta.get("asset_id"),
-        explicit_fetch=meta.get("explicit_fetch", False),
+        assertion_owner_id=axes.get("assertion_owner_id"),
+        asset_id=axes.get("asset_id"),
+        explicit_fetch=bool(axes.get("explicit_fetch", False)),
     )
 
 

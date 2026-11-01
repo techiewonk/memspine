@@ -12,6 +12,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 __all__ = [
     "MESSAGE_FIELDS",
+    "PROVENANCE_FIELDS",
     "SENDER_FIELDS",
     "normalise_messages",
     "source_clock",
@@ -46,10 +47,17 @@ MESSAGE_FIELDS: frozenset[str] = frozenset(
         "entity",
         "attribute",
         "value",
+        "provenance",
         "metadata",
     }
 )
 SENDER_FIELDS: frozenset[str] = frozenset({"id", "kind", "name"})
+#: ADR-090: the typed source-provenance axes a caller may declare (``source_provenance``
+#: adapter). The firewall's trust tier is never caller input, and nothing here is read from
+#: ``metadata``.
+PROVENANCE_FIELDS: frozenset[str] = frozenset(
+    {"origin", "assertion_owner_id", "asset_id", "explicit_fetch"}
+)
 #: Alternate spellings that are refused with the canonical field they duplicate.
 _CANONICAL = {
     "timestamp": "created_at",
@@ -162,6 +170,30 @@ def validate_message_fields(raw: Mapping[str, Any], index: int) -> None:
                 f"message {index} sender has unknown field {unknown[0]!r}; "
                 "put caller data in 'metadata'"
             )
+    _validate_provenance(raw.get("provenance"), index)
+
+
+def _validate_provenance(provenance: object, index: int) -> None:
+    """The typed ``provenance`` envelope field: known keys only, each of its type."""
+    if provenance is None:
+        return
+    if not isinstance(provenance, Mapping):
+        raise ValueError(f"message {index} provenance must be a mapping")
+    unknown = sorted(str(k) for k in provenance if k not in PROVENANCE_FIELDS)
+    if unknown:
+        hint = (
+            " (the trust tier is assessed by the firewall, never declared)"
+            if unknown[0] == "trust_tier"
+            else ""
+        )
+        raise ValueError(f"message {index} provenance has unknown field {unknown[0]!r}{hint}")
+    for key in ("origin", "assertion_owner_id", "asset_id"):
+        value = provenance.get(key)
+        if value is not None and (not isinstance(value, str) or not value.strip()):
+            raise ValueError(f"message {index} provenance.{key} must be a non-empty string")
+    fetch = provenance.get("explicit_fetch")
+    if fetch is not None and not isinstance(fetch, bool):
+        raise ValueError(f"message {index} provenance.explicit_fetch must be a boolean")
 
 
 def _json_default(value: object) -> str:
