@@ -62,17 +62,8 @@ conversation_identity = Table(
     Column("intent_id", String, nullable=True),
 )
 
-# BI-03: discovery is a durable reconciliation cursor, not an in-memory
-# observer callback.  The mapping makes a reset/retry idempotent, while the
-# cursor and outbox insert are advanced in the same database transaction.
-intake_derivation_cursor = Table(
-    "intake_derivation_cursor",
-    intake_metadata,
-    Column("scope_key", String, primary_key=True),
-    Column("stage", String, primary_key=True),
-    Column("created_at", String, nullable=False),
-    Column("intent_id", String, nullable=False),
-)
+# BI-03: discovery reconciles every unmapped applied intent (RM-142); the mapping
+# makes a reset/retry idempotent and is inserted in the outbox transaction.
 intake_derivation_discovery = Table(
     "intake_derivation_discovery",
     intake_metadata,
@@ -97,7 +88,6 @@ INTAKE_TABLES: tuple[str, ...] = (
     "intake_intent",
     "intake_message_identity",
     "intake_conversation_identity",
-    "intake_derivation_cursor",
     "intake_derivation_discovery",
     "intake_derivation_policy",
 )
