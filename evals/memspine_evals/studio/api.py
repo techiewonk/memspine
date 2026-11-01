@@ -1512,6 +1512,7 @@ class StudioAPI:
             window=SimpleNamespace(
                 session=members.get("session"),
                 turns=[SimpleNamespace(record_id=i) for i in ids],
+                record_ids=list(ids),  # RM-154: the snapshot check reads the members
                 reason="rerun",
                 tokens=0,
             ),
