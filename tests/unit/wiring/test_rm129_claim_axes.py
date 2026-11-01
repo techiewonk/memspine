@@ -16,6 +16,7 @@ from memspine.derive.pipeline.stages.edge_compiler import (
     EdgeCompiler,
     compile_graph_edges,
 )
+from memspine.derive.write import write_derived
 from memspine.schemas.durable import (
     AssertionKey,
     Assessment,
@@ -132,7 +133,10 @@ def test_non_asserted_claims_never_read_as_asserted_facts(modality: str) -> None
 def test_claim_axes_compile_onto_edges() -> None:
     done = _record(_claim("t1", modality="planned", outcome="done"), parents=["t1"])
     negated = _record(_claim("t2", modality="negated"), parents=["t2"])
-    compiled = EdgeCompiler().compile([done, negated], NS)
+    ids = {  # RM-130: the recorded entity links (canonical name -> opaque id)
+        r.record_id: {n: f"ent:{NS}:id-{n}" for n in ("alice", "apollo")} for r in (done, negated)
+    }
+    compiled = EdgeCompiler().compile([done, negated], NS, entity_ids=ids)
     by_record: dict[str, list[Any]] = {}
     for edge in compiled.delta.edges:
         by_record.setdefault(edge.record_id, []).append(edge)
@@ -183,7 +187,10 @@ async def test_claim_axes_round_trip_through_storage_onto_edges() -> None:
         turn = await eng.write("I finished the Apollo work", namespace=NS, memory_type="episodic")
         claim = _claim(turn.record_id, modality="planned", outcome="done")
         rec = _record(claim, parents=[turn.record_id])
-        await eng._require_started().upsert_record(rec)
+        # through the deposit door, so the WRITE event carries its RM-130 entity links
+        rec = await write_derived(
+            eng, eng._require_started(), NS, rec, "summary", "system", parents=[turn.record_id]
+        )
         stored = await eng.get_envelope(rec.record_id, NS)
         assert stored is not None
         assert (stored.assessment.modality, stored.status, stored.outcome) == (
