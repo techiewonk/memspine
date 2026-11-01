@@ -114,6 +114,18 @@ row.hidden=!row.textContent.toLowerCase().includes(query);}});}});</script></htm
 """
 
 
+DASHBOARD = ROOT / "docs/v2/task_decision_dashboard.html"
+
+
+def _dashboard() -> str:
+    """The owner-decision dashboard, rendered from the register on disk (lazy: it imports us)."""
+    if __package__:
+        from scripts.build_task_decision_dashboard import build
+    else:
+        from build_task_decision_dashboard import build
+    return build()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--check", action="store_true", help="validate totals/view without writing")
@@ -130,10 +142,13 @@ def main() -> None:
             raise SystemExit("task summary is stale; run python scripts/refresh_tracker.py")
         if not args.output.exists() or args.output.read_text(encoding="utf-8") != page:
             raise SystemExit("read-only view is stale; run python scripts/refresh_tracker.py")
+        if not DASHBOARD.exists() or DASHBOARD.read_text(encoding="utf-8") != _dashboard():
+            raise SystemExit("decision dashboard is stale; run python scripts/refresh_tracker.py")
     else:
         SOURCE.write_text(updated, encoding="utf-8")
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(page, encoding="utf-8")
+        DASHBOARD.write_text(_dashboard(), encoding="utf-8")
     print(f"{'Checked' if args.check else 'Refreshed'} {len(rows)} tasks from {SOURCE}")
     print(dict(Counter(row[1] for row in rows)))
 
