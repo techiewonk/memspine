@@ -62,6 +62,8 @@ __all__ = [
 
 Clock = Callable[[], datetime]
 ScopeKey = tuple[str, str, str]
+#: A custom picker claims its chosen job atomically; a claimer that lost that job picks again.
+_CLAIM_RACE_ATTEMPTS = 3
 
 TRANSITIONS: Mapping[str, frozenset[str]] = {
     "queued": frozenset({"running", "cancelled"}),
@@ -195,18 +197,75 @@ class DrainPlan:
     keep_queued: tuple[str, ...]
 
 
+ExcludeKeys = Collection[tuple[ScopeKey, str]]
+
+
 @runtime_checkable
 class JobStore(Protocol):
-    """Persistence behind the book. A real store makes each call atomic."""
+    """Persistence behind the book. A real store makes each call atomic.
+
+    RM-159: the book never lists every job on a hot path. ``live_jobs``, ``expired_leases`` and
+    ``claim_job`` return only the rows they concern (an SQL store answers them from indexes),
+    and ``claim_job`` is one atomic step: it leases the oldest ready job (FIFO by ``seq``; or the
+    named ``job_id``, for a custom picker), bumps its epoch, freezes it and records the snapshot
+    target in the progress row. ``jobs`` stays for inspection only."""
 
     def next_seq(self) -> int: ...
     def put_job(self, job: Job) -> None: ...
+    def put_job_if(self, job: Job, *, state: str, epoch: int) -> bool: ...
     def get_job(self, job_id: str) -> Job | None: ...
-    def jobs(self) -> list[Job]: ...  # ordered by seq
+    def jobs(self) -> list[Job]: ...  # ordered by seq; inspection, never a hot path
+    def live_jobs(self, scope: ScopeKey | None = None, stage: str | None = None) -> list[Job]: ...
+    def expired_leases(self, now: datetime) -> list[Job]: ...
+    def claimable(
+        self,
+        now: datetime,
+        *,
+        scope: ScopeKey | None = None,
+        stage: str | None = None,
+        exclude: ExcludeKeys = (),
+    ) -> list[Job]: ...
+    def claim_job(
+        self,
+        owner: str,
+        now: datetime,
+        until: datetime,
+        *,
+        scope: ScopeKey | None = None,
+        stage: str | None = None,
+        exclude: ExcludeKeys = (),
+        job_id: str | None = None,
+    ) -> Job | None: ...
     def get_progress(self, key: tuple[ScopeKey, str]) -> Progress | None: ...
     def put_progress(self, progress: Progress) -> None: ...
     def append_log(self, event: FenceEvent) -> None: ...
     def log(self) -> list[FenceEvent]: ...
+
+
+def ready_candidates(
+    live: Sequence[Job],
+    now: datetime,
+    *,
+    scope: ScopeKey | None = None,
+    stage: str | None = None,
+    exclude: ExcludeKeys = (),
+) -> list[Job]:
+    """The claim rule over live jobs (seq order): per (scope, stage) key with no running job and
+    not excluded, the oldest queued job whose backoff ended. The FIFO claim takes the one with
+    the smallest ``seq``; an SQL store states the same rule as one query."""
+    running = {j.key for j in live if j.state == "running"}
+    by_key: dict[tuple[ScopeKey, str], Job] = {}
+    for j in sorted(live, key=lambda j: j.seq):  # the frozen retry precedes its follow-up
+        if j.state != "queued" or j.key in running or j.key in by_key or j.key in exclude:
+            continue
+        if scope is not None and scope_key(j.scope) != scope:
+            continue
+        if stage is not None and j.stage != stage:
+            continue
+        if j.not_before is not None and j.not_before > now:
+            continue
+        by_key[j.key] = j
+    return list(by_key.values())
 
 
 class InMemoryJobStore:
@@ -228,8 +287,79 @@ class InMemoryJobStore:
     def get_job(self, job_id: str) -> Job | None:
         return self._jobs.get(job_id)
 
+    def put_job_if(self, job: Job, *, state: str, epoch: int) -> bool:
+        current = self._jobs.get(job.job_id)
+        if current is None or current.state != state or current.epoch != epoch:
+            return False
+        self._jobs[job.job_id] = job
+        return True
+
     def jobs(self) -> list[Job]:
         return sorted(self._jobs.values(), key=lambda j: j.seq)
+
+    def live_jobs(self, scope: ScopeKey | None = None, stage: str | None = None) -> list[Job]:
+        return [
+            j
+            for j in self.jobs()
+            if j.state in LIVE
+            and (scope is None or scope_key(j.scope) == scope)
+            and (stage is None or j.stage == stage)
+        ]
+
+    def expired_leases(self, now: datetime) -> list[Job]:
+        return [
+            j
+            for j in self.live_jobs()
+            if j.state == "running" and j.lease_until is not None and j.lease_until <= now
+        ]
+
+    def claimable(
+        self,
+        now: datetime,
+        *,
+        scope: ScopeKey | None = None,
+        stage: str | None = None,
+        exclude: ExcludeKeys = (),
+    ) -> list[Job]:
+        return ready_candidates(
+            self.live_jobs(scope, stage), now, scope=scope, stage=stage, exclude=exclude
+        )
+
+    def claim_job(
+        self,
+        owner: str,
+        now: datetime,
+        until: datetime,
+        *,
+        scope: ScopeKey | None = None,
+        stage: str | None = None,
+        exclude: ExcludeKeys = (),
+        job_id: str | None = None,
+    ) -> Job | None:
+        ready = self.claimable(now, scope=scope, stage=stage, exclude=exclude)
+        if job_id is not None:
+            ready = [j for j in ready if j.job_id == job_id]
+        if not ready:
+            return None
+        chosen = min(ready, key=lambda j: j.seq)
+        job = replace(
+            chosen,
+            state="running",
+            frozen=True,
+            epoch=chosen.epoch + 1,
+            lease_owner=owner,
+            lease_acquired_at=now,
+            lease_heartbeat_at=now,
+            lease_until=until,
+            not_before=None,
+        )
+        self._jobs[job.job_id] = job
+        prog = self._progress.get(job.key) or Progress(
+            scope=job.scope, job_kind=job.stage, watermark=-1
+        )
+        target = max(job.target_offset, prog.watermark)
+        self._progress[job.key] = prog.model_copy(update={"target_offset": target})
+        return job
 
     def get_progress(self, key: tuple[ScopeKey, str]) -> Progress | None:
         return self._progress.get(key)
@@ -372,14 +502,7 @@ class JobBook:
         return p if p is not None else Progress(scope=scope, job_kind=stage, watermark=-1)
 
     def live_jobs(self, scope: OwnerScope | None = None, stage: str | None = None) -> list[Job]:
-        k = None if scope is None else scope_key(scope)
-        return [
-            j
-            for j in self.store.jobs()
-            if j.state in LIVE
-            and (k is None or scope_key(j.scope) == k)
-            and (stage is None or j.stage == stage)
-        ]
+        return self.store.live_jobs(None if scope is None else scope_key(scope), stage)
 
     def queue_depth(self, scope: OwnerScope | None = None) -> int:
         """Accepted, unfinished work (queued + running); the number QuotaPolicy compares to its cap."""
@@ -444,48 +567,38 @@ class JobBook:
     ) -> Claim | None:
         """Lease the next ready job. One running job per (scope, stage). Expired leases are reclaimed
         first. The first claim freezes the snapshot target. ``exclude`` names ``(scope, stage)``
-        keys this caller already met a transient fence on, so one drain moves on to other scopes."""
+        keys this caller already met a transient fence on, so one drain moves on to other scopes.
+
+        The lease is one atomic store step (``JobStore.claim_job``, RM-159): two claimers never
+        both win a job, and never hold two jobs of one key. With a custom picker the book picks
+        among ``claimable`` and claims that job atomically; a lost race picks again."""
         if ttl <= timedelta(0):
             raise ValueError("ttl must be positive")
         self.expire_leases()
         now = self.clock()
-        jobs = self.store.jobs()
-        running = {j.key for j in jobs if j.state == "running"}
-        by_key: dict[tuple[ScopeKey, str], Job] = {}
-        for j in jobs:  # oldest queued per key (the frozen retry precedes its follow-up)
-            if j.state != "queued" or j.key in running or j.key in by_key or j.key in exclude:
-                continue
-            if scope is not None and scope_key(j.scope) != scope_key(scope):
-                continue
-            if stage is not None and j.stage != stage:
-                continue
-            if j.not_before is not None and j.not_before > now:
-                continue
-            by_key[j.key] = j
-        if not by_key:
-            return None
-        chosen = self.picker.pick(list(by_key.values()))
-        epoch = chosen.epoch + 1
         until = now + ttl
-        job = self._put(
-            chosen,
-            "running",
-            frozen=True,
-            epoch=epoch,
-            lease_owner=owner,
-            lease_acquired_at=now,
-            lease_heartbeat_at=now,
-            lease_until=until,
-            not_before=None,
-        )
-        prog = self.progress(job.scope, job.stage)
-        target = max(job.target_offset, prog.watermark)
-        self.store.put_progress(prog.model_copy(update={"target_offset": target}))
+        k = None if scope is None else scope_key(scope)
+        job: Job | None = None
+        if isinstance(self.picker, _Fifo):
+            job = self.store.claim_job(owner, now, until, scope=k, stage=stage, exclude=exclude)
+        else:
+            for _ in range(_CLAIM_RACE_ATTEMPTS):
+                ready = self.store.claimable(now, scope=k, stage=stage, exclude=exclude)
+                if not ready:
+                    return None
+                chosen = self.picker.pick(ready)
+                job = self.store.claim_job(
+                    owner, now, until, scope=k, stage=stage, exclude=exclude, job_id=chosen.job_id
+                )
+                if job is not None:
+                    break
+        if job is None:
+            return None
         lease = JobLease(
             scope=job.scope,
             job_id=job.job_id,
             owner=owner,
-            epoch=epoch,
+            epoch=job.epoch,
             acquired_at=now,
             heartbeat_at=now,
             lease_until=until,
@@ -504,12 +617,18 @@ class JobBook:
 
     def expire_leases(self) -> list[str]:
         """Make running jobs whose lease ran out reclaimable. A lost lease counts as an attempt; an
-        exhausted job fails terminally and its range becomes holes."""
+        exhausted job fails terminally and its range becomes holes.
+
+        Each transition is conditional on the state and epoch read (``put_job_if``), so a
+        process that expired a lease and re-claimed the job is never overwritten by a second
+        process expiring the same, already stale, row."""
         now = self.clock()
         out: list[str] = []
-        for j in self.store.jobs():
-            if j.state == "running" and j.lease_until is not None and j.lease_until <= now:
-                self._retry_or_fail(j, "lease expired", "raised", retryable=True, backoff=False)
+        for j in self.store.expired_leases(now):
+            done = self._retry_or_fail(
+                j, "lease expired", "raised", retryable=True, backoff=False, expect=True
+            )
+            if done is not None:
                 out.append(j.job_id)
         return out
 
@@ -595,9 +714,37 @@ class JobBook:
             return refused or FenceResult(False, "unknown job")
         return FenceResult(True, None, self._retry_or_fail(job, error, failure_class, retryable))
 
+    def _put_if(self, job: Job, new_state: JobState, **changes: Any) -> Job | None:
+        """``_put`` conditional on ``job`` still being the stored state and epoch."""
+        if new_state not in TRANSITIONS[job.state]:
+            raise IllegalTransition(f"{job.job_id}: {job.state} -> {new_state}")
+        out = replace(job, state=new_state, **changes)
+        return out if self.store.put_job_if(out, state=job.state, epoch=job.epoch) else None
+
+    def _fail_range(self, job: Job, error: str, failure_class: str) -> None:
+        rng = self._range(job)
+        prog = self.progress(job.scope, job.stage)
+        if len(rng) or prog.target_offset is not None:
+            self._advance(
+                job,
+                max(job.target_offset, prog.watermark),
+                {o: (failure_class, error) for o in rng},
+                finish=True,
+            )
+
     def _retry_or_fail(
-        self, job: Job, error: str, failure_class: str, retryable: bool, *, backoff: bool = True
-    ) -> Job:
+        self,
+        job: Job,
+        error: str,
+        failure_class: str,
+        retryable: bool,
+        *,
+        backoff: bool = True,
+        expect: bool = False,
+    ) -> Job | None:
+        """Requeue within the budget, else fail and turn the range into holes. With ``expect``
+        the transition is conditional (``_put_if``) and None means another process got there
+        first; the range is then left to whoever owns the job now."""
         if failure_class not in FAILURE_CLASSES:
             raise ValueError(f"unknown failure class {failure_class!r}")
         attempts = job.attempts + 1
@@ -610,16 +757,15 @@ class JobBook:
         }
         if retryable and attempts < self.budget.max_attempts:
             wait = self.budget.backoff(attempts) if backoff else timedelta(0)
+            if expect:
+                return self._put_if(job, "queued", not_before=self.clock() + wait, **base)
             return self._put(job, "queued", not_before=self.clock() + wait, **base)
-        rng = self._range(job)
-        prog = self.progress(job.scope, job.stage)
-        if len(rng) or prog.target_offset is not None:
-            self._advance(
-                job,
-                max(job.target_offset, prog.watermark),
-                {o: (failure_class, error) for o in rng},
-                finish=True,
-            )
+        if expect:
+            failed = self._put_if(job, "failed", **base)
+            if failed is not None:
+                self._fail_range(job, error, failure_class)
+            return failed
+        self._fail_range(job, error, failure_class)
         return self._put(job, "failed", **base)
 
     def release(self, job_id: str, epoch: int) -> FenceResult:
@@ -715,7 +861,7 @@ class JobBook:
         now = self.clock()
         budget = (deadline - now).total_seconds()
         finish, release, queued = [], [], []  # type: ignore[var-annotated]  # CI-GREEN: pre-existing typing debt
-        for j in self.store.jobs():
+        for j in self.store.live_jobs():
             if j.state == "queued":
                 queued.append(j.job_id)
             elif j.state == "running":

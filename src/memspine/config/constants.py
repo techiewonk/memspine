@@ -941,6 +941,11 @@ MONGOD_REPLICA_SET = "rs0"
 # RM-142 (ADR-090 discovery): an outbox item that a policy activation superseded carries this
 # payload key; the runner skips it at selection time and discovery points at the replacement.
 OUTBOX_CANCELLED_KEY = "cancelled_by_policy_revision"
+# RM-159 (docs/provider_verification/perf-pa053-write-path-profile-2026-11-02.json): finished job
+# rows (succeeded, failed, cancelled, coalesced) are pruned once the watermark passed them and no
+# open hole needs them; the newest this-many per (scope, stage) stay so recent job handles remain
+# inspectable. Bounds the job table per key; not tuned.
+OUTBOX_FINISHED_JOBS_KEPT = 16
 # RM-142: the discovery row of an applied intent that had no raw records (all turns excluded):
 # discovered, with no outbox item.
 DISCOVERY_NO_WORK_OFFSET = -1

@@ -16,10 +16,16 @@ Tables (own ``MetaData``, so the v1 baseline is untouched; revision ``0006`` cre
 ``outbox_source_membership`` version/hash/erasure source state used by the effect door.
 
 Synchronous Core on its own sync engine (the storage layer is async; ``JobBook`` is not). Each store
-call is one short transaction. Under the inline runner all book calls run on the event-loop thread,
-which makes a multi-call book operation atomic inside the process; cross-process safety is the
-fenced commit, and a transport with real concurrency (RT-01) brings its own claim query.
+call is one short transaction. Under the inline runner book mutations run one at a time (the book
+lock), which makes a multi-call book operation atomic inside the process; cross-process safety is
+the fenced commit plus the atomic claim (RM-159): ``claim_job`` is one ``UPDATE ... RETURNING``
+(SQLite under ``BEGIN IMMEDIATE``, Postgres ``FOR UPDATE SKIP LOCKED``) and the partial unique
+index ``ux_outbox_running_key`` keeps one running job per (scope, stage) in the database.
 SQLite and Postgres share the SQL: only the engine differs.
+
+RM-159: no hot path lists the job table. Claim, expired leases and live jobs are indexed
+queries, and ``prune_finished`` drops finished job rows that no watermark, hole or handle still
+needs, so the per-write job-store work does not grow with the messages ever ingested.
 
 The effect door (``authorize_effects`` / ``finalize_effects`` against ``erase_source`` and
 ``mark_sources``) is a fenced read-check-write: each of those calls runs in ``_fenced_tx``,
@@ -46,17 +52,30 @@ from typing import Any
 
 from sqlalchemy import (
     Table,
+    and_,
     delete,
     func,
     insert,
+    not_,
+    or_,
     select,
     update,
 )
 from sqlalchemy.engine import Connection, Engine
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import StaticPool
 
 from memspine.observability import tap
-from memspine.runtime.jobs import FenceEvent, Job, ScopeKey, scope_key
+from memspine.runtime.jobs import (
+    LIVE,
+    TERMINAL,
+    ExcludeKeys,
+    FenceEvent,
+    Job,
+    ScopeKey,
+    ready_candidates,
+    scope_key,
+)
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.ingestion import AnnotationBatch, IngestionSourceSnapshot
 from memspine.schemas.durable.jobs import Hole, Progress
@@ -228,6 +247,23 @@ def _scope_where(table: Table, scope: OwnerScope) -> list[Any]:
     ]
 
 
+def _key_where(table: Any, scope: ScopeKey | None, stage: str | None) -> list[Any]:
+    """Filters on an ``outbox`` table (or alias) for an optional scope key and stage."""
+    out: list[Any] = []
+    if scope is not None:
+        tenant, owner, kind = scope
+        out += [table.c.tenant == tenant, table.c.owner == owner, table.c.owner_kind == kind]
+    if stage is not None:
+        out.append(table.c.stage == stage)
+    return out
+
+
+_LIVE: tuple[str, ...] = tuple(sorted(LIVE))
+_TERMINAL: tuple[str, ...] = tuple(sorted(TERMINAL))
+#: A Postgres claimer that loses the one-running-per-key race claims again (RM-159).
+_CLAIM_ATTEMPTS = 3
+
+
 class SqlJobStore:
     """``JobStore`` (``runtime.jobs``) over the outbox tables, plus the item side."""
 
@@ -338,10 +374,272 @@ class SqlJobStore:
             r = c.execute(select(outbox).where(outbox.c.job_id == job_id)).first()
         return None if r is None else _row_to_job(r)
 
+    def put_job_if(self, job: Job, *, state: str, epoch: int) -> bool:
+        """Write ``job`` only while the stored row is still in ``state`` at ``epoch``."""
+        with self._tx() as c:
+            res = c.execute(
+                update(outbox)
+                .where(
+                    outbox.c.job_id == job.job_id,
+                    outbox.c.state == state,
+                    outbox.c.epoch == epoch,
+                )
+                .values(**_job_to_row(job))
+            )
+        return int(res.rowcount or 0) == 1
+
     def jobs(self) -> list[Job]:
+        """Every job row, coalesced records included. Inspection only (RM-159): no hot path
+        lists the table; the book uses the indexed queries below."""
         with self._tx() as c:
             rows = c.execute(select(outbox).order_by(outbox.c.seq)).all()
         return [_row_to_job(r) for r in rows]
+
+    # ------------------------------------------------------------------ indexed job queries
+    def live_jobs(self, scope: ScopeKey | None = None, stage: str | None = None) -> list[Job]:
+        """Queued and running jobs (of ``scope`` / ``stage``), in seq order."""
+        with self._tx() as c:
+            rows = c.execute(
+                select(outbox)
+                .where(outbox.c.state.in_(_LIVE), *_key_where(outbox, scope, stage))
+                .order_by(outbox.c.seq)
+            ).all()
+        return [_row_to_job(r) for r in rows]
+
+    def expired_leases(self, now: datetime) -> list[Job]:
+        """Running jobs whose lease ran out at ``now``."""
+        with self._tx() as c:
+            rows = c.execute(
+                select(outbox)
+                .where(
+                    outbox.c.state == "running",
+                    outbox.c.lease_until.is_not(None),
+                    outbox.c.lease_until <= _ts(now),
+                )
+                .order_by(outbox.c.seq)
+            ).all()
+        return [_row_to_job(r) for r in rows]
+
+    def claimable(
+        self,
+        now: datetime,
+        *,
+        scope: ScopeKey | None = None,
+        stage: str | None = None,
+        exclude: ExcludeKeys = (),
+    ) -> list[Job]:
+        """The oldest ready job per key (for a custom picker; the FIFO claim is one query)."""
+        return ready_candidates(
+            self.live_jobs(scope, stage), now, scope=scope, stage=stage, exclude=exclude
+        )
+
+    @staticmethod
+    def claim_statement(
+        owner: str,
+        now: datetime,
+        until: datetime,
+        *,
+        scope: ScopeKey | None = None,
+        stage: str | None = None,
+        exclude: ExcludeKeys = (),
+        job_id: str | None = None,
+    ) -> Any:
+        """The single atomic claim: ``UPDATE outbox ... WHERE job_id = (oldest ready job)
+        RETURNING *``.
+
+        Ready means queued, its backoff (``not_before``) ended, its (scope, stage) key holds no
+        running job and is not excluded; the oldest is the smallest ``seq``. On Postgres the
+        candidate row is taken ``FOR UPDATE SKIP LOCKED`` so concurrent claimers pass over each
+        other's pick, and the partial unique index ``ux_outbox_running_key`` refuses a second
+        running job of one key; on SQLite the statement runs under ``BEGIN IMMEDIATE``
+        (``_fenced_tx``), which serialises claimers, and the clause compiles to nothing.
+        Timestamps are UTC ISO strings (``_ts``), which order lexically like the instants."""
+        cand = outbox.alias("cand")
+        run = outbox.alias("run")
+        now_s = _ts(now)
+        busy = (
+            select(run.c.job_id)
+            .where(
+                run.c.state == "running",
+                run.c.tenant == cand.c.tenant,
+                run.c.owner == cand.c.owner,
+                run.c.owner_kind == cand.c.owner_kind,
+                run.c.stage == cand.c.stage,
+            )
+            .exists()
+        )
+        where = [
+            cand.c.state == "queued",
+            or_(cand.c.not_before.is_(None), cand.c.not_before <= now_s),
+            ~busy,
+            *_key_where(cand, scope, stage),
+        ]
+        for (tenant, owner_, kind), key_stage in exclude:
+            where.append(
+                not_(
+                    and_(
+                        cand.c.tenant == tenant,
+                        cand.c.owner == owner_,
+                        cand.c.owner_kind == kind,
+                        cand.c.stage == key_stage,
+                    )
+                )
+            )
+        if job_id is not None:
+            where.append(cand.c.job_id == job_id)
+        pick = (
+            select(cand.c.job_id)
+            .where(*where)
+            .order_by(cand.c.seq)
+            .limit(1)
+            .with_for_update(skip_locked=True)
+            .scalar_subquery()
+        )
+        return (
+            update(outbox)
+            .where(outbox.c.job_id == pick, outbox.c.state == "queued")
+            .values(
+                state="running",
+                frozen=True,
+                epoch=outbox.c.epoch + 1,
+                lease_owner=owner,
+                lease_acquired_at=now_s,
+                lease_heartbeat_at=now_s,
+                lease_until=_ts(until),
+                not_before=None,
+            )
+            .returning(*outbox.c)
+        )
+
+    def claim_job(
+        self,
+        owner: str,
+        now: datetime,
+        until: datetime,
+        *,
+        scope: ScopeKey | None = None,
+        stage: str | None = None,
+        exclude: ExcludeKeys = (),
+        job_id: str | None = None,
+    ) -> Job | None:
+        """Lease the oldest ready job (or ``job_id``) atomically and freeze its snapshot target
+        in the progress row, in one transaction (RM-159; RM-150's atomic claim). A claimer that
+        loses a Postgres race to the one-running-per-key index tries again, then gives up."""
+        stmt = self.claim_statement(
+            owner, now, until, scope=scope, stage=stage, exclude=exclude, job_id=job_id
+        )
+        for attempt in range(_CLAIM_ATTEMPTS):
+            try:
+                with self._fenced_tx() as c:
+                    row = c.execute(stmt).first()
+                    if row is None:
+                        return None
+                    job = _row_to_job(row)
+                    self._freeze_target(c, job)
+                    return job
+            except IntegrityError:
+                if attempt + 1 >= _CLAIM_ATTEMPTS:
+                    return None
+        return None
+
+    @staticmethod
+    def _freeze_target(c: Connection, job: Job) -> None:
+        """Record the claimed job's snapshot target: ``max(target, watermark)``."""
+        key = [
+            *_scope_where(outbox_progress, job.scope),
+            outbox_progress.c.job_kind == job.stage,
+        ]
+        row = c.execute(select(outbox_progress.c.watermark).where(*key)).first()
+        if row is None:
+            c.execute(
+                insert(outbox_progress).values(
+                    tenant=job.scope.tenant,
+                    owner=job.scope.owner,
+                    owner_kind=job.scope.owner_kind,
+                    job_kind=job.stage,
+                    watermark=-1,
+                    target_offset=max(job.target_offset, -1),
+                    holes="[]",
+                )
+            )
+            return
+        target = max(job.target_offset, int(row.watermark))
+        c.execute(update(outbox_progress).where(*key).values(target_offset=target))
+
+    def prune_finished(self, scope: OwnerScope, stage: str, keep: int) -> int:
+        """Delete finished job rows of ``(scope, stage)`` nothing needs any more (RM-159).
+
+        A row goes only when it is terminal (succeeded, failed, cancelled, coalesced), its
+        snapshot target is at or below the watermark, it is not the job whose range recorded a
+        still-open (unwaived) hole (nor a record coalesced into it), it is not among the newest ``keep``
+        finished rows of the key (recent handles stay inspectable), and it is not the newest
+        row of the whole table (``next_seq`` reads ``max(seq)``, so a job id is never reused).
+
+        Replay, holes, erasure fences and policy activation read the progress row, the items,
+        the effect rows and the source membership, never a finished job row, so none of them
+        changes. A stale worker that still names a pruned job is refused as an unknown job."""
+        if keep < 0:
+            raise ValueError("keep must be >= 0")
+        key = [*_scope_where(outbox, scope), outbox.c.stage == stage]
+        with self._tx() as c:
+            prog = c.execute(
+                select(outbox_progress.c.watermark, outbox_progress.c.holes).where(
+                    *_scope_where(outbox_progress, scope), outbox_progress.c.job_kind == stage
+                )
+            ).first()
+            if prog is None:
+                return 0
+            finished = [*key, outbox.c.state.in_(_TERMINAL)]
+            # The job whose range recorded an open hole is the finished one with the smallest
+            # target at or past the hole offset; it (and the records coalesced into it) stays.
+            held: set[int] = set()
+            for hole in json.loads(prog.holes):
+                if hole.get("waived"):
+                    continue
+                covering = c.execute(
+                    select(func.min(outbox.c.target_offset)).where(
+                        *finished,
+                        outbox.c.state != "coalesced",  # a record's target can be stale
+                        outbox.c.target_offset >= int(hole["offset"]),
+                    )
+                ).scalar()
+                if covering is not None:
+                    held.add(int(covering))
+            cutoff = c.execute(
+                select(outbox.c.seq)
+                .where(*finished)
+                .order_by(outbox.c.seq.desc())
+                .limit(1)
+                .offset(keep)
+            ).scalar()
+            if cutoff is None:
+                return 0
+            top = c.execute(select(func.max(outbox.c.seq))).scalar()
+            where = [
+                *finished,
+                outbox.c.seq <= int(cutoff),
+                outbox.c.seq < int(top or 0),
+                outbox.c.target_offset <= int(prog.watermark),
+            ]
+            if held:
+                where.append(outbox.c.target_offset.not_in(sorted(held)))
+            res = c.execute(delete(outbox).where(*where))
+        return int(res.rowcount or 0)
+
+    def hole_scopes(self, stage: str) -> list[OwnerScope]:
+        """Scopes whose ``stage`` progress lists any hole (what a hole retry visits)."""
+        with self._tx() as c:
+            rows = c.execute(
+                select(
+                    outbox_progress.c.tenant,
+                    outbox_progress.c.owner,
+                    outbox_progress.c.owner_kind,
+                ).where(outbox_progress.c.job_kind == stage, outbox_progress.c.holes != "[]")
+            ).all()
+        return [
+            OwnerScope(tenant=row.tenant, owner=row.owner, owner_kind=row.owner_kind)
+            for row in rows
+        ]
 
     def get_progress(self, key: tuple[ScopeKey, str]) -> Progress | None:
         (tenant, owner, kind), stage = key
@@ -969,9 +1267,8 @@ class SqlJobStore:
     def live_scopes(self) -> list[tuple[OwnerScope, str]]:
         """``(scope, stage)`` pairs holding a queued or running job (what a restart resumes)."""
         seen: dict[tuple[ScopeKey, str], tuple[OwnerScope, str]] = {}
-        for j in self.jobs():
-            if j.state in ("queued", "running"):
-                seen.setdefault((scope_key(j.scope), j.stage), (j.scope, j.stage))
+        for j in self.live_jobs():
+            seen.setdefault((scope_key(j.scope), j.stage), (j.scope, j.stage))
         return list(seen.values())
 
     def prune_items(self, scope: OwnerScope, stage: str, through: int) -> int:

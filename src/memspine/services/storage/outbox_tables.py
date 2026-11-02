@@ -7,7 +7,7 @@ runtime layer. ``runtime/outbox.py`` (the job book) imports these definitions.
 
 from __future__ import annotations
 
-from sqlalchemy import Boolean, Column, Index, Integer, MetaData, String, Table, Text
+from sqlalchemy import Boolean, Column, Index, Integer, MetaData, String, Table, Text, text
 
 __all__ = [
     "OUTBOX_TABLES",
@@ -46,8 +46,23 @@ outbox = Table(
     Column("error", Text, nullable=True),
     Column("failure_class", String, nullable=True),
     Column("coalesced_into", String, nullable=True),
-    Index("ix_outbox_state", "state"),
-    Index("ix_outbox_scope_stage", "tenant", "owner", "owner_kind", "stage"),
+    # RM-159: the job book reads only the rows it needs. ``(state, seq)`` serves the FIFO
+    # claim, the live-job and expired-lease queries across scopes; the scope index serves
+    # live jobs per (scope, stage) and the finished-job prune. The partial unique index is
+    # the "one running job per (scope, stage)" rule in the database, so two claimers can
+    # never both hold a key (Postgres has no BEGIN IMMEDIATE to serialise them).
+    Index("ix_outbox_state_seq", "state", "seq"),
+    Index("ix_outbox_scope_stage_state", "tenant", "owner", "owner_kind", "stage", "state", "seq"),
+    Index(
+        "ux_outbox_running_key",
+        "tenant",
+        "owner",
+        "owner_kind",
+        "stage",
+        unique=True,
+        sqlite_where=text("state = 'running'"),
+        postgresql_where=text("state = 'running'"),
+    ),
 )
 
 outbox_progress = Table(

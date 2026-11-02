@@ -191,7 +191,7 @@ class TransportRunner(InlineRunner):
         through the book first, which spends an attempt as a lost lease always does)."""
         await self._io(self.book.expire_leases)
         sent = 0
-        for job in self.store.jobs():
+        for job in self.store.live_jobs():  # RM-159: indexed, never the whole table
             if job.state != "queued":
                 continue
             tap.event("runtime.transport.resend", job_id=job.job_id, stage=job.stage)

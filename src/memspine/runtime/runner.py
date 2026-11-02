@@ -57,6 +57,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any, Literal
 
 from memspine.config.constants import OUTBOX_CANCELLED_KEY as CANCELLED_KEY
+from memspine.config.constants import OUTBOX_FINISHED_JOBS_KEPT
 from memspine.derive.backpressure import (
     UNDERIVED_KEY,
     Backlog,
@@ -1016,6 +1017,7 @@ class InlineRunner:
         res = await self._io(self.book.commit, job.job_id, epoch)
         if not res.ok:
             raise _Fenced
+        await self._prune_finished(job.scope, job.stage)
         tap.event(
             "runtime.outbox.commit",
             job_id=job.job_id,
@@ -1135,6 +1137,7 @@ class InlineRunner:
                     if not committed.ok:
                         raise _Fenced
                     await self._io(self.book.record_hole_result, sc, stage, hole.offset, True)
+                    await self._prune_finished(sc, retry_stage)
                     report.hole_filled += 1
 
     @staticmethod
@@ -1167,11 +1170,12 @@ class InlineRunner:
     def _scopes_with_holes(self, scope: OwnerScope | None, stage: str) -> list[OwnerScope]:
         if scope is not None:
             return [scope]
-        seen: dict[tuple[str, str, str], OwnerScope] = {}
-        for j in self.store.jobs():
-            if j.stage == stage:
-                seen.setdefault((j.scope.tenant, j.scope.owner, j.scope.owner_kind), j.scope)
-        return list(seen.values())
+        return self.store.hole_scopes(stage)  # RM-159: the progress rows, not every job
+
+    async def _prune_finished(self, scope: OwnerScope, stage: str) -> None:
+        """RM-159: drop the finished job rows of ``(scope, stage)`` that nothing needs any more
+        (bounded growth); see ``SqlJobStore.prune_finished`` for what is kept."""
+        await self._io(self.store.prune_finished, scope, stage, OUTBOX_FINISHED_JOBS_KEPT)
 
     # ------------------------------------------------------------------ read barrier
     async def wait(
