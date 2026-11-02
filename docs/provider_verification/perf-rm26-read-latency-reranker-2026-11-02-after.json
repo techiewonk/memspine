@@ -1,0 +1,528 @@
+{
+  "family": "rm26-read-latency-reranker",
+  "protocol": "PA-051/ADR-096 reference-host protocol v1",
+  "command": "scripts/benchmark_engine_read_ingest.py --part read --work-dir C:/Users/hembad/AppData/Local/Temp/claude/C--Users-hembad-Documents-GitHub-memspine-restructure/e1a57500-e185-41e2-9f4e-72f3b3cc79d5/scratchpad/read --sizes 1000 10000 --max-seed-s 600 --reps 100 --warmups 10 --suffix=-after",
+  "started_at_utc": "2026-11-02T14:37:06.856304+00:00",
+  "revision": {
+    "commit": "92915cf249531f74650eafc2808f0136019c5ac6",
+    "tree": "46621258cf02cd259d72a29300f37b412cd5ad42",
+    "branch": "worktree-agent-ae7d2a5c867845191",
+    "dirty": false,
+    "dirty_paths": []
+  },
+  "diagnostic_only": false,
+  "host": {
+    "cpu_model": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "physical_cores": 16,
+    "logical_threads": 32,
+    "ram_gib": 125.6,
+    "os": "Windows-11-10.0.26340-SP0",
+    "os_release": "11",
+    "os_version": "10.0.26340",
+    "power_plan": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (High performance)",
+    "python": "3.13.5",
+    "python_build": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+    "executable": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv\\Scripts\\python.exe",
+    "packages": {
+      "memspine": "0.0.1",
+      "onnxruntime": "1.31.1",
+      "tokenizers": "0.23.3",
+      "huggingface_hub": "2.4.0",
+      "numpy": "2.5.4",
+      "lancedb": "0.41.0",
+      "tantivy": "0.27.0",
+      "sqlalchemy": "2.1.6",
+      "aiosqlite": "0.22.1",
+      "psutil": "7.2.2"
+    }
+  },
+  "load_before": {
+    "available": true,
+    "at_utc": "2026-11-02T14:37:16.098332+00:00",
+    "window_s": 2.0,
+    "cpu_percent_total": 10.4,
+    "memory_used_percent": 39.8,
+    "top_processes": [
+      {
+        "pid": 68768,
+        "name": "python.exe",
+        "cpu_percent": 94.6
+      },
+      {
+        "pid": 67116,
+        "name": "python.exe",
+        "cpu_percent": 65.1
+      },
+      {
+        "pid": 6636,
+        "name": "MsMpEng.exe",
+        "cpu_percent": 26.0
+      },
+      {
+        "pid": 42788,
+        "name": "Taskmgr.exe",
+        "cpu_percent": 16.2
+      },
+      {
+        "pid": 52276,
+        "name": "claude.exe",
+        "cpu_percent": 15.4
+      },
+      {
+        "pid": 4,
+        "name": "System",
+        "cpu_percent": 13.3
+      },
+      {
+        "pid": 15760,
+        "name": "explorer.exe",
+        "cpu_percent": 10.2
+      },
+      {
+        "pid": 60036,
+        "name": "claude.exe",
+        "cpu_percent": 9.6
+      }
+    ],
+    "note": "process cpu_percent is per one logical CPU (100 = one full thread)"
+  },
+  "settings": {
+    "template": "base (rules-only, onnx bge-small, SQLite + LanceDB + Tantivy)",
+    "sizes": [
+      1000,
+      10000
+    ],
+    "max_seed_s": 600.0,
+    "reps": 100,
+    "warmups": 10,
+    "queries": "perf_protocol.corpus_queries (invented)",
+    "read": "Engine.read(query, namespace) with template defaults (replay mode, top_k 16)",
+    "rerank_on": {
+      "rerank": {
+        "chain": [
+          {
+            "provider": "onnx",
+            "settings": {}
+          }
+        ]
+      }
+    },
+    "logging": "WARNING (console INFO logging would time the terminal)"
+  },
+  "results": {
+    "corpus_1000": {
+      "seed": {
+        "requested_size": 1000,
+        "size": 1000,
+        "truncated_by_time_budget": false,
+        "max_seed_s": 600.0,
+        "sessions": 50,
+        "engine_start_ms": 1279.1,
+        "ingest_wall_s": 196.26,
+        "ingest_msgs_per_s": 5.1,
+        "ingest_call_20_turns_ms": {
+          "n": 50,
+          "warmups": 0,
+          "p50_ms": 2856.9158,
+          "p95_ms": 4506.6997,
+          "p99_ms": 41260.3675,
+          "mean_ms": 3925.222852,
+          "stdev_ms": 6436.622565,
+          "min_ms": 596.1395,
+          "max_ms": 41260.3675
+        },
+        "ingest_call_progression": [
+          {
+            "messages_before": 0,
+            "call_p50_ms": 873.8
+          },
+          {
+            "messages_before": 100,
+            "call_p50_ms": 1231.1
+          },
+          {
+            "messages_before": 200,
+            "call_p50_ms": 1767.1
+          },
+          {
+            "messages_before": 300,
+            "call_p50_ms": 2114.7
+          },
+          {
+            "messages_before": 400,
+            "call_p50_ms": 2785.2
+          },
+          {
+            "messages_before": 500,
+            "call_p50_ms": 3039.8
+          },
+          {
+            "messages_before": 600,
+            "call_p50_ms": 3598.0
+          },
+          {
+            "messages_before": 700,
+            "call_p50_ms": 3818.7
+          },
+          {
+            "messages_before": 800,
+            "call_p50_ms": 4354.1
+          },
+          {
+            "messages_before": 900,
+            "call_p50_ms": 4172.4
+          }
+        ],
+        "flush_windows_s": 31.39,
+        "flush_counters": {
+          "turns": 1000,
+          "windows": 1000,
+          "windows_processed": 1000,
+          "windows_per_session": 20.0,
+          "turns_per_window": 1.0,
+          "calls": 0,
+          "calls_per_turn": 0.0,
+          "cache_hits": 0,
+          "parse_failures": 0,
+          "call_errors": 0,
+          "sections_dropped": 0,
+          "facts_returned": 0,
+          "facts_invalid": 0,
+          "facts_ungrounded": 0,
+          "facts_uncited": 0,
+          "facts_deposited": 220,
+          "facts_skipped_parent_gone": 0,
+          "facts_deposit_errors": 0,
+          "rule_facts_returned": 220,
+          "rule_facts_unresolved": 0,
+          "edges_returned": 0,
+          "edges_invalid": 0,
+          "edges_ungrounded": 0,
+          "edges_pending": 0,
+          "episodes_deposited": 0,
+          "episodes_invalid": 0,
+          "episodes_uncited": 0,
+          "episodes_truncated": 0,
+          "windows_cancelled_forget": 0,
+          "turns_dropped_forget": 0,
+          "windows_empty": 0,
+          "turns_excluded": 0,
+          "jobs_failed": 0,
+          "jobs_abandoned": 0,
+          "sessions_closed": 50,
+          "queued": 0,
+          "segmentation": true,
+          "batches": 0,
+          "batched_windows": 0,
+          "batch_held": 0,
+          "batch_cross_window": 0,
+          "outbox": true,
+          "jobs_persisted": 0
+        },
+        "reused": false
+      },
+      "rerank_off": {
+        "rerank_chain": "[]",
+        "engine_start_ms": 428.2,
+        "read_ms": {
+          "n": 100,
+          "warmups": 10,
+          "p50_ms": 61.6304,
+          "p95_ms": 78.7464,
+          "p99_ms": 80.874,
+          "mean_ms": 62.065049,
+          "stdev_ms": 8.856393,
+          "min_ms": 46.7817,
+          "max_ms": 83.6978
+        },
+        "context_tokens_p50": 1857,
+        "context_records_last": 72,
+        "modes": {
+          "replay": 100
+        },
+        "reranker_calls_measured": 0,
+        "reranker_failures_measured": 0,
+        "rerank_model_call_ms": null,
+        "rerank_documents_per_call": null
+      },
+      "rerank_on": {
+        "rerank_chain": "[onnx MiniLM-L6]",
+        "engine_start_ms": 484.9,
+        "read_ms": {
+          "n": 100,
+          "warmups": 10,
+          "p50_ms": 84.9967,
+          "p95_ms": 101.2641,
+          "p99_ms": 105.2856,
+          "mean_ms": 85.387372,
+          "stdev_ms": 8.58025,
+          "min_ms": 66.5787,
+          "max_ms": 111.1035
+        },
+        "context_tokens_p50": 1230,
+        "context_records_last": 30,
+        "modes": {
+          "replay": 100
+        },
+        "reranker_calls_measured": 100,
+        "reranker_failures_measured": 0,
+        "rerank_model_call_ms": {
+          "n": 100,
+          "warmups": 0,
+          "p50_ms": 19.4402,
+          "p95_ms": 25.4344,
+          "p99_ms": 28.1036,
+          "mean_ms": 19.758884,
+          "stdev_ms": 3.813463,
+          "min_ms": 13.2214,
+          "max_ms": 29.9741
+        },
+        "rerank_documents_per_call": {
+          "min": 16,
+          "max": 16
+        }
+      },
+      "reranker_added_ms": {
+        "p50": 23.37,
+        "p95": 22.52,
+        "p99": 24.41
+      }
+    },
+    "corpus_10000": {
+      "seed": {
+        "requested_size": 10000,
+        "size": 2440,
+        "truncated_by_time_budget": true,
+        "max_seed_s": 600.0,
+        "sessions": 122,
+        "engine_start_ms": 217.5,
+        "ingest_wall_s": 607.46,
+        "ingest_msgs_per_s": 4.0,
+        "ingest_call_20_turns_ms": {
+          "n": 122,
+          "warmups": 0,
+          "p50_ms": 4329.0354,
+          "p95_ms": 8686.9587,
+          "p99_ms": 9436.8482,
+          "mean_ms": 4979.175177,
+          "stdev_ms": 6083.199998,
+          "min_ms": 487.0755,
+          "max_ms": 67032.7538
+        },
+        "ingest_call_progression": [
+          {
+            "messages_before": 0,
+            "call_p50_ms": 899.5
+          },
+          {
+            "messages_before": 240,
+            "call_p50_ms": 2074.9
+          },
+          {
+            "messages_before": 480,
+            "call_p50_ms": 3080.0
+          },
+          {
+            "messages_before": 720,
+            "call_p50_ms": 4487.3
+          },
+          {
+            "messages_before": 960,
+            "call_p50_ms": 4442.0
+          },
+          {
+            "messages_before": 1200,
+            "call_p50_ms": 3836.0
+          },
+          {
+            "messages_before": 1440,
+            "call_p50_ms": 8035.5
+          },
+          {
+            "messages_before": 1680,
+            "call_p50_ms": 6272.8
+          },
+          {
+            "messages_before": 1920,
+            "call_p50_ms": 4587.8
+          },
+          {
+            "messages_before": 2160,
+            "call_p50_ms": 6492.9
+          },
+          {
+            "messages_before": 2400,
+            "call_p50_ms": 8130.2
+          }
+        ],
+        "flush_windows_s": 28.8,
+        "flush_counters": {
+          "turns": 2440,
+          "windows": 2440,
+          "windows_processed": 2440,
+          "windows_per_session": 20.0,
+          "turns_per_window": 1.0,
+          "calls": 0,
+          "calls_per_turn": 0.0,
+          "cache_hits": 0,
+          "parse_failures": 0,
+          "call_errors": 0,
+          "sections_dropped": 0,
+          "facts_returned": 0,
+          "facts_invalid": 0,
+          "facts_ungrounded": 0,
+          "facts_uncited": 0,
+          "facts_deposited": 526,
+          "facts_skipped_parent_gone": 0,
+          "facts_deposit_errors": 0,
+          "rule_facts_returned": 526,
+          "rule_facts_unresolved": 0,
+          "edges_returned": 0,
+          "edges_invalid": 0,
+          "edges_ungrounded": 0,
+          "edges_pending": 0,
+          "episodes_deposited": 0,
+          "episodes_invalid": 0,
+          "episodes_uncited": 0,
+          "episodes_truncated": 0,
+          "windows_cancelled_forget": 0,
+          "turns_dropped_forget": 0,
+          "windows_empty": 0,
+          "turns_excluded": 0,
+          "jobs_failed": 0,
+          "jobs_abandoned": 0,
+          "sessions_closed": 122,
+          "queued": 0,
+          "segmentation": true,
+          "batches": 0,
+          "batched_windows": 0,
+          "batch_held": 0,
+          "batch_cross_window": 0,
+          "outbox": true,
+          "jobs_persisted": 0
+        },
+        "reused": false
+      },
+      "rerank_off": {
+        "rerank_chain": "[]",
+        "engine_start_ms": 1568.5,
+        "read_ms": {
+          "n": 100,
+          "warmups": 10,
+          "p50_ms": 159.1084,
+          "p95_ms": 202.9192,
+          "p99_ms": 490.3249,
+          "mean_ms": 166.991456,
+          "stdev_ms": 52.096613,
+          "min_ms": 116.2138,
+          "max_ms": 507.1212
+        },
+        "context_tokens_p50": 1892,
+        "context_records_last": 76,
+        "modes": {
+          "replay": 100
+        },
+        "reranker_calls_measured": 0,
+        "reranker_failures_measured": 0,
+        "rerank_model_call_ms": null,
+        "rerank_documents_per_call": null
+      },
+      "rerank_on": {
+        "rerank_chain": "[onnx MiniLM-L6]",
+        "engine_start_ms": 1570.9,
+        "read_ms": {
+          "n": 100,
+          "warmups": 10,
+          "p50_ms": 182.9515,
+          "p95_ms": 223.7144,
+          "p99_ms": 235.1812,
+          "mean_ms": 188.939428,
+          "stdev_ms": 45.232252,
+          "min_ms": 139.5757,
+          "max_ms": 586.7332
+        },
+        "context_tokens_p50": 1462,
+        "context_records_last": 25,
+        "modes": {
+          "replay": 100
+        },
+        "reranker_calls_measured": 100,
+        "reranker_failures_measured": 0,
+        "rerank_model_call_ms": {
+          "n": 100,
+          "warmups": 0,
+          "p50_ms": 22.9913,
+          "p95_ms": 31.5388,
+          "p99_ms": 36.329,
+          "mean_ms": 23.553399,
+          "stdev_ms": 4.079259,
+          "min_ms": 17.4616,
+          "max_ms": 41.8188
+        },
+        "rerank_documents_per_call": {
+          "min": 16,
+          "max": 16
+        }
+      },
+      "reranker_added_ms": {
+        "p50": 23.84,
+        "p95": 20.8,
+        "p99": -255.14
+      }
+    }
+  },
+  "notes": [],
+  "load_after": {
+    "available": true,
+    "at_utc": "2026-11-02T14:52:53.589469+00:00",
+    "window_s": 2.0,
+    "cpu_percent_total": 12.2,
+    "memory_used_percent": 45.7,
+    "top_processes": [
+      {
+        "pid": 68768,
+        "name": "python.exe",
+        "cpu_percent": 147.2
+      },
+      {
+        "pid": 68748,
+        "name": "python.exe",
+        "cpu_percent": 98.2
+      },
+      {
+        "pid": 67116,
+        "name": "python.exe",
+        "cpu_percent": 71.2
+      },
+      {
+        "pid": 4,
+        "name": "System",
+        "cpu_percent": 57.1
+      },
+      {
+        "pid": 15336,
+        "name": "iMazing.exe",
+        "cpu_percent": 24.6
+      },
+      {
+        "pid": 42788,
+        "name": "Taskmgr.exe",
+        "cpu_percent": 22.2
+      },
+      {
+        "pid": 6636,
+        "name": "MsMpEng.exe",
+        "cpu_percent": 22.0
+      },
+      {
+        "pid": 28240,
+        "name": "claude.exe",
+        "cpu_percent": 18.8
+      }
+    ],
+    "note": "process cpu_percent is per one logical CPU (100 = one full thread)"
+  },
+  "status": "completed",
+  "finished_at_utc": "2026-11-02T14:52:53.589648+00:00",
+  "wall_s": 937.491
+}

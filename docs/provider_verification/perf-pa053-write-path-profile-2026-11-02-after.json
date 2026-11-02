@@ -1,0 +1,3879 @@
+{
+  "family": "pa053-write-path-profile",
+  "protocol": "PA-051/ADR-096 reference-host protocol v1",
+  "command": "scripts/profile_write_path.py --work-dir C:/Users/hembad/AppData/Local/Temp/claude/C--Users-hembad-Documents-GitHub-memspine-restructure/e1a57500-e185-41e2-9f4e-72f3b3cc79d5/scratchpad/after --suffix=-after",
+  "started_at_utc": "2026-11-02T14:21:16.354769+00:00",
+  "revision": {
+    "commit": "92915cf249531f74650eafc2808f0136019c5ac6",
+    "tree": "46621258cf02cd259d72a29300f37b412cd5ad42",
+    "branch": "worktree-agent-ae7d2a5c867845191",
+    "dirty": false,
+    "dirty_paths": []
+  },
+  "diagnostic_only": false,
+  "host": {
+    "cpu_model": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "physical_cores": 16,
+    "logical_threads": 32,
+    "ram_gib": 125.6,
+    "os": "Windows-11-10.0.26340-SP0",
+    "os_release": "11",
+    "os_version": "10.0.26340",
+    "power_plan": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (High performance)",
+    "python": "3.13.5",
+    "python_build": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+    "executable": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv\\Scripts\\python.exe",
+    "packages": {
+      "memspine": "0.0.1",
+      "onnxruntime": "1.31.1",
+      "tokenizers": "0.23.3",
+      "huggingface_hub": "2.4.0",
+      "numpy": "2.5.4",
+      "lancedb": "0.41.0",
+      "tantivy": "0.27.0",
+      "sqlalchemy": "2.1.6",
+      "aiosqlite": "0.22.1",
+      "psutil": "7.2.2"
+    }
+  },
+  "load_before": {
+    "available": true,
+    "at_utc": "2026-11-02T14:21:27.413265+00:00",
+    "window_s": 2.0,
+    "cpu_percent_total": 23.1,
+    "memory_used_percent": 39.7,
+    "top_processes": [
+      {
+        "pid": 51380,
+        "name": "python.exe",
+        "cpu_percent": 100.0
+      },
+      {
+        "pid": 15264,
+        "name": "python.exe",
+        "cpu_percent": 99.8
+      },
+      {
+        "pid": 68768,
+        "name": "python.exe",
+        "cpu_percent": 86.5
+      },
+      {
+        "pid": 63976,
+        "name": "python.exe",
+        "cpu_percent": 65.2
+      },
+      {
+        "pid": 62300,
+        "name": "chrome.exe",
+        "cpu_percent": 36.6
+      },
+      {
+        "pid": 4,
+        "name": "System",
+        "cpu_percent": 22.3
+      },
+      {
+        "pid": 42788,
+        "name": "Taskmgr.exe",
+        "cpu_percent": 17.0
+      },
+      {
+        "pid": 2636,
+        "name": "dwm.exe",
+        "cpu_percent": 12.1
+      }
+    ],
+    "note": "process cpu_percent is per one logical CPU (100 = one full thread)"
+  },
+  "settings": {
+    "store": "the seeded PA-053 store (<work-dir>/live), base template, rules-only",
+    "reps": 10,
+    "profiler": "cProfile (main thread only; worker-thread time shows as waits)",
+    "spans": "wall-clock, inclusive, may nest; per operation averages over reps"
+  },
+  "results": {
+    "seed": {
+      "requested_size": 1000,
+      "size": 1000,
+      "truncated_by_time_budget": false,
+      "max_seed_s": 600.0,
+      "sessions": 50,
+      "engine_start_ms": 1228.0,
+      "ingest_wall_s": 197.74,
+      "ingest_msgs_per_s": 5.1,
+      "ingest_call_20_turns_ms": {
+        "n": 50,
+        "warmups": 0,
+        "p50_ms": 2816.4732,
+        "p95_ms": 4675.867,
+        "p99_ms": 61516.5796,
+        "mean_ms": 3954.812426,
+        "stdev_ms": 8410.426336,
+        "min_ms": 581.9867,
+        "max_ms": 61516.5796
+      },
+      "ingest_call_progression": [
+        {
+          "messages_before": 0,
+          "call_p50_ms": 700.9
+        },
+        {
+          "messages_before": 100,
+          "call_p50_ms": 1242.4
+        },
+        {
+          "messages_before": 200,
+          "call_p50_ms": 1624.6
+        },
+        {
+          "messages_before": 300,
+          "call_p50_ms": 2192.1
+        },
+        {
+          "messages_before": 400,
+          "call_p50_ms": 2564.6
+        },
+        {
+          "messages_before": 500,
+          "call_p50_ms": 2972.9
+        },
+        {
+          "messages_before": 600,
+          "call_p50_ms": 3621.0
+        },
+        {
+          "messages_before": 700,
+          "call_p50_ms": 4269.0
+        },
+        {
+          "messages_before": 800,
+          "call_p50_ms": 4601.1
+        },
+        {
+          "messages_before": 900,
+          "call_p50_ms": 4465.9
+        }
+      ],
+      "flush_windows_s": 30.65,
+      "flush_counters": {
+        "turns": 1000,
+        "windows": 1000,
+        "windows_processed": 1000,
+        "windows_per_session": 20.0,
+        "turns_per_window": 1.0,
+        "calls": 0,
+        "calls_per_turn": 0.0,
+        "cache_hits": 0,
+        "parse_failures": 0,
+        "call_errors": 0,
+        "sections_dropped": 0,
+        "facts_returned": 0,
+        "facts_invalid": 0,
+        "facts_ungrounded": 0,
+        "facts_uncited": 0,
+        "facts_deposited": 220,
+        "facts_skipped_parent_gone": 0,
+        "facts_deposit_errors": 0,
+        "rule_facts_returned": 220,
+        "rule_facts_unresolved": 0,
+        "edges_returned": 0,
+        "edges_invalid": 0,
+        "edges_ungrounded": 0,
+        "edges_pending": 0,
+        "episodes_deposited": 0,
+        "episodes_invalid": 0,
+        "episodes_uncited": 0,
+        "episodes_truncated": 0,
+        "windows_cancelled_forget": 0,
+        "turns_dropped_forget": 0,
+        "windows_empty": 0,
+        "turns_excluded": 0,
+        "jobs_failed": 0,
+        "jobs_abandoned": 0,
+        "sessions_closed": 50,
+        "queued": 0,
+        "segmentation": true,
+        "batches": 0,
+        "batched_windows": 0,
+        "batch_held": 0,
+        "batch_cross_window": 0,
+        "outbox": true,
+        "jobs_persisted": 0
+      },
+      "reused": false
+    },
+    "engine_start_ms": 2535.1,
+    "operations": {
+      "write": {
+        "wall_ms": {
+          "n": 10,
+          "warmups": 0,
+          "p50_ms": 293.4223,
+          "p95_ms": 343.6942,
+          "p99_ms": 343.6942,
+          "mean_ms": 303.43844,
+          "stdev_ms": 29.710452,
+          "min_ms": 260.9098,
+          "max_ms": 343.6942
+        },
+        "spans": [
+          {
+            "span": "windows.drain",
+            "calls_per_op": 0.9,
+            "ms_per_op": 57.682,
+            "per_call": {
+              "n": 9,
+              "warmups": 0,
+              "p50_ms": 74.2352,
+              "p95_ms": 85.6397,
+              "p99_ms": 85.6397,
+              "mean_ms": 64.091578,
+              "stdev_ms": 20.586692,
+              "min_ms": 35.4917,
+              "max_ms": 85.6397
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "project.LexicalProjector.apply",
+            "calls_per_op": 1.0,
+            "ms_per_op": 57.289,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 55.2768,
+              "p95_ms": 72.8699,
+              "p99_ms": 72.8699,
+              "mean_ms": 57.28934,
+              "stdev_ms": 6.749011,
+              "min_ms": 48.4684,
+              "max_ms": 72.8699
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "tantivy._index_one",
+            "calls_per_op": 1.0,
+            "ms_per_op": 56.543,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 54.5866,
+              "p95_ms": 72.0434,
+              "p99_ms": 72.0434,
+              "mean_ms": 56.54308,
+              "stdev_ms": 6.713295,
+              "min_ms": 47.778,
+              "max_ms": 72.0434
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "project.VectorProjector.apply",
+            "calls_per_op": 1.0,
+            "ms_per_op": 48.836,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 47.4898,
+              "p95_ms": 56.6355,
+              "p99_ms": 56.6355,
+              "mean_ms": 48.83611,
+              "stdev_ms": 4.407708,
+              "min_ms": 43.5479,
+              "max_ms": 56.6355
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "lancedb.upsert",
+            "calls_per_op": 1.0,
+            "ms_per_op": 48.648,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 47.293,
+              "p95_ms": 56.4486,
+              "p99_ms": 56.4486,
+              "mean_ms": 48.64766,
+              "stdev_ms": 4.404263,
+              "min_ms": 43.4137,
+              "max_ms": 56.4486
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "lancedb.write_pending",
+            "calls_per_op": 1.0,
+            "ms_per_op": 48.6,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 47.2481,
+              "p95_ms": 56.4012,
+              "p99_ms": 56.4012,
+              "mean_ms": 48.59996,
+              "stdev_ms": 4.400069,
+              "min_ms": 43.3677,
+              "max_ms": 56.4012
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "sql.UPDATE",
+            "calls_per_op": 13.8,
+            "ms_per_op": 29.482,
+            "per_call": {
+              "n": 138,
+              "warmups": 0,
+              "p50_ms": 0.2169,
+              "p95_ms": 14.9659,
+              "p99_ms": 31.0483,
+              "mean_ms": 2.136379,
+              "stdev_ms": 5.937139,
+              "min_ms": 0.0241,
+              "max_ms": 33.5179
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "intake.apply_intent",
+            "calls_per_op": 1.0,
+            "ms_per_op": 27.648,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 26.0633,
+              "p95_ms": 46.8756,
+              "p99_ms": 46.8756,
+              "mean_ms": 27.64847,
+              "stdev_ms": 14.700461,
+              "min_ms": 11.1638,
+              "max_ms": 46.8756
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "sql.SELECT",
+            "calls_per_op": 37.6,
+            "ms_per_op": 25.964,
+            "per_call": {
+              "n": 376,
+              "warmups": 0,
+              "p50_ms": 0.13,
+              "p95_ms": 6.2909,
+              "p99_ms": 9.8629,
+              "mean_ms": 0.690519,
+              "stdev_ms": 1.883333,
+              "min_ms": 0.0134,
+              "max_ms": 11.8908
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.claim_job",
+            "calls_per_op": 2.8,
+            "ms_per_op": 20.737,
+            "per_call": {
+              "n": 28,
+              "warmups": 0,
+              "p50_ms": 2.5042,
+              "p95_ms": 37.8442,
+              "p99_ms": 45.2195,
+              "mean_ms": 7.406236,
+              "stdev_ms": 11.451189,
+              "min_ms": 1.5798,
+              "max_ms": 45.2195
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "windows.observe",
+            "calls_per_op": 1.0,
+            "ms_per_op": 20.297,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 17.9154,
+              "p95_ms": 32.1121,
+              "p99_ms": 32.1121,
+              "mean_ms": 20.29702,
+              "stdev_ms": 5.742202,
+              "min_ms": 14.8676,
+              "max_ms": 32.1121
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.put_draft",
+            "calls_per_op": 1.0,
+            "ms_per_op": 14.546,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 12.7862,
+              "p95_ms": 26.659,
+              "p99_ms": 26.659,
+              "mean_ms": 14.54602,
+              "stdev_ms": 4.835004,
+              "min_ms": 10.6218,
+              "max_ms": 26.659
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.BEGIN IMMEDIATE",
+            "calls_per_op": 4.8,
+            "ms_per_op": 11.676,
+            "per_call": {
+              "n": 48,
+              "warmups": 0,
+              "p50_ms": 0.0444,
+              "p95_ms": 20.9629,
+              "p99_ms": 40.2519,
+              "mean_ms": 2.432535,
+              "stdev_ms": 8.215781,
+              "min_ms": 0.019,
+              "max_ms": 40.2519
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.put_progress",
+            "calls_per_op": 2.0,
+            "ms_per_op": 11.035,
+            "per_call": {
+              "n": 20,
+              "warmups": 0,
+              "p50_ms": 1.7348,
+              "p95_ms": 17.8078,
+              "p99_ms": 32.7221,
+              "mean_ms": 5.51736,
+              "stdev_ms": 8.104005,
+              "min_ms": 1.3611,
+              "max_ms": 32.7221
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "intake.intents_by_id",
+            "calls_per_op": 3.0,
+            "ms_per_op": 8.814,
+            "per_call": {
+              "n": 30,
+              "warmups": 0,
+              "p50_ms": 1.8835,
+              "p95_ms": 7.8119,
+              "p99_ms": 9.2592,
+              "mean_ms": 2.937867,
+              "stdev_ms": 3.004426,
+              "min_ms": 0.0027,
+              "max_ms": 9.2592
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "events.set_offset",
+            "calls_per_op": 3.0,
+            "ms_per_op": 8.357,
+            "per_call": {
+              "n": 30,
+              "warmups": 0,
+              "p50_ms": 2.6727,
+              "p95_ms": 3.8821,
+              "p99_ms": 3.9331,
+              "mean_ms": 2.7856,
+              "stdev_ms": 0.647951,
+              "min_ms": 1.8422,
+              "max_ms": 3.9331
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.put_job",
+            "calls_per_op": 3.0,
+            "ms_per_op": 7.958,
+            "per_call": {
+              "n": 30,
+              "warmups": 0,
+              "p50_ms": 2.23,
+              "p95_ms": 4.3221,
+              "p99_ms": 4.3263,
+              "mean_ms": 2.6525,
+              "stdev_ms": 0.789605,
+              "min_ms": 1.7043,
+              "max_ms": 4.3263
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "discovery.discover_committed",
+            "calls_per_op": 1.0,
+            "ms_per_op": 7.368,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 6.5607,
+              "p95_ms": 9.5887,
+              "p99_ms": 9.5887,
+              "mean_ms": 7.36831,
+              "stdev_ms": 1.337883,
+              "min_ms": 5.587,
+              "max_ms": 9.5887
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "intake.discover_committed",
+            "calls_per_op": 1.0,
+            "ms_per_op": 7.355,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 6.5492,
+              "p95_ms": 9.5746,
+              "p99_ms": 9.5746,
+              "mean_ms": 7.35501,
+              "stdev_ms": 1.335601,
+              "min_ms": 5.5762,
+              "max_ms": 9.5746
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "embed.embed",
+            "calls_per_op": 2.0,
+            "ms_per_op": 7.148,
+            "per_call": {
+              "n": 20,
+              "warmups": 0,
+              "p50_ms": 0.0687,
+              "p95_ms": 8.457,
+              "p99_ms": 9.5409,
+              "mean_ms": 3.57377,
+              "stdev_ms": 3.739241,
+              "min_ms": 0.0275,
+              "max_ms": 9.5409
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "intake.record_intent",
+            "calls_per_op": 1.0,
+            "ms_per_op": 6.801,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 6.3338,
+              "p95_ms": 10.7979,
+              "p99_ms": 10.7979,
+              "mean_ms": 6.80065,
+              "stdev_ms": 2.036378,
+              "min_ms": 4.1039,
+              "max_ms": 10.7979
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.get_progress",
+            "calls_per_op": 7.8,
+            "ms_per_op": 4.859,
+            "per_call": {
+              "n": 78,
+              "warmups": 0,
+              "p50_ms": 0.5647,
+              "p95_ms": 1.2275,
+              "p99_ms": 1.5111,
+              "mean_ms": 0.622896,
+              "stdev_ms": 0.233727,
+              "min_ms": 0.2784,
+              "max_ms": 1.5111
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "project.RecordProjector.apply",
+            "calls_per_op": 1.0,
+            "ms_per_op": 4.599,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 4.6571,
+              "p95_ms": 5.5997,
+              "p99_ms": 5.5997,
+              "mean_ms": 4.5994,
+              "stdev_ms": 0.707904,
+              "min_ms": 3.1456,
+              "max_ms": 5.5997
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.mark_sources",
+            "calls_per_op": 1.0,
+            "ms_per_op": 4.164,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 2.9231,
+              "p95_ms": 13.2456,
+              "p99_ms": 13.2456,
+              "mean_ms": 4.16449,
+              "stdev_ms": 3.218812,
+              "min_ms": 2.5732,
+              "max_ms": 13.2456
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.INSERT",
+            "calls_per_op": 12.0,
+            "ms_per_op": 3.88,
+            "per_call": {
+              "n": 120,
+              "warmups": 0,
+              "p50_ms": 0.264,
+              "p95_ms": 0.8152,
+              "p99_ms": 1.5839,
+              "mean_ms": 0.323366,
+              "stdev_ms": 0.266203,
+              "min_ms": 0.0625,
+              "max_ms": 1.7142
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.COMMIT",
+            "calls_per_op": 4.8,
+            "ms_per_op": 3.85,
+            "per_call": {
+              "n": 48,
+              "warmups": 0,
+              "p50_ms": 0.2494,
+              "p95_ms": 1.7768,
+              "p99_ms": 11.6839,
+              "mean_ms": 0.80216,
+              "stdev_ms": 1.714172,
+              "min_ms": 0.0155,
+              "max_ms": 11.6839
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.prune_finished",
+            "calls_per_op": 1.0,
+            "ms_per_op": 3.36,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 3.4205,
+              "p95_ms": 4.4205,
+              "p99_ms": 4.4205,
+              "mean_ms": 3.35998,
+              "stdev_ms": 0.67635,
+              "min_ms": 2.4579,
+              "max_ms": 4.4205
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "events.append_event",
+            "calls_per_op": 1.0,
+            "ms_per_op": 2.548,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 2.6338,
+              "p95_ms": 3.3763,
+              "p99_ms": 3.3763,
+              "mean_ms": 2.548,
+              "stdev_ms": 0.526055,
+              "min_ms": 1.885,
+              "max_ms": 3.3763
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "intake.record_ids",
+            "calls_per_op": 1.0,
+            "ms_per_op": 2.452,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 2.3044,
+              "p95_ms": 3.3253,
+              "p99_ms": 3.3253,
+              "mean_ms": 2.45193,
+              "stdev_ms": 0.461729,
+              "min_ms": 1.9795,
+              "max_ms": 3.3253
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.expired_leases",
+            "calls_per_op": 2.9,
+            "ms_per_op": 1.93,
+            "per_call": {
+              "n": 29,
+              "warmups": 0,
+              "p50_ms": 0.6277,
+              "p95_ms": 1.027,
+              "p99_ms": 1.1422,
+              "mean_ms": 0.665683,
+              "stdev_ms": 0.17794,
+              "min_ms": 0.3456,
+              "max_ms": 1.1422
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.get_job",
+            "calls_per_op": 3.0,
+            "ms_per_op": 1.819,
+            "per_call": {
+              "n": 30,
+              "warmups": 0,
+              "p50_ms": 0.4962,
+              "p95_ms": 1.1865,
+              "p99_ms": 2.3855,
+              "mean_ms": 0.60631,
+              "stdev_ms": 0.386286,
+              "min_ms": 0.2816,
+              "max_ms": 2.3855
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.last_offset",
+            "calls_per_op": 1.9,
+            "ms_per_op": 1.566,
+            "per_call": {
+              "n": 19,
+              "warmups": 0,
+              "p50_ms": 0.8315,
+              "p95_ms": 1.1542,
+              "p99_ms": 1.1542,
+              "mean_ms": 0.824363,
+              "stdev_ms": 0.194959,
+              "min_ms": 0.4543,
+              "max_ms": 1.1542
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.live_jobs",
+            "calls_per_op": 1.0,
+            "ms_per_op": 1.144,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.9857,
+              "p95_ms": 1.6962,
+              "p99_ms": 1.6962,
+              "mean_ms": 1.14354,
+              "stdev_ms": 0.366472,
+              "min_ms": 0.6651,
+              "max_ms": 1.6962
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.has_source",
+            "calls_per_op": 2.0,
+            "ms_per_op": 1.008,
+            "per_call": {
+              "n": 20,
+              "warmups": 0,
+              "p50_ms": 0.4978,
+              "p95_ms": 0.7063,
+              "p99_ms": 0.8257,
+              "mean_ms": 0.50402,
+              "stdev_ms": 0.121848,
+              "min_ms": 0.3047,
+              "max_ms": 0.8257
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.get_item",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.637,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.5947,
+              "p95_ms": 0.9038,
+              "p99_ms": 0.9038,
+              "mean_ms": 0.63744,
+              "stdev_ms": 0.111368,
+              "min_ms": 0.5099,
+              "max_ms": 0.9038
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.next_seq",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.531,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.4666,
+              "p95_ms": 0.8216,
+              "p99_ms": 0.8216,
+              "mean_ms": 0.53103,
+              "stdev_ms": 0.162005,
+              "min_ms": 0.3508,
+              "max_ms": 0.8216
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.DELETE",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.121,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.1069,
+              "p95_ms": 0.2175,
+              "p99_ms": 0.2175,
+              "mean_ms": 0.12124,
+              "stdev_ms": 0.047781,
+              "min_ms": 0.0764,
+              "max_ms": 0.2175
+            },
+            "threads": [
+              "worker"
+            ]
+          }
+        ],
+        "top20_cumulative": [
+          {
+            "function": "events.py:87(_run)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/asyncio/events.py",
+            "ncalls": 7529,
+            "tottime_ms": 8.4,
+            "cumtime_ms": 2174.7
+          },
+          {
+            "function": "proactor_events.py:789(_loop_self_reading)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/asyncio/proactor_events.py",
+            "ncalls": 2187,
+            "tottime_ms": 808.12,
+            "cumtime_ms": 1098.51
+          },
+          {
+            "function": "tantivy.py:165(_index_one)",
+            "path": "memspine/services/lexical/tantivy.py",
+            "ncalls": 10,
+            "tottime_ms": 0.13,
+            "cumtime_ms": 565.33
+          },
+          {
+            "function": "connector.py:261(commit)",
+            "path": "memspine/clients/tantivy/connector.py",
+            "ncalls": 10,
+            "tottime_ms": 0.16,
+            "cumtime_ms": 564.53
+          },
+          {
+            "function": "base_events.py:1962(_run_once)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/asyncio/base_events.py",
+            "ncalls": 4868,
+            "tottime_ms": 98.78,
+            "cumtime_ms": 551.43
+          },
+          {
+            "function": "lancedb_store.py:336(<lambda>)",
+            "path": "memspine/services/vector/lancedb_store.py",
+            "ncalls": 10,
+            "tottime_ms": 0.1,
+            "cumtime_ms": 482.45
+          },
+          {
+            "function": "merge.py:158(execute)",
+            "path": "lancedb/merge.py",
+            "ncalls": 10,
+            "tottime_ms": 0.03,
+            "cumtime_ms": 482.29
+          },
+          {
+            "function": "table.py:4923(_do_merge)",
+            "path": "lancedb/table.py",
+            "ncalls": 10,
+            "tottime_ms": 0.16,
+            "cumtime_ms": 482.26
+          },
+          {
+            "function": "profile_write_path.py:88(wrapper)",
+            "path": "C:/Users/hembad/Documents/GitHub/memspine/.claude/worktrees/agent-ae7d2a5c867845191/scripts/profile_write_path.py",
+            "ncalls": 322,
+            "tottime_ms": 3.88,
+            "cumtime_ms": 424.87
+          },
+          {
+            "function": "~:0(<method 'run' of '_contextvars.Context' objects>)",
+            "path": "~",
+            "ncalls": 7535,
+            "tottime_ms": 115.55,
+            "cumtime_ms": 394.52
+          },
+          {
+            "function": "connector.py:93(commit_with_retry)",
+            "path": "memspine/clients/tantivy/connector.py",
+            "ncalls": 10,
+            "tottime_ms": 0.08,
+            "cumtime_ms": 344.47
+          },
+          {
+            "function": "~:0(<method 'commit' of 'tantivy.tantivy.IndexWriter' objects>)",
+            "path": "~",
+            "ncalls": 10,
+            "tottime_ms": 344.39,
+            "cumtime_ms": 344.39
+          },
+          {
+            "function": "concurrency.py:75(inner)",
+            "path": "memspine/services/concurrency.py",
+            "ncalls": 1861,
+            "tottime_ms": 2.08,
+            "cumtime_ms": 336.66
+          },
+          {
+            "function": "thread.py:54(run)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/concurrent/futures/thread.py",
+            "ncalls": 156,
+            "tottime_ms": 0.64,
+            "cumtime_ms": 281.55
+          },
+          {
+            "function": "windows_events.py:444(select)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/asyncio/windows_events.py",
+            "ncalls": 4865,
+            "tottime_ms": 5.92,
+            "cumtime_ms": 262.48
+          },
+          {
+            "function": "profile_write_path.py:246(run)",
+            "path": "C:/Users/hembad/Documents/GitHub/memspine/.claude/worktrees/agent-ae7d2a5c867845191/scripts/profile_write_path.py",
+            "ncalls": 1855,
+            "tottime_ms": 3.07,
+            "cumtime_ms": 248.66
+          },
+          {
+            "function": "bindings.py:169(inner)",
+            "path": "memspine/observability/bindings.py",
+            "ncalls": 4243,
+            "tottime_ms": 5.02,
+            "cumtime_ms": 234.76
+          },
+          {
+            "function": "windows_events.py:762(_poll)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/asyncio/windows_events.py",
+            "ncalls": 4866,
+            "tottime_ms": 148.36,
+            "cumtime_ms": 226.05
+          },
+          {
+            "function": "~:0(<method 'reload' of 'tantivy.tantivy.Index' objects>)",
+            "path": "~",
+            "ncalls": 10,
+            "tottime_ms": 219.88,
+            "cumtime_ms": 219.88
+          },
+          {
+            "function": "write.py:237(write)",
+            "path": "memspine/ingest/write.py",
+            "ncalls": 2650,
+            "tottime_ms": 3.7,
+            "cumtime_ms": 213.91
+          }
+        ]
+      },
+      "ingest_one": {
+        "wall_ms": {
+          "n": 10,
+          "warmups": 0,
+          "p50_ms": 300.3523,
+          "p95_ms": 391.4318,
+          "p99_ms": 391.4318,
+          "mean_ms": 308.01084,
+          "stdev_ms": 34.299645,
+          "min_ms": 275.6505,
+          "max_ms": 391.4318
+        },
+        "spans": [
+          {
+            "span": "lancedb.write_pending",
+            "calls_per_op": 1.0,
+            "ms_per_op": 56.58,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 53.6016,
+              "p95_ms": 76.067,
+              "p99_ms": 76.067,
+              "mean_ms": 56.57976,
+              "stdev_ms": 7.963323,
+              "min_ms": 48.0295,
+              "max_ms": 76.067
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "windows.drain",
+            "calls_per_op": 1.0,
+            "ms_per_op": 50.389,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 50.9756,
+              "p95_ms": 59.7593,
+              "p99_ms": 59.7593,
+              "mean_ms": 50.38899,
+              "stdev_ms": 6.985033,
+              "min_ms": 40.3364,
+              "max_ms": 59.7593
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "tantivy._commit_if_pending",
+            "calls_per_op": 1.0,
+            "ms_per_op": 47.667,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 39.8354,
+              "p95_ms": 84.9755,
+              "p99_ms": 84.9755,
+              "mean_ms": 47.66727,
+              "stdev_ms": 16.41522,
+              "min_ms": 34.1625,
+              "max_ms": 84.9755
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.SELECT",
+            "calls_per_op": 42.0,
+            "ms_per_op": 28.486,
+            "per_call": {
+              "n": 420,
+              "warmups": 0,
+              "p50_ms": 0.1628,
+              "p95_ms": 1.3266,
+              "p99_ms": 11.5874,
+              "mean_ms": 0.678241,
+              "stdev_ms": 2.077276,
+              "min_ms": 0.0143,
+              "max_ms": 14.5711
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "windows.observe",
+            "calls_per_op": 1.0,
+            "ms_per_op": 24.305,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 22.6257,
+              "p95_ms": 34.4985,
+              "p99_ms": 34.4985,
+              "mean_ms": 24.30502,
+              "stdev_ms": 5.052589,
+              "min_ms": 18.3432,
+              "max_ms": 34.4985
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.put_draft",
+            "calls_per_op": 1.0,
+            "ms_per_op": 17.725,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 15.8546,
+              "p95_ms": 27.7479,
+              "p99_ms": 27.7479,
+              "mean_ms": 17.72522,
+              "stdev_ms": 4.390819,
+              "min_ms": 12.052,
+              "max_ms": 27.7479
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.UPDATE",
+            "calls_per_op": 14.0,
+            "ms_per_op": 15.237,
+            "per_call": {
+              "n": 140,
+              "warmups": 0,
+              "p50_ms": 0.2199,
+              "p95_ms": 5.4646,
+              "p99_ms": 15.7384,
+              "mean_ms": 1.088371,
+              "stdev_ms": 2.72755,
+              "min_ms": 0.029,
+              "max_ms": 16.3647
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.put_job",
+            "calls_per_op": 3.0,
+            "ms_per_op": 14.795,
+            "per_call": {
+              "n": 30,
+              "warmups": 0,
+              "p50_ms": 2.1746,
+              "p95_ms": 19.0725,
+              "p99_ms": 19.7787,
+              "mean_ms": 4.931767,
+              "stdev_ms": 5.68027,
+              "min_ms": 1.7209,
+              "max_ms": 19.7787
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "events.set_offset",
+            "calls_per_op": 3.0,
+            "ms_per_op": 14.439,
+            "per_call": {
+              "n": 30,
+              "warmups": 0,
+              "p50_ms": 3.6888,
+              "p95_ms": 8.6636,
+              "p99_ms": 9.1947,
+              "mean_ms": 4.813037,
+              "stdev_ms": 1.984801,
+              "min_ms": 2.5154,
+              "max_ms": 9.1947
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "intake.apply_intent",
+            "calls_per_op": 1.0,
+            "ms_per_op": 10.247,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 10.3811,
+              "p95_ms": 12.1307,
+              "p99_ms": 12.1307,
+              "mean_ms": 10.24705,
+              "stdev_ms": 1.533039,
+              "min_ms": 7.5051,
+              "max_ms": 12.1307
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "intake.record_intent",
+            "calls_per_op": 1.0,
+            "ms_per_op": 10.081,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 8.2073,
+              "p95_ms": 23.493,
+              "p99_ms": 23.493,
+              "mean_ms": 10.08055,
+              "stdev_ms": 5.106355,
+              "min_ms": 6.8641,
+              "max_ms": 23.493
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.claim_job",
+            "calls_per_op": 3.0,
+            "ms_per_op": 10.056,
+            "per_call": {
+              "n": 30,
+              "warmups": 0,
+              "p50_ms": 2.5876,
+              "p95_ms": 5.856,
+              "p99_ms": 5.9547,
+              "mean_ms": 3.352063,
+              "stdev_ms": 1.236113,
+              "min_ms": 2.0849,
+              "max_ms": 5.9547
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "embed.embed",
+            "calls_per_op": 2.0,
+            "ms_per_op": 7.58,
+            "per_call": {
+              "n": 20,
+              "warmups": 0,
+              "p50_ms": 0.0826,
+              "p95_ms": 9.9683,
+              "p99_ms": 10.4657,
+              "mean_ms": 3.789805,
+              "stdev_ms": 4.013775,
+              "min_ms": 0.0302,
+              "max_ms": 10.4657
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "discovery.discover_committed",
+            "calls_per_op": 1.0,
+            "ms_per_op": 7.234,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 6.7912,
+              "p95_ms": 9.0042,
+              "p99_ms": 9.0042,
+              "mean_ms": 7.23407,
+              "stdev_ms": 1.222224,
+              "min_ms": 5.6193,
+              "max_ms": 9.0042
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "intake.discover_committed",
+            "calls_per_op": 1.0,
+            "ms_per_op": 7.222,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 6.778,
+              "p95_ms": 8.9887,
+              "p99_ms": 8.9887,
+              "mean_ms": 7.22183,
+              "stdev_ms": 1.220684,
+              "min_ms": 5.6096,
+              "max_ms": 8.9887
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "sql.INSERT",
+            "calls_per_op": 14.0,
+            "ms_per_op": 5.286,
+            "per_call": {
+              "n": 140,
+              "warmups": 0,
+              "p50_ms": 0.2537,
+              "p95_ms": 0.943,
+              "p99_ms": 1.8745,
+              "mean_ms": 0.377599,
+              "stdev_ms": 0.324206,
+              "min_ms": 0.0601,
+              "max_ms": 1.9688
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.get_progress",
+            "calls_per_op": 8.0,
+            "ms_per_op": 5.012,
+            "per_call": {
+              "n": 80,
+              "warmups": 0,
+              "p50_ms": 0.5323,
+              "p95_ms": 1.1017,
+              "p99_ms": 2.0394,
+              "mean_ms": 0.626466,
+              "stdev_ms": 0.274703,
+              "min_ms": 0.3429,
+              "max_ms": 2.0394
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "project.RecordProjector.apply",
+            "calls_per_op": 1.0,
+            "ms_per_op": 4.78,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 4.6768,
+              "p95_ms": 6.4498,
+              "p99_ms": 6.4498,
+              "mean_ms": 4.78001,
+              "stdev_ms": 0.878163,
+              "min_ms": 3.241,
+              "max_ms": 6.4498
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.mark_sources",
+            "calls_per_op": 1.0,
+            "ms_per_op": 4.25,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 3.3701,
+              "p95_ms": 11.715,
+              "p99_ms": 11.715,
+              "mean_ms": 4.25011,
+              "stdev_ms": 2.675936,
+              "min_ms": 2.6671,
+              "max_ms": 11.715
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "intake.intents_by_id",
+            "calls_per_op": 3.0,
+            "ms_per_op": 4.176,
+            "per_call": {
+              "n": 30,
+              "warmups": 0,
+              "p50_ms": 1.6782,
+              "p95_ms": 3.0461,
+              "p99_ms": 3.3317,
+              "mean_ms": 1.392143,
+              "stdev_ms": 1.089187,
+              "min_ms": 0.0029,
+              "max_ms": 3.3317
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "sql.COMMIT",
+            "calls_per_op": 5.0,
+            "ms_per_op": 3.482,
+            "per_call": {
+              "n": 50,
+              "warmups": 0,
+              "p50_ms": 0.2314,
+              "p95_ms": 1.4814,
+              "p99_ms": 9.2704,
+              "mean_ms": 0.696474,
+              "stdev_ms": 1.358557,
+              "min_ms": 0.0177,
+              "max_ms": 9.2704
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.put_progress",
+            "calls_per_op": 2.0,
+            "ms_per_op": 3.307,
+            "per_call": {
+              "n": 20,
+              "warmups": 0,
+              "p50_ms": 1.6063,
+              "p95_ms": 1.9306,
+              "p99_ms": 1.9391,
+              "mean_ms": 1.65337,
+              "stdev_ms": 0.16837,
+              "min_ms": 1.425,
+              "max_ms": 1.9391
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.prune_finished",
+            "calls_per_op": 1.0,
+            "ms_per_op": 3.187,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 3.0499,
+              "p95_ms": 3.771,
+              "p99_ms": 3.771,
+              "mean_ms": 3.18738,
+              "stdev_ms": 0.342971,
+              "min_ms": 2.8065,
+              "max_ms": 3.771
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "events.append_event",
+            "calls_per_op": 1.0,
+            "ms_per_op": 2.896,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 2.7644,
+              "p95_ms": 4.6258,
+              "p99_ms": 4.6258,
+              "mean_ms": 2.89585,
+              "stdev_ms": 0.695813,
+              "min_ms": 2.2013,
+              "max_ms": 4.6258
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "intake.lookup_messages",
+            "calls_per_op": 1.0,
+            "ms_per_op": 2.565,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 1.8252,
+              "p95_ms": 8.0124,
+              "p99_ms": 8.0124,
+              "mean_ms": 2.56463,
+              "stdev_ms": 1.957578,
+              "min_ms": 1.44,
+              "max_ms": 8.0124
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.expired_leases",
+            "calls_per_op": 3.0,
+            "ms_per_op": 2.131,
+            "per_call": {
+              "n": 30,
+              "warmups": 0,
+              "p50_ms": 0.5703,
+              "p95_ms": 1.3571,
+              "p99_ms": 1.9246,
+              "mean_ms": 0.710483,
+              "stdev_ms": 0.321988,
+              "min_ms": 0.4676,
+              "max_ms": 1.9246
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "intake.record_ids",
+            "calls_per_op": 1.0,
+            "ms_per_op": 1.98,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 2.0177,
+              "p95_ms": 2.2767,
+              "p99_ms": 2.2767,
+              "mean_ms": 1.97968,
+              "stdev_ms": 0.240659,
+              "min_ms": 1.606,
+              "max_ms": 2.2767
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.last_offset",
+            "calls_per_op": 2.0,
+            "ms_per_op": 1.83,
+            "per_call": {
+              "n": 20,
+              "warmups": 0,
+              "p50_ms": 0.7649,
+              "p95_ms": 1.4173,
+              "p99_ms": 1.4759,
+              "mean_ms": 0.91482,
+              "stdev_ms": 0.323549,
+              "min_ms": 0.5269,
+              "max_ms": 1.4759
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.get_job",
+            "calls_per_op": 3.0,
+            "ms_per_op": 1.49,
+            "per_call": {
+              "n": 30,
+              "warmups": 0,
+              "p50_ms": 0.4649,
+              "p95_ms": 0.7557,
+              "p99_ms": 0.8643,
+              "mean_ms": 0.49657,
+              "stdev_ms": 0.121765,
+              "min_ms": 0.3323,
+              "max_ms": 0.8643
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.live_jobs",
+            "calls_per_op": 1.0,
+            "ms_per_op": 1.265,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 1.2545,
+              "p95_ms": 1.6001,
+              "p99_ms": 1.6001,
+              "mean_ms": 1.26474,
+              "stdev_ms": 0.209424,
+              "min_ms": 0.8487,
+              "max_ms": 1.6001
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.has_source",
+            "calls_per_op": 2.0,
+            "ms_per_op": 1.018,
+            "per_call": {
+              "n": 20,
+              "warmups": 0,
+              "p50_ms": 0.4716,
+              "p95_ms": 0.632,
+              "p99_ms": 0.7471,
+              "mean_ms": 0.50922,
+              "stdev_ms": 0.102584,
+              "min_ms": 0.3391,
+              "max_ms": 0.7471
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.get_item",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.696,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.6432,
+              "p95_ms": 0.866,
+              "p99_ms": 0.866,
+              "mean_ms": 0.69569,
+              "stdev_ms": 0.107864,
+              "min_ms": 0.5447,
+              "max_ms": 0.866
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.next_seq",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.571,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.4733,
+              "p95_ms": 0.8,
+              "p99_ms": 0.8,
+              "mean_ms": 0.57127,
+              "stdev_ms": 0.153364,
+              "min_ms": 0.3746,
+              "max_ms": 0.8
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "project.LexicalProjector.apply",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.446,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.4199,
+              "p95_ms": 0.5525,
+              "p99_ms": 0.5525,
+              "mean_ms": 0.4457,
+              "stdev_ms": 0.072945,
+              "min_ms": 0.3041,
+              "max_ms": 0.5525
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "sql.BEGIN IMMEDIATE",
+            "calls_per_op": 5.0,
+            "ms_per_op": 0.34,
+            "per_call": {
+              "n": 50,
+              "warmups": 0,
+              "p50_ms": 0.0424,
+              "p95_ms": 0.1987,
+              "p99_ms": 0.2232,
+              "mean_ms": 0.067954,
+              "stdev_ms": 0.057836,
+              "min_ms": 0.021,
+              "max_ms": 0.2232
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "project.VectorProjector.apply",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.238,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.2433,
+              "p95_ms": 0.3831,
+              "p99_ms": 0.3831,
+              "mean_ms": 0.23779,
+              "stdev_ms": 0.082219,
+              "min_ms": 0.1071,
+              "max_ms": 0.3831
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "sql.DELETE",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.118,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.1064,
+              "p95_ms": 0.2149,
+              "p99_ms": 0.2149,
+              "mean_ms": 0.11838,
+              "stdev_ms": 0.036913,
+              "min_ms": 0.0852,
+              "max_ms": 0.2149
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "tantivy._index_one",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.078,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.0762,
+              "p95_ms": 0.101,
+              "p99_ms": 0.101,
+              "mean_ms": 0.07765,
+              "stdev_ms": 0.015831,
+              "min_ms": 0.0513,
+              "max_ms": 0.101
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "lancedb.upsert",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.028,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.0275,
+              "p95_ms": 0.0519,
+              "p99_ms": 0.0519,
+              "mean_ms": 0.02846,
+              "stdev_ms": 0.009298,
+              "min_ms": 0.0174,
+              "max_ms": 0.0519
+            },
+            "threads": [
+              "loop"
+            ]
+          }
+        ],
+        "top20_cumulative": [
+          {
+            "function": "~:0(<method 'run' of '_contextvars.Context' objects>)",
+            "path": "~",
+            "ncalls": 8632,
+            "tottime_ms": 227.96,
+            "cumtime_ms": 2519.96
+          },
+          {
+            "function": "tap.py:422(awrapper)",
+            "path": "memspine/observability/tap.py",
+            "ncalls": 2700,
+            "tottime_ms": 3.02,
+            "cumtime_ms": 1178.21
+          },
+          {
+            "function": "ledger.py:189(inner)",
+            "path": "memspine/ops/ledger.py",
+            "ncalls": 2700,
+            "tottime_ms": 3.03,
+            "cumtime_ms": 992.67
+          },
+          {
+            "function": "concurrency.py:75(inner)",
+            "path": "memspine/services/concurrency.py",
+            "ncalls": 2700,
+            "tottime_ms": 4.09,
+            "cumtime_ms": 984.31
+          },
+          {
+            "function": "thread.py:54(run)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/concurrent/futures/thread.py",
+            "ncalls": 172,
+            "tottime_ms": 0.66,
+            "cumtime_ms": 820.43
+          },
+          {
+            "function": "lancedb_store.py:76(shared)",
+            "path": "memspine/services/vector/lancedb_store.py",
+            "ncalls": 10,
+            "tottime_ms": 0.1,
+            "cumtime_ms": 701.56
+          },
+          {
+            "function": "lancedb_store.py:400(_search)",
+            "path": "memspine/services/vector/lancedb_store.py",
+            "ncalls": 10,
+            "tottime_ms": 0.19,
+            "cumtime_ms": 701.39
+          },
+          {
+            "function": "query.py:2120(to_batches)",
+            "path": "lancedb/query.py",
+            "ncalls": 10,
+            "tottime_ms": 0.15,
+            "cumtime_ms": 674.91
+          },
+          {
+            "function": "table.py:4870(_execute_query)",
+            "path": "lancedb/table.py",
+            "ncalls": 10,
+            "tottime_ms": 0.3,
+            "cumtime_ms": 665.3
+          },
+          {
+            "function": "query.py:1256(to_list)",
+            "path": "lancedb/query.py",
+            "ncalls": 10,
+            "tottime_ms": 2.62,
+            "cumtime_ms": 627.3
+          },
+          {
+            "function": "query.py:1280(_to_arrow_in_mode)",
+            "path": "lancedb/query.py",
+            "ncalls": 10,
+            "tottime_ms": 0.03,
+            "cumtime_ms": 624.66
+          },
+          {
+            "function": "query.py:2052(to_arrow)",
+            "path": "lancedb/query.py",
+            "ncalls": 10,
+            "tottime_ms": 0.51,
+            "cumtime_ms": 624.63
+          },
+          {
+            "function": "lancedb_store.py:336(<lambda>)",
+            "path": "memspine/services/vector/lancedb_store.py",
+            "ncalls": 10,
+            "tottime_ms": 0.05,
+            "cumtime_ms": 584.17
+          },
+          {
+            "function": "merge.py:158(execute)",
+            "path": "lancedb/merge.py",
+            "ncalls": 10,
+            "tottime_ms": 0.04,
+            "cumtime_ms": 584.12
+          },
+          {
+            "function": "table.py:4923(_do_merge)",
+            "path": "lancedb/table.py",
+            "ncalls": 10,
+            "tottime_ms": 0.28,
+            "cumtime_ms": 583.92
+          },
+          {
+            "function": "profile_write_path.py:246(run)",
+            "path": "C:/Users/hembad/Documents/GitHub/memspine/.claude/worktrees/agent-ae7d2a5c867845191/scripts/profile_write_path.py",
+            "ncalls": 2181,
+            "tottime_ms": 3.07,
+            "cumtime_ms": 566.65
+          },
+          {
+            "function": "tantivy.py:205(_commit_if_pending)",
+            "path": "memspine/services/lexical/tantivy.py",
+            "ncalls": 10,
+            "tottime_ms": 0.1,
+            "cumtime_ms": 476.54
+          },
+          {
+            "function": "connector.py:261(commit)",
+            "path": "memspine/clients/tantivy/connector.py",
+            "ncalls": 10,
+            "tottime_ms": 0.25,
+            "cumtime_ms": 476.41
+          },
+          {
+            "function": "engine.py:2227(ingest_messages)",
+            "path": "memspine/api/engine.py",
+            "ncalls": 2190,
+            "tottime_ms": 2.84,
+            "cumtime_ms": 368.93
+          },
+          {
+            "function": "profile_write_path.py:277(do_ingest)",
+            "path": "C:/Users/hembad/Documents/GitHub/memspine/.claude/worktrees/agent-ae7d2a5c867845191/scripts/profile_write_path.py",
+            "ncalls": 2188,
+            "tottime_ms": 3.8,
+            "cumtime_ms": 351.25
+          }
+        ]
+      },
+      "read": {
+        "wall_ms": {
+          "n": 10,
+          "warmups": 0,
+          "p50_ms": 213.2984,
+          "p95_ms": 244.831,
+          "p99_ms": 244.831,
+          "mean_ms": 215.73354,
+          "stdev_ms": 24.146163,
+          "min_ms": 183.6832,
+          "max_ms": 244.831
+        },
+        "spans": [
+          {
+            "span": "sql.SELECT",
+            "calls_per_op": 3.0,
+            "ms_per_op": 61.894,
+            "per_call": {
+              "n": 30,
+              "warmups": 0,
+              "p50_ms": 27.4105,
+              "p95_ms": 36.9595,
+              "p99_ms": 49.5803,
+              "mean_ms": 20.631327,
+              "stdev_ms": 15.256704,
+              "min_ms": 0.2441,
+              "max_ms": 49.5803
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "embed.embed_queries",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.063,
+            "per_call": {
+              "n": 10,
+              "warmups": 0,
+              "p50_ms": 0.0626,
+              "p95_ms": 0.083,
+              "p99_ms": 0.083,
+              "mean_ms": 0.06265,
+              "stdev_ms": 0.015572,
+              "min_ms": 0.0381,
+              "max_ms": 0.083
+            },
+            "threads": [
+              "loop"
+            ]
+          }
+        ],
+        "top20_cumulative": [
+          {
+            "function": "base_events.py:1962(_run_once)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/asyncio/base_events.py",
+            "ncalls": 1110,
+            "tottime_ms": 10.41,
+            "cumtime_ms": 2755.84
+          },
+          {
+            "function": "events.py:87(_run)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/asyncio/events.py",
+            "ncalls": 1720,
+            "tottime_ms": 3.22,
+            "cumtime_ms": 2284.8
+          },
+          {
+            "function": "scope_guard.py:142(wrapper)",
+            "path": "memspine/read/pipeline/scope_guard.py",
+            "ncalls": 290,
+            "tottime_ms": 0.43,
+            "cumtime_ms": 1503.4
+          },
+          {
+            "function": "timeview.py:160(wrapper)",
+            "path": "memspine/read/pipeline/timeview.py",
+            "ncalls": 290,
+            "tottime_ms": 0.28,
+            "cumtime_ms": 1492.16
+          },
+          {
+            "function": "timeview.py:136(wrapper)",
+            "path": "memspine/read/pipeline/timeview.py",
+            "ncalls": 290,
+            "tottime_ms": 0.55,
+            "cumtime_ms": 1491.54
+          },
+          {
+            "function": "proactor_events.py:789(_loop_self_reading)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/asyncio/proactor_events.py",
+            "ncalls": 450,
+            "tottime_ms": 509.81,
+            "cumtime_ms": 822.94
+          },
+          {
+            "function": "tap.py:422(awrapper)",
+            "path": "memspine/observability/tap.py",
+            "ncalls": 290,
+            "tottime_ms": 0.38,
+            "cumtime_ms": 726.18
+          },
+          {
+            "function": "ledger.py:189(inner)",
+            "path": "memspine/ops/ledger.py",
+            "ncalls": 290,
+            "tottime_ms": 0.27,
+            "cumtime_ms": 725.55
+          },
+          {
+            "function": "slo.py:149(inner)",
+            "path": "memspine/economy/slo.py",
+            "ncalls": 290,
+            "tottime_ms": 0.49,
+            "cumtime_ms": 725.28
+          },
+          {
+            "function": "engine.py:2965(read)",
+            "path": "memspine/api/engine.py",
+            "ncalls": 290,
+            "tottime_ms": 0.29,
+            "cumtime_ms": 701.26
+          },
+          {
+            "function": "router.py:947(read)",
+            "path": "memspine/read/pipeline/router.py",
+            "ncalls": 290,
+            "tottime_ms": 0.72,
+            "cumtime_ms": 699.43
+          },
+          {
+            "function": "router.py:1074(_read_planned)",
+            "path": "memspine/read/pipeline/router.py",
+            "ncalls": 290,
+            "tottime_ms": 0.7,
+            "cumtime_ms": 694.22
+          },
+          {
+            "function": "engine.py:3082(_read)",
+            "path": "memspine/api/engine.py",
+            "ncalls": 290,
+            "tottime_ms": 0.35,
+            "cumtime_ms": 690.2
+          },
+          {
+            "function": "router.py:1199(_read)",
+            "path": "memspine/read/pipeline/router.py",
+            "ncalls": 290,
+            "tottime_ms": 0.72,
+            "cumtime_ms": 689.72
+          },
+          {
+            "function": "engine.py:3164(_read_routed)",
+            "path": "memspine/api/engine.py",
+            "ncalls": 290,
+            "tottime_ms": 0.98,
+            "cumtime_ms": 684.72
+          },
+          {
+            "function": "lancedb_store.py:76(shared)",
+            "path": "memspine/services/vector/lancedb_store.py",
+            "ncalls": 10,
+            "tottime_ms": 0.13,
+            "cumtime_ms": 683.36
+          },
+          {
+            "function": "lancedb_store.py:400(_search)",
+            "path": "memspine/services/vector/lancedb_store.py",
+            "ncalls": 10,
+            "tottime_ms": 1.45,
+            "cumtime_ms": 682.61
+          },
+          {
+            "function": "router.py:1265(_read_routed)",
+            "path": "memspine/read/pipeline/router.py",
+            "ncalls": 290,
+            "tottime_ms": 4.97,
+            "cumtime_ms": 681.53
+          },
+          {
+            "function": "query.py:1256(to_list)",
+            "path": "lancedb/query.py",
+            "ncalls": 10,
+            "tottime_ms": 9.05,
+            "cumtime_ms": 642.61
+          },
+          {
+            "function": "query.py:1280(_to_arrow_in_mode)",
+            "path": "lancedb/query.py",
+            "ncalls": 10,
+            "tottime_ms": 0.03,
+            "cumtime_ms": 633.55
+          }
+        ]
+      },
+      "derivation_flush": {
+        "wall_ms": 8508.06,
+        "windows": 64,
+        "spans": [
+          {
+            "span": "windows.drain",
+            "calls_per_op": 2.0,
+            "ms_per_op": 7942.633,
+            "per_call": {
+              "n": 2,
+              "warmups": 0,
+              "p50_ms": 12.0879,
+              "p95_ms": 7930.545,
+              "p99_ms": 7930.545,
+              "mean_ms": 3971.31645,
+              "stdev_ms": 5599.194712,
+              "min_ms": 12.0879,
+              "max_ms": 7930.545
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "project.LexicalProjector.apply",
+            "calls_per_op": 33.0,
+            "ms_per_op": 948.198,
+            "per_call": {
+              "n": 33,
+              "warmups": 0,
+              "p50_ms": 0.008,
+              "p95_ms": 75.2935,
+              "p99_ms": 83.7817,
+              "mean_ms": 28.733267,
+              "stdev_ms": 32.550165,
+              "min_ms": 0.0018,
+              "max_ms": 83.7817
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "tantivy._index_one",
+            "calls_per_op": 15.0,
+            "ms_per_op": 934.897,
+            "per_call": {
+              "n": 15,
+              "warmups": 0,
+              "p50_ms": 62.3931,
+              "p95_ms": 82.7117,
+              "p99_ms": 82.7117,
+              "mean_ms": 62.326473,
+              "stdev_ms": 9.262984,
+              "min_ms": 48.6628,
+              "max_ms": 82.7117
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "project.VectorProjector.apply",
+            "calls_per_op": 33.0,
+            "ms_per_op": 890.954,
+            "per_call": {
+              "n": 33,
+              "warmups": 0,
+              "p50_ms": 0.0074,
+              "p95_ms": 70.8049,
+              "p99_ms": 72.5695,
+              "mean_ms": 26.998603,
+              "stdev_ms": 30.514614,
+              "min_ms": 0.0035,
+              "max_ms": 72.5695
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "lancedb.upsert",
+            "calls_per_op": 15.0,
+            "ms_per_op": 886.679,
+            "per_call": {
+              "n": 15,
+              "warmups": 0,
+              "p50_ms": 56.2659,
+              "p95_ms": 72.245,
+              "p99_ms": 72.245,
+              "mean_ms": 59.111913,
+              "stdev_ms": 8.154531,
+              "min_ms": 46.9823,
+              "max_ms": 72.245
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "lancedb.write_pending",
+            "calls_per_op": 15.0,
+            "ms_per_op": 885.828,
+            "per_call": {
+              "n": 15,
+              "warmups": 0,
+              "p50_ms": 56.2152,
+              "p95_ms": 72.1652,
+              "p99_ms": 72.1652,
+              "mean_ms": 59.055207,
+              "stdev_ms": 8.151234,
+              "min_ms": 46.9161,
+              "max_ms": 72.1652
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "sql.SELECT",
+            "calls_per_op": 2665.0,
+            "ms_per_op": 715.734,
+            "per_call": {
+              "n": 2665,
+              "warmups": 0,
+              "p50_ms": 0.1262,
+              "p95_ms": 0.56,
+              "p99_ms": 0.858,
+              "mean_ms": 0.268568,
+              "stdev_ms": 0.782866,
+              "min_ms": 0.0068,
+              "max_ms": 13.8443
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.put_job",
+            "calls_per_op": 199.0,
+            "ms_per_op": 462.217,
+            "per_call": {
+              "n": 199,
+              "warmups": 0,
+              "p50_ms": 2.1936,
+              "p95_ms": 2.9537,
+              "p99_ms": 3.9838,
+              "mean_ms": 2.322699,
+              "stdev_ms": 1.07439,
+              "min_ms": 1.5857,
+              "max_ms": 16.5464
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.finalize_effects",
+            "calls_per_op": 65.0,
+            "ms_per_op": 342.055,
+            "per_call": {
+              "n": 65,
+              "warmups": 0,
+              "p50_ms": 4.9444,
+              "p95_ms": 6.6533,
+              "p99_ms": 15.2622,
+              "mean_ms": 5.262383,
+              "stdev_ms": 1.605208,
+              "min_ms": 3.6,
+              "max_ms": 15.2622
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.authorize_effects",
+            "calls_per_op": 65.0,
+            "ms_per_op": 296.053,
+            "per_call": {
+              "n": 65,
+              "warmups": 0,
+              "p50_ms": 4.4953,
+              "p95_ms": 5.4358,
+              "p99_ms": 7.364,
+              "mean_ms": 4.554654,
+              "stdev_ms": 0.659354,
+              "min_ms": 3.5014,
+              "max_ms": 7.364
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "events.set_offset",
+            "calls_per_op": 99.0,
+            "ms_per_op": 294.829,
+            "per_call": {
+              "n": 99,
+              "warmups": 0,
+              "p50_ms": 2.9209,
+              "p95_ms": 4.5408,
+              "p99_ms": 5.4433,
+              "mean_ms": 2.97807,
+              "stdev_ms": 0.797709,
+              "min_ms": 1.4763,
+              "max_ms": 5.4433
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "windows.prepare_job (rules)",
+            "calls_per_op": 62.0,
+            "ms_per_op": 260.448,
+            "per_call": {
+              "n": 62,
+              "warmups": 0,
+              "p50_ms": 3.5932,
+              "p95_ms": 6.139,
+              "p99_ms": 24.3841,
+              "mean_ms": 4.200768,
+              "stdev_ms": 2.802445,
+              "min_ms": 2.6592,
+              "max_ms": 24.3841
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "sql.COMMIT",
+            "calls_per_op": 136.0,
+            "ms_per_op": 183.49,
+            "per_call": {
+              "n": 136,
+              "warmups": 0,
+              "p50_ms": 1.3031,
+              "p95_ms": 1.7616,
+              "p99_ms": 2.2726,
+              "mean_ms": 1.349191,
+              "stdev_ms": 0.603265,
+              "min_ms": 0.0234,
+              "max_ms": 7.4486
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.put_item",
+            "calls_per_op": 65.0,
+            "ms_per_op": 137.034,
+            "per_call": {
+              "n": 65,
+              "warmups": 0,
+              "p50_ms": 2.0304,
+              "p95_ms": 2.5138,
+              "p99_ms": 3.8778,
+              "mean_ms": 2.108212,
+              "stdev_ms": 0.339415,
+              "min_ms": 1.7561,
+              "max_ms": 3.8778
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "embed.embed",
+            "calls_per_op": 45.0,
+            "ms_per_op": 120.697,
+            "per_call": {
+              "n": 45,
+              "warmups": 0,
+              "p50_ms": 0.0852,
+              "p95_ms": 9.0609,
+              "p99_ms": 15.617,
+              "mean_ms": 2.682151,
+              "stdev_ms": 3.846269,
+              "min_ms": 0.032,
+              "max_ms": 15.617
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.put_progress",
+            "calls_per_op": 68.0,
+            "ms_per_op": 120.486,
+            "per_call": {
+              "n": 68,
+              "warmups": 0,
+              "p50_ms": 1.7594,
+              "p95_ms": 2.0789,
+              "p99_ms": 2.7835,
+              "mean_ms": 1.771851,
+              "stdev_ms": 0.213089,
+              "min_ms": 1.3509,
+              "max_ms": 2.7835
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "events.append_event",
+            "calls_per_op": 33.0,
+            "ms_per_op": 101.154,
+            "per_call": {
+              "n": 33,
+              "warmups": 0,
+              "p50_ms": 2.8192,
+              "p95_ms": 4.417,
+              "p99_ms": 7.7409,
+              "mean_ms": 3.065285,
+              "stdev_ms": 1.017909,
+              "min_ms": 1.8272,
+              "max_ms": 7.7409
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "project.RecordProjector.apply",
+            "calls_per_op": 33.0,
+            "ms_per_op": 90.014,
+            "per_call": {
+              "n": 33,
+              "warmups": 0,
+              "p50_ms": 0.0096,
+              "p95_ms": 7.0875,
+              "p99_ms": 15.7676,
+              "mean_ms": 2.727712,
+              "stdev_ms": 3.567271,
+              "min_ms": 0.0042,
+              "max_ms": 15.7676
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.source_snapshots",
+            "calls_per_op": 124.0,
+            "ms_per_op": 82.194,
+            "per_call": {
+              "n": 124,
+              "warmups": 0,
+              "p50_ms": 0.5875,
+              "p95_ms": 0.8848,
+              "p99_ms": 2.9291,
+              "mean_ms": 0.662856,
+              "stdev_ms": 0.391134,
+              "min_ms": 0.3687,
+              "max_ms": 3.8416
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.get_job",
+            "calls_per_op": 134.0,
+            "ms_per_op": 78.198,
+            "per_call": {
+              "n": 134,
+              "warmups": 0,
+              "p50_ms": 0.5598,
+              "p95_ms": 0.918,
+              "p99_ms": 1.285,
+              "mean_ms": 0.583569,
+              "stdev_ms": 0.186394,
+              "min_ms": 0.3017,
+              "max_ms": 1.5535
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.INSERT",
+            "calls_per_op": 471.0,
+            "ms_per_op": 66.935,
+            "per_call": {
+              "n": 471,
+              "warmups": 0,
+              "p50_ms": 0.0569,
+              "p95_ms": 0.4635,
+              "p99_ms": 0.689,
+              "mean_ms": 0.142112,
+              "stdev_ms": 0.166267,
+              "min_ms": 0.0139,
+              "max_ms": 1.1347
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.live_jobs",
+            "calls_per_op": 68.0,
+            "ms_per_op": 56.868,
+            "per_call": {
+              "n": 68,
+              "warmups": 0,
+              "p50_ms": 0.7995,
+              "p95_ms": 1.1829,
+              "p99_ms": 1.3953,
+              "mean_ms": 0.836293,
+              "stdev_ms": 0.164263,
+              "min_ms": 0.5738,
+              "max_ms": 1.3953
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.get_item",
+            "calls_per_op": 66.0,
+            "ms_per_op": 45.665,
+            "per_call": {
+              "n": 66,
+              "warmups": 0,
+              "p50_ms": 0.652,
+              "p95_ms": 1.0002,
+              "p99_ms": 1.5485,
+              "mean_ms": 0.691897,
+              "stdev_ms": 0.183933,
+              "min_ms": 0.446,
+              "max_ms": 1.5485
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.get_progress",
+            "calls_per_op": 80.0,
+            "ms_per_op": 44.938,
+            "per_call": {
+              "n": 80,
+              "warmups": 0,
+              "p50_ms": 0.5404,
+              "p95_ms": 0.8266,
+              "p99_ms": 0.8677,
+              "mean_ms": 0.561726,
+              "stdev_ms": 0.117782,
+              "min_ms": 0.3754,
+              "max_ms": 0.8677
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.UPDATE",
+            "calls_per_op": 467.0,
+            "ms_per_op": 29.11,
+            "per_call": {
+              "n": 467,
+              "warmups": 0,
+              "p50_ms": 0.0473,
+              "p95_ms": 0.1589,
+              "p99_ms": 0.2716,
+              "mean_ms": 0.062334,
+              "stdev_ms": 0.05075,
+              "min_ms": 0.0106,
+              "max_ms": 0.3292
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.next_seq",
+            "calls_per_op": 67.0,
+            "ms_per_op": 24.066,
+            "per_call": {
+              "n": 67,
+              "warmups": 0,
+              "p50_ms": 0.343,
+              "p95_ms": 0.5556,
+              "p99_ms": 0.7242,
+              "mean_ms": 0.35919,
+              "stdev_ms": 0.090903,
+              "min_ms": 0.2285,
+              "max_ms": 0.7242
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.claim_job",
+            "calls_per_op": 6.0,
+            "ms_per_op": 22.017,
+            "per_call": {
+              "n": 6,
+              "warmups": 0,
+              "p50_ms": 2.9435,
+              "p95_ms": 5.8238,
+              "p99_ms": 5.8238,
+              "mean_ms": 3.669417,
+              "stdev_ms": 1.31584,
+              "min_ms": 2.6594,
+              "max_ms": 5.8238
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.prune_finished",
+            "calls_per_op": 2.0,
+            "ms_per_op": 8.861,
+            "per_call": {
+              "n": 2,
+              "warmups": 0,
+              "p50_ms": 3.6242,
+              "p95_ms": 5.2367,
+              "p99_ms": 5.2367,
+              "mean_ms": 4.43045,
+              "stdev_ms": 1.14021,
+              "min_ms": 3.6242,
+              "max_ms": 5.2367
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.BEGIN IMMEDIATE",
+            "calls_per_op": 136.0,
+            "ms_per_op": 6.378,
+            "per_call": {
+              "n": 136,
+              "warmups": 0,
+              "p50_ms": 0.0394,
+              "p95_ms": 0.1161,
+              "p99_ms": 0.136,
+              "mean_ms": 0.046896,
+              "stdev_ms": 0.0258,
+              "min_ms": 0.0254,
+              "max_ms": 0.1945
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.expired_leases",
+            "calls_per_op": 6.0,
+            "ms_per_op": 4.49,
+            "per_call": {
+              "n": 6,
+              "warmups": 0,
+              "p50_ms": 0.672,
+              "p95_ms": 1.108,
+              "p99_ms": 1.108,
+              "mean_ms": 0.748383,
+              "stdev_ms": 0.193866,
+              "min_ms": 0.5432,
+              "max_ms": 1.108
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.last_offset",
+            "calls_per_op": 4.0,
+            "ms_per_op": 3.459,
+            "per_call": {
+              "n": 4,
+              "warmups": 0,
+              "p50_ms": 0.7214,
+              "p95_ms": 1.124,
+              "p99_ms": 1.124,
+              "mean_ms": 0.8647,
+              "stdev_ms": 0.231846,
+              "min_ms": 0.624,
+              "max_ms": 1.124
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.put_draft",
+            "calls_per_op": 1.0,
+            "ms_per_op": 3.248,
+            "per_call": {
+              "n": 1,
+              "warmups": 0,
+              "p50_ms": 3.2476,
+              "p95_ms": 3.2476,
+              "p99_ms": 3.2476,
+              "mean_ms": 3.2476,
+              "stdev_ms": 0.0,
+              "min_ms": 3.2476,
+              "max_ms": 3.2476
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.DELETE",
+            "calls_per_op": 3.0,
+            "ms_per_op": 1.478,
+            "per_call": {
+              "n": 3,
+              "warmups": 0,
+              "p50_ms": 0.3871,
+              "p95_ms": 0.9497,
+              "p99_ms": 0.9497,
+              "mean_ms": 0.492833,
+              "stdev_ms": 0.414247,
+              "min_ms": 0.1417,
+              "max_ms": 0.9497
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.has_source",
+            "calls_per_op": 2.0,
+            "ms_per_op": 1.011,
+            "per_call": {
+              "n": 2,
+              "warmups": 0,
+              "p50_ms": 0.429,
+              "p95_ms": 0.5816,
+              "p99_ms": 0.5816,
+              "mean_ms": 0.5053,
+              "stdev_ms": 0.107904,
+              "min_ms": 0.429,
+              "max_ms": 0.5816
+            },
+            "threads": [
+              "loop"
+            ]
+          }
+        ],
+        "top20_cumulative": [
+          {
+            "function": "~:0(<method 'run' of '_contextvars.Context' objects>)",
+            "path": "~",
+            "ncalls": 45742,
+            "tottime_ms": 219.22,
+            "cumtime_ms": 10721.34
+          },
+          {
+            "function": "profile_write_path.py:77(awrapper)",
+            "path": "C:/Users/hembad/Documents/GitHub/memspine/.claude/worktrees/agent-ae7d2a5c867845191/scripts/profile_write_path.py",
+            "ncalls": 15128,
+            "tottime_ms": 17.83,
+            "cumtime_ms": 4921.81
+          },
+          {
+            "function": "proactor_events.py:789(_loop_self_reading)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/asyncio/proactor_events.py",
+            "ncalls": 13077,
+            "tottime_ms": 1560.57,
+            "cumtime_ms": 4715.98
+          },
+          {
+            "function": "windows.py:1363(_drain)",
+            "path": "memspine/workers/windows.py",
+            "ncalls": 12713,
+            "tottime_ms": 10.91,
+            "cumtime_ms": 4398.14
+          },
+          {
+            "function": "runner.py:566(drain)",
+            "path": "memspine/runtime/runner.py",
+            "ncalls": 12713,
+            "tottime_ms": 7.77,
+            "cumtime_ms": 4369.85
+          },
+          {
+            "function": "runner.py:583(_drain_stage)",
+            "path": "memspine/runtime/runner.py",
+            "ncalls": 12715,
+            "tottime_ms": 8.69,
+            "cumtime_ms": 4353.11
+          },
+          {
+            "function": "runner.py:975(_run_claim)",
+            "path": "memspine/runtime/runner.py",
+            "ncalls": 12701,
+            "tottime_ms": 9.75,
+            "cumtime_ms": 3978.59
+          },
+          {
+            "function": "runner.py:870(_execute_item)",
+            "path": "memspine/runtime/runner.py",
+            "ncalls": 12629,
+            "tottime_ms": 9.71,
+            "cumtime_ms": 3926.74
+          },
+          {
+            "function": "windows_events.py:762(_poll)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/asyncio/windows_events.py",
+            "ncalls": 30585,
+            "tottime_ms": 267.9,
+            "cumtime_ms": 2768.51
+          },
+          {
+            "function": "profile_write_path.py:88(wrapper)",
+            "path": "C:/Users/hembad/Documents/GitHub/memspine/.claude/worktrees/agent-ae7d2a5c867845191/scripts/profile_write_path.py",
+            "ncalls": 1037,
+            "tottime_ms": 11.87,
+            "cumtime_ms": 2674.95
+          },
+          {
+            "function": "runner.py:901(_execute_item_inner)",
+            "path": "memspine/runtime/runner.py",
+            "ncalls": 12629,
+            "tottime_ms": 11.21,
+            "cumtime_ms": 1830.82
+          },
+          {
+            "function": "runner.py:292(run)",
+            "path": "memspine/runtime/runner.py",
+            "ncalls": 406,
+            "tottime_ms": 1.81,
+            "cumtime_ms": 1662.78
+          },
+          {
+            "function": "runner.py:861(_commit)",
+            "path": "memspine/runtime/runner.py",
+            "ncalls": 11789,
+            "tottime_ms": 6.34,
+            "cumtime_ms": 1466.53
+          },
+          {
+            "function": "windows.py:2106(_outbox_commit)",
+            "path": "memspine/workers/windows.py",
+            "ncalls": 11788,
+            "tottime_ms": 6.85,
+            "cumtime_ms": 1459.21
+          },
+          {
+            "function": "bindings.py:169(inner)",
+            "path": "memspine/observability/bindings.py",
+            "ncalls": 65641,
+            "tottime_ms": 39.53,
+            "cumtime_ms": 1444.12
+          },
+          {
+            "function": "windows.py:3047(_commit_job)",
+            "path": "memspine/workers/windows.py",
+            "ncalls": 11677,
+            "tottime_ms": 7.62,
+            "cumtime_ms": 1438.33
+          },
+          {
+            "function": "windows.py:3084(_store_rule_facts)",
+            "path": "memspine/workers/windows.py",
+            "ncalls": 11630,
+            "tottime_ms": 5.41,
+            "cumtime_ms": 1430.26
+          },
+          {
+            "function": "engine.py:6289(_deposit_mined_fact)",
+            "path": "memspine/api/engine.py",
+            "ncalls": 11630,
+            "tottime_ms": 6.07,
+            "cumtime_ms": 1417.55
+          },
+          {
+            "function": "integrate.py:197(_deposit_mined_fact)",
+            "path": "memspine/derive/pipeline/integrate.py",
+            "ncalls": 11630,
+            "tottime_ms": 5.73,
+            "cumtime_ms": 1409.78
+          },
+          {
+            "function": "thread.py:54(run)",
+            "path": "C:/Users/hembad/AppData/Roaming/uv/python/cpython-3.13.5-windows-x86_64-none/Lib/concurrent/futures/thread.py",
+            "ncalls": 483,
+            "tottime_ms": 1.96,
+            "cumtime_ms": 1407.91
+          }
+        ]
+      },
+      "read_during_ingest": {
+        "wall_ms": {
+          "n": 5,
+          "warmups": 0,
+          "p50_ms": 312.4255,
+          "p95_ms": 443.8747,
+          "p99_ms": 443.8747,
+          "mean_ms": 325.46988,
+          "stdev_ms": 70.771719,
+          "min_ms": 269.8631,
+          "max_ms": 443.8747
+        },
+        "concurrent_ingest_20_ms": {
+          "n": 5,
+          "warmups": 0,
+          "p50_ms": 1653.733,
+          "p95_ms": 1832.3502,
+          "p99_ms": 1832.3502,
+          "mean_ms": 1638.38972,
+          "stdev_ms": 166.725753,
+          "min_ms": 1377.0913,
+          "max_ms": 1832.3502
+        },
+        "spans": [
+          {
+            "span": "sql.SELECT",
+            "calls_per_op": 3.0,
+            "ms_per_op": 126.242,
+            "per_call": {
+              "n": 15,
+              "warmups": 0,
+              "p50_ms": 46.9849,
+              "p95_ms": 98.8171,
+              "p99_ms": 98.8171,
+              "mean_ms": 42.080653,
+              "stdev_ms": 33.997996,
+              "min_ms": 0.5574,
+              "max_ms": 98.8171
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "lancedb.write_pending",
+            "calls_per_op": 0.2,
+            "ms_per_op": 13.871,
+            "per_call": {
+              "n": 1,
+              "warmups": 0,
+              "p50_ms": 69.3563,
+              "p95_ms": 69.3563,
+              "p99_ms": 69.3563,
+              "mean_ms": 69.3563,
+              "stdev_ms": 0.0,
+              "min_ms": 69.3563,
+              "max_ms": 69.3563
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "embed.embed_queries",
+            "calls_per_op": 1.0,
+            "ms_per_op": 0.066,
+            "per_call": {
+              "n": 5,
+              "warmups": 0,
+              "p50_ms": 0.061,
+              "p95_ms": 0.0966,
+              "p99_ms": 0.0966,
+              "mean_ms": 0.0661,
+              "stdev_ms": 0.017578,
+              "min_ms": 0.0543,
+              "max_ms": 0.0966
+            },
+            "threads": [
+              "loop"
+            ]
+          }
+        ],
+        "ingest_spans": [
+          {
+            "span": "sql.SELECT",
+            "calls_per_op": 355.0,
+            "ms_per_op": 498.166,
+            "per_call": {
+              "n": 1775,
+              "warmups": 0,
+              "p50_ms": 0.1418,
+              "p95_ms": 9.3041,
+              "p99_ms": 13.2955,
+              "mean_ms": 1.403285,
+              "stdev_ms": 4.000482,
+              "min_ms": 0.0084,
+              "max_ms": 54.7928
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "windows.observe",
+            "calls_per_op": 20.0,
+            "ms_per_op": 361.978,
+            "per_call": {
+              "n": 100,
+              "warmups": 0,
+              "p50_ms": 16.336,
+              "p95_ms": 31.6403,
+              "p99_ms": 43.0872,
+              "mean_ms": 18.098912,
+              "stdev_ms": 9.125781,
+              "min_ms": 4.865,
+              "max_ms": 44.6331
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.put_draft",
+            "calls_per_op": 20.0,
+            "ms_per_op": 277.943,
+            "per_call": {
+              "n": 100,
+              "warmups": 0,
+              "p50_ms": 12.4508,
+              "p95_ms": 26.7255,
+              "p99_ms": 37.8123,
+              "mean_ms": 13.897163,
+              "stdev_ms": 8.161643,
+              "min_ms": 2.2415,
+              "max_ms": 38.0675
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "windows.drain",
+            "calls_per_op": 20.0,
+            "ms_per_op": 193.953,
+            "per_call": {
+              "n": 100,
+              "warmups": 0,
+              "p50_ms": 7.8077,
+              "p95_ms": 26.5743,
+              "p99_ms": 40.9643,
+              "mean_ms": 9.69767,
+              "stdev_ms": 7.479185,
+              "min_ms": 5.5089,
+              "max_ms": 46.1832
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "sql.UPDATE",
+            "calls_per_op": 107.6,
+            "ms_per_op": 106.83,
+            "per_call": {
+              "n": 538,
+              "warmups": 0,
+              "p50_ms": 0.2907,
+              "p95_ms": 4.0489,
+              "p99_ms": 4.6466,
+              "mean_ms": 0.992846,
+              "stdev_ms": 1.344291,
+              "min_ms": 0.0335,
+              "max_ms": 5.2909
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "intake.apply_intent",
+            "calls_per_op": 1.0,
+            "ms_per_op": 96.342,
+            "per_call": {
+              "n": 5,
+              "warmups": 0,
+              "p50_ms": 95.7323,
+              "p95_ms": 112.7082,
+              "p99_ms": 112.7082,
+              "mean_ms": 96.34222,
+              "stdev_ms": 11.100163,
+              "min_ms": 85.9351,
+              "max_ms": 112.7082
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.claim_job",
+            "calls_per_op": 40.8,
+            "ms_per_op": 71.612,
+            "per_call": {
+              "n": 204,
+              "warmups": 0,
+              "p50_ms": 1.5307,
+              "p95_ms": 2.6734,
+              "p99_ms": 5.161,
+              "mean_ms": 1.75519,
+              "stdev_ms": 1.516465,
+              "min_ms": 0.873,
+              "max_ms": 18.3826
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "project.RecordProjector.apply",
+            "calls_per_op": 20.0,
+            "ms_per_op": 59.7,
+            "per_call": {
+              "n": 100,
+              "warmups": 0,
+              "p50_ms": 2.7567,
+              "p95_ms": 4.0968,
+              "p99_ms": 7.645,
+              "mean_ms": 2.985023,
+              "stdev_ms": 1.658338,
+              "min_ms": 1.648,
+              "max_ms": 17.1495
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "lancedb.write_pending",
+            "calls_per_op": 1.0,
+            "ms_per_op": 53.341,
+            "per_call": {
+              "n": 5,
+              "warmups": 0,
+              "p50_ms": 52.8752,
+              "p95_ms": 57.0675,
+              "p99_ms": 57.0675,
+              "mean_ms": 53.34064,
+              "stdev_ms": 3.250954,
+              "min_ms": 49.812,
+              "max_ms": 57.0675
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.mark_sources",
+            "calls_per_op": 20.0,
+            "ms_per_op": 52.339,
+            "per_call": {
+              "n": 100,
+              "warmups": 0,
+              "p50_ms": 2.4005,
+              "p95_ms": 3.6931,
+              "p99_ms": 6.1744,
+              "mean_ms": 2.616971,
+              "stdev_ms": 0.823729,
+              "min_ms": 1.5495,
+              "max_ms": 7.8179
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "tantivy._commit_if_pending",
+            "calls_per_op": 1.0,
+            "ms_per_op": 46.64,
+            "per_call": {
+              "n": 5,
+              "warmups": 0,
+              "p50_ms": 43.7389,
+              "p95_ms": 56.3576,
+              "p99_ms": 56.3576,
+              "mean_ms": 46.64002,
+              "stdev_ms": 6.7018,
+              "min_ms": 39.2335,
+              "max_ms": 56.3576
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "intake.record_intent",
+            "calls_per_op": 1.0,
+            "ms_per_op": 45.427,
+            "per_call": {
+              "n": 5,
+              "warmups": 0,
+              "p50_ms": 45.2571,
+              "p95_ms": 54.6694,
+              "p99_ms": 54.6694,
+              "mean_ms": 45.42738,
+              "stdev_ms": 8.385132,
+              "min_ms": 33.4167,
+              "max_ms": 54.6694
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "events.append_event",
+            "calls_per_op": 20.0,
+            "ms_per_op": 42.141,
+            "per_call": {
+              "n": 100,
+              "warmups": 0,
+              "p50_ms": 1.8764,
+              "p95_ms": 3.0886,
+              "p99_ms": 3.7556,
+              "mean_ms": 2.107033,
+              "stdev_ms": 1.265669,
+              "min_ms": 1.1347,
+              "max_ms": 13.4398
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.get_progress",
+            "calls_per_op": 83.2,
+            "ms_per_op": 33.601,
+            "per_call": {
+              "n": 416,
+              "warmups": 0,
+              "p50_ms": 0.3493,
+              "p95_ms": 0.8031,
+              "p99_ms": 1.0019,
+              "mean_ms": 0.403863,
+              "stdev_ms": 0.197083,
+              "min_ms": 0.1672,
+              "max_ms": 2.0732
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.last_offset",
+            "calls_per_op": 40.0,
+            "ms_per_op": 32.158,
+            "per_call": {
+              "n": 200,
+              "warmups": 0,
+              "p50_ms": 0.629,
+              "p95_ms": 0.9796,
+              "p99_ms": 1.1346,
+              "mean_ms": 0.80394,
+              "stdev_ms": 2.224048,
+              "min_ms": 0.3173,
+              "max_ms": 31.9955
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.INSERT",
+            "calls_per_op": 128.0,
+            "ms_per_op": 26.547,
+            "per_call": {
+              "n": 640,
+              "warmups": 0,
+              "p50_ms": 0.1205,
+              "p95_ms": 0.5498,
+              "p99_ms": 0.9002,
+              "mean_ms": 0.207399,
+              "stdev_ms": 0.298946,
+              "min_ms": 0.044,
+              "max_ms": 5.9573
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.COMMIT",
+            "calls_per_op": 61.8,
+            "ms_per_op": 26.531,
+            "per_call": {
+              "n": 309,
+              "warmups": 0,
+              "p50_ms": 0.0581,
+              "p95_ms": 1.2776,
+              "p99_ms": 1.9286,
+              "mean_ms": 0.429308,
+              "stdev_ms": 0.5521,
+              "min_ms": 0.0108,
+              "max_ms": 2.2831
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.expired_leases",
+            "calls_per_op": 40.8,
+            "ms_per_op": 17.739,
+            "per_call": {
+              "n": 204,
+              "warmups": 0,
+              "p50_ms": 0.4106,
+              "p95_ms": 0.6192,
+              "p99_ms": 0.776,
+              "mean_ms": 0.434771,
+              "stdev_ms": 0.120574,
+              "min_ms": 0.228,
+              "max_ms": 1.0947
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "embed.embed",
+            "calls_per_op": 61.0,
+            "ms_per_op": 10.671,
+            "per_call": {
+              "n": 305,
+              "warmups": 0,
+              "p50_ms": 0.0292,
+              "p95_ms": 0.0729,
+              "p99_ms": 0.7161,
+              "mean_ms": 0.17494,
+              "stdev_ms": 2.256831,
+              "min_ms": 0.0059,
+              "max_ms": 39.4273
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "events.set_offset",
+            "calls_per_op": 3.0,
+            "ms_per_op": 9.458,
+            "per_call": {
+              "n": 15,
+              "warmups": 0,
+              "p50_ms": 2.377,
+              "p95_ms": 10.5282,
+              "p99_ms": 10.5282,
+              "mean_ms": 3.15258,
+              "stdev_ms": 2.189072,
+              "min_ms": 1.8021,
+              "max_ms": 10.5282
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "sql.BEGIN IMMEDIATE",
+            "calls_per_op": 61.8,
+            "ms_per_op": 8.885,
+            "per_call": {
+              "n": 309,
+              "warmups": 0,
+              "p50_ms": 0.0326,
+              "p95_ms": 0.1597,
+              "p99_ms": 0.4272,
+              "mean_ms": 0.143775,
+              "stdev_ms": 1.132709,
+              "min_ms": 0.0142,
+              "max_ms": 16.6253
+            },
+            "threads": [
+              "loop",
+              "worker"
+            ]
+          },
+          {
+            "span": "project.VectorProjector.apply",
+            "calls_per_op": 20.0,
+            "ms_per_op": 6.296,
+            "per_call": {
+              "n": 100,
+              "warmups": 0,
+              "p50_ms": 0.1368,
+              "p95_ms": 0.2418,
+              "p99_ms": 0.2801,
+              "mean_ms": 0.314788,
+              "stdev_ms": 1.655389,
+              "min_ms": 0.083,
+              "max_ms": 16.697
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.has_source",
+            "calls_per_op": 32.0,
+            "ms_per_op": 6.136,
+            "per_call": {
+              "n": 160,
+              "warmups": 0,
+              "p50_ms": 0.1864,
+              "p95_ms": 0.2943,
+              "p99_ms": 0.386,
+              "mean_ms": 0.191757,
+              "stdev_ms": 0.056283,
+              "min_ms": 0.1222,
+              "max_ms": 0.4194
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "project.LexicalProjector.apply",
+            "calls_per_op": 20.0,
+            "ms_per_op": 5.669,
+            "per_call": {
+              "n": 100,
+              "warmups": 0,
+              "p50_ms": 0.2667,
+              "p95_ms": 0.4349,
+              "p99_ms": 0.4955,
+              "mean_ms": 0.283468,
+              "stdev_ms": 0.074307,
+              "min_ms": 0.1902,
+              "max_ms": 0.5598
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.put_job",
+            "calls_per_op": 2.4,
+            "ms_per_op": 5.659,
+            "per_call": {
+              "n": 12,
+              "warmups": 0,
+              "p50_ms": 1.6737,
+              "p95_ms": 5.3472,
+              "p99_ms": 5.3472,
+              "mean_ms": 2.357775,
+              "stdev_ms": 1.237662,
+              "min_ms": 1.4704,
+              "max_ms": 5.3472
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "discovery.discover_committed",
+            "calls_per_op": 1.0,
+            "ms_per_op": 4.734,
+            "per_call": {
+              "n": 5,
+              "warmups": 0,
+              "p50_ms": 4.4002,
+              "p95_ms": 6.7801,
+              "p99_ms": 6.7801,
+              "mean_ms": 4.73354,
+              "stdev_ms": 1.233623,
+              "min_ms": 3.5381,
+              "max_ms": 6.7801
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "intake.discover_committed",
+            "calls_per_op": 1.0,
+            "ms_per_op": 4.725,
+            "per_call": {
+              "n": 5,
+              "warmups": 0,
+              "p50_ms": 4.3904,
+              "p95_ms": 6.7692,
+              "p99_ms": 6.7692,
+              "mean_ms": 4.7251,
+              "stdev_ms": 1.232326,
+              "min_ms": 3.5322,
+              "max_ms": 6.7692
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "lancedb.upsert",
+            "calls_per_op": 20.0,
+            "ms_per_op": 3.576,
+            "per_call": {
+              "n": 100,
+              "warmups": 0,
+              "p50_ms": 0.0132,
+              "p95_ms": 0.0235,
+              "p99_ms": 0.0295,
+              "mean_ms": 0.178787,
+              "stdev_ms": 1.643714,
+              "min_ms": 0.0091,
+              "max_ms": 16.4515
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "asyncio.Lock wait (>=0.5 ms)",
+            "calls_per_op": 0.2,
+            "ms_per_op": 3.286,
+            "per_call": {
+              "n": 1,
+              "warmups": 0,
+              "p50_ms": 16.4276,
+              "p95_ms": 16.4276,
+              "p99_ms": 16.4276,
+              "mean_ms": 16.4276,
+              "stdev_ms": 0.0,
+              "min_ms": 16.4276,
+              "max_ms": 16.4276
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "intake.intents_by_id",
+            "calls_per_op": 3.0,
+            "ms_per_op": 2.58,
+            "per_call": {
+              "n": 15,
+              "warmups": 0,
+              "p50_ms": 1.1479,
+              "p95_ms": 1.7476,
+              "p99_ms": 1.7476,
+              "mean_ms": 0.859913,
+              "stdev_ms": 0.663748,
+              "min_ms": 0.0031,
+              "max_ms": 1.7476
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.put_progress",
+            "calls_per_op": 1.6,
+            "ms_per_op": 2.194,
+            "per_call": {
+              "n": 8,
+              "warmups": 0,
+              "p50_ms": 1.3742,
+              "p95_ms": 1.4953,
+              "p99_ms": 1.4953,
+              "mean_ms": 1.371188,
+              "stdev_ms": 0.110609,
+              "min_ms": 1.1696,
+              "max_ms": 1.4953
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.prune_finished",
+            "calls_per_op": 0.8,
+            "ms_per_op": 1.959,
+            "per_call": {
+              "n": 4,
+              "warmups": 0,
+              "p50_ms": 2.3736,
+              "p95_ms": 2.8095,
+              "p99_ms": 2.8095,
+              "mean_ms": 2.4484,
+              "stdev_ms": 0.297518,
+              "min_ms": 2.0948,
+              "max_ms": 2.8095
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "intake.record_ids",
+            "calls_per_op": 1.0,
+            "ms_per_op": 1.615,
+            "per_call": {
+              "n": 5,
+              "warmups": 0,
+              "p50_ms": 1.3916,
+              "p95_ms": 2.1271,
+              "p99_ms": 2.1271,
+              "mean_ms": 1.61502,
+              "stdev_ms": 0.450881,
+              "min_ms": 1.2158,
+              "max_ms": 2.1271
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "intake.lookup_messages",
+            "calls_per_op": 1.0,
+            "ms_per_op": 1.587,
+            "per_call": {
+              "n": 5,
+              "warmups": 0,
+              "p50_ms": 1.2523,
+              "p95_ms": 2.6616,
+              "p99_ms": 2.6616,
+              "mean_ms": 1.58662,
+              "stdev_ms": 0.62829,
+              "min_ms": 1.1594,
+              "max_ms": 2.6616
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "tantivy._index_one",
+            "calls_per_op": 20.0,
+            "ms_per_op": 1.364,
+            "per_call": {
+              "n": 100,
+              "warmups": 0,
+              "p50_ms": 0.0618,
+              "p95_ms": 0.104,
+              "p99_ms": 0.1339,
+              "mean_ms": 0.068195,
+              "stdev_ms": 0.020277,
+              "min_ms": 0.0418,
+              "max_ms": 0.1543
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.get_job",
+            "calls_per_op": 2.4,
+            "ms_per_op": 0.885,
+            "per_call": {
+              "n": 12,
+              "warmups": 0,
+              "p50_ms": 0.3195,
+              "p95_ms": 0.7814,
+              "p99_ms": 0.7814,
+              "mean_ms": 0.368625,
+              "stdev_ms": 0.142982,
+              "min_ms": 0.2359,
+              "max_ms": 0.7814
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.live_jobs",
+            "calls_per_op": 0.8,
+            "ms_per_op": 0.514,
+            "per_call": {
+              "n": 4,
+              "warmups": 0,
+              "p50_ms": 0.6268,
+              "p95_ms": 0.6982,
+              "p99_ms": 0.6982,
+              "mean_ms": 0.64275,
+              "stdev_ms": 0.041688,
+              "min_ms": 0.5995,
+              "max_ms": 0.6982
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "outbox.get_item",
+            "calls_per_op": 0.8,
+            "ms_per_op": 0.362,
+            "per_call": {
+              "n": 4,
+              "warmups": 0,
+              "p50_ms": 0.4535,
+              "p95_ms": 0.5017,
+              "p99_ms": 0.5017,
+              "mean_ms": 0.4523,
+              "stdev_ms": 0.05227,
+              "min_ms": 0.3797,
+              "max_ms": 0.5017
+            },
+            "threads": [
+              "loop"
+            ]
+          },
+          {
+            "span": "outbox.next_seq",
+            "calls_per_op": 0.8,
+            "ms_per_op": 0.229,
+            "per_call": {
+              "n": 4,
+              "warmups": 0,
+              "p50_ms": 0.239,
+              "p95_ms": 0.3632,
+              "p99_ms": 0.3632,
+              "mean_ms": 0.28585,
+              "stdev_ms": 0.067784,
+              "min_ms": 0.2199,
+              "max_ms": 0.3632
+            },
+            "threads": [
+              "worker"
+            ]
+          },
+          {
+            "span": "sql.DELETE",
+            "calls_per_op": 0.8,
+            "ms_per_op": 0.092,
+            "per_call": {
+              "n": 4,
+              "warmups": 0,
+              "p50_ms": 0.1074,
+              "p95_ms": 0.127,
+              "p99_ms": 0.127,
+              "mean_ms": 0.115275,
+              "stdev_ms": 0.010151,
+              "min_ms": 0.1062,
+              "max_ms": 0.127
+            },
+            "threads": [
+              "worker"
+            ]
+          }
+        ]
+      }
+    }
+  },
+  "notes": [],
+  "load_after": {
+    "available": true,
+    "at_utc": "2026-11-02T14:22:05.175024+00:00",
+    "window_s": 2.0,
+    "cpu_percent_total": 20.7,
+    "memory_used_percent": 39.9,
+    "top_processes": [
+      {
+        "pid": 51380,
+        "name": "python.exe",
+        "cpu_percent": 99.9
+      },
+      {
+        "pid": 15264,
+        "name": "python.exe",
+        "cpu_percent": 99.8
+      },
+      {
+        "pid": 68768,
+        "name": "python.exe",
+        "cpu_percent": 65.6
+      },
+      {
+        "pid": 63976,
+        "name": "python.exe",
+        "cpu_percent": 64.8
+      },
+      {
+        "pid": 62300,
+        "name": "chrome.exe",
+        "cpu_percent": 26.2
+      },
+      {
+        "pid": 4,
+        "name": "System",
+        "cpu_percent": 20.8
+      },
+      {
+        "pid": 42788,
+        "name": "Taskmgr.exe",
+        "cpu_percent": 20.1
+      },
+      {
+        "pid": 15760,
+        "name": "explorer.exe",
+        "cpu_percent": 15.7
+      }
+    ],
+    "note": "process cpu_percent is per one logical CPU (100 = one full thread)"
+  },
+  "status": "completed",
+  "finished_at_utc": "2026-11-02T14:22:05.175208+00:00",
+  "wall_s": 37.762
+}

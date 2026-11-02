@@ -374,3 +374,202 @@ Reads do not wait on locks: no `asyncio.Lock` wait of 0.5 ms or more was recorde
   about 2 msgs/s to keep that load small.
 - Worker-thread time (LanceDB, Tantivy, onnx) is invisible to cProfile and appears only in
   the spans.
+
+## 2026-11-02 (after the write-path fixes): PA-053 re-measured after RM-159, RM-160 and RM-161
+
+This pass re-ran PA-053, the write-path profile and the read-latency series at commit
+92915cf2. That commit is f375b4b6, where RM-159, RM-160 and RM-161 are closed, plus harness
+changes only. The protocol and the host are the same as in the pass above. No `src`,
+template or default was changed.
+
+The records are under `docs/provider_verification/`, each with the suffix `-2026-11-02-after.json`:
+- `perf-pa053-concurrent-ingest-search`;
+- `perf-pa053-window-idle-5s`, `perf-pa053-window-idle-30s` and `perf-pa053-window-idle-30s-conversation`;
+- `perf-pa053-write-path-profile`;
+- `perf-rm26-read-latency-reranker`.
+
+Every record is `completed` on a clean tree. None is `diagnostic_only`.
+
+What changed in the harness (`scripts/benchmark_engine_read_ingest.py`, `scripts/profile_write_path.py`):
+- `--suffix` and `--family` set the record names.
+- `--window-idle-s` overrides `write.window_idle_s`.
+- A probe on `WindowPipeline._enqueue` stamps each record's window cut. Each derivation lag is
+  then split into the wait for the cut and the processing after it.
+- Per-step window statistics are recorded: cuts by reason, turns and tokens per window, and
+  rule facts.
+- `--conversation-per-session` gives a session's messages one `conversation_id`.
+- The seed is now 1,000 records (it was 500). Durations are 60/60/30 s at 1/10/50 msgs/s
+  (they were 60/30/10 s). The step cap is still 300 s, with 2 readers and a 50 ms think time.
+
+**Host.** The host is the same: Ryzen 9 9950X3D, 16C/32T, 125.6 GiB RAM, Windows 11 build
+26340, power plan High performance, Python 3.13.5, onnxruntime 1.31.1, lancedb 0.41.0,
+tantivy 0.27.0. **Not isolated for the whole pass.** Three unrelated single-threaded
+CPU-bound Python jobs from other projects started at 19:42-19:47 local time:
+`phd05_g29_adaptation.py`, `pr6.confirm` and `sim_bootstrap_null.py`. Host CPU was 7% before
+the main run. It was 10-23% during the later runs, two of those jobs at about 100% of one
+thread each.
+- Clean: the seed and the single_1, single_10 and single_50 steps, which ran 19:23-19:41.
+- Overlapped with those jobs: batched_10, batched_50, the profile, the three idle runs and
+  the read series.
+- The overlapped figures are directional. Their p95/p99 tails are the least reliable numbers.
+
+### PA-053: before and after (window_idle_s 120, the default)
+
+| Step | achieved msgs/s before → after | write-ack p50 / p95 ms after | read p50 / p95 / p99 ms after (before p95) | derivation lag p50 / p95 ms after (before p95) |
+|---|---:|---:|---:|---:|
+| single_1 | 1.00 → 0.83 | 1,938 / 11,266 | 142 / 3,590 / 4,023 (1,622) | 121,170 / 123,348 (121,394) |
+| single_10 | 1.19 → 1.10 (saturated; 271 of 600 calls cancelled at the cap) | 87,197 / 253,597 | 209 / 2,677 / 3,157 (2,215) | 158,000 / 203,933 (183,219) |
+| single_50 | not run → 1.53 (saturated; 1,040 cancelled) | 117,978 / 268,229 | 325 / 1,068 / 1,280 | 120,625 / 144,247 (n = 12) |
+| batched_10 (5/call)* | 1.71 → 0.76 (saturated) | 120,677 / 264,705 | 1,128 / 3,956 / 4,188 (2,956) | 178,000 / 219,086 (191,238) |
+| batched_50 (25/call)* | 1.33 → 0.83 (saturated) | 32,882 / 233,862 | 1,408 / 3,190 / 3,818 (3,525) | none derived within the tail |
+
+\* The step overlapped the external jobs.
+
+**The write path still saturates at about 1-1.5 msgs/s.** Every step at 10 msgs/s or above
+measures queueing, as before. The seed is the clearest clean evidence:
+- Before and after, a 1k seed took 198 s at 20 turns per call.
+- Per call, the time grew from 0.70 s on an empty store to 4.5 s at 900 messages, the same
+  slope as before.
+- The 600 s read seed again stopped at exactly 2,440 records.
+
+RM-159/160 removed the outbox full scans and the per-row index commits. A second term that
+grows with history remains; see the profile below.
+
+**Lag split.** Over all steps, the wait for the window cut is 119.9-120.1 s at p50/p95,
+which is `window_idle_s` itself. Every window in these steps was cut by `idle` and held 1 turn.
+- Each root message without a `conversation_id` starts its own conversation, so it gets its
+  own window. Only the idle timer closes it, and the turn and token caps never apply.
+- Processing after the cut is the engine's own lag:
+
+| Step | processing after the cut, p50 / p95 / p99 ms |
+|---|---:|
+| single_1 | 1,518 / 3,428 / 4,685 |
+| single_10 (saturated backlog) | 38,107 / 83,943 / 86,046 |
+| batched_10* | 61,550 / 99,598 / 100,845 |
+
+### window_idle_s trade-off (single_1, a fresh 1k seed each time)
+
+| window_idle_s | achieved msgs/s | write-ack p50 / p95 ms | read p50 / p95 ms | lag p50 / p95 ms | wait for cut p50 / p95 | processing p50 / p95 | windows (turns/window) | rule facts | 1k seed wall s / final flush s |
+|---|---:|---:|---:|---:|---:|---:|---|---:|---:|
+| 120 (main run, clean) | 0.83 | 1,938 / 11,266 | 142 / 3,590 | 121,170 / 123,348 | 119,901 / 120,059 | 1,518 / 3,428 | 60 idle (1) | 14 | 198 / 30.7 |
+| 30* | 0.66 | 8,698 / 28,261 | 241 / 2,868 | 31,406 / 40,774 | 29,898 / 30,282 | 1,441 / 11,151 | 60 idle (1) | 14 | 145 / 8.9 |
+| 5* | 1.01 | 707 / 1,283 | 232 / 954 | 5,398 / 7,455 | 4,857 / 5,080 | 508 / 2,631 | 60 idle (1) | 14 | 108 / 3.2 |
+| 30, one conversation per session* | 0.81 | 9,503 / 16,344 | 244 / 2,418 | 18,145 / 31,820 | 8,182 / 21,303 | 10,968 / 13,403 | 4: 3 by turns, 1 by idle (p50 18, max 20 turns; p50 402 tokens) | 14 | 147 / 9.1 |
+
+\* The run overlapped the external jobs.
+
+What windowing does with a shorter idle:
+- **Single-message conversations.** The windows and the extraction are unchanged: 60
+  one-turn windows and 14 rule facts at every setting. Only the lag moves, and it moves
+  almost 1:1 with `window_idle_s`.
+- **One conversation per session.** The rule-only segmenter grows a window to the
+  `segment_grow_tokens` line, about 400 tokens or 15-20 turns here. So the turn cap closes
+  windows before a 30 s idle does. The facts are again the same 14.
+- **The ingest cost also falls with a shorter idle.** The 1k seed took 108 s at 5 s idle,
+  145 s at 30 s and 198 s at 120 s, because fewer windows stay open (see the profile).
+- The write-ack and read tails at 30 s are worse than at 120 s, but those runs were not on
+  an isolated host. Do not read that ordering as an effect of the setting.
+
+### Where the time goes now (`perf-pa053-write-path-profile-2026-11-02-after.json`)
+
+The store is the main run's store after its steps, about 2,300 messages. There were 10 reps
+after a warm-up; the run overlapped the external jobs.
+
+| Operation | before (da523ce0, 1.3k) p50 / p95 | RM-160 profile (500) p50 / p95 | after (2.3k) p50 / p95 |
+|---|---:|---:|---:|
+| `Engine.write` | 309 / 512 | 195 / 369 | 293 / 344 |
+| `ingest_messages`, 1 message | 314 / 466 | 187 / 217 | 300 / 391 |
+| `Engine.read` alone | 353 / 711 | 288 / 482 | 213 / 245 |
+| `Engine.read` during a 20-message ingest | 672 / 820 | 398 / 615 | 312 / 444 |
+| `flush_windows` (s / windows) | 11.1 / 105 | 0.88 | 8.5 / 64 (133 ms per one-turn window) |
+| 20-message `ingest_messages` | 2,675 | 1,620 | 1,654 |
+
+- `SqlJobStore.jobs()` no longer appears. The outbox span is now `claim_job`, at 10-21 ms
+  per op.
+- The index applies are one call per batch, but their cost is per call: LanceDB
+  `write_pending` (`merge_insert`) takes 49-57 ms and Tantivy `IndexWriter.commit` 48-57 ms.
+  The single-message ingest also takes about 70 ms in a LanceDB flat `_search` (the
+  neighbour prefetch).
+- A read alone issues 3 `SELECT`s, down from 87, at about 62 ms. That is RM-161's single
+  validated listing.
+- **The remaining term that grows with history is the window draft.**
+  - On every `observe`, `WindowPipeline._persist_draft` re-serialises every open turn of
+    the namespace, with its 384-float vector, into `outbox.put_draft`.
+  - In a 20-message ingest, `windows.observe` takes 362 ms and `put_draft` 278 ms, both
+    once per message. `SELECT` time is 498 ms over 355 statements.
+  - The open-turn count is (msgs/s × `window_idle_s`) for single-message conversations. It
+    is the whole seed for a bulk load that flushes only at the end.
+  - That explains the linear seed slope and why a shorter idle makes ingest cheaper.
+  - **Next fix (not implemented):** persist the draft per window or as a delta, without
+    vectors or with them stored once, so a write costs O(its window) instead of O(open
+    turns).
+  - After that, the per-call LanceDB `merge_insert` and Tantivy commit, about 100 ms per
+    single-message call, bound single-message throughput near 3 msgs/s on this host. Group
+    commits across calls would be needed to reach 10.
+
+### Read latency with and without the MiniLM reranker (after)
+
+| Corpus | rerank off p50 / p95 / p99 ms, before → after | rerank on p50 / p95 / p99 ms after | model call p50 / p95 ms | net added p50 / p95 ms | context tokens off → on |
+|---|---:|---:|---:|---:|---:|
+| 1,000 | 191 / 350 / 365 → **62 / 79 / 81** | 85 / 101 / 105 | 19.4 / 25.4 | +23.4 / +22.5 | 1,857 → 1,230 |
+| 2,440 (the 600 s seed cap; 10k requested) | 449 / 580 / 643 → **159 / 203 / 490** | 183 / 224 / 235 | 23.0 / 31.5 | +23.8 / +20.8 | 1,892 → 1,462 |
+
+Reads are 3x faster after RM-161: 62 ms at 1k and 159 ms at 2.4k. They still grow with
+the corpus. The reranker now costs a steady +21-24 ms at p50 and p95: 100 calls with 16
+documents each, and no failures. The 2.4k off-p99 of 490 ms is one outlier; this series
+overlapped the external jobs.
+
+### Proposals (for owner approval; nothing changed)
+
+**PA-053 budgets at 10 msgs/s: still not proposable.** The engine does not sustain
+10 msgs/s. It achieved 1.10 single and 0.76 batched. The mechanical rule (p95 × 1.3), which
+the record also stores, gives write-ack 329,700 ms, read 3,500 ms and lag 265,200 ms. Those
+are queue lengths, not budgets.
+
+Provisional budgets at the sustained rate are below. They use the 1 msg/s single-message
+step at `window_idle_s` 5 (p95 × 1.3, rounded up), and that run overlapped the external
+jobs. **Proposal only, not a default:**
+
+| Budget (at 1 msg/s, 2 concurrent readers, 1k-1.1k store) | measured p95 | proposed |
+|---|---:|---:|
+| write-ack p95 | 1,283 ms | 1,700 ms |
+| read p95 during ingest | 954 ms | 1,300 ms |
+| processing lag p95 (after the window cut) | 2,631 ms | 3,500 ms |
+| facts-ready lag p95 | `window_idle_s` + processing | `window_idle_s` + 3,500 ms |
+
+Re-measure at 10 msgs/s once the draft fix lands. Until then, a 10 msgs/s budget would only
+record the backlog.
+
+**`window_idle_s`: recommend 30 s for the base template, instead of 120 s.**
+- Gain: facts readiness for single-message traffic drops from about 121-123 s to about
+  31-41 s.
+- Gain: the open-window draft shrinks about 4x. On this harness, 1k-message ingest was 27%
+  faster (145 s against 198 s).
+- No change in rule-only output: the same windows and the same facts.
+- Cost: an idle cut closes a conversation's window early when its turns are more than 30 s
+  apart. With LLM `window_extract` (not measured here), that means more and smaller window
+  calls, and less context per call.
+- 5 s gives the best latency: lag p95 7.5 s and write-ack p95 1.3 s. But it would cut most
+  human-paced conversations after every turn, so it suits only rule-only or bulk-load
+  deployments.
+- LLM-extraction templates should keep a longer idle, or rely on `conversation_id` and the
+  turn and token caps.
+
+**MiniLM default (ADR-093): yes.**
+- It adds 23.4 ms at p50 and 22.5 ms at p95 at 1k, and 23.8 / 20.8 ms at 2.4k. That is
+  inside ADR-093's 20-60 ms estimate.
+- Because reads are now faster, it is a larger share of a read than before: +38% of p50 at
+  1k (62 → 85 ms) and +15% at 2.4k. Reranked reads stay at or under about 105 ms p99 at 1k
+  and 235 ms at 2.4k.
+- The cost is flat with the corpus, and context drops 23-34% in tokens.
+- Unchanged caveats: there is no int8 variant, and retrieval quality was not measured.
+
+**Unreliable or limited in this pass.**
+- External CPU load affected every run after 19:42, as listed above.
+- single_50 and the batched steps are saturated by construction.
+- batched_50 derived no tracked message within the 150 s tail, so it has no lag figure.
+- The 30 s and conversation runs have about 60 lag samples each, from one run. Their p95
+  ordering against the 120 s run is not trustworthy.
+- The conversation run's processing lag (p50 11 s for 4 windows) was not profiled.
+- The 10k corpus is still capped at 2,440 records by the 600 s seed limit, which is itself
+  the ingest-growth finding.
