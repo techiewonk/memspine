@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from contextvars import ContextVar
 from dataclasses import dataclass
+from typing import Any
 
 import orjson
 
@@ -104,9 +105,11 @@ _SEARCH_MAX_WIDEN = 64
 #: I2 (isolation review 2026-10-08): the records a read has listed, by (namespace,
 #: memory_type, group_id). Set for the duration of one ``search`` / ``assemble`` /
 #: ``read`` call (outermost wins), cleared by every append, so a read sees exactly what
-#: an uncached read would see while listing each namespace at most once.
-_READ_SNAPSHOT: ContextVar[dict[tuple[str, str | None, str | None], list[MemoryRecord]] | None] = (
-    ContextVar("memspine_read_snapshot", default=None)
+#: an uncached read would see while listing each namespace at most once. RM-161: it also
+#: holds what the read derives from those listings (records by id, episodic sessions),
+#: under keys of other lengths.
+_READ_SNAPSHOT: ContextVar[dict[tuple[Any, ...], Any] | None] = ContextVar(
+    "memspine_read_snapshot", default=None
 )
 
 

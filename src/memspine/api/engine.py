@@ -220,6 +220,7 @@ from memspine.read.pipeline.timeview import (
     _passive_scoped,
     _snapshot_listings,
     _snapshot_scoped,
+    _snapshot_sessions,
 )
 from memspine.runtime import scheduler as _scheduler_rt
 from memspine.runtime.container import (
@@ -812,6 +813,7 @@ class Engine:
         )
         if "episodic" in self._enabled:
             self._episodic = EpisodicMemory(self._storage)
+            _snapshot_sessions(self._episodic)  # RM-161: sessions detected once per read
         # #53: validated at start, so a bad duration fails here, not at the first sleep.
         self._sessions_horizon = passive_after(self._memory_policy(config, "episodic"))
         if "resource" in self._enabled:

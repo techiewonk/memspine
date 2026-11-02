@@ -75,6 +75,36 @@ async def test_lexical_leg_ranks_by_bm25() -> None:
     assert all(h.score > 0 for h in out.hits)
 
 
+async def test_a_refit_tokenises_only_new_documents(monkeypatch: pytest.MonkeyPatch) -> None:
+    """RM-161: after a write the index refits, but only the new document is tokenised; the
+    ranking equals a cold build, and an erasure (``forget_stems``) drops the memo."""
+    from memspine.read.legs import lexical
+
+    lexical.forget_stems()
+    calls: list[str] = []
+    real = UnicodeTokeniser.tokens
+
+    def counting(self: UnicodeTokeniser, text: str) -> list[str]:
+        calls.append(text)
+        return real(self, text)
+
+    monkeypatch.setattr(UnicodeTokeniser, "tokens", counting)
+    recs = [_rec(f"r{i}", f"note {i} about the garden fence") for i in range(20)]
+    leg = lib.LexicalLeg(name="lexical_rm161")
+    await leg.run(_ctx(recs, "garden fence"))
+    calls.clear()
+    grown = [*recs, _rec("r20", "Alice painted the garden fence red")]
+    warm = await leg.run(_ctx(grown, "garden fence red"))
+    assert [c for c in calls if "note" in c] == []  # the 20 known documents: not again
+    assert len(calls) == 2  # the query and the new document
+    lexical.forget_stems()
+    cold = await lib.LexicalLeg(name="lexical_rm161_cold").run(_ctx(grown, "garden fence red"))
+    assert [(h.record_id, h.score) for h in warm.hits] == [
+        (h.record_id, h.score) for h in cold.hits
+    ]
+    assert len(calls) == 2 + 1 + len(grown)  # erased memo: every document tokenised again
+
+
 async def test_vector_leg_wraps_the_search_and_reports_no_embedder() -> None:
     async def search(k: int) -> list[lib.Hit]:
         return [lib.Hit("v1", 0.9), lib.Hit("v2", 0.5)][:k]

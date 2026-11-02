@@ -827,6 +827,15 @@ ENTITY_EXPAND_MAX_SHARE = 0.05
 #: engine caches per process for the MaxSim leg; the cache is cleared when full.
 MAXSIM_CACHE_MAX = 100_000
 
+#: RM-161 (PA-053 write-path profile 2026-11-02, docs/PROVIDER_PERFORMANCE_FOLLOWUP.md "Where the
+#: time goes"): the most listed records a SQL records store keeps per process so a read reuses
+#: the record it built for an unchanged row instead of validating the row again (about 150 ms of
+#: a 1.3k-record read). Past it the least recently listed namespaces are dropped.
+READ_RECORD_MEMO_MAX = 100_000
+#: RM-161 (same profile): the most indexed-document texts whose lexical-leg tokens are kept,
+#: so the BM25 refit after a write tokenises only new or changed documents.
+LEXICAL_DOC_TOKENS_MAX = 100_000
+
 # N31 (Memori session summaries, extractive): the session digest header
 # (``read.session_digest``): for the sessions of the first hits, the sentences most
 # like the question. Never hides the session's turns from the read.

@@ -33,7 +33,12 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from memspine.config.constants import RECORD_BATCH_CHUNK, STORAGE_HEALTH_DEADLINE_S, ZSTD_LEVEL
+from memspine.config.constants import (
+    READ_RECORD_MEMO_MAX,
+    RECORD_BATCH_CHUNK,
+    STORAGE_HEALTH_DEADLINE_S,
+    ZSTD_LEVEL,
+)
 from memspine.exceptions import StorageError
 from memspine.services.base import CapabilityManifest, ServiceAdapter
 
@@ -43,6 +48,7 @@ from memspine.services.storage.provider_metadata import (
     SqlProjectionBindingStore,
     sql_claim_deployment_id,
 )
+from memspine.services.storage.records_port import shares_listed_records
 from memspine.services.storage.sqlite.schema import (
     memory_events,
     memory_records,
@@ -102,6 +108,10 @@ class SqlStorage(ServiceAdapter):
         self._ephemeral_offsets: dict[str, int] = {}
         self._cctx = zstandard.ZstdCompressor(level=ZSTD_LEVEL)
         self._dctx = zstandard.ZstdDecompressor()
+        # RM-161: per namespace, record id -> (raw row, the record built from it), for listings
+        # made while ``sharing_listed_records`` is on. An entry is reused only for an identical
+        # row, so it can never serve stale data; writes and deletes here drop theirs at once.
+        self._listed: dict[str, dict[str, tuple[tuple[Any, ...], MemoryRecord]]] = {}
 
     # ── dialect dispatch ─────────────────────────────────────────────────────
 
@@ -434,6 +444,7 @@ class SqlStorage(ServiceAdapter):
     # ── relational read model ────────────────────────────────────────────────
 
     async def upsert_record(self, record: MemoryRecord) -> None:
+        self._forget_listed(record.record_id, record.namespace)
         values = {
             "namespace": record.namespace,
             "memory_type": record.memory_type,
@@ -569,7 +580,47 @@ class SqlStorage(ServiceAdapter):
                     raise
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 0.05)
+        if shares_listed_records():
+            return self._shared_records(namespace, rows, whole=memory_type is None and not group_id)
         return [self._row_to_record(row._mapping) for row in rows]
+
+    def _shared_records(
+        self, namespace: str, rows: Sequence[Any], *, whole: bool
+    ) -> list[MemoryRecord]:
+        """RM-161: the records of ``rows``, reusing the record built for an identical row by an
+        earlier shared listing (no validation). A whole-namespace listing replaces the
+        namespace's entries, so rows deleted elsewhere do not linger in memory."""
+        memo = self._listed.pop(namespace, {})
+        kept: dict[str, tuple[tuple[Any, ...], MemoryRecord]] = {} if whole else memo
+        out: list[MemoryRecord] = []
+        for row in rows:
+            values = tuple(row)
+            mapping = row._mapping
+            record_id = mapping["record_id"]
+            hit = memo.get(record_id)
+            if hit is not None and hit[0] == values:
+                record = hit[1]
+            else:
+                record = self._row_to_record(mapping)
+            kept[record_id] = (values, record)
+            out.append(record)
+        self._listed[namespace] = kept  # most recently listed last
+        total = sum(len(entries) for entries in self._listed.values())
+        while total > READ_RECORD_MEMO_MAX and self._listed:
+            oldest = next(iter(self._listed))
+            total -= len(self._listed.pop(oldest))
+        return out
+
+    def _forget_listed(self, record_id: str, namespace: str | None = None) -> None:
+        """RM-161: drop the shared listing entry of one record (it is being written or
+        deleted), in ``namespace`` or, unknown, in every namespace."""
+        if namespace is not None:
+            entries = self._listed.get(namespace)
+            if entries is not None:
+                entries.pop(record_id, None)
+            return
+        for entries in self._listed.values():
+            entries.pop(record_id, None)
 
     async def list_session_records(
         self, namespace: str, session_key: str, roles: Sequence[str] | None = None
@@ -691,12 +742,14 @@ class SqlStorage(ServiceAdapter):
 
     async def delete_all_records(self) -> None:
         """Projector rebuild support: drop the read model, keep the log."""
+        self._listed.clear()
         async with self._client.engine.begin() as conn:
             await conn.execute(delete(memory_records))
 
     async def delete_record(self, record_id: str) -> None:
         """M7 hard-delete: remove one row from the read model (projector-driven
         by a FORGET(hard) event; the log side is ``redact_event_payloads``)."""
+        self._forget_listed(record_id)
         async with self._client.engine.begin() as conn:
             await conn.execute(
                 delete(memory_records).where(memory_records.c.record_id == record_id)

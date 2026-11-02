@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import functools
 import inspect
-from collections.abc import Callable, Coroutine, Mapping
+from collections.abc import Callable, Coroutine, Mapping, Sequence
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -32,8 +32,12 @@ from memspine.schemas.durable.evidence import Evidence, TurnRef
 from memspine.schemas.durable.identity import AssertionKey
 from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.schemas.durable.temporal import Interval, TemporalRef, TimeAxes
+from memspine.services.storage.records_port import sharing_listed_records
 from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
 from memspine.store.scope import validate_namespace
+
+#: RM-161: snapshot key of the records by id (a different length from the 3-tuple listings).
+_BY_ID = ("by_id",)
 
 
 def _snapshot_listings(storage: Any) -> None:
@@ -43,7 +47,11 @@ def _snapshot_listings(storage: Any) -> None:
     fresh list is returned to each caller; outside a read it is the plain listing.
     Every append clears the snapshot (``_append_and_project``), so a read never sees
     a listing older than its own writes. The episodic store and every engine helper
-    share the storage object, so all of them go through it."""
+    share the storage object, so all of them go through it.
+
+    RM-161: ``get_record`` / ``get_records`` inside a read answer from the read's
+    whole-namespace listings when they hold the id (the row the store returned to this
+    read), and go to the store otherwise."""
     original = storage.list_records
 
     async def list_records(
@@ -55,16 +63,75 @@ def _snapshot_listings(storage: Any) -> None:
             return records
         key = (namespace, memory_type, group_id)
         if key not in cache:
-            cache[key] = await original(namespace, memory_type, group_id)
+            listed: list[MemoryRecord] = await original(namespace, memory_type, group_id)
+            cache[key] = listed
+            if memory_type is None and group_id is None:
+                cache.setdefault(_BY_ID, {}).update((r.record_id, r) for r in listed)
         return list(cache[key])
 
     storage.list_records = list_records
+
+    original_get = getattr(storage, "get_record", None)
+    if original_get is not None:
+
+        async def get_record(record_id: str) -> MemoryRecord | None:
+            cache = _READ_SNAPSHOT.get()
+            if cache:
+                hit: MemoryRecord | None = cache.get(_BY_ID, {}).get(record_id)
+                if hit is not None:
+                    return hit
+            record: MemoryRecord | None = await original_get(record_id)
+            return record
+
+        storage.get_record = get_record
+
+    original_batch = getattr(storage, "get_records", None)
+    if original_batch is not None:
+
+        async def get_records(record_ids: Sequence[str]) -> dict[str, MemoryRecord]:
+            cache = _READ_SNAPSHOT.get()
+            known: dict[str, MemoryRecord] = cache.get(_BY_ID, {}) if cache else {}
+            if not known:
+                fetched: dict[str, MemoryRecord] = await original_batch(record_ids)
+                return fetched
+            ids = list(dict.fromkeys(str(r) for r in record_ids if r))
+            out = {rid: known[rid] for rid in ids if rid in known}
+            missing = [rid for rid in ids if rid not in out]
+            if missing:
+                out.update(await original_batch(missing))
+            return out
+
+        storage.get_records = get_records
+
+
+def _snapshot_sessions(episodic: Any) -> None:
+    """RM-161: inside a read, the episodic sessions of a (namespace, gap) are detected once
+    from the read's listing and shared by every leg; outside a read, as before. They are
+    cleared with the snapshot, so a write inside the read is seen."""
+    original = episodic.sessions
+
+    async def sessions(
+        namespace: str, gap_minutes: int = constants.SESSION_GAP_MINUTES
+    ) -> list[Session]:
+        cache = _READ_SNAPSHOT.get()
+        if cache is None:
+            found: list[Session] = await original(namespace, gap_minutes)
+            return found
+        key = ("sessions", namespace, gap_minutes, None)
+        if key not in cache:
+            cache[key] = await original(namespace, gap_minutes)
+        return list(cache[key])
+
+    episodic.sessions = sessions
 
 
 def _snapshot_scoped[**P, R](
     fn: Callable[P, Coroutine[Any, Any, R]],
 ) -> Callable[P, Coroutine[Any, Any, R]]:
-    """I2: run ``fn`` inside one read snapshot (a nested call reuses the outer one)."""
+    """I2: run ``fn`` inside one read snapshot (a nested call reuses the outer one).
+
+    RM-161: inside it the records store may reuse the records it built for unchanged rows
+    (``sharing_listed_records``)."""
 
     @functools.wraps(fn)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
@@ -73,7 +140,8 @@ def _snapshot_scoped[**P, R](
         token = _READ_SNAPSHOT.set({})
         focal = _FOCAL_ENTITY.set(None)  # G-11: a focal entity lives for one read
         try:
-            return await fn(*args, **kwargs)
+            with sharing_listed_records():
+                return await fn(*args, **kwargs)
         finally:
             _FOCAL_ENTITY.reset(focal)
             _READ_SNAPSHOT.reset(token)

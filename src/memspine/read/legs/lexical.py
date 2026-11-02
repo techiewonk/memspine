@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Protocol, runtime_checkable
 
+from memspine.config.constants import LEXICAL_DOC_TOKENS_MAX
 from memspine.read.legs.core import Hit, LegContext, LegOutput
 from memspine.store.records import MemoryRecord, chrono_key
 
@@ -108,8 +109,10 @@ def _stem(language: str, word: str) -> tuple[str, ...]:
 
 def forget_stems() -> None:
     """ADR-095 (caches copy class): drop the process-wide stem memo. It is keyed by the words
-    of queries and record content, so an erasure clears it (it refills on the next read)."""
+    of queries and record content, so an erasure clears it (it refills on the next read).
+    RM-161: the indexed-document token memo is keyed by record text too and goes with it."""
     _stem.cache_clear()
+    _doc_tokens.cache_clear()
 
 
 def _bigrams(run: str) -> list[str]:
@@ -151,6 +154,19 @@ class UnicodeTokeniser:
                 if word:
                     out.extend(_stem(self.language, word) if self.stem else (word,))
         return out
+
+
+@lru_cache(maxsize=LEXICAL_DOC_TOKENS_MAX)
+def _doc_tokens(language: str, stem: bool, text: str) -> tuple[str, ...]:
+    """RM-161: the tokens of one indexed document text, so a refit after a write tokenises
+    only the documents it has not seen (tokens depend on the language, stemming and text)."""
+    return tuple(UnicodeTokeniser(language, stem=stem).tokens(text))
+
+
+def _index_tokens(tokeniser: Tokeniser, text: str) -> Sequence[str]:
+    if type(tokeniser) is UnicodeTokeniser:
+        return _doc_tokens(tokeniser.language, tokeniser.stem, text)
+    return tokeniser.tokens(text)
 
 
 def make_tokeniser(language: str = "en") -> Tokeniser:
@@ -267,7 +283,9 @@ class LexicalLeg:
             self._cache.move_to_end(key)
             return hit
         scorer = make_scorer(ctx.lexical_scorer)
-        docs = {r.record_id: tokeniser.tokens(_doc_text(r, ctx.lexical_dates)) for r in records}
+        docs = {
+            r.record_id: _index_tokens(tokeniser, _doc_text(r, ctx.lexical_dates)) for r in records
+        }
         scorer.fit(docs)
         built = _Index(scorer, {r.record_id: r for r in records})
         self._cache[key] = built

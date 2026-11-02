@@ -40,7 +40,9 @@ from ``storage.records``. SQL-only features (the outbox job book, the side table
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
@@ -68,7 +70,32 @@ __all__ = [
     "SchemaPort",
     "binding_source_name",
     "require_binding_match",
+    "shares_listed_records",
+    "sharing_listed_records",
 ]
+
+
+#: RM-161: set for the duration of one read (``read.pipeline.timeview._snapshot_scoped``).
+#: While it is set, a records store MAY return, for a record whose stored row is unchanged
+#: since an earlier listing, the very object that listing built instead of validating the row
+#: again. The returned records are then shared with other readers and must not be mutated in
+#: place (the read path copies with ``model_copy``). A store that ignores it stays correct.
+_SHARE_LISTED: ContextVar[bool] = ContextVar("memspine_share_listed_records", default=False)
+
+
+@contextmanager
+def sharing_listed_records() -> Iterator[None]:
+    """RM-161: let the records store reuse unchanged listed records inside this block."""
+    token = _SHARE_LISTED.set(True)
+    try:
+        yield
+    finally:
+        _SHARE_LISTED.reset(token)
+
+
+def shares_listed_records() -> bool:
+    """RM-161: whether the current context allows reusing unchanged listed records."""
+    return _SHARE_LISTED.get()
 
 
 @dataclass(frozen=True, slots=True)
