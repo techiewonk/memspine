@@ -56,3 +56,37 @@ async def test_disk_survives_reopen(tmp_path: Path) -> None:
         assert await CashewsCache(c2).get("k") == b"durable"  # persisted to disk
     finally:
         await c2.close()
+
+
+async def test_compact_leaves_no_deleted_key_in_the_disk_files(tmp_path: Path) -> None:
+    """ADR-095: a delete is logical in diskcache's SQLite; ``compact`` rewrites the database and
+    truncates its WAL so the deleted key is in no file page. Live keys survive."""
+    directory = tmp_path / "cache"
+    client = CashewsClient(CashewsSpec(f"disk://?directory={directory}"))
+    await client.open()
+    try:
+        kv = CashewsCache(client)
+        assert await kv.compact() is True  # nothing deleted yet: a no-op
+        await kv.set("emb:erased-3f9a1c", b"x" * 64)
+        await kv.set("emb:kept", b"y")
+        await kv.delete("emb:erased-3f9a1c")
+        assert await kv.compact() is True
+        assert await kv.get("emb:kept") == b"y"
+        hits = [
+            p for p in directory.rglob("*") if p.is_file() and b"erased-3f9a1c" in p.read_bytes()
+        ]
+        assert hits == []
+    finally:
+        await client.close()
+
+
+async def test_compact_is_a_no_op_on_a_memory_backend() -> None:
+    client = CashewsClient(CashewsSpec("mem://"))
+    await client.open()
+    try:
+        kv = CashewsCache(client)
+        await kv.set("k", b"v")
+        await kv.delete("k")
+        assert await kv.compact() is True
+    finally:
+        await client.close()

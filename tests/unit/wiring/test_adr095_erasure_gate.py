@@ -536,13 +536,9 @@ async def test_kv_caches(tmp_path: Path, backend: str) -> None:
     assert _file_hits(tmp_path, NEEDLES) == {}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="RM-135 follow-up: the disk cache (cashews/diskcache SQLite) deletes the erased "
-    "text's key logically but the key, which carries the text's xxh64, stays in the cache "
-    "database's WAL and free pages (services/cache/cashews.py)",
-)
 async def test_kv_disk_cache_files(tmp_path: Path) -> None:
+    """The disk cache deletes the erased text's key logically; the hard erase then compacts
+    the cache database (VACUUM, WAL truncated), so no file page keeps the key's xxh64."""
     cache = {"provider": "disk", "settings": {"path": str(tmp_path / "kv")}}
     eng = await _start(tmp_path, cache=cache)
     try:

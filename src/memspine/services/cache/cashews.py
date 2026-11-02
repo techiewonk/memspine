@@ -11,10 +11,15 @@ round-trip verbatim. ``MemoryKV`` stays the zero-dep core ``memory`` default
 from __future__ import annotations
 
 import asyncio
+import sqlite3
+from typing import Any
 
 from memspine.clients.cashews import CashewsClient
+from memspine.observability.logging import get_logger
 
 __all__ = ["CashewsCache"]
+
+_log = get_logger(__name__)
 
 
 class CashewsCache:
@@ -30,6 +35,8 @@ class CashewsCache:
         self._prefix = f"{namespace}:"
         self._default_ttl = default_ttl_seconds
         self._request_timeout_s = request_timeout_s
+        #: ADR-095: a delete since the last :meth:`compact` (its key may sit in free pages).
+        self._deleted = False
 
     def _key(self, key: str) -> str:
         return self._prefix + key
@@ -48,3 +55,57 @@ class CashewsCache:
     async def delete(self, key: str) -> None:
         async with asyncio.timeout(self._request_timeout_s):
             await self._client.cache.delete(self._key(key))
+        self._deleted = True
+
+    async def compact(self) -> bool:
+        """ADR-095 (caches copy class): a disk backend (diskcache SQLite) deletes a key only
+        logically; the key, which carries the erased text's hash, stays in the database's free
+        pages and its WAL. Rewrite every shard (``VACUUM``) and truncate its WAL, so no page of
+        the files holds a deleted key. Called after a hard erase. A remote backend (redis or
+        valkey) frees a deleted key itself: nothing to do. Returns True when every disk shard
+        was compacted (or there is none, or nothing was deleted since the last compaction)."""
+        if not self._deleted:
+            return True
+        shards = [
+            shard
+            for backend in getattr(self._client.cache, "_backends", {}).values()
+            for shard in _disk_shards(backend)
+        ]
+        if not shards:
+            return True
+        # No request timeout: a rewrite takes as long as the cache is large, and a cancelled
+        # await would leave the worker thread running anyway.
+        ok = await asyncio.to_thread(_vacuum_all, shards)
+        self._deleted = not ok
+        return ok
+
+
+def _disk_shards(backend: object) -> list[Any]:
+    """The diskcache ``Cache`` shards behind a cashews disk backend (none for other kinds)."""
+    inner = getattr(backend, "_cache", None)
+    if inner is None or not hasattr(inner, "directory"):
+        return []
+    shards = getattr(inner, "_shards", None)
+    return list(shards) if shards is not None else [inner]
+
+
+def _vacuum_all(shards: list[Any]) -> bool:
+    ok = True
+    for shard in shards:
+        try:
+            sql = shard._sql  # the shard's own (thread-local) connection
+            sql("PRAGMA wal_checkpoint(TRUNCATE)")
+            sql("VACUUM")
+            sql("PRAGMA wal_checkpoint(TRUNCATE)")
+        except sqlite3.Error as exc:  # busy: the key stays in free pages until the next erase
+            _log.warning("cache.compact_failed", error=str(exc)[:200])
+            ok = False
+        finally:
+            # The connection belongs to this worker thread: close it so no idle handle keeps
+            # the WAL from truncating later.
+            local = getattr(shard, "_local", None)
+            con = getattr(local, "con", None)
+            if con is not None:
+                con.close()
+                local.con = None
+    return ok

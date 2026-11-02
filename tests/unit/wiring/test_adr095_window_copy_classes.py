@@ -367,9 +367,7 @@ async def _feed_known(eng: Engine) -> Any:
     return gone
 
 
-@pytest.mark.parametrize(
-    "scope", ["record", "namespace"]
-)
+@pytest.mark.parametrize("scope", ["record", "namespace"])
 async def test_known_entity_cache(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, scope: str
 ) -> None:

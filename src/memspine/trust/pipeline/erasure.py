@@ -270,8 +270,24 @@ async def _forget_many(
         _log.warning("memory.forget_vector_purge_incomplete", namespace=ns, record_id=ids[0])
     if not await _purge_lexical(eng, storage):
         _log.warning("memory.forget_lexical_purge_incomplete", namespace=ns, record_id=ids[0])
+    if not await compact_cache(eng):
+        _log.warning("memory.forget_cache_compact_incomplete", namespace=ns, record_id=ids[0])
     if eng._sql is not None:
         await eng._sql.checkpoint()
+
+
+async def compact_cache(eng: Any) -> bool:
+    """ADR-095 (caches copy class): a disk KV cache deletes a key only logically, and the key
+    carries the erased text's hash; compact its files after the purge (the KV's ``compact``, a
+    no-op when nothing was deleted since the last one). Returns False when it failed."""
+    compact = getattr(getattr(eng, "_cache", None), "compact", None)
+    if not callable(compact):
+        return True
+    try:
+        return bool(await compact())
+    except Exception as exc:  # never fails the erasure: the key stays until the next one
+        _log.warning("memory.forget_cache_compact_failed", error=type(exc).__name__)
+        return False
 
 
 async def _purge_lexical(eng: Any, storage: RecordsStore) -> bool:
