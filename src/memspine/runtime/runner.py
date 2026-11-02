@@ -635,12 +635,22 @@ class InlineRunner:
             report.jobs += 1
 
     async def _reconcile_stage(self, scope: OwnerScope | None, stage: str) -> None:
-        """Create missing jobs for atomically discovered durable items."""
-        scopes = [scope] if scope is not None else self.store.item_scopes(stage)
-        for candidate in scopes:
-            top = self.store.last_offset(candidate, stage)
-            if top > self.book.progress(candidate, stage).watermark:
-                await self._io(self.book.enqueue, candidate, stage, top)
+        """Create missing jobs for atomically discovered durable items.
+
+        RM-161: every drain (one per write in a burst) starts here; its store reads run on a
+        worker thread (``_io``), so they never hold the event loop a concurrent read needs."""
+
+        def behind() -> list[tuple[OwnerScope, int]]:
+            scopes = [scope] if scope is not None else self.store.item_scopes(stage)
+            out: list[tuple[OwnerScope, int]] = []
+            for candidate in scopes:
+                top = self.store.last_offset(candidate, stage)
+                if top > self.book.progress(candidate, stage).watermark:
+                    out.append((candidate, top))
+            return out
+
+        for candidate, top in await self._io(behind):
+            await self._io(self.book.enqueue, candidate, stage, top)
 
     async def _item(self, handler: StageHandler, scope: OwnerScope, stage: str, offset: int) -> Any:
         payload = self.store.get_item(scope, stage, offset)
