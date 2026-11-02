@@ -131,6 +131,7 @@ from memspine.providers.registry import (
 )
 from memspine.providers.selection import ProviderSelectionError, select_provider
 from memspine.providers.shared import ResourceRegistry, RetentionPolicy, shared_registry
+from memspine.providers.validation import llm_slot_settings, validate_providers
 from memspine.runtime.outbox import SqlJobStore
 from memspine.runtime.runner import InlineRunner as OutboxRunner
 from memspine.services.cache.base import KVCache
@@ -754,6 +755,8 @@ def resolve_config(spec: EngineSpec, secrets: SecretsService) -> ResolvedConfig:
             config = freeze_effective_config(spec.config)
         except ConfigInputError as exc:
             raise ConfigError(f"invalid configuration: {exc}") from None
+        # RM-155: load_config validates the selected providers; a prebuilt config is checked here.
+        validate_providers(config)
         return ResolvedConfig(config=config)
     resolved = load_config(
         template=default_template(spec.template, spec.user_config, spec.overrides),
@@ -1302,10 +1305,7 @@ async def build_graph_store(config: MemspineConfig, wiring: Wiring) -> GraphStor
 def llm_settings(descriptor: ProviderDescriptor, slot: Any) -> Any:
     """ADR-082: a ``model.llm.<role>`` slot's native settings plus its typed ``timeout_s``
     (the adapters' ``timeout_seconds``), validated by the selected descriptor."""
-    values: dict[str, Any] = dict(slot.settings)
-    if "timeout_seconds" in descriptor.settings_model.model_fields:
-        values["timeout_seconds"] = slot.timeout_s
-    return _settings(descriptor, values)
+    return llm_slot_settings(descriptor, slot)
 
 
 def _slot_key(slot: Any) -> tuple[Any, ...]:

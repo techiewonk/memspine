@@ -280,7 +280,9 @@ def load_config(
     secret_resolver: SecretResolver | None = None,
     extra_template_dirs: list[Path] | None = None,
 ) -> ResolvedConfig:
-    """Merge all layers (D-11), resolve secrets (D-22), validate the tree."""
+    """Merge all layers (D-11), resolve secrets (D-22), validate the tree, then the selected
+    providers' settings and the deployment rules (RM-155,
+    :func:`memspine.providers.validation.validate_providers`)."""
     search_dirs = [*(extra_template_dirs or []), template_dir()]
 
     layers: list[tuple[str, dict[str, Any]]] = []
@@ -338,4 +340,10 @@ def load_config(
     # Anything not set by an explicit layer came from schema defaults.
     for dotted in flatten_dotted(config.model_dump(mode="json")):
         sources.setdefault(dotted, "default")
+
+    # RM-155 (D-10): each selected provider's settings and the deployment rules, before any
+    # caller builds anything (lazy import: providers depend on the config schema).
+    from memspine.providers.validation import validate_providers
+
+    validate_providers(config)
     return ResolvedConfig(config=config, sources=sources)

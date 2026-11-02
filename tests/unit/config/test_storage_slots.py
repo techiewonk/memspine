@@ -82,6 +82,8 @@ def test_changing_a_slot_provider_resets_its_settings_across_layers() -> None:
     resolved = load_config(
         template="base",
         overrides={
+            # RM-155: postgres is a shared provider; its host-local slots need a data_dir
+            "deployment": {"id": "slots-test", "data_dir": "slots-data"},
             "storage": {
                 "records": {
                     "provider": "postgres",
@@ -91,7 +93,7 @@ def test_changing_a_slot_provider_resets_its_settings_across_layers() -> None:
                         "statement_timeout_s": 30.0,
                     },
                 }
-            }
+            },
         },
     )
     # The base template's SQLite path does not leak into the Postgres settings.

@@ -136,9 +136,7 @@ def validate_reranker_settings(
     try:
         typed = validate_settings(descriptor, values)
     except ProviderRegistryError as exc:
-        raise ConfigError(
-            f"invalid {path}.settings for provider {mode!r} ({type(exc).__name__})"
-        ) from None
+        raise ConfigError(f"invalid {path}.settings for provider {mode!r}: {exc}") from None
     return descriptor, typed
 
 
