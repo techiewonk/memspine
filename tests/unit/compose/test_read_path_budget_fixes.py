@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
@@ -242,8 +243,18 @@ def test_drop_records_moves_removed_turns_and_recounts_the_boundary() -> None:
     assert out.tokens_used == sum(estimate_tokens(r.content) for r in out.records)
 
 
-async def test_render_fit_moves_a_cut_bundle_turn_line_to_dropped() -> None:
-    eng = Engine(template="core", dotenv_path=None, read={"render": "dated"})
+async def test_render_fit_moves_a_cut_bundle_turn_line_to_dropped(tmp_path: Path) -> None:
+    eng = Engine(
+        template="core",
+        dotenv_path=None,
+        storage={  # never the working directory's default database
+            "records": {
+                "provider": "sqlite",
+                "settings": {"path": str(tmp_path / "m.db"), "busy_timeout_s": 5.0},
+            }
+        },
+        read={"render": "dated"},
+    )
     await eng.start()
     try:
         ctx, fact, turn_a, turn_b = _bundle_context()
