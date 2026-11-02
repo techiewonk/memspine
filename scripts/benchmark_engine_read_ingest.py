@@ -47,6 +47,7 @@ from perf_protocol import (
     corpus_queries,
     percentile,
     summarize,
+    write_record,
 )
 
 from memspine import Engine
@@ -255,6 +256,7 @@ async def run_rate(
     readers: int,
     poll_ms: int,
     tail_s: float,
+    step_max_s: float = float("inf"),
 ) -> dict[str, Any]:
     """One open-loop load step on an already started engine.
 
@@ -275,6 +277,7 @@ async def run_rate(
     writing = True
     calls = 0
     acked_msgs = 0
+    saturated: list[int] = []
 
     async def write_call(first: int, scheduled: float) -> None:
         nonlocal acked_msgs
@@ -308,7 +311,13 @@ async def run_rate(
                 await asyncio.sleep(delay)
             tasks.append(asyncio.create_task(write_call(first, due)))
             calls += 1
-        await asyncio.gather(*tasks)
+        remaining = step_max_s - (time.perf_counter() - t0)
+        _, late = await asyncio.wait(tasks, timeout=max(remaining, 0.0))
+        if late:  # saturated: the backlog would only measure queueing; stop it
+            saturated.append(len(late))
+            for task in late:
+                task.cancel()
+            await asyncio.gather(*late, return_exceptions=True)
 
     async def reader(k: int) -> None:
         i = k
@@ -351,7 +360,10 @@ async def run_rate(
     writing = False
     await asyncio.gather(*reader_tasks)
     tail_complete = False
-    if poll_task is not None:
+    if poll_task is not None and saturated:
+        poll_task.cancel()
+        await asyncio.gather(poll_task, return_exceptions=True)
+    elif poll_task is not None:
         try:
             await asyncio.wait_for(poll_task, timeout=tail_s)
             tail_complete = True
@@ -366,6 +378,9 @@ async def run_rate(
         "target_msgs_per_s": rate,
         "duration_s": duration,
         "messages_per_call": batch,
+        "saturated": bool(saturated),
+        "calls_cancelled_at_step_cap": saturated[0] if saturated else 0,
+        "step_max_s": step_max_s,
         "calls": calls,
         "messages": n,
         "acked_messages": acked_msgs,
@@ -394,6 +409,8 @@ async def part_concurrent(args: argparse.Namespace) -> None:
         for rate, duration in zip(args.rates, args.durations, strict=True)
         if not (mode == "batched" and rate <= 2)  # batched is single at <= 2 msgs/s
     ]
+    if args.steps:
+        steps = [step for step in steps if step[0] in set(args.steps)]
     rec = Recorder(
         "pa053-concurrent-ingest-search",
         OUT_DIR / f"perf-pa053-concurrent-ingest-search-{DATE}.json",
@@ -407,6 +424,7 @@ async def part_concurrent(args: argparse.Namespace) -> None:
                 for s in steps
             ],
             "readers": args.readers,
+            "step_max_s": args.step_max_s,
             "reader_think_ms": 50,
             "poll_ms": args.poll_ms,
             "tail_s": args.tail_s,
@@ -434,11 +452,20 @@ async def part_concurrent(args: argparse.Namespace) -> None:
     try:
         for label, rate, duration, batch in steps:
             row = await run_rate(
-                eng, label, rate, duration, batch, args.readers, args.poll_ms, args.tail_s
+                eng,
+                label,
+                rate,
+                duration,
+                batch,
+                args.readers,
+                args.poll_ms,
+                args.tail_s,
+                args.step_max_s,
             )
             row["namespace_messages_before"] = written
             written += row["acked_messages"]
             rec.record["results"][label] = row
+            write_record(rec.out, {**rec.record, "status": "running"})  # survive a kill
             print(
                 label,
                 row["achieved_msgs_per_s"],
@@ -492,6 +519,8 @@ def main() -> None:
         "--modes", nargs="+", choices=("single", "batched"), default=["single", "batched"]
     )
     parser.add_argument("--readers", type=int, default=2)
+    parser.add_argument("--steps", nargs="+", help="run only these step labels")
+    parser.add_argument("--step-max-s", type=float, default=300.0)
     parser.add_argument("--poll-ms", type=int, default=500)
     parser.add_argument("--tail-s", type=float, default=150.0)
     parser.add_argument("--allow-dirty", action="store_true")
