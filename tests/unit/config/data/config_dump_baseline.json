@@ -713,7 +713,7 @@
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "616719adc907728f3a84cce3e5ec207ced34237bb4a7df92ac972747687b0da3",
+ "json_schema_sha256": "8ef0f78d89ce92b12a7a0d4005d3353436a9e3d5b3fc789e4c6d4703cc887692",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
