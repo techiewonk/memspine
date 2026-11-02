@@ -1,0 +1,384 @@
+{
+  "family": "rs06-packer-token-counting",
+  "protocol": "PA-051/ADR-096 reference-host protocol v1",
+  "command": "scripts\\benchmark_onnx_envelope.py --part packer",
+  "started_at_utc": "2026-11-02T10:11:27.365468+00:00",
+  "revision": {
+    "commit": "d737fabf457ac2610eee4f4b3272c53370006c72",
+    "tree": "fcb53026f0e68b1714ede72606e032dba3a6594a",
+    "branch": "worktree-agent-a26dc8dbb94e11305",
+    "dirty": false,
+    "dirty_paths": []
+  },
+  "diagnostic_only": false,
+  "host": {
+    "cpu_model": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "physical_cores": 16,
+    "logical_threads": 32,
+    "ram_gib": 125.6,
+    "os": "Windows-11-10.0.26340-SP0",
+    "os_release": "11",
+    "os_version": "10.0.26340",
+    "power_plan": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (High performance)",
+    "python": "3.13.5",
+    "python_build": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+    "executable": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv\\Scripts\\python.exe",
+    "packages": {
+      "memspine": "0.0.1",
+      "onnxruntime": "1.31.1",
+      "tokenizers": "0.23.3",
+      "huggingface_hub": "2.4.0",
+      "numpy": "2.5.4",
+      "lancedb": "0.41.0",
+      "tantivy": "0.27.0",
+      "sqlalchemy": "2.1.6",
+      "aiosqlite": "0.22.1",
+      "psutil": "7.2.2"
+    }
+  },
+  "load_before": {
+    "available": true,
+    "at_utc": "2026-11-02T10:11:32.164951+00:00",
+    "window_s": 2.0,
+    "cpu_percent_total": 3.4,
+    "memory_used_percent": 33.7,
+    "top_processes": [
+      {
+        "pid": 33620,
+        "name": "python.exe",
+        "cpu_percent": 22.0
+      },
+      {
+        "pid": 42788,
+        "name": "Taskmgr.exe",
+        "cpu_percent": 11.6
+      },
+      {
+        "pid": 15760,
+        "name": "explorer.exe",
+        "cpu_percent": 7.9
+      },
+      {
+        "pid": 4,
+        "name": "System",
+        "cpu_percent": 5.0
+      },
+      {
+        "pid": 10904,
+        "name": "logioptionsplus_agent.exe",
+        "cpu_percent": 4.9
+      },
+      {
+        "pid": 22808,
+        "name": "mstsc.exe",
+        "cpu_percent": 4.9
+      },
+      {
+        "pid": 52276,
+        "name": "claude.exe",
+        "cpu_percent": 4.3
+      },
+      {
+        "pid": 61796,
+        "name": "EDCClient.exe",
+        "cpu_percent": 4.3
+      }
+    ],
+    "note": "process cpu_percent is per one logical CPU (100 = one full thread)"
+  },
+  "settings": {
+    "counters": [
+      "estimate_len//4+1",
+      "exact_bge_wordpiece"
+    ],
+    "contexts": "joined corpus_messages turns, rendered one per line with a header",
+    "reps": 200,
+    "warmups": 10
+  },
+  "results": {
+    "target_512_estimated_tokens": {
+      "chars": 2130,
+      "lines": 19,
+      "estimate_len//4+1": {
+        "tokens": 533,
+        "count_whole": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 0.0001,
+          "p95_ms": 0.0002,
+          "p99_ms": 0.0003,
+          "mean_ms": 0.000123,
+          "stdev_ms": 5e-05,
+          "min_ms": 0.0001,
+          "max_ms": 0.0004
+        },
+        "count_per_line_sum": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 0.0013,
+          "p95_ms": 0.002,
+          "p99_ms": 0.0021,
+          "mean_ms": 0.001466,
+          "stdev_ms": 0.000299,
+          "min_ms": 0.0012,
+          "max_ms": 0.0021
+        },
+        "truncate_to_fit_half": {
+          "n": 50,
+          "warmups": 3,
+          "p50_ms": 0.2236,
+          "p95_ms": 0.4273,
+          "p99_ms": 0.4912,
+          "mean_ms": 0.2533,
+          "stdev_ms": 0.065427,
+          "min_ms": 0.2213,
+          "max_ms": 0.4912
+        }
+      },
+      "exact_bge_wordpiece": {
+        "tokens": 592,
+        "count_whole": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 0.4496,
+          "p95_ms": 0.5258,
+          "p99_ms": 0.6548,
+          "mean_ms": 0.462177,
+          "stdev_ms": 0.038144,
+          "min_ms": 0.4428,
+          "max_ms": 0.7329
+        },
+        "count_per_line_sum": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 0.5433,
+          "p95_ms": 0.6325,
+          "p99_ms": 0.7541,
+          "mean_ms": 0.56109,
+          "stdev_ms": 0.057844,
+          "min_ms": 0.5373,
+          "max_ms": 1.1127
+        },
+        "truncate_to_fit_half": {
+          "n": 50,
+          "warmups": 3,
+          "p50_ms": 2.4751,
+          "p95_ms": 3.9956,
+          "p99_ms": 4.059,
+          "mean_ms": 2.755752,
+          "stdev_ms": 0.539642,
+          "min_ms": 2.3851,
+          "max_ms": 4.059
+        }
+      }
+    },
+    "target_2048_estimated_tokens": {
+      "chars": 8311,
+      "lines": 73,
+      "estimate_len//4+1": {
+        "tokens": 2078,
+        "count_whole": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 0.0001,
+          "p95_ms": 0.0002,
+          "p99_ms": 0.0002,
+          "mean_ms": 0.000117,
+          "stdev_ms": 3.9e-05,
+          "min_ms": 0.0001,
+          "max_ms": 0.0003
+        },
+        "count_per_line_sum": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 0.0038,
+          "p95_ms": 0.0039,
+          "p99_ms": 0.0039,
+          "mean_ms": 0.003827,
+          "stdev_ms": 0.000349,
+          "min_ms": 0.0037,
+          "max_ms": 0.0087
+        },
+        "truncate_to_fit_half": {
+          "n": 50,
+          "warmups": 3,
+          "p50_ms": 1.0805,
+          "p95_ms": 1.9343,
+          "p99_ms": 1.986,
+          "mean_ms": 1.161224,
+          "stdev_ms": 0.212204,
+          "min_ms": 1.0603,
+          "max_ms": 1.986
+        }
+      },
+      "exact_bge_wordpiece": {
+        "tokens": 2284,
+        "count_whole": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 1.7656,
+          "p95_ms": 2.8305,
+          "p99_ms": 2.89,
+          "mean_ms": 1.893662,
+          "stdev_ms": 0.312545,
+          "min_ms": 1.7267,
+          "max_ms": 2.9086
+        },
+        "count_per_line_sum": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 2.1341,
+          "p95_ms": 3.4704,
+          "p99_ms": 3.5107,
+          "mean_ms": 2.306031,
+          "stdev_ms": 0.383903,
+          "min_ms": 2.092,
+          "max_ms": 3.5331
+        },
+        "truncate_to_fit_half": {
+          "n": 50,
+          "warmups": 3,
+          "p50_ms": 11.5951,
+          "p95_ms": 17.0909,
+          "p99_ms": 18.3954,
+          "mean_ms": 12.241632,
+          "stdev_ms": 1.660588,
+          "min_ms": 11.2398,
+          "max_ms": 18.3954
+        }
+      }
+    },
+    "target_8192_estimated_tokens": {
+      "chars": 32781,
+      "lines": 288,
+      "estimate_len//4+1": {
+        "tokens": 8196,
+        "count_whole": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 0.0001,
+          "p95_ms": 0.0002,
+          "p99_ms": 0.0002,
+          "mean_ms": 0.00012,
+          "stdev_ms": 4.4e-05,
+          "min_ms": 0.0001,
+          "max_ms": 0.0004
+        },
+        "count_per_line_sum": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 0.0147,
+          "p95_ms": 0.0149,
+          "p99_ms": 0.0193,
+          "mean_ms": 0.014805,
+          "stdev_ms": 0.000903,
+          "min_ms": 0.0144,
+          "max_ms": 0.0245
+        },
+        "truncate_to_fit_half": {
+          "n": 50,
+          "warmups": 3,
+          "p50_ms": 5.3561,
+          "p95_ms": 7.6706,
+          "p99_ms": 10.8873,
+          "mean_ms": 5.700844,
+          "stdev_ms": 0.993507,
+          "min_ms": 5.1891,
+          "max_ms": 10.8873
+        }
+      },
+      "exact_bge_wordpiece": {
+        "tokens": 8738,
+        "count_whole": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 8.2847,
+          "p95_ms": 11.6796,
+          "p99_ms": 12.3655,
+          "mean_ms": 8.617388,
+          "stdev_ms": 1.128868,
+          "min_ms": 7.516,
+          "max_ms": 12.8618
+        },
+        "count_per_line_sum": {
+          "n": 200,
+          "warmups": 10,
+          "p50_ms": 8.4873,
+          "p95_ms": 11.9512,
+          "p99_ms": 13.5016,
+          "mean_ms": 8.915947,
+          "stdev_ms": 1.196678,
+          "min_ms": 8.1731,
+          "max_ms": 13.5886
+        },
+        "truncate_to_fit_half": {
+          "n": 50,
+          "warmups": 3,
+          "p50_ms": 54.9012,
+          "p95_ms": 68.65,
+          "p99_ms": 72.0805,
+          "mean_ms": 56.433096,
+          "stdev_ms": 4.386604,
+          "min_ms": 52.758,
+          "max_ms": 72.0805
+        }
+      }
+    }
+  },
+  "notes": [
+    "tiktoken cl100k_base did not resolve offline; only the bge counter is exact"
+  ],
+  "load_after": {
+    "available": true,
+    "at_utc": "2026-11-02T10:11:44.267917+00:00",
+    "window_s": 2.0,
+    "cpu_percent_total": 2.2,
+    "memory_used_percent": 33.7,
+    "top_processes": [
+      {
+        "pid": 33620,
+        "name": "python.exe",
+        "cpu_percent": 22.5
+      },
+      {
+        "pid": 42788,
+        "name": "Taskmgr.exe",
+        "cpu_percent": 12.7
+      },
+      {
+        "pid": 4,
+        "name": "System",
+        "cpu_percent": 4.9
+      },
+      {
+        "pid": 2636,
+        "name": "dwm.exe",
+        "cpu_percent": 4.8
+      },
+      {
+        "pid": 15760,
+        "name": "explorer.exe",
+        "cpu_percent": 3.6
+      },
+      {
+        "pid": 22808,
+        "name": "mstsc.exe",
+        "cpu_percent": 3.6
+      },
+      {
+        "pid": 52276,
+        "name": "claude.exe",
+        "cpu_percent": 3.6
+      },
+      {
+        "pid": 53724,
+        "name": "claude.exe",
+        "cpu_percent": 2.4
+      }
+    ],
+    "note": "process cpu_percent is per one logical CPU (100 = one full thread)"
+  },
+  "status": "completed",
+  "finished_at_utc": "2026-11-02T10:11:44.267958+00:00",
+  "wall_s": 12.103
+}

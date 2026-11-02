@@ -1,0 +1,480 @@
+{
+  "family": "pa053-concurrent-ingest-search",
+  "protocol": "PA-051/ADR-096 reference-host protocol v1",
+  "command": "scripts/benchmark_engine_read_ingest.py --part concurrent --work-dir C:/Users/hembad/AppData/Local/Temp/claude/C--Users-hembad-Documents-GitHub-memspine-restructure/e1a57500-e185-41e2-9f4e-72f3b3cc79d5/scratchpad/work --seed-size 500 --rates 1 10 50 --durations 60 30 10 --steps single_1 batched_10 batched_50 --step-max-s 300 --tail-s 150",
+  "started_at_utc": "2026-11-02T11:13:43.889950+00:00",
+  "revision": {
+    "commit": "538a5d62cf7a8a16dab07032497106cddb19f25c",
+    "tree": "08627d5c7976b76272bc6e299a10e7657905907e",
+    "branch": "worktree-agent-a26dc8dbb94e11305",
+    "dirty": false,
+    "dirty_paths": []
+  },
+  "diagnostic_only": false,
+  "host": {
+    "cpu_model": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "physical_cores": 16,
+    "logical_threads": 32,
+    "ram_gib": 125.6,
+    "os": "Windows-11-10.0.26340-SP0",
+    "os_release": "11",
+    "os_version": "10.0.26340",
+    "power_plan": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (High performance)",
+    "python": "3.13.5",
+    "python_build": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+    "executable": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv\\Scripts\\python.exe",
+    "packages": {
+      "memspine": "0.0.1",
+      "onnxruntime": "1.31.1",
+      "tokenizers": "0.23.3",
+      "huggingface_hub": "2.4.0",
+      "numpy": "2.5.4",
+      "lancedb": "0.41.0",
+      "tantivy": "0.27.0",
+      "sqlalchemy": "2.1.6",
+      "aiosqlite": "0.22.1",
+      "psutil": "7.2.2"
+    }
+  },
+  "load_before": {
+    "available": true,
+    "at_utc": "2026-11-02T11:13:49.232194+00:00",
+    "window_s": 2.0,
+    "cpu_percent_total": 4.1,
+    "memory_used_percent": 33.1,
+    "top_processes": [
+      {
+        "pid": 46632,
+        "name": "python.exe",
+        "cpu_percent": 21.9
+      },
+      {
+        "pid": 9588,
+        "name": "WmiPrvSE.exe",
+        "cpu_percent": 13.2
+      },
+      {
+        "pid": 52276,
+        "name": "claude.exe",
+        "cpu_percent": 11.0
+      },
+      {
+        "pid": 42788,
+        "name": "Taskmgr.exe",
+        "cpu_percent": 10.4
+      },
+      {
+        "pid": 2636,
+        "name": "dwm.exe",
+        "cpu_percent": 6.3
+      },
+      {
+        "pid": 22808,
+        "name": "mstsc.exe",
+        "cpu_percent": 5.5
+      },
+      {
+        "pid": 4,
+        "name": "System",
+        "cpu_percent": 5.1
+      },
+      {
+        "pid": 15760,
+        "name": "explorer.exe",
+        "cpu_percent": 3.7
+      }
+    ],
+    "note": "process cpu_percent is per one logical CPU (100 = one full thread)"
+  },
+  "settings": {
+    "template": "base (rules-only, onnx bge-small, outbox on, window_async on)",
+    "seed_corpus": 500,
+    "steps": [
+      {
+        "label": "single_1",
+        "rate": 1.0,
+        "duration_s": 60.0,
+        "messages_per_call": 1
+      },
+      {
+        "label": "batched_10",
+        "rate": 10.0,
+        "duration_s": 30.0,
+        "messages_per_call": 5
+      },
+      {
+        "label": "batched_50",
+        "rate": 50.0,
+        "duration_s": 10.0,
+        "messages_per_call": 25
+      }
+    ],
+    "readers": 2,
+    "step_max_s": 300.0,
+    "reader_think_ms": 50,
+    "poll_ms": 500,
+    "tail_s": 150.0,
+    "write_call": "single: ingest_messages([one message]) per send; batched: rate/2 messages per call, two calls per second; 20 messages per session",
+    "store": "one seeded store; steps run in order on it, so the namespace grows by the messages of the earlier steps",
+    "lag_definition": "ack -> wait_for_derivation(facts) not pending (poll resolution)",
+    "logging": "WARNING"
+  },
+  "results": {
+    "seed": {
+      "requested_size": 500,
+      "size": 500,
+      "truncated_by_time_budget": false,
+      "max_seed_s": 600.0,
+      "sessions": 25,
+      "engine_start_ms": 1023.1,
+      "ingest_wall_s": 46.85,
+      "ingest_msgs_per_s": 10.7,
+      "ingest_call_20_turns_ms": {
+        "n": 25,
+        "warmups": 0,
+        "p50_ms": 1960.6248,
+        "p95_ms": 2713.0063,
+        "p99_ms": 2866.0427,
+        "mean_ms": 1874.106952,
+        "stdev_ms": 621.186582,
+        "min_ms": 887.9978,
+        "max_ms": 2866.0427
+      },
+      "ingest_call_progression": [
+        {
+          "messages_before": 0,
+          "call_p50_ms": 888.0
+        },
+        {
+          "messages_before": 40,
+          "call_p50_ms": 907.0
+        },
+        {
+          "messages_before": 80,
+          "call_p50_ms": 1113.5
+        },
+        {
+          "messages_before": 120,
+          "call_p50_ms": 1306.3
+        },
+        {
+          "messages_before": 160,
+          "call_p50_ms": 1490.3
+        },
+        {
+          "messages_before": 200,
+          "call_p50_ms": 1752.6
+        },
+        {
+          "messages_before": 240,
+          "call_p50_ms": 1960.6
+        },
+        {
+          "messages_before": 280,
+          "call_p50_ms": 2133.7
+        },
+        {
+          "messages_before": 320,
+          "call_p50_ms": 2314.8
+        },
+        {
+          "messages_before": 360,
+          "call_p50_ms": 2301.3
+        },
+        {
+          "messages_before": 400,
+          "call_p50_ms": 2429.7
+        },
+        {
+          "messages_before": 440,
+          "call_p50_ms": 2647.7
+        },
+        {
+          "messages_before": 480,
+          "call_p50_ms": 2866.0
+        }
+      ],
+      "flush_windows_s": 19.82,
+      "flush_counters": {
+        "turns": 500,
+        "windows": 500,
+        "windows_processed": 500,
+        "windows_per_session": 20.0,
+        "turns_per_window": 1.0,
+        "calls": 0,
+        "calls_per_turn": 0.0,
+        "cache_hits": 0,
+        "parse_failures": 0,
+        "call_errors": 0,
+        "sections_dropped": 0,
+        "facts_returned": 0,
+        "facts_invalid": 0,
+        "facts_ungrounded": 0,
+        "facts_uncited": 0,
+        "facts_deposited": 95,
+        "facts_skipped_parent_gone": 0,
+        "facts_deposit_errors": 0,
+        "rule_facts_returned": 95,
+        "rule_facts_unresolved": 0,
+        "edges_returned": 0,
+        "edges_invalid": 0,
+        "edges_ungrounded": 0,
+        "edges_pending": 0,
+        "episodes_deposited": 0,
+        "episodes_invalid": 0,
+        "episodes_uncited": 0,
+        "episodes_truncated": 0,
+        "windows_cancelled_forget": 0,
+        "turns_dropped_forget": 0,
+        "windows_empty": 0,
+        "turns_excluded": 0,
+        "jobs_failed": 0,
+        "jobs_abandoned": 0,
+        "sessions_closed": 25,
+        "queued": 0,
+        "segmentation": true,
+        "batches": 0,
+        "batched_windows": 0,
+        "batch_held": 0,
+        "batch_cross_window": 0,
+        "outbox": true,
+        "jobs_persisted": 0
+      },
+      "reused": false
+    },
+    "engine_start_ms": 252.0,
+    "single_1": {
+      "target_msgs_per_s": 1.0,
+      "duration_s": 60.0,
+      "messages_per_call": 1,
+      "saturated": false,
+      "calls_cancelled_at_step_cap": 0,
+      "step_max_s": 300.0,
+      "calls": 60,
+      "messages": 60,
+      "acked_messages": 60,
+      "achieved_msgs_per_s": 1.0,
+      "write_wall_s": 59.76,
+      "write_ack_ms": {
+        "n": 60,
+        "warmups": 0,
+        "p50_ms": 550.8522,
+        "p95_ms": 1352.6433,
+        "p99_ms": 1836.459,
+        "mean_ms": 612.748572,
+        "stdev_ms": 391.538988,
+        "min_ms": 179.8774,
+        "max_ms": 1836.459
+      },
+      "write_ack_note": "per call, from its scheduled send time to its return (open loop)",
+      "read_ms": {
+        "n": 151,
+        "warmups": 0,
+        "p50_ms": 648.644,
+        "p95_ms": 1621.5008,
+        "p99_ms": 2540.9307,
+        "mean_ms": 748.549215,
+        "stdev_ms": 477.916428,
+        "min_ms": 194.3781,
+        "max_ms": 2588.5763
+      },
+      "readers": 2,
+      "derivation_lag_ms": {
+        "n": 60,
+        "warmups": 0,
+        "p50_ms": 120387.1652,
+        "p95_ms": 121393.5565,
+        "p99_ms": 122680.3945,
+        "mean_ms": 120510.972565,
+        "stdev_ms": 630.185659,
+        "min_ms": 118854.5458,
+        "max_ms": 122680.3945
+      },
+      "lag_sample_every": 1,
+      "lag_tracked": 60,
+      "derived": 60,
+      "not_derived_within_tail": 0,
+      "tail_complete": true,
+      "final_facts_states": {
+        "ready": 60
+      },
+      "errors": [],
+      "error_count": 0,
+      "namespace_messages_before": 500,
+      "saturated_by_throughput": false
+    },
+    "batched_10": {
+      "target_msgs_per_s": 10.0,
+      "duration_s": 30.0,
+      "messages_per_call": 5,
+      "saturated": false,
+      "calls_cancelled_at_step_cap": 0,
+      "step_max_s": 300.0,
+      "calls": 60,
+      "messages": 300,
+      "acked_messages": 300,
+      "achieved_msgs_per_s": 1.71,
+      "write_wall_s": 175.73,
+      "write_ack_ms": {
+        "n": 60,
+        "warmups": 0,
+        "p50_ms": 33851.9098,
+        "p95_ms": 129901.1994,
+        "p99_ms": 146231.6873,
+        "mean_ms": 46514.878692,
+        "stdev_ms": 40597.456235,
+        "min_ms": 1022.7016,
+        "max_ms": 146231.6873
+      },
+      "write_ack_note": "per call, from its scheduled send time to its return (open loop)",
+      "read_ms": {
+        "n": 229,
+        "warmups": 0,
+        "p50_ms": 1284.4691,
+        "p95_ms": 2956.2103,
+        "p99_ms": 3998.2674,
+        "mean_ms": 1480.122967,
+        "stdev_ms": 802.091889,
+        "min_ms": 322.0727,
+        "max_ms": 5613.9746
+      },
+      "readers": 2,
+      "derivation_lag_ms": {
+        "n": 60,
+        "warmups": 0,
+        "p50_ms": 145201.7875,
+        "p95_ms": 191237.5534,
+        "p99_ms": 194405.5257,
+        "mean_ms": 149385.953347,
+        "stdev_ms": 27364.619914,
+        "min_ms": 118556.5567,
+        "max_ms": 194405.5257
+      },
+      "lag_sample_every": 5,
+      "lag_tracked": 60,
+      "derived": 60,
+      "not_derived_within_tail": 0,
+      "tail_complete": true,
+      "final_facts_states": {
+        "ready": 60
+      },
+      "errors": [],
+      "error_count": 0,
+      "namespace_messages_before": 560,
+      "saturated_by_throughput": true
+    },
+    "batched_50": {
+      "target_msgs_per_s": 50.0,
+      "duration_s": 10.0,
+      "messages_per_call": 25,
+      "saturated": true,
+      "calls_cancelled_at_step_cap": 4,
+      "step_max_s": 300.0,
+      "calls": 20,
+      "messages": 500,
+      "acked_messages": 400,
+      "achieved_msgs_per_s": 1.33,
+      "write_wall_s": 300.51,
+      "write_ack_ms": {
+        "n": 16,
+        "warmups": 0,
+        "p50_ms": 68746.951,
+        "p95_ms": 280333.4384,
+        "p99_ms": 280333.4384,
+        "mean_ms": 99979.341894,
+        "stdev_ms": 82742.503577,
+        "min_ms": 7224.2582,
+        "max_ms": 280333.4384
+      },
+      "write_ack_note": "per call, from its scheduled send time to its return (open loop)",
+      "read_ms": {
+        "n": 347,
+        "warmups": 0,
+        "p50_ms": 1424.9316,
+        "p95_ms": 3525.2053,
+        "p99_ms": 3867.0815,
+        "mean_ms": 1668.449087,
+        "stdev_ms": 879.752702,
+        "min_ms": 405.9295,
+        "max_ms": 5367.6562
+      },
+      "readers": 2,
+      "derivation_lag_ms": {
+        "n": 0,
+        "warmups": 0
+      },
+      "lag_sample_every": 25,
+      "lag_tracked": 16,
+      "derived": 0,
+      "not_derived_within_tail": 16,
+      "tail_complete": false,
+      "final_facts_states": {
+        "pending": 16
+      },
+      "errors": [],
+      "error_count": 0,
+      "namespace_messages_before": 860,
+      "saturated_by_throughput": true
+    },
+    "budgets": {
+      "status": "withheld",
+      "reason": "10 and 50 msgs/s are saturated in both write modes (achieved 1.71 and 1.33 msgs/s); budgets wait on the write-path fixes (coordinator instruction 2026-11-02)"
+    }
+  },
+  "notes": [
+    "Post-run annotation (same day, no re-measurement): saturated_by_throughput added (achieved < 0.9 x target); the auto-generated batched_10 budget proposal was removed because it was derived from saturated numbers. single_10 (achieved 1.19 msgs/s, ack p95 207 s) and single_50 were run in an earlier, killed invocation and are not in this record."
+  ],
+  "load_after": {
+    "available": true,
+    "at_utc": "2026-11-02T11:28:03.317616+00:00",
+    "window_s": 2.0,
+    "cpu_percent_total": 6.4,
+    "memory_used_percent": 35.3,
+    "top_processes": [
+      {
+        "pid": 46632,
+        "name": "python.exe",
+        "cpu_percent": 51.5
+      },
+      {
+        "pid": 22808,
+        "name": "mstsc.exe",
+        "cpu_percent": 22.7
+      },
+      {
+        "pid": 42788,
+        "name": "Taskmgr.exe",
+        "cpu_percent": 12.9
+      },
+      {
+        "pid": 66296,
+        "name": "chrome.exe",
+        "cpu_percent": 11.8
+      },
+      {
+        "pid": 27072,
+        "name": "NVIDIA Broadcast.exe",
+        "cpu_percent": 11.3
+      },
+      {
+        "pid": 4,
+        "name": "System",
+        "cpu_percent": 7.9
+      },
+      {
+        "pid": 43032,
+        "name": "chrome.exe",
+        "cpu_percent": 7.9
+      },
+      {
+        "pid": 50964,
+        "name": "vFVPNClientExe.exe",
+        "cpu_percent": 6.1
+      }
+    ],
+    "note": "process cpu_percent is per one logical CPU (100 = one full thread)"
+  },
+  "status": "completed",
+  "finished_at_utc": "2026-11-02T11:28:03.317714+00:00",
+  "wall_s": 854.085
+}

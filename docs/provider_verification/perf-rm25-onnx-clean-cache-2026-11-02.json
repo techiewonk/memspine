@@ -1,0 +1,319 @@
+{
+  "family": "rm25-onnx-clean-cache",
+  "protocol": "PA-051/ADR-096 reference-host protocol v1",
+  "command": "scripts\\benchmark_onnx_envelope.py --part cache --cache-dir C:\\Users\\hembad\\AppData\\Local\\Temp\\claude\\C--Users-hembad-Documents-GitHub-memspine-restructure\\e1a57500-e185-41e2-9f4e-72f3b3cc79d5\\scratchpad\\hf-clean-cache",
+  "started_at_utc": "2026-11-02T10:07:06.276761+00:00",
+  "revision": {
+    "commit": "d737fabf457ac2610eee4f4b3272c53370006c72",
+    "tree": "fcb53026f0e68b1714ede72606e032dba3a6594a",
+    "branch": "worktree-agent-a26dc8dbb94e11305",
+    "dirty": false,
+    "dirty_paths": []
+  },
+  "diagnostic_only": false,
+  "host": {
+    "cpu_model": "AMD Ryzen 9 9950X3D 16-Core Processor",
+    "physical_cores": 16,
+    "logical_threads": 32,
+    "ram_gib": 125.6,
+    "os": "Windows-11-10.0.26340-SP0",
+    "os_release": "11",
+    "os_version": "10.0.26340",
+    "power_plan": "Power Scheme GUID: 8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c  (High performance)",
+    "python": "3.13.5",
+    "python_build": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+    "executable": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv\\Scripts\\python.exe",
+    "packages": {
+      "memspine": "0.0.1",
+      "onnxruntime": "1.31.1",
+      "tokenizers": "0.23.3",
+      "huggingface_hub": "2.4.0",
+      "numpy": "2.5.4",
+      "lancedb": "0.41.0",
+      "tantivy": "0.27.0",
+      "sqlalchemy": "2.1.6",
+      "aiosqlite": "0.22.1",
+      "psutil": "7.2.2"
+    }
+  },
+  "load_before": {
+    "available": true,
+    "at_utc": "2026-11-02T10:07:11.184046+00:00",
+    "window_s": 2.0,
+    "cpu_percent_total": 5.0,
+    "memory_used_percent": 33.7,
+    "top_processes": [
+      {
+        "pid": 23204,
+        "name": "python.exe",
+        "cpu_percent": 23.3
+      },
+      {
+        "pid": 9588,
+        "name": "WmiPrvSE.exe",
+        "cpu_percent": 12.7
+      },
+      {
+        "pid": 42788,
+        "name": "Taskmgr.exe",
+        "cpu_percent": 12.6
+      },
+      {
+        "pid": 69764,
+        "name": "s3browser-ui.exe",
+        "cpu_percent": 9.0
+      },
+      {
+        "pid": 3564,
+        "name": "LEDKeeper2.exe",
+        "cpu_percent": 5.5
+      },
+      {
+        "pid": 61796,
+        "name": "EDCClient.exe",
+        "cpu_percent": 5.4
+      },
+      {
+        "pid": 15760,
+        "name": "explorer.exe",
+        "cpu_percent": 4.8
+      },
+      {
+        "pid": 10904,
+        "name": "logioptionsplus_agent.exe",
+        "cpu_percent": 4.2
+      }
+    ],
+    "note": "process cpu_percent is per one logical CPU (100 = one full thread)"
+  },
+  "settings": {
+    "cache_dir": "<fresh empty temporary directory>",
+    "models": [
+      "BAAI/bge-small-en-v1.5",
+      "Xenova/ms-marco-MiniLM-L-6-v2"
+    ],
+    "processes": 30,
+    "steady_reps_per_process": 10,
+    "threads": "0 (ONNX Runtime default)",
+    "batch_size": 32
+  },
+  "results": {
+    "fetch": {
+      "command": "memspine models fetch --template base --model Xenova/ms-marco-MiniLM-L-6-v2",
+      "exit_code": 0,
+      "wall_ms": 14705.5,
+      "lines": [
+        "BAAI/bge-small-en-v1.5 model_optimized.onnx sha256 ok 66465124 bytes",
+        "BAAI/bge-small-en-v1.5 tokenizer.json sha256 ok 711396 bytes",
+        "BAAI/bge-small-en-v1.5 tokenizer_config.json sha256 ok 1242 bytes",
+        "BAAI/bge-small-en-v1.5 special_tokens_map.json sha256 ok 695 bytes",
+        "Xenova/ms-marco-MiniLM-L-6-v2 onnx/model.onnx sha256 ok 90992115 bytes",
+        "Xenova/ms-marco-MiniLM-L-6-v2 tokenizer.json sha256 ok 711396 bytes",
+        "Xenova/ms-marco-MiniLM-L-6-v2 tokenizer_config.json sha256 ok 1242 bytes",
+        "Xenova/ms-marco-MiniLM-L-6-v2 special_tokens_map.json sha256 ok 125 bytes"
+      ],
+      "stderr_tail": [],
+      "note": "wall time includes the network download; not a host property"
+    },
+    "verify": {
+      "command": "memspine models fetch ... --check",
+      "exit_code": 0,
+      "wall_ms": 2119.2,
+      "lines": [
+        "BAAI/bge-small-en-v1.5 model_optimized.onnx sha256 ok 66465124 bytes",
+        "BAAI/bge-small-en-v1.5 tokenizer.json sha256 ok 711396 bytes",
+        "BAAI/bge-small-en-v1.5 tokenizer_config.json sha256 ok 1242 bytes",
+        "BAAI/bge-small-en-v1.5 special_tokens_map.json sha256 ok 695 bytes",
+        "Xenova/ms-marco-MiniLM-L-6-v2 onnx/model.onnx sha256 ok 90992115 bytes",
+        "Xenova/ms-marco-MiniLM-L-6-v2 tokenizer.json sha256 ok 711396 bytes",
+        "Xenova/ms-marco-MiniLM-L-6-v2 tokenizer_config.json sha256 ok 1242 bytes",
+        "Xenova/ms-marco-MiniLM-L-6-v2 special_tokens_map.json sha256 ok 125 bytes"
+      ],
+      "all_sha256_ok": true
+    },
+    "BAAI/bge-small-en-v1.5": {
+      "first_process_after_download": {
+        "import_ms": 187.67,
+        "load_ms": 337.72,
+        "first_call_ms": 53.29,
+        "first_load_total_ms": 578.68
+      },
+      "import_ms": {
+        "n": 30,
+        "warmups": 0,
+        "p50_ms": 187.6747,
+        "p95_ms": 211.3643,
+        "p99_ms": 217.566,
+        "mean_ms": 191.356837,
+        "stdev_ms": 10.311807,
+        "min_ms": 176.4763,
+        "max_ms": 217.566
+      },
+      "load_ms": {
+        "n": 30,
+        "warmups": 0,
+        "p50_ms": 337.6013,
+        "p95_ms": 357.6698,
+        "p99_ms": 363.7385,
+        "mean_ms": 339.065707,
+        "stdev_ms": 10.436072,
+        "min_ms": 321.5123,
+        "max_ms": 363.7385
+      },
+      "first_call_ms": {
+        "n": 30,
+        "warmups": 0,
+        "p50_ms": 49.6941,
+        "p95_ms": 52.5831,
+        "p99_ms": 53.2892,
+        "mean_ms": 49.40086,
+        "stdev_ms": 1.65219,
+        "min_ms": 45.4547,
+        "max_ms": 53.2892
+      },
+      "first_load_total_ms": {
+        "n": 30,
+        "warmups": 0,
+        "p50_ms": 575.3471,
+        "p95_ms": 614.1217,
+        "p99_ms": 617.6999,
+        "mean_ms": 579.823403,
+        "stdev_ms": 16.594402,
+        "min_ms": 554.4009,
+        "max_ms": 617.6999
+      },
+      "steady_batch32_ms": {
+        "n": 300,
+        "warmups": 2,
+        "p50_ms": 40.4014,
+        "p95_ms": 43.7976,
+        "p99_ms": 44.9721,
+        "mean_ms": 40.450476,
+        "stdev_ms": 1.978751,
+        "min_ms": 35.0827,
+        "max_ms": 45.3789
+      },
+      "steady_items_per_s_p50": 792.1
+    },
+    "Xenova/ms-marco-MiniLM-L-6-v2": {
+      "first_process_after_download": {
+        "import_ms": 182.75,
+        "load_ms": 284.54,
+        "first_call_ms": 39.57,
+        "first_load_total_ms": 506.86
+      },
+      "import_ms": {
+        "n": 30,
+        "warmups": 0,
+        "p50_ms": 189.392,
+        "p95_ms": 211.2383,
+        "p99_ms": 220.2642,
+        "mean_ms": 192.94502,
+        "stdev_ms": 9.167429,
+        "min_ms": 182.2132,
+        "max_ms": 220.2642
+      },
+      "load_ms": {
+        "n": 30,
+        "warmups": 0,
+        "p50_ms": 289.7471,
+        "p95_ms": 315.9847,
+        "p99_ms": 332.2716,
+        "mean_ms": 294.3173,
+        "stdev_ms": 12.058752,
+        "min_ms": 281.2218,
+        "max_ms": 332.2716
+      },
+      "first_call_ms": {
+        "n": 30,
+        "warmups": 0,
+        "p50_ms": 39.5344,
+        "p95_ms": 46.4892,
+        "p99_ms": 46.9987,
+        "mean_ms": 39.48868,
+        "stdev_ms": 2.525333,
+        "min_ms": 33.5823,
+        "max_ms": 46.9987
+      },
+      "first_load_total_ms": {
+        "n": 30,
+        "warmups": 0,
+        "p50_ms": 522.4557,
+        "p95_ms": 556.8528,
+        "p99_ms": 572.7269,
+        "mean_ms": 526.751,
+        "stdev_ms": 16.766547,
+        "min_ms": 500.1076,
+        "max_ms": 572.7269
+      },
+      "steady_batch32_ms": {
+        "n": 300,
+        "warmups": 2,
+        "p50_ms": 29.4305,
+        "p95_ms": 31.2244,
+        "p99_ms": 34.8703,
+        "mean_ms": 29.596696,
+        "stdev_ms": 1.386671,
+        "min_ms": 25.2113,
+        "max_ms": 36.3522
+      },
+      "steady_items_per_s_p50": 1087.3
+    }
+  },
+  "notes": [
+    "Process 1 runs right after the download, so the OS file cache already holds the files; a cold-disk first load is not reproducible on Windows without a reboot."
+  ],
+  "load_after": {
+    "available": true,
+    "at_utc": "2026-11-02T10:08:39.336758+00:00",
+    "window_s": 2.0,
+    "cpu_percent_total": 2.5,
+    "memory_used_percent": 33.6,
+    "top_processes": [
+      {
+        "pid": 23204,
+        "name": "python.exe",
+        "cpu_percent": 21.4
+      },
+      {
+        "pid": 42788,
+        "name": "Taskmgr.exe",
+        "cpu_percent": 9.2
+      },
+      {
+        "pid": 69764,
+        "name": "s3browser-ui.exe",
+        "cpu_percent": 8.0
+      },
+      {
+        "pid": 4,
+        "name": "System",
+        "cpu_percent": 5.5
+      },
+      {
+        "pid": 2636,
+        "name": "dwm.exe",
+        "cpu_percent": 4.9
+      },
+      {
+        "pid": 15760,
+        "name": "explorer.exe",
+        "cpu_percent": 4.9
+      },
+      {
+        "pid": 54304,
+        "name": "chrome.exe",
+        "cpu_percent": 4.3
+      },
+      {
+        "pid": 9588,
+        "name": "WmiPrvSE.exe",
+        "cpu_percent": 3.7
+      }
+    ],
+    "note": "process cpu_percent is per one logical CPU (100 = one full thread)"
+  },
+  "status": "completed",
+  "finished_at_utc": "2026-11-02T10:08:39.336801+00:00",
+  "wall_s": 88.153
+}

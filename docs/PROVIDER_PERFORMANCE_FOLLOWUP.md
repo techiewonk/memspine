@@ -152,3 +152,225 @@ These are shared-host local diagnostics, not production budgets.
 The finite 30-cycle sample provides evidence about these observed lifetimes;
 it cannot prove unbounded leak freedom or represent long-running production
 behavior. PA-055 remains **partial pending review** of this additional evidence.
+
+## 2026-11-02: wave-6 reference-host pass (PA-051, RM-25, RM-26, RS-06, PA-053)
+
+This pass ran on the owner's reference timing host (ADR-096). No other measurement ran
+during it. Each family has one PA-051 record under `docs/provider_verification/`, written by
+`scripts/perf_protocol.py`. A record carries the commit, a clean-tree flag, host specs and the
+power plan, CPU% before and after with the top processes, and n/p50/p95/p99/stdev/min/max.
+The records are `perf-rm25-onnx-clean-cache`, `perf-rm26-onnx-cpu-envelope`,
+`perf-rs06-packer-token-counting`, `perf-rm26-read-latency-reranker`,
+`perf-pa053-concurrent-ingest-search` and `perf-pa053-write-path-profile`, each with the
+suffix `-2026-11-02.json`. The harnesses are `scripts/benchmark_onnx_envelope.py`,
+`scripts/benchmark_engine_read_ingest.py` and `scripts/profile_write_path.py`. Every record
+was taken on a clean tree at commit d737fabf, 74b3a676, 538a5d62 or da523ce0; these commits
+differ only in harness changes.
+
+**Host.** AMD Ryzen 9 9950X3D, 16 cores / 32 threads, 125.6 GiB RAM. Windows 11 Enterprise
+Insider Preview, build 26340. Power plan: High performance. Python 3.13.5, onnxruntime
+1.31.1, tokenizers 0.23.3, huggingface_hub 2.4.0, numpy 2.5.4, lancedb 0.41.0, tantivy
+0.27.0, SQLAlchemy 2.1.6. Host CPU was 1.6-8.8% before and after every family.
+The top process in each sample (`python.exe`, about 22% of one thread) is most likely the
+sampling process itself. An RDP client (`mstsc.exe`, about 20-26% of one thread) and, once,
+Chrome (48% of one thread) were active. The host was quiet by total load, but it was not
+isolated.
+
+### RM-25: clean cache, first load, steady state
+
+`memspine models fetch --template base --model Xenova/ms-marco-MiniLM-L-6-v2` filled an
+empty Hugging Face cache in 14.7 s, which includes the network download. All 8 pinned files
+reported `sha256 ok`, and `--check` re-verified them offline in 2.1 s. The figures below come
+from 30 fresh processes each, loading from that cache with threads 0 and batch 32.
+
+| Model | import ms p50 | load ms p50 (incl. SHA-256) | first call ms p50 | first load total ms p50/p95 | steady batch-32 ms p50/p95 (n=300) | items/s |
+|---|---:|---:|---:|---:|---:|---:|
+| bge-small-en-v1.5 (embedder) | 188 | 338 | 50 | 575 / 614 | 40.4 / 43.8 | 792 |
+| ms-marco-MiniLM-L-6-v2 (cross-encoder) | 189 | 290 | 40 | 522 / 557 | 29.4 / 31.2 | 1087 |
+
+A cold-disk first load cannot be reproduced on Windows without a reboot. Process 1 ran
+right after the download, with the OS file cache warm.
+
+### RM-26 / RS-06: CPU envelope
+
+Each call is one ONNX session run over `batch` invented 15-30-word turns, or over
+query-document pairs for the cross-encoder. Each cell has 30-100 repetitions after 5 warm-ups.
+The table gives p50 ms, with items/s in brackets. Outputs were bit-identical across thread
+settings (max abs diff 0.0).
+
+| Threads | bge b=1 | b=4 | b=16 | b=32 | b=64 | MiniLM b=1 | b=4 | b=16 | b=32 | b=64 |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| 0 (ORT default) | 2.33 (429) | 7.14 (561) | 21.1 (758) | 39.5 (811) | 73.2 (874) | 2.03 (493) | 6.09 (657) | 15.8 (1011) | 28.9 (1108) | 57.3 (1116) |
+| 1 | 5.25 (190) | 24.0 (167) | 94.3 (170) | 188 (170) | 374 (171) | 2.63 (380) | 13.1 (305) | 50.5 (317) | 101 (318) | 200 (320) |
+| 2 | 4.59 (218) | 17.8 (225) | 77.2 (207) | 160 (200) | 302 (212) | 2.69 (371) | 10.8 (371) | 42.3 (379) | 88.4 (362) | 176 (364) |
+| 4 | 2.86 (349) | 12.1 (329) | 42.3 (379) | 83.2 (385) | 160 (400) | 1.72 (582) | 8.32 (481) | 25.5 (628) | 49.8 (643) | 98.1 (652) |
+| 16 (physical) | 2.03 (492) | 6.73 (594) | 19.4 (825) | 35.4 (903) | 61.9 (1034) | 1.63 (613) | 6.32 (633) | 15.2 (1053) | 27.6 (1159) | 53.2 (1204) |
+| 32 (logical) | 2.79 (359) | 7.94 (504) | 27.5 (581) | 50.8 (630) | 86.6 (739) | 2.32 (430) | 7.26 (551) | 20.8 (771) | 37.3 (859) | 83.4 (768) |
+
+At 32 threads, p95 is 1.5-2.5x p50: bge b=64 has p95 134 ms against p50 87 ms. SMT
+oversubscription is slower and noisier.
+
+**Recommended onnx slot defaults: keep `threads: 0` and `batch_size: 32` for both slots.**
+- Threads 0 resolves to the physical cores and matches the explicit 16. Never set threads to
+  the logical count.
+- Batch 64 gains only 4-15% items/s for twice the per-call latency.
+- The read path reranks a 16-document pool in a single call.
+- The case where several onnx slots infer at the same time in one process was not measured.
+  A deployment that runs ingestion and reads concurrently may want each slot pinned to half
+  the physical cores; that would need a measurement.
+
+**int8 vs fp32 parity: no int8 entry.** The pinned catalogue has no separate int8 file
+entry (ADR-093 amendment), so parity was not run and no unpinned file was added.
+
+**Packer token counting (RS-06).** The contexts are invented turns rendered one per line.
+Each cell gives p50/p95 ms over 200 runs; truncation over 50.
+
+| Context (estimated tokens) | estimate `len//4+1` count | exact bge WordPiece count | `truncate_to_fit` to half, estimate | `truncate_to_fit`, exact |
+|---|---:|---:|---:|---:|
+| 512 | 0.0001 / 0.0002 | 0.45 / 0.53 | 0.22 / 0.43 | 2.48 / 4.00 |
+| 2,048 (default budget) | 0.0001 / 0.0002 | 1.77 / 2.83 | 1.08 / 1.93 | 11.6 / 17.1 |
+| 8,192 | 0.0001 / 0.0002 | 8.28 / 11.7 | 5.36 / 7.67 | 54.9 / 68.7 |
+
+At the default budget, an exact count costs about 2 ms per pass over the context. Truncation
+recounts on each cut, so with an exact counter it costs about 10x the estimate. tiktoken
+`cl100k_base` was not cached and did not resolve offline. Recommendation: keep the estimate
+as the default and leave `read.exact_budget` as opt-in.
+
+### Read latency with and without the MiniLM reranker
+
+The store uses the base template, rules-only, with the onnx bge-small embedder. The corpus
+is invented turns from one human sender, 20 per session, and 22% of them are rule-derivable
+first-person statements. Each cell is 100 reads after 10 warm-ups. The reranker was invoked
+on all 100 measured reads, with 16 documents per call and no failures.
+
+| Corpus | rerank off p50/p95/p99 ms | rerank on p50/p95/p99 ms | reranker model call p50/p95 ms | net added p50 / p95 ms | context tokens p50 off → on |
+|---|---:|---:|---:|---:|---:|
+| 1,000 | 191 / 350 / 365 | 203 / 310 / 361 | 22.2 / 23.9 | +11.2 / −39.4 | 1,857 → 1,230 |
+| 2,440 (10k requested) | 449 / 580 / 643 | 452 / 607 / 630 | 22.3 / 24.0 | +3.1 / +26.4 | 1,892 → 1,462 |
+
+The reranker costs about 22 ms per read; the "model call" column is the in-engine span
+around `gated_rerank`. The net change at p50 is smaller, because a reranked read packs
+a context about a quarter to a third smaller, which shortens the later stages. The p95
+differences are within read-to-read noise.
+
+The 10k corpus was not reached: a 600 s seeding cap stopped it at 2,440 records (see the
+finding below). Read latency itself grows with the corpus: p50 was 191 ms at 1k and 449 ms
+at 2.4k, without the reranker.
+
+**MiniLM default (ADR-093): recommend yes.**
+- The cost is 22 ms per read, inside ADR-093's 20-60 ms estimate, and about 1-6% of the
+  current read p50.
+- The weights fetch and verify cleanly, and the first load is about 0.5 s.
+- Two conditions are unchanged: there is no int8 variant, and retrieval quality was not
+  measured here.
+
+This is a recommendation only. The template default was not changed.
+
+### PA-053: concurrent ingest plus search, saturated
+
+The store was a 500-record seed (1k was cut for time), with 2 closed-loop readers using a
+50 ms think time. Writes were open-loop. Lag was sampled about twice per second.
+
+| Step | target msgs/s | msgs/call | achieved msgs/s | write-ack p50/p95/p99 ms | read p50/p95/p99 ms | derivation lag p50/p95 ms |
+|---|---:|---:|---:|---:|---:|---:|
+| single_1 | 1 | 1 | 1.00 | 551 / 1,353 / 1,836 | 649 / 1,622 / 2,541 | 120,387 / 121,394 |
+| single_10 (earlier, killed run; stdout only) | 10 | 1 | 1.19 | — / 206,955 / — | — / 2,215 / — | — / 183,219 |
+| batched_10 | 10 | 5 | 1.71 (saturated) | 33,852 / 129,901 / 146,232 | 1,284 / 2,956 / 3,998 | 145,202 / 191,238 |
+| batched_50 | 50 | 25 | 1.33 (saturated; 4 calls cancelled at the 300 s cap) | 68,747 / 280,333 / — | 1,425 / 3,525 / 3,867 | not measured |
+
+What the steps show:
+- The write path saturates at about 1-2 msgs/s, whether messages are sent one per call or
+  batched. Every write step at or above 10 msgs/s therefore measures queueing, not service
+  time. Single-message 50 msgs/s was skipped.
+- Derivation lag is about 120 s even at 1 msg/s. That equals `write.window_idle_s`: facts
+  readiness waits for the idle cut of the open window.
+- **No PA-053 budgets are proposed.** At 10 msgs/s every number is saturated. Budgets wait
+  on the write-path fixes below, and the lag budget also waits on a decision about the
+  idle-window readiness.
+
+### Where the time goes (`perf-pa053-write-path-profile-2026-11-02.json`)
+
+The profile used the same seeded store, after the PA-053 steps, with about 1,260 messages.
+It was the only workload on the host. Each operation ran 10 times after a warm-up, under
+cProfile plus wall-clock spans. The spans are inclusive and can nest, so they do not sum to
+the operation time.
+
+| Operation | wall p50 / p95 ms |
+|---|---:|
+| `Engine.write` (episodic) | 309 / 512 |
+| `ingest_messages` (1 message) | 314 / 466 |
+| `Engine.read` alone | 353 / 711 |
+| `Engine.read` during a 20-message ingest | 672 / 820 (ingest 2,675 ms) |
+
+| Span (per write / per single-message ingest) | ms | thread |
+|---|---:|---|
+| window drain run inline in the writer's task (`windows.drain`) | 218 / 219 | loop |
+| — of which outbox `SqlJobStore.jobs()` full scans (6-7 calls) | 192 / 187 | worker |
+| LanceDB per-row `upsert` (vector projector) | 58 / 38 | loop → thread |
+| Tantivy `_index_one` / `_commit_if_pending` (one `IndexWriter.commit` per record) | 52 / 44 | worker |
+| SQL `SELECT`s (36-41 statements) | 38 / 43 | both |
+| `windows.observe` | 27 / 29 | loop |
+| outbox `put_draft` | 22 / 24 | worker |
+| embedding (2 calls) | 21 / 36 | loop → thread |
+| derivation discovery (`discover_committed`) | 11 / 19 | loop |
+| intake ledger (`record_intent`, `apply_intent`, `intents_by_id`, `record_ids`) | 32 / 32 | loop |
+| events `set_offset` (3) + records projector apply | 16 / 13 | loop |
+| `BEGIN IMMEDIATE` waits, `COMMIT` + fsync, `wal_checkpoint` | under 1 ms per op at the median | — |
+
+Entity-index `with_entity_links` and `relink_events` did not register: the base template's
+entity policy did not engage on these writes.
+
+cProfile for 10 writes has `outbox._row_to_job` called 96,726 times, about 9,700 job rows
+deserialized per write. Those calls cost 944 ms cumulative, before the SQL fetch.
+`runtime/jobs.py` `claim`, `expire_leases` and `live_jobs` call `store.jobs()`, which selects
+the whole outbox table every time. That cost grows with every message ever ingested.
+
+This matches the seeding trace. A 20-turn `ingest_messages` call took 1.0 s on an empty
+store and 6.7 s at 2,400 messages, a cost that grows roughly linearly with history.
+
+The background derivation of 105 windows (`flush_windows`) took 11.1 s.
+`SqlJobStore.jobs()` alone took 2.46 s of that, across 125 calls and 198,642 rows
+deserialized. Per-row Tantivy and LanceDB applies took 1.24 s and 0.83 s.
+
+Reads do not wait on locks: no `asyncio.Lock` wait of 0.5 ms or more was recorded.
+- Alone, a read issues 87 `SELECT`s.
+- cProfile shows `list_records` called 30 times per read, about 2,700 rows built through
+  `_row_to_record` and pydantic validation, about 150 ms per read.
+- Episodic `sessions()` re-detects sessions over the whole namespace, about 117 ms per read.
+  Both grow with the corpus.
+- During an ingest, the same read takes twice as long (`SELECT` time 53 → 114 ms). The
+  writer's inline drain and its synchronous outbox SQL occupy the event loop and the GIL.
+
+**Most likely fixes, ranked. Not implemented; `src` is unchanged.**
+1. **Indexed outbox queries instead of `SqlJobStore.jobs()` full scans.** In
+   `runtime/jobs.py` claim, expire-leases and live-jobs, and in `runtime/runner.py` and
+   `transport.py`: query by state, stage and lease expiry with an index, and prune or archive
+   finished jobs.
+   - Expected: about 190 ms of the about 310 ms per write (about 60%) at 1.3k messages, and
+     about 22% of `flush_windows`.
+   - It also removes the linear growth: per-call ingest would stay near its empty-store 1 s
+     instead of reaching 6.7 s at 2.4k.
+   - This is the largest and the only O(history) write term.
+2. **Batch the per-record index commits.** One LanceDB `table.add` per `ingest_messages`
+   call or projection batch instead of one per row, and a Tantivy group commit per batch or
+   timer instead of `IndexWriter.commit` per record.
+   - Expected: about 80-100 ms per message (vector about 40-60 ms, lexical about 35-50 ms).
+   - For a 20-message call, about 1.1 s of LanceDB and about 0.9 s of Tantivy shrink to
+     about one commit each. Fewer LanceDB fragments should also help search.
+3. **Bound the read path's namespace scans.** Replay/session expansion and `sessions()`
+   should query by session and time window (indexed SQL, or a maintained session index)
+   instead of `list_records` over the whole namespace.
+   - Expected: about 150-270 ms of the about 350 ms read at 1.3k records.
+   - It flattens the read growth seen above (191 → 449 ms from 1k to 2.4k).
+   - Moving the window drain off the writer's task would also stop writes slowing
+     concurrent reads by 2x.
+
+**Measurement caveats.**
+- The 10k corpus was capped at 2,440 records, and the PA-053 seed was 500 rather than 1k.
+- single_10 survives only as the stdout line of a killed run.
+- The fetch wall time includes the network.
+- The read p95 deltas with and without the reranker are within noise.
+- Lag polling calls `wait_for_derivation`, which refreshes readiness rows. It was sampled at
+  about 2 msgs/s to keep that load small.
+- Worker-thread time (LanceDB, Tantivy, onnx) is invisible to cProfile and appears only in
+  the spans.
