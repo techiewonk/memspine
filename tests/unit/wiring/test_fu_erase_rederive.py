@@ -369,16 +369,20 @@ async def test_classify_counts_member_lists_as_support() -> None:
         await eng.stop()
 
 
-async def test_classify_still_flags_a_member_summary_whose_members_are_all_gone() -> None:
+async def test_member_summary_whose_members_are_all_gone_cannot_leak() -> None:
+    """ADR-095 amendment 2026-11-02: a member summary with no live member left is dropped at the
+    hard erase itself, so a later release finds nothing to put back and nothing leaks."""
     eng = _engine(rederive=False)
     await eng.start()
     try:
         a, _, _ = await _turns(eng)
         summary = await _member_summary(eng, [a])
         await eng.forget(a.record_id, namespace=NS, hard=True)
+        assert await eng._require_started().get_record(summary.record_id) is None
         await eng.erasure_release([summary.record_id], NS)
         verdict = await eng.verify_forget(a.record_id, NS)
-        assert verdict["descendants_leaked"] == [summary.record_id]
+        assert verdict["descendants_leaked"] == []
+        assert verdict["clean"] is True
         assert erasure.state(eng).erased  # sanity
     finally:
         await eng.stop()
