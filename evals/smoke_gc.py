@@ -352,7 +352,13 @@ CHECKS = {
             )
             > 0,
         ),
-        ("view_tags leg present in read forensics", any("view_tags" in lg for lg in legs)),
+        # RM-155: no view_tags check here. The leg reads the ``person:`` / ``loc:`` / ``topic:``
+        # tags that ``consolidation.mine_multiview`` writes (G-C2); a window fact's envelope
+        # carries no persons, location or topic, and its only typed roles (role bindings) come
+        # from the non-generative rule facts. The RM-130 entity links are resolved from the
+        # record's own entity / dst tags when the WRITE is appended, after its tags are fixed,
+        # so they add no view the leg could read. The leg stays on in the arm and runs (an
+        # empty leg is left out of the forensics).
         ("a window fact reaches the context", any(b for b in blocks)),
     ],
     "scr-gc9-summary-jina": lambda r, legs, blocks: [

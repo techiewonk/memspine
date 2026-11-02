@@ -113,7 +113,9 @@ def validate_engine_config(config: dict[str, Any]) -> None:
 
     Policy options (``read.scoring``, ``read.assembly``, ``memories.*.policies.*``)
     are open dicts in the schema and are only bound when a pipeline first runs, so a
-    misspelt key there would otherwise pass start-up silently.
+    misspelt key there would otherwise pass start-up silently. Each selected provider's
+    ``settings`` and the deployment rules (``deployment.id`` for a shared provider, locality)
+    are checked by ``load_config`` itself (RM-155, ``memspine.providers.validation``).
     """
     from memspine.compose.pack import AssemblyOptions
     from memspine.config.loader import load_config
@@ -145,60 +147,6 @@ def validate_engine_config(config: dict[str, Any]) -> None:
                     f"{where}.policies.{name}: unknown policy; known: {sorted(options)}"
                 )
             model.model_validate(raw or {})
-    validate_provider_settings(parsed)
-
-
-def validate_provider_settings(parsed: Any) -> None:
-    """Phase D (ADR-096): each selected provider's own ``settings`` object, validated by its
-    descriptor the way the engine's build path does, without building anything.
-
-    The config schema keeps ``settings`` as provider-owned JSON (ADR-081/082), so a key the
-    provider no longer takes (``base_url`` on ``ollama``, an ``st`` key left on ``hash``)
-    passes ``load_config`` and only fails at engine start.
-    """
-    from memspine.exceptions import ConfigError
-    from memspine.providers.registry import get_registry, validate_settings
-    from memspine.providers.rerank import validate_reranker_settings
-    from memspine.runtime.container import llm_settings, resolved_embedding
-
-    def descriptor(kind: str, name: str, where: str) -> Any:
-        try:
-            return get_registry(kind).get(name)
-        except Exception as exc:
-            raise ConfigError(f"unknown provider at {where}: {name!r}") from exc
-
-    explicit_id = parsed.deployment.id is not None
-
-    def check(where: str, kind: str, name: str, values: Any, slot: Any = None) -> None:
-        try:
-            found = descriptor(kind, name, where)
-            if found.requires_deployment_id and not explicit_id:
-                # the build path's check (runtime.container._build_provider)
-                raise ConfigError(
-                    f"deployment.id is required by shared provider "
-                    f"{found.ref.category}.{found.ref.name}"
-                )
-            if slot is not None:
-                llm_settings(found, slot)
-            else:
-                validate_settings(found, values)
-        except Exception as exc:
-            raise ValueError(f"{where}: {exc}") from None
-
-    for role, slot in parsed.model.llm.items():
-        check(f"model.llm.{role}", "llm_providers", slot.provider, None, slot)
-    embedding = resolved_embedding(parsed)
-    check("model.embedding", "embedders", embedding.provider, embedding.settings)
-    for index, stage in enumerate(parsed.model.rerank.chain):
-        where = f"model.rerank.chain[{index}]"
-        try:
-            validate_reranker_settings(
-                stage.provider, stage.settings, explicit_deployment_id=explicit_id, path=where
-            )
-        except Exception as exc:
-            raise ValueError(f"{where}: {exc}") from None
-    records = parsed.storage.records
-    check("storage.records", "storage_backends", records.provider, records.settings)
 
 
 def _namespaces(parsed: Any) -> dict[str, Any]:

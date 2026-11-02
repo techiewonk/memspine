@@ -205,6 +205,8 @@ async def _stubbed(stubs: dict[str, _Stub], **kw: Any) -> Any:
     roles = model.setdefault("llm", {})
     for role in stubs:
         roles[role] = {"provider": "ollama", "timeout_s": 30.0, "settings": {"model": "audit-stub"}}
+    # RM-155: load_config validates the slots, and ollama is a shared provider
+    kw.setdefault("deployment", {"id": "feature-audit"})
     engine = _engine_kw(model=model, **kw)
 
     async def router(config: Any, hooks: Any, wiring: Any) -> Any:
