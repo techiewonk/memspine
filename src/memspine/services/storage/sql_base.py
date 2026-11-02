@@ -112,6 +112,10 @@ class SqlStorage(ServiceAdapter):
         # made while ``sharing_listed_records`` is on. An entry is reused only for an identical
         # row, so it can never serve stale data; writes and deletes here drop theirs at once.
         self._listed: dict[str, dict[str, tuple[tuple[Any, ...], MemoryRecord]]] = {}
+        #: ADR-095 (in-process copies): ids hard-deleted from the read model. A listing that was
+        #: already in flight when the delete ran never memoises them, so no erased record stays
+        #: in this memory; the in-flight reader still gets the row it read before the erase.
+        self._deleted_ids: set[str] = set()
 
     # ── dialect dispatch ─────────────────────────────────────────────────────
 
@@ -602,7 +606,8 @@ class SqlStorage(ServiceAdapter):
                 record = hit[1]
             else:
                 record = self._row_to_record(mapping)
-            kept[record_id] = (values, record)
+            if record_id not in self._deleted_ids:
+                kept[record_id] = (values, record)
             out.append(record)
         self._listed[namespace] = kept  # most recently listed last
         total = sum(len(entries) for entries in self._listed.values())
@@ -743,6 +748,7 @@ class SqlStorage(ServiceAdapter):
     async def delete_all_records(self) -> None:
         """Projector rebuild support: drop the read model, keep the log."""
         self._listed.clear()
+        self._deleted_ids.clear()  # the rebuild re-derives the read model from the redacted log
         async with self._client.engine.begin() as conn:
             await conn.execute(delete(memory_records))
 
@@ -750,6 +756,7 @@ class SqlStorage(ServiceAdapter):
         """M7 hard-delete: remove one row from the read model (projector-driven
         by a FORGET(hard) event; the log side is ``redact_event_payloads``)."""
         self._forget_listed(record_id)
+        self._deleted_ids.add(record_id)
         async with self._client.engine.begin() as conn:
             await conn.execute(
                 delete(memory_records).where(memory_records.c.record_id == record_id)

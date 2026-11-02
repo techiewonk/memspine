@@ -97,3 +97,27 @@ async def test_a_row_changed_by_another_writer_is_rebuilt() -> None:
         assert second.content == "changed elsewhere" and second is not first
     finally:
         await storage.stop()
+
+
+async def test_a_listing_in_flight_during_a_hard_delete_never_memoises_the_erased_record() -> None:
+    """ADR-095 (in-process copies): rows fetched before a hard delete may still reach the reader
+    that fetched them, but the store's memo never keeps the erased record afterwards."""
+    from sqlalchemy import select
+
+    storage = await _storage()
+    try:
+        await storage.upsert_record(_record("gone", "secret passphrase"))
+        await storage.upsert_record(_record("kept", "harmless"))
+        async with storage._client.engine.connect() as conn:  # the in-flight listing's fetch
+            rows = (
+                await conn.execute(select(memory_records).where(memory_records.c.namespace == "a"))
+            ).all()
+        await storage.delete_record("gone")  # the hard erase lands while that read is in flight
+        with sharing_listed_records():
+            out = storage._shared_records("a", rows, whole=True)
+        assert {r.record_id for r in out} == {"gone", "kept"}  # the reader sees its own fetch
+        memo = storage._listed.get("a", {})
+        assert "gone" not in memo and "kept" in memo
+        assert "secret" not in repr(storage._listed)
+    finally:
+        await storage.stop()
