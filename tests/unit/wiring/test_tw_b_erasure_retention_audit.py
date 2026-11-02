@@ -123,20 +123,24 @@ async def test_end_to_end_forget_hides_dependants_and_purges() -> None:
         finally:
             tap.event = real_event  # type: ignore[assignment]
 
-        # erased record: gone; hidden dependant: row stays, invisible at once
+        # erased record: gone. ADR-095 amendment 2026-11-02: the dependant with no live
+        # source left is redacted by default (row gone, id-only tombstone in the queue); the
+        # summary with a live member stays, hidden at once, pending its re-run
         assert await storage.get_record(a.record_id) is None
-        hidden_row = await storage.get_record(only_a.record_id)
+        assert await storage.get_record(only_a.record_id) is None
+        hidden_row = await storage.get_record(summary.record_id)
         assert hidden_row is not None and hidden_row.status is RecordStatus.ACTIVATED
         assert not eng._consent_ok(hidden_row)
-        # "keep" (another live support parent) stays visible; the summary is re-run, hidden
+        # "keep" (another live support parent) stays visible
         assert eng._consent_ok(await storage.get_record(both.record_id))
-        assert not eng._consent_ok(await storage.get_record(summary.record_id))
 
         queue = {q["record_id"]: q for q in eng.erasure_queue()}
-        assert set(queue) == {only_a.record_id, summary.record_id}
-        assert queue[only_a.record_id]["action"] == "hide_and_rederive"
+        assert set(queue) == {summary.record_id}
         assert queue[summary.record_id]["action"] == "rerun_summary"
         assert queue[summary.record_id]["remaining_sources"] == [b.record_id]
+        dropped = {q["record_id"]: q for q in eng.erasure_queue(include_dropped=True)}
+        assert dropped[only_a.record_id]["action"] == "hide_and_rederive"
+        assert dropped[only_a.record_id]["state"] == "dropped_no_rederive"
 
         # no read leg returns the erased or hidden text, with the cache on
         for query in (SECRET, "User lives", "Summary"):
@@ -176,9 +180,9 @@ async def test_end_to_end_forget_hides_dependants_and_purges() -> None:
         assert done_f["state"] == "done"
 
         # the offline runner releases a re-derived id; the erased id never returns
-        assert await eng.erasure_release([only_a.record_id, a.record_id], NS) == 1
-        assert eng._consent_ok(await storage.get_record(only_a.record_id))
-        assert [q["record_id"] for q in eng.erasure_queue()] == [summary.record_id]
+        assert await eng.erasure_release([summary.record_id, a.record_id], NS) == 1
+        assert eng._consent_ok(await storage.get_record(summary.record_id))
+        assert eng.erasure_queue() == []
     finally:
         await eng.stop()
 
@@ -216,8 +220,9 @@ async def test_state_survives_restart_and_hidden_id_stays_invisible(tmp_path: Pa
     eng = _engine(tmp_path, **kw)
     await eng.start()
     try:
-        a, _ = await _turns(eng)
-        fact = await _derive(eng, f"User lives in {SECRET}", [a.record_id])
+        a, b = await _turns(eng)
+        only_a = await _derive(eng, f"User lives in {SECRET}", [a.record_id])
+        fact = await _derive(eng, f"User and sister visit {SECRET}", [a.record_id, b.record_id])
         await eng.forget(a.record_id, namespace=NS, hard=True)
         gen = eng.erasure_status()["generation"]
     finally:
@@ -228,6 +233,9 @@ async def test_state_survives_restart_and_hidden_id_stays_invisible(tmp_path: Pa
         row = await eng2._require_started().get_record(fact.record_id)
         assert row is not None and not eng2._consent_ok(row)
         assert [q["record_id"] for q in eng2.erasure_queue()] == [fact.record_id]
+        # the redacted sole-source dependant's id-only tombstone survives the restart
+        assert await eng2._require_started().get_record(only_a.record_id) is None
+        assert eng2.erasure_status()["dropped_no_rederive"] == 1
         assert eng2.erasure_status()["generation"] >= 1 and gen >= 1
         assert await eng2.erasure_resume_purges() == []  # the purge was already done
     finally:
@@ -262,9 +270,12 @@ async def test_parents_fallback_without_the_lineage_table() -> None:
         async with eng._write_locks.setdefault(NS, asyncio.Lock()):
             fact = await write_derived(eng, eng._require_started(), NS, fact, "semantic", "system")
         await eng.forget(a.record_id, namespace=NS, hard=True)
-        row = await eng._require_started().get_record(fact.record_id)
-        assert row is not None and not eng._consent_ok(row)
-        assert eng.erasure_queue()[0]["action"] == "hide_and_rederive"
+        # planned from source.parents; no live source left: redacted by default (ADR-095)
+        assert await eng._require_started().get_record(fact.record_id) is None
+        (entry,) = eng.erasure_queue(include_dropped=True)
+        assert entry["record_id"] == fact.record_id
+        assert entry["action"] == "hide_and_rederive"
+        assert entry["state"] == "dropped_no_rederive"
     finally:
         await eng.stop()
 
