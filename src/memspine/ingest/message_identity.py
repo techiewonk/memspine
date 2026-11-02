@@ -397,5 +397,10 @@ def normalise_messages(
         item["timestamp"] = resolved
         item["_source_clock"] = clock
         item["_created_at_generated"] = generated
+        # RM-163 (ADR-090 window key): whether the caller gave the session / conversation for
+        # this message (or the call). An engine-assigned id (minted, or inherited from the
+        # reply parent) is identity only; it never opens a window of its own.
+        item["_session_generated"] = not (msg_session or session_id)
+        item["_conversation_generated"] = not (msg_conversation or conversation_id)
         staged.append(item)
     return staged

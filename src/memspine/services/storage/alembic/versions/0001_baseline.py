@@ -23,6 +23,12 @@ depends_on = None
 # job per (scope, stage), WHERE state = 'running'). They replace ``ix_outbox_state`` and
 # ``ix_outbox_scope_stage``; first cycle, so the baseline is edited in place.
 
+# ── RM-163 per-turn window draft ────────────────────────────────────────────────────
+# ``outbox_draft`` is one row per open turn, primary key (tenant, owner, owner_kind, stage,
+# window_key, record_id), plus ``ix_outbox_draft_record`` on the record id. It replaces the
+# one-JSON-row-per-namespace draft; vectors are no longer stored. First cycle (ADR-086), so
+# the baseline is edited in place.
+
 
 def upgrade() -> None:
     create_schema(op.get_bind())

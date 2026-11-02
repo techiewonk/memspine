@@ -685,6 +685,8 @@ class _Job:
 
 #: ADR-090 item 2: the window of a turn with no conversation, session or reply parent.
 _DEFAULT_WINDOW = "namespace"
+#: RM-163: how many reply parents the window key follows before it falls back to the default.
+_PARENT_DEPTH = 8
 
 
 @dataclass
@@ -826,6 +828,11 @@ class WindowPipeline:
         self._recovered = outbox is None
         self._draft_restored: set[str] = set()
         self._restore_lock = asyncio.Lock()
+        #: RM-163: what the durable draft holds per namespace, ``(window key, record id) ->
+        #: (seq, row signature)``, so a persist writes only the turns that changed.
+        self._draft_rows: dict[str, dict[tuple[str, str], tuple[int, tuple[Any, ...]]]] = {}
+        self._draft_seq = 0
+        self._draft_lock = asyncio.Lock()
         #: RM-143 (a): record ids whose observe is in progress (discovery must not replay them)
         #: and accepted sources whose membership waits until their work is durable.
         self._observing: set[str] = set()
@@ -925,17 +932,22 @@ class WindowPipeline:
             del store.windows[win.key]
 
     async def _window_key(
-        self, record: MemoryRecord, session: str | None
+        self, record: MemoryRecord, session: str | None, *, depth: int = 0
     ) -> tuple[str, str | None, str | None]:
         """ADR-090 amendment: ``(window key, conversation id, session)`` of a turn. The key is
         the conversation, else the session, else the inherited reply-parent conversation or
         session (RM-36: an omitted session inherits the stored parent's), else the
-        namespace's default window."""
+        namespace's default window.
+
+        RM-163: only a caller-given conversation or session keys a window. Message identity
+        assigns every message both ids (a root without a conversation gets a fresh one); an
+        assigned id (envelope ``conversation_generated`` / ``session_generated``) is identity
+        only, else every such message opened a one-turn window that only the idle timer
+        closed. A reply that inherited its parent's conversation joins the parent's window."""
+        message = record.source.message if isinstance(record.source.message, dict) else {}
         conversation_id = _conversation_id(record)
-        if conversation_id is not None:
+        if conversation_id is not None and not message.get("conversation_generated"):
             return f"conversation:{conversation_id}", conversation_id, session
-        if session is not None:
-            return f"session:{session}", None, session
         parent_id = next(
             (
                 t[len(constants.REPLY_TO_PREFIX) :]
@@ -945,13 +957,25 @@ class WindowPipeline:
             None,
         )
         parent = await self._get(parent_id) if parent_id else None
-        if parent is not None and parent.namespace == record.namespace:
-            parent_conversation = _conversation_id(parent)
-            parent_session = _session_id(parent)
-            if parent_conversation is not None:
-                return f"conversation:{parent_conversation}", parent_conversation, parent_session
-            if parent_session is not None:
-                return f"session:{parent_session}", None, parent_session
+        if parent is not None and parent.namespace != record.namespace:
+            parent = None
+        if depth >= _PARENT_DEPTH:
+            parent = None
+        if (
+            parent is not None
+            and conversation_id is not None
+            and conversation_id == _conversation_id(parent)
+        ):
+            return await self._window_key(parent, _session_id(parent), depth=depth + 1)
+        if session is not None and not message.get("session_generated"):
+            return f"session:{session}", None, session
+        if parent is not None:
+            key, parent_conversation, parent_session = await self._window_key(
+                parent, _session_id(parent), depth=depth + 1
+            )
+            if key != _DEFAULT_WINDOW:
+                return key, parent_conversation, parent_session
+        # The default window has no session: an assigned session would cut it per message.
         return _DEFAULT_WINDOW, None, None
 
     async def _restore_draft(self, namespace: str) -> None:
@@ -981,7 +1005,13 @@ class WindowPipeline:
             return
         by_key: dict[str, list[tuple[WindowTurn, dict[str, Any]]]] = {}
         stale: list[tuple[MemoryRecord, str | None]] = []
+        stored: dict[tuple[str, str], tuple[int, tuple[Any, ...]]] = {}
         for item in payload.get("turns", []):
+            seq = int(item.get("seq") or 0)
+            self._draft_seq = max(self._draft_seq, seq)
+            row_key = (str(item.get("window_key") or _DEFAULT_WINDOW), str(item["record_id"]))
+            # every stored row is known, so the first persist deletes the ones not kept
+            stored[row_key] = (seq, ())
             record = await self._get(str(item["record_id"]))
             if record is None or record.status is not RecordStatus.ACTIVATED:
                 continue
@@ -996,17 +1026,28 @@ class WindowPipeline:
                 text=record.content,
                 session=item.get("session"),
                 when=datetime.fromisoformat(when) if isinstance(when, str) else record.valid_from,
-                vector=item.get("vector"),
                 tokens=int(item.get("tokens", 0)),
             )
-            by_key.setdefault(str(item.get("window_key") or _DEFAULT_WINDOW), []).append(
-                (turn, item)
+            by_key.setdefault(row_key[0], []).append((turn, item))
+            stored[row_key] = (  # the row as the next persist would write it: left unchanged
+                seq,
+                (
+                    turn.session,
+                    item.get("conversation_id") or None,
+                    record.version,
+                    item["content_hash"],
+                    turn.when,
+                    turn.tokens,
+                ),
             )
+        current = payload.get("policy_revision") == self._policy_revision
+        if current:  # RM-163: the draft stores no vectors; the topic boundary needs them back
+            await self._embed_restored([turn for entries in by_key.values() for turn, _ in entries])
         # Every read succeeded: from here the turns live in memory, so a second restore
         # would add them twice.
         self._draft_restored.add(namespace)
+        self._draft_rows[namespace] = stored
         store = self._store(namespace)
-        current = payload.get("policy_revision") == self._policy_revision
         for key, entries in by_key.items():
             win = self._window(store, key)
             for turn, item in entries:
@@ -1038,28 +1079,78 @@ class WindowPipeline:
         for record, session in stale:  # refreshed through the one canonical observer
             await self.observe(record, session if isinstance(session, str) else None)
 
-    async def _persist_draft(self, namespace: str, store: _Store) -> None:
-        if self._outbox is None or not hasattr(self._outbox, "save_draft"):
+    async def _embed_restored(self, turns: list[WindowTurn]) -> None:
+        """Recompute the topic vectors of restored turns from their records' text (one batch)."""
+        if not turns or self._embed is None or self.settings.topic_k <= 0.0:
             return
-        turns: list[dict[str, Any]] = []
-        for win in store.windows.values():
-            for turn in win.segmenter.open_turns:
-                version, content_hash = win.sources.get(turn.record_id, (0, ""))
-                turns.append(
-                    {
-                        "record_id": turn.record_id,
-                        "window_key": win.key,
-                        "session": turn.session,
-                        "conversation_id": win.conversation_id,
-                        "source_version": version,
-                        "content_hash": content_hash,
-                        "when": turn.when.isoformat() if turn.when is not None else None,
-                        "vector": list(turn.vector) if turn.vector is not None else None,
-                        "tokens": turn.tokens,
-                    }
-                )
-        payload = {"policy_revision": self._policy_revision, "turns": turns} if turns else None
-        await self._outbox.save_draft(self._scope(namespace), WINDOW_STAGE, payload)
+        try:
+            vectors = await self._embed([turn.text for turn in turns])
+        except Exception as exc:  # the topic boundary is an enhancer, never a gate
+            _log.warning("window.embed_failed", error=str(exc))
+            return
+        for turn, vector in zip(turns, vectors, strict=False):
+            turn.vector = vector
+
+    async def _persist_draft(self, namespace: str, store: _Store) -> None:
+        """RM-163: write the draft delta of ``namespace``: one upserted row per open turn that
+        is new or changed, one delete per turn that left. A write costs O(its own turn) in
+        rows and bytes, not O(open turns). The delta is applied atomically, and the known rows
+        advance only after it is durable (a failed write is retried in full by the next)."""
+        if self._outbox is None or not hasattr(self._outbox, "update_draft"):
+            return
+        async with self._draft_lock:
+            known = self._draft_rows.setdefault(namespace, {})
+            current: set[tuple[str, str]] = set()
+            changed: list[tuple[tuple[str, str], int, tuple[Any, ...], WindowTurn, _Open]] = []
+            seq = self._draft_seq
+            for win in store.windows.values():
+                for turn in win.segmenter.open_turns:
+                    key = (win.key, turn.record_id)
+                    version, content_hash = win.sources.get(turn.record_id, (0, ""))
+                    signature = (
+                        turn.session,
+                        win.conversation_id,
+                        version,
+                        content_hash,
+                        turn.when,
+                        turn.tokens,
+                    )
+                    current.add(key)
+                    was = known.get(key)
+                    if was is not None and was[1] == signature:
+                        continue
+                    if was is None:
+                        seq += 1
+                    changed.append((key, was[0] if was is not None else seq, signature, turn, win))
+            removed = [key for key in known if key not in current]
+            if not changed and not removed:
+                return
+            rows = [
+                {
+                    "record_id": turn.record_id,
+                    "window_key": win.key,
+                    "session": turn.session,
+                    "conversation_id": win.conversation_id,
+                    "source_version": signature[2],
+                    "content_hash": signature[3],
+                    "when": turn.when.isoformat() if turn.when is not None else None,
+                    "tokens": turn.tokens,
+                    "seq": row_seq,
+                    "policy_revision": self._policy_revision,
+                }
+                for _key, row_seq, signature, turn, win in changed
+            ]
+            written = await self._outbox.update_draft(
+                self._scope(namespace), WINDOW_STAGE, rows, removed
+            )
+            self._draft_seq = seq
+            for key, row_seq, signature, _turn, _win in changed:
+                known[key] = (row_seq, signature)
+            for key in removed:
+                del known[key]
+            self._counts["draft_rows_written"] += len(rows)
+            self._counts["draft_rows_deleted"] += len(removed)
+            self._counts["draft_bytes_written"] += int(written or 0)
 
     async def observe(self, record: MemoryRecord, session: str | None) -> None:
         """Add one just-written episodic turn. Quarantined or instruction-flagged turns never
@@ -1136,7 +1227,11 @@ class WindowPipeline:
         if self._outbox is not None:
             self._unmarked[record.record_id] = (ns, self._source_of(record))
         store = self._store(ns)
-        key, conversation_id, session = await self._window_key(record, session)
+        # The turn's own session is its window's (None in the default window, RM-163); the
+        # session-closed bookkeeping keeps the message's session either way.
+        key, conversation_id, turn_session = await self._window_key(record, session)
+        if turn_session is not None or key != _DEFAULT_WINDOW:
+            session = turn_session
         win = self._window(store, key)
         if conversation_id is not None:
             win.conversation_id = conversation_id
@@ -1149,7 +1244,7 @@ class WindowPipeline:
         turn = WindowTurn(
             record_id=record.record_id,
             text=record.content,
-            session=session,
+            session=turn_session,
             when=record.valid_from,
             vector=vector,
             tokens=estimate_tokens(record.content),
@@ -1163,7 +1258,7 @@ class WindowPipeline:
         # the namespace is never flushed or closed by it.
         for window in win.segmenter.add(turn):
             self._enqueue(ns, store, window, win)
-        win.session = session
+        win.session = turn_session
         if session is not None:
             store.session_windows.setdefault(session, 0)
             store.open_sessions[session] = None
@@ -2366,29 +2461,22 @@ class WindowPipeline:
                     _log.warning("window.cache_purge_failed", error=str(exc))
 
     async def _forget_in_stored_draft(self, namespace: str, record_id: str) -> None:
-        """ADR-095 (window drafts): a namespace whose draft was not restored yet (a forget is the
-        first thing a restarted engine does there) keeps the turn only in the stored draft:
-        rewrite it without the turn (its id, content hash and vector). Under the restore lock,
-        so a concurrent first write restores the rewritten draft, never the old one."""
-        if (
-            self._outbox is None
-            or not hasattr(self._outbox, "load_draft")
-            or not hasattr(self._outbox, "save_draft")
-            or namespace in self._draft_restored
-        ):
+        """ADR-095 (window drafts): delete every stored draft row of the turn (its id, content
+        hash and window metadata), restored or not: a namespace whose draft was not restored
+        yet (a forget is the first thing a restarted engine does there) keeps the turn only in
+        the stored rows. Under the restore lock, so a concurrent first write restores the
+        purged draft, never the old one."""
+        if self._outbox is None or not hasattr(self._outbox, "delete_draft_record"):
             return
-        async with self._restore_lock:
-            if namespace in self._draft_restored:
-                return  # restored meanwhile: the in-memory purge above already rewrote it
-            scope = self._scope(namespace)
-            payload = await self._outbox.load_draft(scope, WINDOW_STAGE)
-            if not payload:
-                return
-            turns = [t for t in payload.get("turns", []) if str(t.get("record_id")) != record_id]
-            if len(turns) == len(payload.get("turns", [])):
-                return
-            kept = {**payload, "turns": turns} if turns else None
-            await self._outbox.save_draft(scope, WINDOW_STAGE, kept)
+        async with self._restore_lock, self._draft_lock:
+            deleted = await self._outbox.delete_draft_record(
+                self._scope(namespace), WINDOW_STAGE, record_id
+            )
+            known = self._draft_rows.get(namespace)
+            if known is not None:
+                for key in [k for k in known if k[1] == record_id]:
+                    del known[key]
+        if deleted and namespace not in self._draft_restored:
             self._counts["turns_dropped_forget"] += 1
 
     def take_edges(self, namespace: str) -> list[WindowEdgeBatch]:
@@ -3485,6 +3573,16 @@ class WindowPipeline:
             out["queued"] += self._outbox.depth()
             out["outbox"] = True
             out["jobs_persisted"] = c["jobs_persisted"]
+            # RM-163: the draft delta written so far, and what is open now
+            out["draft_rows_written"] = c["draft_rows_written"]
+            out["draft_rows_deleted"] = c["draft_rows_deleted"]
+            out["draft_bytes_written"] = c["draft_bytes_written"]
+            out["open_windows"] = sum(len(s.windows) for s in self._stores.values())
+            out["open_turns"] = sum(
+                len(w.segmenter.open_turns)
+                for s in self._stores.values()
+                for w in s.windows.values()
+            )
         topic = {
             ns: {"pairs": s.topic.pairs, "level": s.topic.topic_level}
             for ns, s in self._stores.items()

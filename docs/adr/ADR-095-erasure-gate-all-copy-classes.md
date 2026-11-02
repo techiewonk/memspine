@@ -41,3 +41,9 @@ A derived fact whose every source has been erased is redacted by default: its te
 are removed and an id-only tombstone is kept for lineage. A fact that still has a live source
 stays hidden with its text, pending re-derivation. `erasure_redact_hidden` remains the opt-in
 that redacts every hidden fact.
+
+## Amendment 2026-11-02 (RM-163: window drafts)
+
+An open-window draft row holds one turn's id, window key, source version and content hash,
+and never its vector. A forget deletes the turn's rows by record id, whether or not the
+namespace's draft was restored in this process.

@@ -157,6 +157,8 @@ async def _ingest_once(
         }
         public["ingested_at"] = accepted_at.isoformat()
         public["created_at_generated"] = turn["_created_at_generated"]
+        public["session_generated"] = turn["_session_generated"]
+        public["conversation_generated"] = turn["_conversation_generated"]
         public["source_clock"] = turn["_source_clock"]
         public["source_provenance"] = message_provenance(
             turn, source_id=str(turn["message_id"])

@@ -413,6 +413,23 @@ class InlineRunner:
         """Atomically replace incomplete stage work; ``None`` clears it."""
         await self._io(self.store.put_draft, scope, stage, payload, self.clock())
 
+    async def update_draft(
+        self,
+        scope: OwnerScope,
+        stage: str,
+        upsert: Sequence[dict[str, Any]],
+        remove: Sequence[tuple[str, str]],
+    ) -> int:
+        """RM-163: apply one draft delta atomically (only the turns that changed); returns
+        the payload bytes written."""
+        return int(
+            await self._io(self.store.update_draft, scope, stage, upsert, remove, self.clock())
+        )
+
+    async def delete_draft_record(self, scope: OwnerScope, stage: str, record_id: str) -> int:
+        """Delete every draft row of ``record_id`` (the forget purge)."""
+        return int(await self._io(self.store.delete_draft_record, scope, stage, record_id))
+
     async def load_draft(self, scope: OwnerScope, stage: str) -> dict[str, Any] | None:
         """Load incomplete stage work saved before a process restart."""
         draft = await self._io(self.store.get_draft, scope, stage)
@@ -429,11 +446,7 @@ class InlineRunner:
         for _offset, payload in self.store.items_after(scope, stage, -1):
             if record_id in payload.get("record_ids", []):
                 return True
-        draft = self.store.get_draft(scope, stage)
-        return bool(
-            draft
-            and any(str(turn.get("record_id")) == record_id for turn in draft.get("turns", []))
-        )
+        return bool(self.store.draft_has_record(scope, stage, record_id))
 
     def source_snapshots(
         self, scope: OwnerScope, stage: str, record_ids: Sequence[str]

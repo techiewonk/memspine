@@ -823,33 +823,118 @@ class SqlJobStore:
     def put_draft(
         self, scope: OwnerScope, stage: str, payload: dict[str, Any] | None, at: datetime
     ) -> None:
-        """Replace one incomplete work draft, or delete it when ``payload`` is None."""
+        """Replace the whole draft of ``(scope, stage)`` with ``payload`` (``{"turns": [...],
+        **shared}``, the shape :meth:`get_draft` returns), or delete it when ``payload`` is
+        None. Writes one row per turn; :meth:`update_draft` is the incremental path."""
         key = [*_scope_where(outbox_draft, scope), outbox_draft.c.stage == stage]
         with self._tx() as c:
-            if payload is None:
-                c.execute(delete(outbox_draft).where(*key))
+            c.execute(delete(outbox_draft).where(*key))
+            if not payload:
                 return
-            values = {"payload": json.dumps(payload, default=str), "updated_at": _ts(at)}
-            result = c.execute(update(outbox_draft).where(*key).values(**values))
-            if result.rowcount == 0:
+            shared = {k: v for k, v in payload.items() if k != "turns"}
+            for turn in payload.get("turns", []):
+                row = {**shared, **turn}
                 c.execute(
                     insert(outbox_draft).values(
-                        tenant=scope.tenant,
-                        owner=scope.owner,
-                        owner_kind=scope.owner_kind,
-                        stage=stage,
-                        **values,
+                        **self._draft_values(scope, stage, row),
+                        updated_at=_ts(at),
                     )
                 )
 
-    def get_draft(self, scope: OwnerScope, stage: str) -> dict[str, Any] | None:
+    @staticmethod
+    def _draft_values(scope: OwnerScope, stage: str, row: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "tenant": scope.tenant,
+            "owner": scope.owner,
+            "owner_kind": scope.owner_kind,
+            "stage": stage,
+            "window_key": str(row["window_key"]),
+            "record_id": str(row["record_id"]),
+            "payload": json.dumps(row, default=str),
+        }
+
+    def update_draft(
+        self,
+        scope: OwnerScope,
+        stage: str,
+        upsert: Sequence[dict[str, Any]],
+        remove: Sequence[tuple[str, str]],
+        at: datetime,
+    ) -> int:
+        """RM-163: apply one draft delta atomically. ``upsert`` rows (each with ``window_key``
+        and ``record_id``) are inserted or replaced; ``remove`` lists ``(window_key,
+        record_id)`` rows to delete. Returns the payload bytes written."""
+        written = 0
+        with self._tx() as c:
+            for window_key, record_id in remove:
+                c.execute(
+                    delete(outbox_draft).where(
+                        *_scope_where(outbox_draft, scope),
+                        outbox_draft.c.stage == stage,
+                        outbox_draft.c.window_key == window_key,
+                        outbox_draft.c.record_id == record_id,
+                    )
+                )
+            for row in upsert:
+                values = self._draft_values(scope, stage, row)
+                written += len(values["payload"])
+                result = c.execute(
+                    update(outbox_draft)
+                    .where(
+                        *_scope_where(outbox_draft, scope),
+                        outbox_draft.c.stage == stage,
+                        outbox_draft.c.window_key == values["window_key"],
+                        outbox_draft.c.record_id == values["record_id"],
+                    )
+                    .values(payload=values["payload"], updated_at=_ts(at))
+                )
+                if result.rowcount == 0:
+                    c.execute(insert(outbox_draft).values(**values, updated_at=_ts(at)))
+        return written
+
+    def delete_draft_record(self, scope: OwnerScope, stage: str, record_id: str) -> int:
+        """Delete every draft row of ``record_id`` (the forget purge); returns the row count."""
+        with self._tx() as c:
+            result = c.execute(
+                delete(outbox_draft).where(
+                    *_scope_where(outbox_draft, scope),
+                    outbox_draft.c.stage == stage,
+                    outbox_draft.c.record_id == record_id,
+                )
+            )
+        return int(result.rowcount or 0)
+
+    def draft_has_record(self, scope: OwnerScope, stage: str, record_id: str) -> bool:
         with self._tx() as c:
             row = c.execute(
-                select(outbox_draft.c.payload).where(
-                    *_scope_where(outbox_draft, scope), outbox_draft.c.stage == stage
+                select(outbox_draft.c.record_id)
+                .where(
+                    *_scope_where(outbox_draft, scope),
+                    outbox_draft.c.stage == stage,
+                    outbox_draft.c.record_id == record_id,
                 )
+                .limit(1)
             ).first()
-        return None if row is None else dict(json.loads(row.payload))
+        return row is not None
+
+    def get_draft(self, scope: OwnerScope, stage: str) -> dict[str, Any] | None:
+        """The draft as ``{"policy_revision": ..., "turns": [...]}`` (None when empty). The
+        policy revision is the rows' common one, else None (mixed rows are not current)."""
+        with self._tx() as c:
+            rows = c.execute(
+                select(outbox_draft.c.payload)
+                .where(*_scope_where(outbox_draft, scope), outbox_draft.c.stage == stage)
+                .order_by(outbox_draft.c.updated_at)
+            ).all()
+        if not rows:
+            return None
+        turns = [dict(json.loads(row.payload)) for row in rows]
+        turns.sort(key=lambda turn: int(turn.get("seq") or 0))  # the open-turn order
+        revisions = {turn.pop("policy_revision", None) for turn in turns}
+        return {
+            "policy_revision": revisions.pop() if len(revisions) == 1 else None,
+            "turns": turns,
+        }
 
     @staticmethod
     def _delete_source_effects(

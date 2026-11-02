@@ -47,6 +47,8 @@ class MessageRecord(TypedDict, total=False):
     created_at: Required[datetime | str]
     timestamp: Required[datetime | str]
     _created_at_generated: Required[bool]
+    _session_generated: bool
+    _conversation_generated: bool
     reply_to: str
     sender: Sender
     role: str

@@ -55,7 +55,7 @@ async def _write(eng: Engine, i: int) -> MemoryRecord:
     )
 
 
-@pytest.mark.parametrize("crash_at", ["save_draft", "mark_sources"])
+@pytest.mark.parametrize("crash_at", ["update_draft", "mark_sources"])
 async def test_a_crash_inside_observe_never_loses_the_turn(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, crash_at: str
 ) -> None:

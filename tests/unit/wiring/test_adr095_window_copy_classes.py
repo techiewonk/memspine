@@ -271,7 +271,8 @@ def _draft_needles(turn: Any) -> list[str]:
 async def test_window_drafts(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, restart: bool
 ) -> None:
-    """An open window's draft (``outbox_draft``) holds each turn's id, content hash and vector.
+    """An open window's draft (``outbox_draft``, one row per turn) holds each turn's id and content
+    hash (RM-163: no vector).
     Hard-erasing a turn removes it from the draft, also when the forget is the first thing a
     restarted engine does in the namespace."""
     db = tmp_path / "m.db"

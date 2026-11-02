@@ -58,3 +58,18 @@ Recovery has one story for all writes.
   conversation (RM-36), else a per-namespace default window.
 - BI-04 is reopened under the ADR-087 closing rule: its isolation claim is not met until
   session-keyed windows land.
+
+## Amendment 2026-11-02 (RM-163)
+
+- Only a caller-given `conversation_id` or `session_id` keys a window. Message identity still
+  assigns every message both ids. An assigned one is flagged in the envelope
+  (`conversation_generated`, `session_generated`) and is identity only. Before this, every
+  root message without a caller conversation got a fresh id and opened a one-turn window
+  that only `write.window_idle_s` closed.
+- A reply that inherited its parent's conversation joins the parent's window. The lookup
+  follows at most 8 parents.
+- Turns in the default window carry no session, so an assigned session never cuts the
+  window. The session-closed bookkeeping keeps the message's session.
+- The restart draft has one row per open turn, keyed by namespace, stage, window key and
+  record id. A write upserts only its own turn and stores no vector. Vectors are
+  recomputed from the record on restore. Membership is still published last.

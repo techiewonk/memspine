@@ -172,7 +172,7 @@ async def test_incomplete_open_window_survives_restart(
     await _send(first, "a", "s1", _turns("partial", 3))
     assert first._windows is not None
     assert len(first._windows._store("a").segmenter.open_turns) == 3
-    assert _rows(db, "outbox_draft") == 1
+    assert _rows(db, "outbox_draft") == 3  # RM-163: one row per open turn
     await first.stop()
 
     llm = FakeWindowLLM()

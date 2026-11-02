@@ -102,8 +102,11 @@ outbox_log = Table(
     Column("reason", String, nullable=False),
 )
 
-# BI-03/04: incomplete windows are durable state, not process memory.  A
-# namespace has at most one draft for a stage; replacing it is atomic.
+# BI-03/04: incomplete windows are durable state, not process memory.  RM-163: one row per
+# open turn, keyed by (scope, stage, window key, record id), so a write upserts only the turn
+# it changed instead of re-saving every open turn of the namespace.  A row holds the turn's
+# window metadata, source version and content hash; never its vector (recomputed from the
+# record on restore).  The record-id index serves the forget purge and the discovery check.
 outbox_draft = Table(
     "outbox_draft",
     outbox_metadata,
@@ -111,8 +114,11 @@ outbox_draft = Table(
     Column("owner", String, primary_key=True),
     Column("owner_kind", String, primary_key=True),
     Column("stage", String, primary_key=True),
+    Column("window_key", String, primary_key=True),
+    Column("record_id", String, primary_key=True),
     Column("payload", Text, nullable=False),
     Column("updated_at", String, nullable=False),
+    Index("ix_outbox_draft_record", "tenant", "owner", "owner_kind", "stage", "record_id"),
 )
 
 # BI-07/09: idempotent derivation effects and caller-visible per-layer status.

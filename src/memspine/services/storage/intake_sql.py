@@ -70,6 +70,8 @@ _BACKFILL_FIELDS = (
     "reply_to",
     "ingested_at",
     "created_at_generated",
+    "session_generated",
+    "conversation_generated",
     "input_fingerprints",
 )
 
