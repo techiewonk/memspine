@@ -205,7 +205,9 @@ async def test_no_live_parents_is_dropped(tmp_path: Path) -> None:
         odd = await _derive(eng, f"Odd {MARK}", [a.record_id, b.record_id], channel="chat")
         await eng.forget(a.record_id, namespace=NS, hard=True)
         stats = await _run(eng)
-        assert stats["dropped_no_rederive"] == 2, stats
+        # ADR-095 amendment 2026-11-02: the sole-source fact is dropped at the hard erase itself,
+        # so the re-derive run drops only the kind that cannot be re-derived
+        assert stats["dropped_no_rederive"] == 1, stats
         storage = eng._require_started()
         assert await storage.get_record(only_a.record_id) is None
         assert await storage.get_record(odd.record_id) is None
