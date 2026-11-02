@@ -48,3 +48,29 @@ def test_jsonl_sink_appends_one_line_per_trace(tmp_path: Path) -> None:
     lines = sink.path_for().read_text(encoding="utf-8").splitlines()
     assert [json.loads(line)["id"] for line in lines] == ["a", "b"]
     assert sink.path_for("2026-01-02").name == "tap-2026-01-02.jsonl"
+
+
+def _naming(rid: str, record_id: str) -> dict[str, Any]:
+    trace = _trace(rid)
+    trace["events"][0]["fields"] = {"record_id": record_id, "index_text": "masked text"}
+    return trace
+
+
+def test_memory_sink_erase_drops_traces_naming_an_erased_id() -> None:
+    """ADR-095: the hook drops every held root trace naming an erased record id."""
+    sink = MemorySink(size=5)
+    sink.write(_naming("a", "rec-gone"))
+    sink.write(_naming("b", "rec-kept"))
+    assert sink.erase(frozenset({"rec-gone"})) == 1
+    assert [t["id"] for t in sink.traces()] == ["b"]
+    assert sink.erase(frozenset({"rec-gone"})) == 0
+
+
+def test_jsonl_sink_erase_rewrites_the_day_files(tmp_path: Path) -> None:
+    sink = JsonlSink(tmp_path / "tap")
+    sink.write(_naming("a", "rec-gone"))
+    sink.write(_naming("b", "rec-kept"))
+    assert sink.erase(frozenset({"rec-gone"})) == 1
+    lines = sink.path_for().read_text(encoding="utf-8").splitlines()
+    assert [json.loads(line)["id"] for line in lines] == ["b"]
+    assert [p.name for p in (tmp_path / "tap").iterdir()] == [sink.path_for().name]

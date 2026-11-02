@@ -1,8 +1,18 @@
-"""Wiretap sinks (WT-01): jsonl, sqlite, memory, otel, log (``tap.register_sink``)."""
+"""Wiretap sinks (WT-01): jsonl, sqlite, memory, otel, log (``tap.register_sink``).
+
+ADR-095 (logs and traces): the engine-owned sinks (memory, JSONL, SQLite) hold their traces in
+process memory or in files under the configured tap directory, so each has an ``erase(ids)``
+hook that :func:`memspine.observability.tap.erase_records` calls on a hard erase: every root
+trace naming an erased record id is dropped (rewritten out of the JSONL files, deleted from the
+SQLite tables and the database compacted). The ``log`` and ``otel`` sinks hand each trace to the
+operator's logging pipeline or OpenTelemetry collector the moment it finishes; the engine keeps
+no copy, so purging what those systems stored is the operator's duty (as for any log shipper).
+"""
 
 from __future__ import annotations
 
 import json
+import os
 import threading
 from collections import deque
 from datetime import UTC, datetime
@@ -15,6 +25,12 @@ from memspine.observability.logging import get_logger
 __all__ = ["JsonlSink", "LogSink", "MemorySink", "OtelSink", "SqliteSink", "register_builtin"]
 
 _sqlite_opener: Any = None
+
+
+def _names(value: Any, ids: frozenset[str]) -> bool:
+    """True when the serialized ``value`` names one of ``ids`` (record ids are UUIDs)."""
+    text = value if isinstance(value, str) else json.dumps(value, default=str)
+    return any(i in text for i in ids)
 
 
 def configure_sqlite_opener(opener: Any) -> None:
@@ -37,6 +53,21 @@ class JsonlSink:
         with self.path_for().open("a", encoding="utf-8") as fh:
             fh.write(json.dumps(trace, separators=(",", ":"), default=str) + "\n")
 
+    def erase(self, ids: frozenset[str]) -> int:
+        """ADR-095: rewrite every day file without the lines (root traces) naming ``ids``; each
+        file is replaced atomically, so no reader ever sees half a file."""
+        dropped = 0
+        for path in sorted(self.dir.glob("tap-*.jsonl")):
+            lines = path.read_text(encoding="utf-8").splitlines(keepends=True)
+            kept = [line for line in lines if not _names(line, ids)]
+            if len(kept) == len(lines):
+                continue
+            dropped += len(lines) - len(kept)
+            tmp = path.with_name(path.name + ".erase")
+            tmp.write_text("".join(kept), encoding="utf-8", newline="")
+            os.replace(tmp, path)
+        return dropped
+
     def close(self) -> None:
         return None
 
@@ -52,6 +83,14 @@ class MemorySink:
 
     def traces(self) -> list[dict[str, Any]]:
         return list(self._q)
+
+    def erase(self, ids: frozenset[str]) -> int:
+        """ADR-095: drop every held root trace naming ``ids``."""
+        kept = [t for t in self._q if not _names(t, ids)]
+        dropped = len(self._q) - len(kept)
+        if dropped:
+            self._q = deque(kept, maxlen=self._q.maxlen)
+        return dropped
 
     def close(self) -> None:
         return None
@@ -98,6 +137,53 @@ class SqliteSink:
         )  # fmt: skip
         for child in t["children"]:
             self._insert(child)
+
+    def erase(self, ids: frozenset[str]) -> int:
+        """ADR-095: delete every request tree (root and children) whose request or event fields
+        name ``ids``, then compact the database so no free page keeps their text."""
+        with self._lock:
+            hit: set[str] = set()
+            for rid in ids:
+                for (req,) in self._db.execute(
+                    "SELECT id FROM requests WHERE id = ? OR instr(fields, ?) > 0", (rid, rid)
+                ).fetchall():
+                    hit.add(str(req))
+                for (req,) in self._db.execute(
+                    "SELECT DISTINCT request_id FROM events WHERE instr(fields, ?) > 0", (rid,)
+                ).fetchall():
+                    hit.add(str(req))
+            if not hit:
+                return 0
+            parent = {
+                str(i): (str(p) if p is not None else None)
+                for i, p in self._db.execute("SELECT id, parent_id FROM requests").fetchall()
+            }
+            roots: set[str] = set()
+            for req in hit:  # a child's text belongs to its whole request: climb to the root
+                seen: set[str] = set()
+                cur = req
+                while parent.get(cur) is not None and cur not in seen:
+                    seen.add(cur)
+                    cur = str(parent[cur])
+                roots.add(cur)
+            children: dict[str, list[str]] = {}
+            for i, p in parent.items():
+                if p is not None:
+                    children.setdefault(p, []).append(i)
+            doomed: set[str] = set()
+            stack = list(roots)
+            while stack:
+                cur = stack.pop()
+                if cur not in doomed:
+                    doomed.add(cur)
+                    stack.extend(children.get(cur, ()))
+            rows = [(req,) for req in sorted(doomed)]
+            self._db.executemany("DELETE FROM events WHERE request_id = ?", rows)
+            self._db.executemany("DELETE FROM requests WHERE id = ?", rows)
+            self._db.commit()
+            self._db.execute("VACUUM")
+            self._db.execute("PRAGMA wal_checkpoint(TRUNCATE)")  # a no-op unless in WAL mode
+            return len(roots)
 
     def close(self) -> None:
         with self._lock:

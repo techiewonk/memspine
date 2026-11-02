@@ -40,7 +40,7 @@ import re
 import threading
 import time
 import uuid
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass, field
@@ -68,6 +68,7 @@ __all__ = [
     "content_enabled",
     "current",
     "enabled",
+    "erase_records",
     "event",
     "memory_traces",
     "open_state",
@@ -573,6 +574,43 @@ def memory_traces() -> list[dict[str, Any]]:
     state = _state()
     traces = getattr(state.sink if state is not None else None, "traces", None)
     return traces() if callable(traces) else []
+
+
+def erase_records(record_ids: Iterable[str]) -> int:
+    """ADR-095 (logs and traces): purge every held trace that names one of ``record_ids``.
+
+    Each engine-owned sink with an ``erase(ids) -> int`` hook (memory, JSONL, SQLite) drops
+    every root trace (with its children) whose serialized form names an erased id: with
+    ``inspect_content`` on, such a trace may hold the record's masked text in any of its events,
+    so the whole request goes, not only the events that carry the id. Sinks without the hook
+    (``log``, ``otel`` and caller sinks) hand traces to the operator's logging pipeline or
+    collector, outside the engine: purging those copies is the operator's duty. Covers the
+    current Engine's tap and the process default; sinks never raise into the engine. Returns
+    the number of traces dropped."""
+    global _ERRORS
+    ids = frozenset(i for i in record_ids if i)
+    if not ids:
+        return 0
+    found: list[TapSink] = []
+    binding = _bindings.current()
+    for state in (_state(), _DEFAULT):
+        if state is not None:
+            found.extend(s for s in (state.sink, *state.extra_sinks) if s is not None)
+    if binding is not None:
+        found.extend(binding.tap_sinks)
+    dropped = 0
+    seen: set[int] = set()
+    for sink in found:
+        erase = getattr(sink, "erase", None)
+        if id(sink) in seen or not callable(erase):
+            continue
+        seen.add(id(sink))
+        try:
+            with _SINK_LOCK:
+                dropped += int(erase(ids))
+        except Exception:
+            _ERRORS += 1
+    return dropped
 
 
 def sink_errors() -> int:

@@ -14,9 +14,11 @@ semantics differ), then proves no copy remains. "No copy" means, for the erased 
 Logs and traces (``test_logs_and_traces``): structlog output and tap traces are only checked for
 what the engine itself emits and keeps. The gate requires that no log event and no tap trace,
 before or after the erasure, carries the content (ids only) under the default tap settings;
-whatever an operator's log shipper copied before the erasure is the operator's duty. The tap's
-content opt-in (``observability.tap.content``) keeps masked content in its sinks with no
-erasure hook: that case is a strict xfail.
+whatever an operator's log shipper copied before the erasure is the operator's duty. With the
+inspector's content opt-in (``observability.inspect_content``) traces hold masked content; the
+hard erase drops every trace naming the erased id from the engine-owned sinks (memory, JSONL,
+SQLite). The ``log`` and ``otel`` sinks hand traces to the operator's pipeline and keep no copy
+in the engine, so they are the operator's duty like any log shipper.
 
 An unsupported copy class fails the gate: ``COPY_CLASSES`` maps every ADR-095 class to its test,
 and ``test_every_copy_class_has_a_gate_test`` fails when a class has none. No test here skips.
@@ -620,40 +622,49 @@ async def test_logs_and_traces(tmp_path: Path) -> None:
     assert _file_hits(tmp_path, NEEDLES) == {}
 
 
-_CONTENT_SINK_LEAK = pytest.mark.xfail(
-    strict=True,
-    reason="RM-135 follow-up: with observability.inspect_content on, tap traces keep the "
-    "masked text and the memory/JSONL/SQLite sinks have no erasure hook "
-    "(observability/tap_sinks.py, observability/inspect.py)",
+@pytest.mark.parametrize(
+    ("inspect_content", "sink"),
+    [(False, "memory"), (True, "memory"), (True, "jsonl"), (True, "sqlite")],
 )
-
-
-@pytest.mark.parametrize("inspect_content", [False, pytest.param(True, marks=_CONTENT_SINK_LEAK)])
 async def test_logs_and_traces_with_tap_content_opt_in(
-    tmp_path: Path, inspect_content: bool
+    tmp_path: Path, inspect_content: bool, sink: str
 ) -> None:
-    """``observability.tap.content`` alone keeps no record text in this flow; the inspector's
-    ``inspect_content`` keeps it in the sink after the erasure (a strict xfail)."""
+    """``observability.tap.content`` alone keeps no record text in this flow. The inspector's
+    ``inspect_content`` puts the masked text in the traces; the hard erase drops every trace
+    naming the erased id from the engine-owned sinks (memory, JSONL files, SQLite database).
+    The ``log`` and ``otel`` sinks keep no copy in the engine (the operator's pipeline does)."""
     from memspine.observability import bindings, tap
 
+    tap_dir = tmp_path / "tap"
     eng = await _start(
         tmp_path / "db",
         observability={
-            "tap": {"enabled": True, "sink": "memory", "content": True},
+            "tap": {"enabled": True, "sink": sink, "content": True, "dir": str(tap_dir)},
             "inspect": inspect_content,
             "inspect_content": inspect_content,
         },
     )
+    kept: list[Any] = []
     try:
         with bindings.bound(eng._binding):
-            gone, _ = await _seed(eng)
+            gone, kept_record = await _seed(eng)
+            kept.append(kept_record)
             await eng.search("Zebulon Vrbnik", namespace=NS)
+            if inspect_content:  # the negative control: the sink holds the text before
+                if sink == "memory":
+                    assert _present(_tap_events(tap.memory_traces()), NEEDLES)
+                else:
+                    assert _file_hits(tap_dir, NEEDLES)
             await eng.forget(gone.record_id, namespace=NS, hard=True)
             traces = tap.memory_traces()
-        assert traces
-        assert _present(_tap_events(traces), NEEDLES) == []
+        if sink == "memory":
+            assert traces
+            assert _present(_tap_events(traces), NEEDLES) == []
     finally:
         await eng.stop()
+    if sink != "memory":
+        assert _file_hits(tap_dir, NEEDLES) == {}
+        assert _file_hits(tap_dir, [kept[0].record_id]), "the kept record's traces went too"
 
 
 # ---------------------------------------------------------------- restored backups

@@ -12,6 +12,7 @@ from memspine.core.policies.retention import RetentionPolicy
 from memspine.exceptions import ConflictError, MemspineError, StorageError
 from memspine.models.encoders.query.shape import content_words
 from memspine.models.encoders.query.temporal_query import forget_mentions
+from memspine.observability import tap
 from memspine.observability.logging import EVENT_FORGET, get_logger
 from memspine.scope import system_scope
 from memspine.services.storage.records_port import RecordsStore
@@ -254,6 +255,8 @@ async def _forget_many(
         redacted=len(redacted),
     )
     await eng._purge_caches(texts)
+    # ADR-095 (logs and traces): engine-owned tap sinks drop every trace naming an erased id.
+    tap.erase_records(ids)  # a no-op with no tap state open
     # ADR-081 storage.documents: documents whose last referencing record was erased go too.
     documents = getattr(eng, "_documents", None)
     if documents is not None:
