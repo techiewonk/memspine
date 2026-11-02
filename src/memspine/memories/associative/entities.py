@@ -3,8 +3,9 @@
 With ``memories.associative.policies.entity_nodes`` on, the graph projector adds
 one node per named entity and a ``mentions`` edge from each record to every
 entity it names. Both are derived from WRITE payloads only (the record's
-``entity`` field, and the ``dst:<name>`` tag an edge fact carries), so a rebuild
-reproduces exactly what incremental projection built.
+``entity`` field, the ``dst:<name>`` tag an edge fact carries, and the entity role
+fillers of the canonical claim it stores, RM-157), so a rebuild reproduces exactly
+what incremental projection built.
 
 - **Canonical name**: NFKC, casefolded, whitespace collapsed. "Melanie",
   " MELANIE " and "melanie" are one entity.
@@ -59,6 +60,7 @@ __all__ = [
     "parse_entity_node",
     "record_entity_names",
     "record_name_types",
+    "role_fillers",
     "surface_node_id",
     "types_compatible",
 ]
@@ -144,10 +146,29 @@ def types_compatible(a: str | None, b: str | None) -> bool:
     return a is None or b is None or a == b
 
 
+def role_fillers(record: MemoryRecord) -> list[tuple[str, str, str | None]]:
+    """RM-157: ``(role, surface, entity type)`` of each entity-valued role binding of the
+    canonical claim ``record`` stores (``fingerprint.envelope``), in binding order. Text,
+    number and temporal fillers name no entity; a redacted record (its envelope gone)
+    names none."""
+    raw = record.fingerprint.envelope
+    bindings = raw.get("role_bindings") if isinstance(raw, Mapping) else None
+    if not isinstance(bindings, list):
+        return []
+    out: list[tuple[str, str, str | None]] = []
+    for item in bindings:
+        if not isinstance(item, Mapping) or item.get("value_kind") != "entity":
+            continue
+        role, value = item.get("role_name"), item.get("value")
+        if isinstance(role, str) and isinstance(value, str) and value.strip():
+            out.append((role, value, _type(item.get("entity_type"))))
+    return out
+
+
 def record_name_types(record: MemoryRecord, names: Iterable[str]) -> dict[str, str | None]:
     """The entity type of each canonical name ``record`` mentions: the subject's from an
-    ``entity_type:`` tag, the object's from ``dst_type:``, else the label of a bound mention
-    whose surface is that name (None: untyped)."""
+    ``entity_type:`` tag, the object's from ``dst_type:``, a role filler's from its binding
+    (RM-157), else the label of a bound mention whose surface is that name (None: untyped)."""
     subject = canonical_entity(record.entity or "")
     dsts = {canonical_entity(t[len(_DST_TAG) :]) for t in record.tags if t.startswith(_DST_TAG)}
     tagged_subject = next(
@@ -158,6 +179,9 @@ def record_name_types(record: MemoryRecord, names: Iterable[str]) -> dict[str, s
         (_type(t[len(DST_TYPE_TAG) :]) for t in record.tags if t.startswith(DST_TYPE_TAG)), None
     )
     labels: dict[str, str | None] = {}
+    for _, surface, entity_type in role_fillers(record):
+        if entity_type is not None:
+            labels.setdefault(canonical_entity(surface), entity_type)
     for mention in record.fingerprint.entity_mentions:
         labels.setdefault(canonical_entity(mention.text), _type(mention.label))
     out: dict[str, str | None] = {}
@@ -213,7 +237,8 @@ def _names(raw: Iterable[Any]) -> frozenset[str]:
 def record_entity_names(record: MemoryRecord, policy: EntityPolicy) -> list[str]:
     """The canonical entity names ``record`` mentions, in first-seen order.
 
-    From the ``entity`` field and the ``dst:<name>`` tags. Cues (retrieval keys)
+    From the ``entity`` field, the ``dst:<name>`` tags and the entity role fillers of the
+    stored canonical claim (:func:`role_fillers`, RM-157). Cues (retrieval keys)
     and shared bookkeeping mention nothing. A destination equal to the source is a
     self-edge: it adds no second mention.
     """
@@ -223,6 +248,7 @@ def record_entity_names(record: MemoryRecord, policy: EntityPolicy) -> list[str]
     if record.entity:
         raw.append(record.entity)
     raw.extend(tag[len(_DST_TAG) :] for tag in record.tags if tag.startswith(_DST_TAG))
+    raw.extend(surface for _, surface, _ in role_fillers(record))
     if policy.turn_mentions and record.memory_type == "episodic" and not record.entity:
         # G-7: a raw turn's own proper nouns and years (derived from the content, so a
         # rebuild projects the same mentions); the speaker is a hub, not a mention.

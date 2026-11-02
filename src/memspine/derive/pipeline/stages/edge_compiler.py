@@ -24,8 +24,19 @@ default; the stage then reports ``skipped`` and the sleep cycle does not schedul
   ``evidence_ids``, not its source record) removes the id from the edge's evidence, marks the edge
   contested and tombstones it once no evidence remains. The erased ids ride in the edge properties
   (``evidence_erased``), so a later re-projection never restores them and replay reproduces the state.
+* **Role bindings** (RM-157, ADR-094 amendment 2026-11-02): every entity role binding of the
+  stored canonical claim (obligor, beneficiary, participant, companion, ...: any registry role)
+  becomes a role edge ``role:<role>`` from the claim's assertion (event) node to the filler's
+  entity node, the filler resolved through the record's entity links exactly like the subject
+  and object. The edge carries the claim's qualifiers (``event_role`` = the role name), so
+  ``graph_filter`` and the graph leg reach it. A filler that is not an entity, is rejected by
+  the entity policy or has no entity link compiles no edge; it is listed in
+  ``CompiledEdges.role_skips`` with the reason (never invented).
 * **Qualifiers** (RM-92): every projected edge carries typed :class:`EdgeQualifiers`; a value the
-  compiler does not know stays unknown. :func:`requalify_namespace` (CLI ``memspine graph
+  compiler does not know stays unknown. The claim's registry-checked qualifiers and its
+  statement kind pass through (RM-157); ``participation_mode`` / ``transport_mode`` (family M)
+  are typed and filterable. A ``<key>:<value>`` tag states a mode for a fact without a stored
+  claim; a value the registry does not allow for the predicate stays unknown. :func:`requalify_namespace` (CLI ``memspine graph
   requalify``) re-projects one namespace on demand (RM-100); the sleep cycle does the same for
   every namespace, rewriting only edges whose stored form differs.
 
@@ -38,12 +49,12 @@ from collections import Counter
 from collections.abc import Awaitable, Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from datetime import datetime
-from typing import Any, get_args
+from typing import Any, Literal, get_args
 
 from pydantic import ValidationError
 
 from memspine.config.constants import EDGE_LINEAGE_MAX_DEPTH
-from memspine.derive.edges import GraphDelta, GraphEdge, GraphNode, compile_edges
+from memspine.derive.edges import FIXED_ROLES, GraphDelta, GraphEdge, GraphNode, compile_edges
 from memspine.derive.fact_policy import FactPurpose
 from memspine.derive.pipeline.stages.context import (
     PipelineContext,
@@ -69,7 +80,12 @@ from memspine.observability import tap
 from memspine.observability.logging import get_logger
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.identity import AssertionKey, occurrence_id
-from memspine.schemas.durable.semantic import ClaimOutcome, Mention, SemanticEnvelope
+from memspine.schemas.durable.semantic import (
+    ClaimOutcome,
+    ClaimQualifier,
+    Mention,
+    SemanticEnvelope,
+)
 from memspine.scope import Scope
 from memspine.semantics.domains import (
     AnyTopicTagger,
@@ -78,6 +94,7 @@ from memspine.semantics.domains import (
     resolve_domain,
 )
 from memspine.semantics.lifecycle import LIFECYCLE_OUTCOMES, LIFECYCLE_STATUSES
+from memspine.semantics.modes import PARTICIPATION_MODES, TRANSPORT_MODES
 from memspine.semantics.origins import SourceOrigin
 from memspine.semantics.registry import (
     SemanticRegistry,
@@ -106,6 +123,7 @@ _log = get_logger(__name__)
 
 __all__ = [
     "COMPILED",
+    "ROLE_SKIP_REASONS",
     "CompiledEdges",
     "EdgeCompiler",
     "LinkProjection",
@@ -126,6 +144,17 @@ _TENTATIVE_MODALITIES = ("hypothetical", "planned", "reported", "question")
 _TENTATIVE_TAGS = frozenset({"tentative", *_TENTATIVE_MODALITIES})
 
 AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
+
+#: RM-157: why a claim role binding compiled no role edge.
+RoleSkipReason = Literal[
+    "not_an_entity", "rejected_by_entity_policy", "no_entity_link", "reserved_role"
+]
+ROLE_SKIP_REASONS: tuple[str, ...] = get_args(RoleSkipReason)
+#: RM-63: the claim qualifiers that are typed, filterable edge qualifiers (and their vocabulary).
+_EDGE_MODES: dict[str, tuple[str, ...]] = {
+    "participation_mode": PARTICIPATION_MODES,
+    "transport_mode": TRANSPORT_MODES,
+}
 
 
 def _tag(record: MemoryRecord, prefix: str) -> str | None:
@@ -208,6 +237,14 @@ def _vocabulary(predicate: str) -> tuple[str | None, str | None]:
     return pack_id, str(version) if version is not None else None
 
 
+def _qualifier_text(value: ClaimQualifier) -> str:
+    if value.kind == "number":
+        return str(value.amount)
+    if value.kind == "boolean":
+        return "true" if value.flag else "false"
+    return str(value.text)
+
+
 # --------------------------------------------------------------------------- compiler
 
 
@@ -222,6 +259,9 @@ class CompiledEdges:
     meta: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     #: Records that were not compiled, with the reason.
     skipped: Mapping[str, str] = field(default_factory=dict)
+    #: RM-157: per record id, the claim role bindings that compiled no role edge:
+    #: ``(role, binding id, reason)`` (reasons: :data:`ROLE_SKIP_REASONS`).
+    role_skips: Mapping[str, tuple[tuple[str, str, str], ...]] = field(default_factory=dict)
 
 
 class EdgeCompiler:
@@ -271,6 +311,78 @@ class EdgeCompiler:
         """A semantic fact with a subject entity, live or superseded with a successor."""
         return is_fact(record, include_history=True, purpose=FactPurpose.EDGES)
 
+    def role_targets(
+        self, claim: SemanticEnvelope | None, links: Mapping[str, str]
+    ) -> tuple[dict[str, list[str]], tuple[tuple[str, str, str], ...]]:
+        """RM-157: the claim's entity role bindings resolved to entity nodes (role -> sorted
+        node ids) and the bindings that resolve to none, ``(role, binding id, reason)``.
+
+        A filler binds only through the record's entity links (``links``, canonical name ->
+        entity id), exactly like the subject and object; nothing is looked up or minted
+        here."""
+        assert self.policy is not None
+        roles: dict[str, set[str]] = {}
+        skips: list[tuple[str, str, str]] = []
+        bindings = claim.role_bindings if claim is not None else []
+        for binding in sorted(bindings, key=lambda b: (b.role_name, b.binding_id)):
+            reason: RoleSkipReason
+            name = canonical_entity(binding.value)
+            if binding.role_name in FIXED_ROLES:
+                reason = "reserved_role"
+            elif binding.value_kind != "entity":
+                reason = "not_an_entity"
+            elif not name or not self.policy.accepts(name):
+                reason = "rejected_by_entity_policy"
+            elif (node := links.get(name)) is None:
+                reason = "no_entity_link"
+            else:
+                roles.setdefault(binding.role_name, set()).add(node)
+                continue
+            skips.append((binding.role_name, binding.binding_id, reason))
+        return {role: sorted(nodes) for role, nodes in sorted(roles.items())}, tuple(skips)
+
+    def claim_qualifiers(
+        self, record: MemoryRecord, claim: SemanticEnvelope | None, predicate: str
+    ) -> dict[str, str]:
+        """RM-157: the claim's registry-checked qualifiers as text (key -> value).
+
+        From the stored claim; for a fact without one, the typed mode qualifiers
+        (``participation_mode``, ``transport_mode``) may come from ``<key>:<value>`` tags. A
+        qualifier the registry does not declare for ``predicate``, or a value it does not
+        allow, is left out."""
+        out: dict[str, str] = {}
+        stated = claim.qualifiers if claim is not None else {}
+        for key, value in sorted(stated.items()):
+            if self._qualifier_allowed(predicate, key, value):
+                out[key] = _qualifier_text(value)
+        for key in _EDGE_MODES:
+            raw = _tag(record, f"{key}:")
+            tagged = ClaimQualifier(kind="text", text=raw) if raw else None
+            if (
+                key not in out
+                and tagged is not None
+                and self._qualifier_allowed(predicate, key, tagged)
+            ):
+                out[key] = str(raw)
+        return out
+
+    def _qualifier_allowed(self, predicate: str, key: str, value: ClaimQualifier) -> bool:
+        prop = self.registry.properties.get(key)
+        if prop is None or prop.category != "qualifier" or predicate not in prop.predicates:
+            return False
+        if value.kind not in prop.value_kinds:
+            return False
+        return not (
+            prop.allowed_values and value.kind == "text" and value.text not in prop.allowed_values
+        )
+
+    def statement_kind(self, claim: SemanticEnvelope | None, predicate: str) -> str | None:
+        """RM-157: the claim's statement kind, else the registry's for ``predicate``."""
+        if claim is not None and claim.statement_kind is not None:
+            return claim.statement_kind
+        spec = self.registry.predicates.get(predicate)
+        return spec.statement_kind if spec is not None else None
+
     def envelope(
         self, record: MemoryRecord, ids: Mapping[str, str] | None = None
     ) -> SemanticEnvelope:
@@ -278,6 +390,13 @@ class EdgeCompiler:
 
         ``ids`` (RM-130): the record's entity links, canonical name -> opaque entity id, as the
         name index holds them; a name without a link stays unbound."""
+        return self._envelope(record, ids)[0]
+
+    def _envelope(
+        self, record: MemoryRecord, ids: Mapping[str, str] | None = None
+    ) -> tuple[SemanticEnvelope, tuple[tuple[str, str, str], ...], SemanticEnvelope | None]:
+        """:meth:`envelope`, the claim role bindings that bound to no entity (RM-157) and the
+        stored canonical claim (None when the record has none)."""
         links = ids or {}
         env = to_envelope(record)
         ns = record.namespace
@@ -343,7 +462,12 @@ class EdgeCompiler:
             if dst_raw and dst_raw.strip() and canonical_entity(dst_raw) != subj
             else None
         )
-        return env.model_copy(
+        # RM-157: the claim's entity role bindings become n-ary role edges (code-compiled)
+        roles, role_skips = self.role_targets(stored, links)
+        graph = dict(env.graph or {})
+        if roles:
+            graph["nary"] = {"roles": roles}
+        enriched = env.model_copy(
             update={
                 "scope": scope,
                 "assertion_key": key,
@@ -354,8 +478,10 @@ class EdgeCompiler:
                 "kind": kind,
                 # ADR-088: the claim carries its outcome; the edge qualifiers read it from here.
                 "outcome": outcome,
+                "graph": graph or None,
             }
         )
+        return enriched, role_skips, stored
 
     def compile(
         self,
@@ -373,12 +499,21 @@ class EdgeCompiler:
         envs: list[SemanticEnvelope] = []
         meta: dict[str, dict[str, Any]] = {}
         skipped: dict[str, str] = {}
+        role_skips: dict[str, tuple[tuple[str, str, str], ...]] = {}
         for record in sorted(records, key=lambda r: r.record_id):
             if not self.eligible(record):
                 skipped[record.record_id] = "not_an_assertion"
                 continue
-            env = self.envelope(record, (entity_ids or {}).get(record.record_id))
+            links = (entity_ids or {}).get(record.record_id)
+            env, unbound_roles, claim = self._envelope(record, links)
+            if unbound_roles:
+                role_skips[record.record_id] = unbound_roles
             envs.append(env)
+            predicate = (
+                claim.registry.predicate
+                if claim is not None and claim.registry is not None
+                else env.assertion_key.rel
+            )
             roles = Counter(e.role for e in env.evidence)
             ids = {e.turn.source_id for e in env.evidence if e.turn is not None}
             ids.update(record.source.parents)
@@ -416,9 +551,12 @@ class EdgeCompiler:
                 "origin": source_origin_for(record.provenance_class, record.source.channel),
                 "lifecycle": _lifecycle(record, env),
                 "vocabulary": _vocabulary(env.assertion_key.rel),
+                # RM-157: the claim's qualifiers and statement kind pass through
+                "claim_qualifiers": self.claim_qualifiers(record, claim, predicate),
+                "statement_kind": self.statement_kind(claim, predicate),
             }
         delta = compile_edges(envs)
-        return CompiledEdges(namespace, delta, meta, skipped)
+        return CompiledEdges(namespace, delta, meta, skipped, role_skips)
 
 
 def attach_lineage(compiled: CompiledEdges, roots: Mapping[str, Sequence[str]]) -> CompiledEdges:
@@ -447,6 +585,8 @@ class ProjectionStats:
     unbound: int = 0
     #: RM-89: edges that lost erased evidence and turned contested.
     contested: int = 0
+    #: RM-157: claim role bindings that bound to no entity (no role edge compiled).
+    role_skipped: int = 0
 
     def as_dict(self) -> dict[str, int]:
         return {k: v for k, v in self.__dict__.items() if v}
@@ -583,6 +723,12 @@ def edge_qualifiers_for(edge: GraphEdge, meta: Mapping[str, Any]) -> EdgeQualifi
     binding = meta.get("binding")
     status, outcome = meta.get("lifecycle") or (None, None)
     pack, version = meta.get("vocabulary") or (None, None)
+    claim_qualifiers: Mapping[str, str] = meta.get("claim_qualifiers") or {}
+    modes: dict[str, Any] = {  # values checked against the typed vocabularies
+        key: value
+        for key, allowed in _EDGE_MODES.items()
+        if (value := claim_qualifiers.get(key)) in allowed
+    }
     return EdgeQualifiers(
         sensitivity=sens.labels if sens.checked is not None else None,
         sensitivity_checked=sens.checked,
@@ -622,6 +768,10 @@ def edge_qualifiers_for(edge: GraphEdge, meta: Mapping[str, Any]) -> EdgeQualifi
         topical_domain_source=meta.get("topical_domain_source"),
         vocabulary_pack=pack,
         vocabulary_version=version,
+        statement_kind=meta.get("statement_kind"),
+        participation_mode=modes.get("participation_mode"),
+        transport_mode=modes.get("transport_mode"),
+        claim_qualifiers=dict(claim_qualifiers) or None,
         independent_support_count=support,
     )
 
@@ -713,7 +863,10 @@ class LinkProjection:
     async def project(self, compiled: CompiledEdges) -> ProjectionStats:
         """Append a LINK event for every edge whose stored form differs; idempotent."""
         ns = compiled.namespace
-        stats = ProjectionStats(unbound=len(compiled.delta.unbound))
+        stats = ProjectionStats(
+            unbound=len(compiled.delta.unbound),
+            role_skipped=sum(len(v) for v in compiled.role_skips.values()),
+        )
         planned, stats.unchanged = await self.plan(compiled)
         for edge, payload in planned:
             await self._append(
@@ -940,6 +1093,11 @@ async def _compile_one(
     records, compiled = await _compile_namespace(ctx, namespace, compiler)
     tap.event("graph.compile.start", namespace=namespace, records=len(records))
     delta = compiled.delta
+    if compiled.role_skips and tap.enabled():
+        reasons = Counter(skip[2] for skips in compiled.role_skips.values() for skip in skips)
+        tap.event(
+            "graph.compile.role_skipped", namespace=namespace, reasons=dict(sorted(reasons.items()))
+        )
     if tap.enabled():
         tap.event(
             "graph.compile.delta",

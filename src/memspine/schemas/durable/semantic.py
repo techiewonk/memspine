@@ -32,15 +32,18 @@ from memspine.schemas.reserved import reserved_hits
 
 __all__ = [
     "CLAIM_OUTCOMES",
+    "STATEMENT_KINDS",
     "AssertionStatus",
     "ClaimOutcome",
     "ClaimProducer",
+    "ClaimQualifier",
     "GroundingChecks",
     "IntegrationVerdict",
     "Mention",
     "PredicateTyping",
     "RoleBinding",
     "SemanticEnvelope",
+    "StatementKind",
     "inherit_trust",
 ]
 
@@ -51,6 +54,12 @@ AssertionStatus = Literal["active", "tentative", "contested", "superseded", "hid
 #: ``memspine.semantics.lifecycle.LifecycleOutcome``; a unit test pins the two equal.
 ClaimOutcome = Literal["none", "done", "missed", "failed", "declined"]
 CLAIM_OUTCOMES: tuple[str, ...] = get_args(ClaimOutcome)
+#: What kind of statement the claim's predicate makes (RM-157, ADR-094 amendment): a plain
+#: ``assertion``, a ``directive`` (an instruction), or an ``attributed`` statement (held by the
+#: subject, never verified world truth). Spells out ``memspine.semantics.specs.StatementKind``
+#: (the schemas tier imports no other memspine module); a unit test pins the two equal.
+StatementKind = Literal["assertion", "directive", "attributed"]
+STATEMENT_KINDS: tuple[str, ...] = get_args(StatementKind)
 Grounding = Literal["grounded", "uncertain", "rejected"]
 Scalar = str | int | float | bool
 ValueKind = Literal["entity", "text", "number", "boolean", "temporal"]
@@ -122,6 +131,29 @@ class RoleBinding(DurablePart):
                 raise ValueError("a numeric role value requires a finite amount")
         elif self.amount is not None or self.unit is not None:
             raise ValueError("only numeric role values carry an amount or unit")
+        return self
+
+
+class ClaimQualifier(DurablePart):
+    """One registry-checked qualifier of the claim (RM-157), as the canonical fact door
+    validated it: a text, number or boolean value. Mirrors
+    ``memspine.semantics.QualifierValue``."""
+
+    kind: ValueKind
+    text: str | None = None
+    amount: Decimal | None = None
+    flag: bool | None = None
+
+    @model_validator(mode="after")
+    def _one_typed_value(self) -> ClaimQualifier:
+        if self.kind == "number":
+            if self.amount is None or not self.amount.is_finite() or self.text is not None:
+                raise ValueError("a numeric qualifier requires a finite amount only")
+        elif self.kind == "boolean":
+            if self.flag is None:
+                raise ValueError("a boolean qualifier requires a flag")
+        elif not self.text:
+            raise ValueError("a qualifier requires a value")
         return self
 
 
@@ -197,6 +229,12 @@ class SemanticEnvelope(DurableModel):
     # --- registry typing, role bindings and producer (ADR-088) ---
     registry: PredicateTyping | None = None
     role_bindings: list[RoleBinding] = Field(default_factory=list)
+    #: RM-157: the registry-checked qualifiers of the claim (``participation_mode``,
+    #: ``speech_act``, ...), keyed by property name; the edge compiler projects them onto edges.
+    qualifiers: dict[str, ClaimQualifier] = Field(default_factory=dict)
+    #: RM-157: the predicate's statement kind as the registry declared it at the door (None
+    #: when the claim has no registry typing).
+    statement_kind: StatementKind | None = None
     producer: ClaimProducer | None = None
 
     # --- system state ---
@@ -234,6 +272,8 @@ class SemanticEnvelope(DurableModel):
     def _check_registry(self) -> None:
         if self.registry is not None and self.attribute != self.registry.predicate:
             raise ValueError("registry predicate must equal the canonical claim attribute")
+        if (self.qualifiers or self.statement_kind is not None) and self.registry is None:
+            raise ValueError("claim qualifiers and statement kind need registry typing")
         if not self.role_bindings:
             return
         ids = [binding.binding_id for binding in self.role_bindings]

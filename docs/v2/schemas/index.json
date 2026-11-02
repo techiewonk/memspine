@@ -33,6 +33,14 @@
       "tier": "durable"
     },
     {
+      "file": "durable/ClaimQualifier.json",
+      "kind": null,
+      "module": "memspine.schemas.durable.semantic",
+      "name": "ClaimQualifier",
+      "schema_version": null,
+      "tier": "durable"
+    },
+    {
       "file": "durable/DerivationFailure.json",
       "kind": null,
       "module": "memspine.schemas.durable.ingestion",

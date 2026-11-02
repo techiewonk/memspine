@@ -5948,6 +5948,22 @@
       "subject_types": [],
       "value_kinds": [
         "text"
+      ],
+      "allowed_values": [
+        "walk",
+        "bicycle",
+        "motorcycle",
+        "car",
+        "taxi",
+        "bus",
+        "coach",
+        "tram",
+        "metro",
+        "train",
+        "ferry",
+        "boat",
+        "plane",
+        "other"
       ]
     },
     {

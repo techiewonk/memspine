@@ -36,7 +36,7 @@ from memspine.ingest import windows as ingest_windows
 from memspine.schemas.durable import AnnotationBatch, SemanticEnvelope
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
-from memspine.schemas.durable.semantic import RoleBinding
+from memspine.schemas.durable.semantic import ClaimQualifier, RoleBinding
 from memspine.services.graph.qualifiers import edge_qualifiers
 from memspine.services.llm.base import LLMRouter
 from memspine.store.records import MemoryRecord
@@ -55,6 +55,7 @@ async def boot(
     extractor: NonGenerativeFactExtractor | None = None,
     max_turns: int = 1,
     resource: bool = False,
+    read: Mapping[str, Any] | None = None,
 ) -> Engine:
     """The default rules-only profile on ``path``; ``extractor`` replaces the built-in rules
     behind the configured non-generative extractor hook (the family fixtures, DS-18)."""
@@ -78,6 +79,7 @@ async def boot(
         },
         graph={"edge_compiler": True},
         write={"window_async": False, "window_idle_s": 0.0, "window_max_turns": max_turns},
+        **({"read": dict(read)} if read is not None else {}),
     )
     await eng.start()
     assert eng.config.write.online_extractor and eng.config.workers.outbox
@@ -450,6 +452,7 @@ def candidate(
     owner: str | None = None,
     modality: str = "asserted",
     cardinality_scope: Mapping[str, str] | None = None,
+    qualifiers: Mapping[str, str] | None = None,
 ) -> GroundedFactCandidate:
     sender = assertion_owner(record) or "unknown"
     return GroundedFactCandidate(
@@ -465,5 +468,9 @@ def candidate(
         evidence=evidence,
         role_bindings=tuple(roles),
         cardinality_scope=dict(cardinality_scope or {}),
+        qualifiers={
+            key: ClaimQualifier(kind="text", text=value)
+            for key, value in (qualifiers or {}).items()
+        },
         producer_revision="scenario-fixture:1",
     )

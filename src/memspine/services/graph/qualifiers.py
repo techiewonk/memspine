@@ -76,8 +76,10 @@ from memspine.config.constants import (
 from memspine.observability.logging import get_logger
 from memspine.semantics.domains import DOMAIN_PATTERN, DomainSource, domain_in, is_domain_id
 from memspine.semantics.lifecycle import LifecycleOutcome, LifecycleStatus
+from memspine.semantics.modes import ParticipationMode, TransportMode
 from memspine.semantics.origins import SourceOrigin
 from memspine.semantics.sensitivity import SensitivityLabel
+from memspine.semantics.specs import StatementKind
 from memspine.services.graph.base import GraphEdge, capped_neighbors
 
 __all__ = [
@@ -269,6 +271,9 @@ class EdgeQualifiers(_Frozen):
     occurrence_id: str | None = None
     vocabulary_pack: str | None = None
     vocabulary_version: str | None = None
+    #: RM-157: the claim's statement kind (``attributed``: held by the subject, never
+    #: verified world truth; ``directive``: an instruction), from the claim or its registry.
+    statement_kind: StatementKind | None = None
     # ── P2 ──
     #: RM-91: hierarchical domain id (``health/condition``); see ``memspine.semantics.domains``.
     topical_domain: str | None = Field(default=None, pattern=DOMAIN_PATTERN)
@@ -290,7 +295,12 @@ class EdgeQualifiers(_Frozen):
     #: Per-label confidence in ``[0, 1]`` (keys are a subset of ``sensitivity``).
     sensitivity_confidence: dict[SensitivityLabel, float] | None = None
     context_location: str | None = None
-    participation_mode: str | None = None
+    #: RM-63 (family M): how the subject took part / travelled (``memspine.semantics.modes``).
+    participation_mode: ParticipationMode | None = None
+    transport_mode: TransportMode | None = None
+    #: RM-157: every registry-checked qualifier of the claim, as text (key -> value); the
+    #: typed fields above are the filterable ones.
+    claim_qualifiers: dict[str, str] | None = None
     applicability_condition: str | None = None
     extraction_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     extraction_method: str | None = None
@@ -505,8 +515,10 @@ _SET_FIELDS: dict[str, str] = {
     "event_roles": "event_role",
     "occurrence_ids": "occurrence_id",
     "vocabulary_packs": "vocabulary_pack",
+    "statement_kinds": "statement_kind",
     "context_locations": "context_location",
     "participation_modes": "participation_mode",
+    "transport_modes": "transport_mode",
     "applicability_conditions": "applicability_condition",
     "extraction_methods": "extraction_method",
     "recurrence_series_ids": "recurrence_series_id",
@@ -582,13 +594,15 @@ class QualifierFilter(_Frozen):
     event_roles: frozenset[str] | None = None
     occurrence_ids: frozenset[str] | None = None
     vocabulary_packs: frozenset[str] | None = None
+    statement_kinds: frozenset[StatementKind] | None = None
     #: RM-91: a domain matches itself and its descendants (``health`` admits
     #: ``health/condition``, never ``healthcare``); an unknown domain never passes.
     topical_domains: frozenset[str] | None = None
     #: The edge must carry at least one of these labels (unchecked / none found fails).
     sensitivities: frozenset[SensitivityLabel] | None = None
     context_locations: frozenset[str] | None = None
-    participation_modes: frozenset[str] | None = None
+    participation_modes: frozenset[ParticipationMode] | None = None
+    transport_modes: frozenset[TransportMode] | None = None
     applicability_conditions: frozenset[str] | None = None
     min_extraction_confidence: float | None = Field(default=None, ge=0.0, le=1.0)
     extraction_methods: frozenset[str] | None = None

@@ -144,6 +144,67 @@
       "title": "ClaimProducer",
       "type": "object"
     },
+    "ClaimQualifier": {
+      "additionalProperties": true,
+      "description": "One registry-checked qualifier of the claim (RM-157), as the canonical fact door\nvalidated it: a text, number or boolean value. Mirrors\n``memspine.semantics.QualifierValue``.",
+      "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "flag": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Flag"
+        },
+        "kind": {
+          "enum": [
+            "entity",
+            "text",
+            "number",
+            "boolean",
+            "temporal"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Text"
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "ClaimQualifier",
+      "type": "object"
+    },
     "Duration": {
       "additionalProperties": true,
       "description": "A length of time: value plus unit, with an anchor when one is known (S6-4).",
@@ -1026,6 +1087,13 @@
         "provenance": {
           "$ref": "#/$defs/Provenance"
         },
+        "qualifiers": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ClaimQualifier"
+          },
+          "title": "Qualifiers",
+          "type": "object"
+        },
         "record_id": {
           "anyOf": [
             {
@@ -1104,6 +1172,23 @@
           ],
           "title": "Src Class",
           "type": "string"
+        },
+        "statement_kind": {
+          "anyOf": [
+            {
+              "enum": [
+                "assertion",
+                "directive",
+                "attributed"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Statement Kind"
         },
         "status": {
           "default": "active",

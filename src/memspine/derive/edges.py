@@ -6,8 +6,9 @@ assertion this module emits:
 * one **assertion node** (id stable under assertion key + occurrence + scope), so an n-ary fact is one node
   rather than several unrelated binary edges;
 * **role edges** from that node to entity / value / time nodes (``subject``, ``object``, ``value``,
-  ``time`` and any further role carried in the code-compiled ``envelope.graph["nary"]["roles"]``, for
-  example ``location``);
+  ``time`` and any further role carried in the code-compiled ``envelope.graph["nary"]["roles"]``: the
+  claim's entity role bindings, for example ``obligor`` or ``beneficiary``, which the edge compiler
+  resolves to entity nodes, RM-157);
 * one **binary projection edge** ``subject -> object`` labelled by the relation, for plain traversal.
 
 Rules encoded:
@@ -46,6 +47,7 @@ from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.store import keys
 
 __all__ = [
+    "FIXED_ROLES",
     "GraphDelta",
     "GraphEdge",
     "GraphNode",
@@ -61,7 +63,8 @@ NodeKind = Literal["assertion", "entity", "value", "time"]
 EdgeKind = Literal["role", "projection"]
 
 #: Roles with a fixed meaning in the envelope; further roles come from ``graph["nary"]["roles"]``.
-_FIXED_ROLES = ("subject", "object", "value", "time")
+FIXED_ROLES = ("subject", "object", "value", "time")
+_FIXED_ROLES = FIXED_ROLES
 
 
 @dataclass(frozen=True)

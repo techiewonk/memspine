@@ -55,7 +55,7 @@ __all__ = [
 ]
 
 #: Bump when a column's derivation changes; stored edges with another version are re-derived.
-QUALIFIER_COLUMNS_VERSION = 1
+QUALIFIER_COLUMNS_VERSION = 2
 
 _EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 _MAX_US = (datetime.max.replace(tzinfo=UTC) - _EPOCH) // timedelta(microseconds=1)

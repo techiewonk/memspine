@@ -551,6 +551,24 @@ def test_claim_outcome_mirrors_the_lifecycle_outcomes() -> None:
     assert ("none", *LIFECYCLE_OUTCOMES) == CLAIM_OUTCOMES
 
 
+def test_statement_kind_and_qualifier_mirror_the_semantics_vocabulary() -> None:
+    """RM-157: the claim's statement kind and qualifier value spell out the registry's."""
+    from typing import get_args
+
+    from memspine.schemas.durable.semantic import STATEMENT_KINDS, ClaimQualifier
+    from memspine.semantics import QualifierValue
+    from memspine.semantics.specs import StatementKind
+
+    assert get_args(StatementKind) == STATEMENT_KINDS
+    assert set(ClaimQualifier.model_fields) == set(QualifierValue.model_fields)
+    with pytest.raises(ValidationError):
+        ClaimQualifier(kind="text")
+    with pytest.raises(ValidationError):
+        ClaimQualifier(kind="number", text="4")
+    with pytest.raises(ValidationError):  # qualifiers are registry-checked: typing required
+        _envelope(qualifiers={"speech_act": ClaimQualifier(kind="text", text="ask")})
+
+
 def test_claim_axes_reject_other_vocabularies() -> None:
     planned = _assess(modality="planned")
     for bad in ("fulfilled", "closed", "unknown"):

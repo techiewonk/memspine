@@ -21,9 +21,19 @@ from memspine.derive.gliner_mentions import MentionSpan
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
 from memspine.schemas.durable.ingestion import IngestionSourceSnapshot
-from memspine.schemas.durable.semantic import ClaimProducer, PredicateTyping, SemanticEnvelope
+from memspine.schemas.durable.semantic import (
+    ClaimProducer,
+    ClaimQualifier,
+    PredicateTyping,
+    SemanticEnvelope,
+)
 from memspine.schemas.durable.semantic import RoleBinding as DurableRoleBinding
-from memspine.semantics import RoleBindingCheck, SemanticRegistry, load_builtin_registry
+from memspine.semantics import (
+    QualifierValue,
+    RoleBindingCheck,
+    SemanticRegistry,
+    load_builtin_registry,
+)
 from memspine.semantics.specs import EntityType, ValueKind
 from memspine.store.records import MemoryRecord
 from memspine.store.source_binding import source_binding
@@ -92,6 +102,8 @@ class GroundedFactCandidate(_Candidate):
     evidence: Evidence
     context_evidence: tuple[Evidence, ...] = ()
     role_bindings: tuple[DurableRoleBinding, ...] = ()
+    #: RM-157: registry-checked claim qualifiers (``participation_mode``, ...), passed through.
+    qualifiers: Mapping[str, ClaimQualifier] = Field(default_factory=dict)
     cardinality_scope: Mapping[str, str] = Field(default_factory=dict)
     source_time: str | None = None
     producer_revision: str = Field(default="personal-rules:1", min_length=1)
@@ -285,6 +297,10 @@ def compile_grounded_facts(
                 value_kind=candidate.object_kind,
                 object_entity_type=candidate.object_entity_type,
                 role_names=(binding.role_name for binding in candidate.role_bindings),
+                qualifiers={
+                    key: QualifierValue.model_validate(value.model_dump())
+                    for key, value in candidate.qualifiers.items()
+                },
                 source_origin="raw_message",
             )
             registry.validate_role_bindings(
@@ -373,6 +389,9 @@ def compile_grounded_facts(
                     for binding in candidate.role_bindings
                 ],
                 "producer": ClaimProducer(kind="rules", revision=candidate.producer_revision),
+                # RM-157: qualifiers and the statement kind pass through to the claim
+                "qualifiers": dict(candidate.qualifiers),
+                "statement_kind": spec.statement_kind,
             }
         )
         # Revalidate after attaching the registry typing; do not trust model_copy.

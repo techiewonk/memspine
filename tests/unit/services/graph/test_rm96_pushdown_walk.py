@@ -66,6 +66,9 @@ OUTCOMES = ("done", "missed")
 TIERS = ("untrusted", "low", "normal", "high")
 PRINCIPALS = ("alice", "bob")
 POOL = ("p", "q", "r")
+PARTICIPATION = ("in_person", "remote", "hybrid")
+TRANSPORT = ("car", "train", "walk")
+STATEMENTS = ("assertion", "directive", "attributed")
 T0 = datetime(2026, 1, 1, tzinfo=UTC)
 IST = timezone(timedelta(hours=5, minutes=30))
 WORLD_SEEDS = (11, 23, 96)
@@ -122,6 +125,7 @@ def _qualifiers(rng: random.Random) -> dict[str, Any] | None:
     q["event_role"] = _maybe(rng, POOL)
     q["occurrence_id"] = _maybe(rng, POOL)
     q["vocabulary_pack"] = _maybe(rng, POOL)
+    q["statement_kind"] = _maybe(rng, STATEMENTS)
     q["topical_domain"] = _maybe(rng, DOMAINS)
     checked = rng.choice((None, True, True, False))
     if checked is not None:
@@ -135,7 +139,8 @@ def _qualifiers(rng: random.Random) -> dict[str, Any] | None:
             lineage_root=_maybe(rng, POOL),
         )
     q["context_location"] = _maybe(rng, POOL)
-    q["participation_mode"] = _maybe(rng, POOL)
+    q["participation_mode"] = _maybe(rng, PARTICIPATION)
+    q["transport_mode"] = _maybe(rng, TRANSPORT)
     q["applicability_condition"] = _maybe(rng, POOL)
     q["extraction_confidence"] = _maybe(rng, (0.1, 0.5, 0.8, 1.0))
     q["extraction_method"] = _maybe(rng, POOL)
@@ -206,10 +211,12 @@ def _field_values(rng: random.Random) -> dict[str, Callable[[], Any]]:
         "event_roles": subset(POOL),
         "occurrence_ids": subset(POOL),
         "vocabulary_packs": subset(POOL),
+        "statement_kinds": subset(STATEMENTS),
         "topical_domains": subset(("health", "work", "healthcare", "work/project")),
         "sensitivities": subset(LABELS),
         "context_locations": subset(POOL),
-        "participation_modes": subset(POOL),
+        "participation_modes": subset(PARTICIPATION),
+        "transport_modes": subset(TRANSPORT),
         "applicability_conditions": subset(POOL),
         "min_extraction_confidence": lambda: rng.choice((0.0, 0.5, 0.9)),
         "extraction_methods": subset(POOL),

@@ -33,3 +33,18 @@ Built-in packs declare no top domain, so `graph_filter` by domain cannot match b
 - Claim role bindings (obligor, beneficiary, participant and the like) compile into qualified
   graph edges, so graph search and `graph_filter` can reach them. Claim qualifiers and
   `statement_kind` pass through to claims and edges.
+
+### Implementation (2026-11-02)
+
+- `owns` lists `species`; families J and M are in `memspine.core` (v5). `memspine.proposed`
+  (v4) is empty.
+- `transport_mode` has a closed generic vocabulary (`memspine.semantics.modes`). Both modes are
+  typed edge qualifiers with `graph_filter` fields (`participation_modes`, `transport_modes`).
+- The canonical fact door validates candidate qualifiers and stores them on the claim
+  (`SemanticEnvelope.qualifiers`), with the predicate's `statement_kind`. Edges carry
+  `statement_kind` (claim, else registry) and `claim_qualifiers`.
+- Each entity role binding becomes a role edge `role:<role>` from the claim's assertion node to
+  the filler's entity node. The entity index links role fillers at write time. The edge carries
+  the claim's qualifiers with `event_role` set to the role name. A filler that is not an
+  entity, that the entity policy rejects or that has no entity link gets no edge; it is
+  reported with its reason (`CompiledEdges.role_skips`).

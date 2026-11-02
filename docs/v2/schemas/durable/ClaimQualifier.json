@@ -1,0 +1,61 @@
+{
+  "additionalProperties": true,
+  "description": "One registry-checked qualifier of the claim (RM-157), as the canonical fact door\nvalidated it: a text, number or boolean value. Mirrors\n``memspine.semantics.QualifierValue``.",
+  "properties": {
+    "amount": {
+      "anyOf": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Amount"
+    },
+    "flag": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Flag"
+    },
+    "kind": {
+      "enum": [
+        "entity",
+        "text",
+        "number",
+        "boolean",
+        "temporal"
+      ],
+      "title": "Kind",
+      "type": "string"
+    },
+    "text": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Text"
+    }
+  },
+  "required": [
+    "kind"
+  ],
+  "title": "ClaimQualifier",
+  "type": "object"
+}

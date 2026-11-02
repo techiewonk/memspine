@@ -51,7 +51,7 @@ from memspine.derive.pipeline.stages.edge_compiler import (
 )
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
-from memspine.schemas.durable.semantic import RoleBinding
+from memspine.schemas.durable.semantic import ClaimQualifier, RoleBinding
 from memspine.semantics import (
     FAMILY_DOMAINS,
     QualifierValue,
@@ -147,6 +147,8 @@ class Door:
     subject_type: str = "person"
     #: (role name, value kind, quoted value, entity type)
     roles: tuple[tuple[str, str, str, str | None], ...] = ()
+    #: (qualifier key, text value): registry-checked claim qualifiers (RM-157)
+    qualifiers: tuple[tuple[str, str], ...] = ()
 
     def _record(self) -> MemoryRecord:
         return MemoryRecord(
@@ -197,6 +199,7 @@ class Door:
             assertion_owner="alice",
             evidence=self._evidence(record, self.text),
             role_bindings=bindings,
+            qualifiers={k: ClaimQualifier(kind="text", text=v) for k, v in self.qualifiers},
             producer_revision="family-fixture:1",
         )
         return compile_grounded_facts(
