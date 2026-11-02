@@ -8,3 +8,6 @@
 # Remove the entry when the row closes.
 tests/unit/wiring/test_rm104_graph_leg_frontier.py::test_search_results_identical_with_and_without_frontier  # RM-144 scores drift ~1e-6 about 1 run in 3 (also at d61cd78b)
 tests/unit/wiring/test_rm115_batch_records.py::test_batch_lookup_matches_per_id_lookup  # RM-144 same 6th-decimal score drift, about 1 run in 3 (also on f380d5fd)
+tests/unit/services/storage/test_records_conformance.py::test_the_store_satisfies_the_port_and_its_schema_is_versioned  # RM-162 sqlite_memory case needs the module-global connection factory another test configures (order dependent)
+tests/unit/services/storage/test_records_conformance.py::test_leases_are_exclusive_expiring_and_fenced  # RM-162 same order dependence (store/leases.py:51)
+tests/unit/wiring/test_adr095_erasure_gate.py::test_lexical_rebuild_never_resurrects_a_hard_erased_record  # RM-162 Windows Tantivy file lock (PermissionError) under parallel load

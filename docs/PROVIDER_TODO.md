@@ -15,7 +15,7 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | EXCLUDED | 4 |
 | IN_PROGRESS | 14 |
 | NEEDS_TOOLCHAIN | 1 |
-| OPEN | 25 |
+| OPEN | 26 |
 | PROPOSED | 1 |
 | REVIEW | 1 |
 
@@ -24,10 +24,10 @@ Keep one row per stable ID. PA IDs preserve the 136-item provider program; BI ID
 | BI | 12 |
 | DS | 21 |
 | PA | 136 |
-| RM | 161 |
+| RM | 162 |
 | RS | 9 |
 
-Total: **339 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
+Total: **340 unique task IDs**. Provider-only historical denominator stays 136; the combined total also includes BI, DS, RS and imported review suggestions.
 <!-- CURRENT_SUMMARY_END -->
 
 ## Status and column legend
@@ -402,6 +402,7 @@ its scope is narrower than the prerequisite (say so in the row) or its status is
 | RM-159 | OPEN | P1 | Runtime maintainer | Outbox job store full-table scans on every write | Write-path profile 2026-11-02 (pa053-write-path-profile JSON): SqlJobStore.jobs() is called from claim, expire-leases and live-jobs and deserializes ~9,700 job rows per write (~190 ms, about 60% of the write) and grows with every message ever ingested (a 20-turn ingest went from 1.0 s to 6.7 s at 2,400 messages) | Indexed claim and lease queries; prune or archive finished jobs; prove constant per-write cost as the store grows | Prereq: none |
 | RM-160 | OPEN | P1 | Storage maintainers | One vector and lexical index commit per record | Write-path profile 2026-11-02 (pa053-write-path-profile JSON): LanceDB adds one row at a time (40-60 ms) and Tantivy commits once per record (35-50 ms) | Batch vector adds and lexical commits per write call or projection batch while keeping read-your-writes and erasure guarantees; ~80-100 ms per message expected | Prereq: none |
 | RM-161 | OPEN | P1 | Read maintainer | Reads scan the whole namespace and the writer blocks the event loop | Write-path profile 2026-11-02 (pa053-write-path-profile JSON): each read lists records ~30 times (~2,700 rows validated) and re-detects sessions over everything (150-270 ms); read p50 grew from 191 ms at 1k to 449 ms at 2.4k; a concurrent ingest doubles reads because the inline window drain and synchronous SQL hold the event loop | Cache or index the namespace listings and session detection per read; move synchronous SQL and the inline window drain off the event loop; prove read p50 flat with corpus size | Prereq: none |
+| RM-162 | OPEN | P2 | Test maintainers | Test isolation: module-global SQLite connection factory and Windows Tantivy file locks | Seen 2026-11-02: test_records_conformance sqlite_memory cases fail unless another test configured the store/leases.py connection factory first (also on 23ab2169); Tantivy tests hit PermissionError and WinError 145 on Windows under parallel load and pass alone; quarantined in tests/quarantine.txt | Make the connection factory per-store (no module global) or set it in a fixture; close Tantivy readers and writers before directory cleanup and retry deletes on Windows; remove the quarantine entries | Prereq: none |
 <!-- TASK_REGISTER_END -->
 
 ## Imported roadmap detail (no independent statuses)
