@@ -519,8 +519,9 @@ async def _run_purge(eng: Any, manifest_id: str, texts: Sequence[str] = ()) -> P
         purge = getattr(eng._vector, "purge_deleted", None)
         if callable(purge):
             await purge()  # drop the deleted rows' bytes and the older table versions
-        from memspine.trust.pipeline.erasure import compact_cache
+        from memspine.trust.pipeline.erasure import compact_cache, compact_graph
 
+        await compact_graph(eng)  # the hidden ids' graph nodes the graph step deleted
         await compact_cache(eng)  # the dependants' cache keys left after the bump step
         if eng._sql is not None:
             await eng._sql.checkpoint()

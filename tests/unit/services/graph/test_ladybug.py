@@ -8,6 +8,7 @@ clear, close). Skipped whole-file when ``ladybug`` is not installed.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest
 
@@ -166,3 +167,39 @@ async def test_pre_kb1_database_is_altered_and_backfilled(tmp_path: object) -> N
         assert {(e.src, e.dst) for e in await store.edge_list("ns/a")} == {("a", "b"), ("a", "c")}
     finally:
         await client.close()
+
+
+async def test_compact_rewrites_the_file_without_deleted_strings(tmp_path: Path) -> None:
+    """ADR-095: a delete leaves the node's strings in the file pages; ``compact`` swaps in a
+    fresh file at the same path (export/import). Live nodes, edges and entity vectors (with
+    the FTS leg when the extension loads) survive; the store keeps working afterwards."""
+    path = tmp_path / "g.ladybug"
+    client = LadybugClient(LadybugSpec(path))
+    await client.open()
+    try:
+        store = LadybugGraphStore(client)
+        await store.upsert_node("gone", properties={"name": "Zebulon Quixotelle"})
+        await store.upsert_edge("dana", "ola", "related", {"weight": 0.5})
+        await store.upsert_entity_vector("a", "ent:dana", "dana baker", [0.1, 0.2, 0.3, 0.4])
+        await store.delete_node("gone")
+        assert store.holds_deleted_strings
+        await store._execute("CHECKPOINT")
+        assert b"quixotelle" in path.read_bytes().lower()  # the negative control
+        assert await store.compact() is True
+        assert not store.holds_deleted_strings
+        assert b"quixotelle" not in path.read_bytes().lower()
+        assert await store.node_count() == 2 and await store.edge_count() == 1
+        hits = await store.search_entities("a", [0.1, 0.2, 0.3, 0.4], "dana", top_k=2)
+        assert [h[0] for h in hits][:1] == ["ent:dana"]
+        await store.upsert_node("later")
+        assert await store.node_count() == 3
+        assert await store.compact() is True  # nothing deleted since: a no-op
+        assert not [p for p in tmp_path.iterdir() if ".compact-" in p.name]
+    finally:
+        await client.close()
+
+
+async def test_compact_of_an_in_memory_database_is_a_no_op(store: GraphStore) -> None:
+    await store.upsert_node("x")
+    await store.delete_node("x")
+    assert await store.compact() is True  # type: ignore[attr-defined]

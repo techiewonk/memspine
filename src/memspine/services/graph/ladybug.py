@@ -269,6 +269,8 @@ class LadybugGraphStore:
         #: threading lock (not an asyncio one) lets Engines on different event loops share
         #: one store per path (ADR-079).
         self._lock: threading.Lock = getattr(client, "statement_lock", None) or threading.Lock()
+        #: ADR-095: a delete since the last :meth:`compact` (its strings stay in file pages).
+        self._deleted = False
 
     async def _execute(
         self, query: str, parameters: dict[str, Any] | None = None
@@ -605,6 +607,7 @@ class LadybugGraphStore:
         return [_edge(row) for row in rows]
 
     async def delete_node(self, node_id: str) -> None:
+        self._deleted = True
         await self._execute(
             "MATCH (n:MemoryNode {node_id: $node_id}) DETACH DELETE n", {"node_id": node_id}
         )
@@ -754,7 +757,29 @@ class LadybugGraphStore:
         rows = await self._execute("MATCH ()-[e:MemoryLink]->() RETURN count(e)")
         return int(rows[0][0])
 
+    @property
+    def holds_deleted_strings(self) -> bool:
+        """ADR-095: True when a delete since the last :meth:`compact` may have left strings in
+        the database file pages."""
+        return self._deleted
+
+    async def compact(self) -> bool:
+        """ADR-095: rewrite the database file without the deleted nodes' strings (the client's
+        export/import swap; see :meth:`LadybugClient.compact`). A no-op when nothing was
+        deleted since the last compaction or the client cannot compact. Returns False when the
+        rewrite failed (the strings then stay until the next one)."""
+        if not self._deleted:
+            return True
+        compact = getattr(self._client, "compact", None)
+        if not callable(compact):
+            return False
+        ok = bool(await compact())
+        if ok:
+            self._deleted = False
+        return ok
+
     async def clear(self) -> None:
+        self._deleted = True
         await self._execute("MATCH (n:MemoryNode) DETACH DELETE n")
         if self._entity_dim is not None or await self._discover_entity_table():
             await self._execute("MATCH (v:EntityVec) DELETE v")  # GR-3: rebuilt with the graph

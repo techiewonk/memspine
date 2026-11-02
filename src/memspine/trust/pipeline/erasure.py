@@ -273,10 +273,27 @@ async def _forget_many(
         _log.warning("memory.forget_vector_purge_incomplete", namespace=ns, record_id=ids[0])
     if not await _purge_lexical(eng, storage):
         _log.warning("memory.forget_lexical_purge_incomplete", namespace=ns, record_id=ids[0])
+    if not await compact_graph(eng):
+        _log.warning("memory.forget_graph_compact_incomplete", namespace=ns, record_id=ids[0])
     if not await compact_cache(eng):
         _log.warning("memory.forget_cache_compact_incomplete", namespace=ns, record_id=ids[0])
     if eng._sql is not None:
         await eng._sql.checkpoint()
+
+
+async def compact_graph(eng: Any) -> bool:
+    """ADR-095 (graph and mention projections): an embedded graph whose deletes leave strings
+    in its file pages (LadybugDB) rewrites its database after the purge (the store's
+    ``compact``, a no-op when nothing was deleted since the last one). Returns False when the
+    rewrite failed."""
+    compact = getattr(getattr(eng, "_graph", None), "compact", None)
+    if not callable(compact):
+        return True
+    try:
+        return bool(await compact())
+    except Exception as exc:  # never fails the erasure: the strings stay until the next one
+        _log.warning("memory.forget_graph_compact_failed", error=type(exc).__name__)
+        return False
 
 
 async def compact_cache(eng: Any) -> bool:

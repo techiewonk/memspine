@@ -130,7 +130,7 @@ def _vacuum_all(shards: list[Any]) -> bool:
         finally:
             # The connection belongs to this worker thread: close it so no idle handle keeps
             # the WAL from truncating later.
-            local = getattr(shard, "_local", None)
+            local: Any = getattr(shard, "_local", None)
             con = getattr(local, "con", None)
             if con is not None:
                 con.close()

@@ -481,27 +481,40 @@ async def test_mention_projection(tmp_path: Path, graph: str, hard: bool) -> Non
             assert _present(await _sql_scan(eng), NEEDLES) == []
     finally:
         await eng.stop()
-    if hard:  # LadybugDB's own file: see test_mention_projection_ladybug_file
-        assert _file_hits(tmp_path, NEEDLES, skip=(".ladybug",)) == {}
+    if hard:  # LadybugDB's own file included (see test_mention_projection_ladybug_file)
+        assert _file_hits(tmp_path, NEEDLES) == {}
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="RM-135 follow-up: LadybugDB DETACH DELETE (services/graph/ladybug.py:607) leaves the "
-    "deleted mention-surface strings in the database file pages; CHECKPOINT does not compact "
-    "them and the binding has no vacuum",
-)
 async def test_mention_projection_ladybug_file(tmp_path: Path) -> None:
+    """LadybugDB DETACH DELETE leaves the deleted mention-surface strings in the database file
+    pages (no vacuum); the hard erase rewrites the database into a fresh file (export/import,
+    atomic swap at the same path). No file keeps an erased name, the live graph survives, and
+    the swapped database keeps working (a write and a restart after the erase)."""
     eng = await _start(tmp_path, graph="ladybug")
     try:
-        assert eng._semantic is not None
+        assert eng._semantic is not None and eng._graph is not None
         eng._semantic._extractor = _MentionFinder()  # type: ignore[attr-defined]
         gone = await eng.write(SECRET, namespace=NS)
-        await eng.write("Dana met Dana", namespace=NS)
+        kept = await eng.write("Dana met Dana", namespace=NS)
+        before = await eng._graph.node_count()
         await eng.forget(gone.record_id, namespace=NS, hard=True)
+        assert not getattr(eng._graph, "holds_deleted_strings", True)
+        assert 0 < await eng._graph.node_count() < before
+        dump = await _ladybug_dump(eng)
+        assert kept.record_id.lower() in dump and _present(dump, NEEDLES) == []
+        later = await eng.write("Dana met Ola", namespace=NS)
+        assert later.record_id.lower() in await _ladybug_dump(eng)
     finally:
         await eng.stop()
     assert _file_hits(tmp_path, NEEDLES) == {}
+    assert not [p for p in tmp_path.iterdir() if ".compact-" in p.name]  # no work dir left
+    eng = await _start(tmp_path, graph="ladybug")
+    try:
+        dump = await _ladybug_dump(eng)
+        assert kept.record_id.lower() in dump and later.record_id.lower() in dump
+        assert gone.record_id.lower() not in dump
+    finally:
+        await eng.stop()
 
 
 # ---------------------------------------------------------------- caches
