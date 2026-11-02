@@ -24,6 +24,7 @@ from memspine.services.vector.lancedb_store import (
     LanceDBVectorStore,
     _table_name,
 )
+from memspine.store.projections.deferral import CommitDeferral
 
 __all__ = ["PerNamespaceVectorStore", "namespace_suffix"]
 
@@ -44,12 +45,29 @@ class PerNamespaceVectorStore:
         self._make = make  # suffix -> store over that table
         self._stores: dict[str, LanceDBVectorStore] = {}
         self._lock = asyncio.Lock()
+        #: RM-160: one hold for every namespace table, opened before or during a batch.
+        self._deferral = CommitDeferral()
+
+    def _adopt(self, suffix: str) -> LanceDBVectorStore:
+        store = self._stores[suffix] = self._make(suffix)
+        store.share_deferral(self._deferral)
+        return store
+
+    def defer_writes(self) -> None:
+        """RM-160: hold this caller's upserts in every namespace table until :meth:`flush`."""
+        self._deferral.hold()
+
+    async def flush(self) -> None:
+        """Write the held rows of every namespace table and end this caller's hold."""
+        self._deferral.release()
+        for store in list(self._stores.values()):
+            await store.flush_held()
 
     def _store(self, namespace: str) -> LanceDBVectorStore:
         suffix = namespace_suffix(namespace)
         store = self._stores.get(suffix)
         if store is None:
-            store = self._stores[suffix] = self._make(suffix)
+            store = self._adopt(suffix)
         return store
 
     async def _all(self) -> list[LanceDBVectorStore]:
@@ -60,7 +78,7 @@ class PerNamespaceVectorStore:
             if name.startswith(prefix):
                 suffix = name[len(prefix) - len("__ns_") :]
                 if suffix not in self._stores:
-                    self._stores[suffix] = self._make(suffix)
+                    self._adopt(suffix)
         return list(self._stores.values())
 
     async def upsert(

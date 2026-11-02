@@ -5845,7 +5845,8 @@ class Engine:
         Every event is still appended and applied one at a time, so the log, the
         records and every read in between are exactly as without the batch.
         Two costs move to the end: projectors may hold per-event commits (see
-        :meth:`Projector.begin_batch`), and the high-water marks are written
+        :meth:`Projector.begin_batch`; RM-160: one LanceDB write and one Tantivy
+        commit per batch, written earlier by any read), and the high-water marks are written
         once per projector instead of once per event. A mark is written only
         after that projector's flush succeeds, so a projection is never marked
         ahead of what it holds; after a crash catch-up re-applies the tail
@@ -5874,8 +5875,14 @@ class Engine:
                 failure = failure or exc
                 continue
             seq = offsets.get(projector.name)
-            if seq is not None:
+            if seq is None:
+                continue
+            try:
                 await self._storage.set_offset(projector.name, seq)
+            except Exception as exc:
+                # RM-160: a mark that failed to advance only means a replay; every other
+                # projector is still flushed, so none keeps its writes held past the batch.
+                failure = failure or exc
         if failure is not None:
             raise failure
 

@@ -39,3 +39,17 @@ class VectorProjector(Projector):
 
     async def reset(self) -> None:
         await self._store.delete_all()
+
+    def begin_batch(self) -> None:
+        # RM-160: stores that can hold their rows until a read or flush() (LanceDB) write
+        # the batch in one table write; any other store writes per apply as before.
+        defer = getattr(self._store, "defer_writes", None)
+        if defer is not None:
+            defer()
+
+    async def flush(self) -> None:
+        if getattr(self._store, "defer_writes", None) is None:
+            return
+        flush = getattr(self._store, "flush", None)
+        if flush is not None:
+            await flush()

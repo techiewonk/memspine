@@ -184,6 +184,8 @@ def install_spans(eng: Any) -> None:
         patch_method(projector, "apply", f"project.{type(projector).__name__}.apply")
     patch_method(eng._vector, "upsert", "lancedb.upsert")
     patch_method(eng._vector, "search", "lancedb.search")
+    if hasattr(eng._vector, "_write_pending"):  # RM-160: the batched table write
+        patch_method(eng._vector, "_write_pending", "lancedb.write_pending")
     lexical = eng._lexical
     for name in ("_index_one", "_commit_if_pending", "_commit_index_many", "_search"):
         patch_method(lexical, name, f"tantivy.{name}")

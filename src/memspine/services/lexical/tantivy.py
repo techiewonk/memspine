@@ -35,16 +35,14 @@ length/term-bounded before it ever reaches the index.
 from __future__ import annotations
 
 import asyncio
-import contextvars
-import itertools
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from pathlib import Path
-from types import MappingProxyType
 from typing import Literal
 
 from memspine.clients.tantivy import ENGLISH_TOKENIZER, TantivyConnector, TantivyField, TantivySpec
 from memspine.config.constants import MAX_LEXICAL_QUERY_CHARS, MAX_LEXICAL_QUERY_TERMS
 from memspine.services.lexical.base import LexicalHit
+from memspine.store.projections.deferral import CommitDeferral
 from memspine.store.records import MemoryRecord
 
 __all__ = [
@@ -88,15 +86,6 @@ def tantivy_spec(
     )
 
 
-#: RM-72: open ``defer_commits`` batches of the calling context, per store token (depth).
-#: Deferral belongs to the caller (one Engine's projection batch), never to a store handle
-#: that the registry shares between Engines (ADR-079).
-_DEFERRING: contextvars.ContextVar[Mapping[int, int]] = contextvars.ContextVar(
-    "memspine_tantivy_deferring", default=MappingProxyType({})
-)
-_STORE_TOKENS = itertools.count(1)
-
-
 def tokenize_content(query: str) -> list[str]:
     """Split user text into content-field terms the way Tantivy's ``default``
     tokenizer splits indexed content: maximal runs of alphanumeric characters,
@@ -135,8 +124,8 @@ class TantivyLexical:
         self._date_tokens = date_tokens
         # Batched ingest (see defer_commits): added documents wait for one
         # commit, which every read and flush() performs first. Whether a call defers
-        # is the caller's context (_DEFERRING), not shared state of this handle.
-        self._token = next(_STORE_TOKENS)
+        # is the caller's context (RM-72), not shared state of this handle.
+        self._deferral = CommitDeferral()
         #: ADR-095: a delete only tombstones the document; its terms and postings stay in the
         #: segment until a merge, which tantivy-py cannot force. Set by every delete, cleared by
         #: :meth:`clear` (a fully deleted segment is dropped at commit).
@@ -171,20 +160,19 @@ class TantivyLexical:
         # elsewhere and carries no lexical signal); the record store keeps the
         # content verbatim, so a NUL can never poison the projector chain.
         content = self._body(record)
-        defer = self._deferring()
-        await asyncio.to_thread(self._index_one, record.record_id, record.namespace, content, defer)
+        await asyncio.to_thread(self._index_one, record.record_id, record.namespace, content)
 
-    def _index_one(self, record_id: str, namespace: str, content: str, defer: bool) -> None:
+    def _index_one(self, record_id: str, namespace: str, content: str) -> None:
         with self._conn.lock:
             self._add_doc(record_id, namespace, content)
-            if defer:
+            # Decided under the writer lock (the worker thread runs in the caller's context):
+            # a flush closes the hold before it takes the lock, so a document is either held
+            # before that flush commits it or committed here.
+            if self._deferral.active():
                 self._conn.uncommitted = True
             else:
                 # Commits every held document too: committing early is always safe.
                 self._conn.commit()
-
-    def _deferring(self) -> bool:
-        return _DEFERRING.get().get(self._token, 0) > 0
 
     def defer_commits(self) -> None:
         """Hold the commit of documents this caller indexes until :meth:`flush` or a read.
@@ -198,20 +186,15 @@ class TantivyLexical:
         Engine's projection batch and the tasks it starts), not to this handle. A
         handle shared by several Engines (ADR-079) therefore commits another
         caller's write before it returns, so that caller never checkpoints ahead of
-        the index, and one caller's :meth:`flush` never ends another's batch."""
-        held = dict(_DEFERRING.get())
-        held[self._token] = held.get(self._token, 0) + 1
-        _DEFERRING.set(held)
+        the index, and one caller's :meth:`flush` never ends another's batch. RM-160: a
+        task started inside the batch stops holding once the batch flushes."""
+        self._deferral.hold()
 
     async def flush(self) -> None:
         """Commit held documents and end this caller's :meth:`defer_commits` hold.
 
         Every held document is committed, whoever indexed it (early commits are safe)."""
-        held = dict(_DEFERRING.get())
-        depth = held.pop(self._token, 0)
-        if depth > 1:
-            held[self._token] = depth - 1
-        _DEFERRING.set(held)
+        self._deferral.release()
         await self._commit_pending()
 
     async def _commit_pending(self) -> None:

@@ -22,6 +22,7 @@ from memspine.config import constants
 from memspine.observability.logging import get_logger
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.vector.base import VectorHit
+from memspine.store.projections.deferral import CommitDeferral
 
 __all__ = ["LanceDBVectorStore"]
 
@@ -188,6 +189,11 @@ class LanceDBVectorStore:
         self._index_ready = False  # a usable vector ANN index is confirmed present
         self._index_disabled = False  # sticky: a real create failure → flat forever
         self._deferred_logged = False  # one-shot log while below the row threshold
+        #: RM-160: rows upserted under a caller's :meth:`defer_writes` hold, keyed by record id
+        #: (a later upsert of the same id replaces the held row). Every read, delete and
+        #: :meth:`flush` writes them first, in one table write.
+        self._pending: dict[str, dict[str, Any]] = {}
+        self._deferral = CommitDeferral()
 
     @property
     def _rescore_active(self) -> bool:
@@ -254,27 +260,93 @@ class LanceDBVectorStore:
         self, record_id: str, namespace: str, embedder_id: str, vector: list[float]
     ) -> None:
         table = await self._ensure_table()
-        row = [{"record_id": record_id, "namespace": namespace, "vector": vector}]
+        row = {"record_id": record_id, "namespace": namespace, "vector": vector}
         async with self._lock:
-            before = self._seen_epoch
-            if self._ids is not None and record_id not in self._ids:
-                # Exclusive table, unseen id: the merge would take its insert branch.
-                await asyncio.to_thread(table.add, row)
-                self._ids.add(record_id)
-            else:
-                await asyncio.to_thread(
-                    lambda: (
-                        table.merge_insert("record_id")
-                        .when_matched_update_all()
-                        .when_not_matched_insert_all()
-                        .execute(row)
-                    )
-                )
-            self._wrote(before)
-            await self._maybe_compact(table)
-            await self._maybe_index_namespace(table)
+            # Decided under the write lock: a flush closes the hold before it takes the lock,
+            # so a row is either held before that flush writes it or written here.
+            self._pending.pop(record_id, None)
+            self._pending[record_id] = row
+            if self._deferral.active():
+                return
+            await self._write_pending(table)
 
-    async def _maybe_index_namespace(self, table: Any) -> None:
+    def defer_writes(self) -> None:
+        """RM-160: hold the rows this caller upserts until :meth:`flush` or a read.
+
+        One table write per row (a new table version and fragment) dominates the cost of
+        projecting one record. Held rows are written together, in one ``add`` (or one merge
+        for ids the table may already hold); every read writes them first, so it sees
+        exactly what per-row writes would show, and a delete drops a held row of its id
+        before it reaches the table. Like the Tantivy hold (RM-72) it belongs to the calling
+        context, not to this handle: another caller's upsert writes every held row with its
+        own before it returns."""
+        self._deferral.hold()
+
+    async def flush(self) -> None:
+        """Write every held row (whoever upserted it) and end this caller's hold."""
+        self._deferral.release()
+        await self._commit_pending()
+
+    async def flush_held(self) -> None:
+        """Write every held row without ending a hold (a store family's :meth:`flush`)."""
+        await self._commit_pending()
+
+    def share_deferral(self, deferral: CommitDeferral) -> None:
+        """Honour ``deferral`` (a store family's shared hold) instead of this store's own."""
+        self._deferral = deferral
+
+    @property
+    def held_rows(self) -> int:
+        """Rows upserted under a hold and not yet written to the table."""
+        return len(self._pending)
+
+    async def _commit_pending(self) -> None:
+        """Write the held rows, if any (reads call this first)."""
+        if not self._pending:
+            return
+        table = await self._ensure_table()
+        async with self._lock:
+            await self._write_pending(table)
+
+    async def _write_pending(self, table: Any) -> None:
+        """Write every held row: one ``add`` for ids an exclusive table lacks, one merge for
+        the rest. Call with the write lock held. On a failure the unwritten rows stay held
+        (the caller's checkpoint stays behind them, so a replay rewrites them anyway)."""
+        if not self._pending:
+            return
+        rows = list(self._pending.values())
+        if self._ids is not None:
+            # Exclusive table, unseen ids: the merge would take its insert branch.
+            new = [row for row in rows if row["record_id"] not in self._ids]
+            known = [row for row in rows if row["record_id"] in self._ids]
+        else:
+            new, known = [], rows
+        if new:
+            before = self._seen_epoch
+            await asyncio.to_thread(table.add, new)
+            self._wrote(before)
+            ids = self._ids
+            assert ids is not None
+            for row in new:
+                ids.add(row["record_id"])
+                self._pending.pop(row["record_id"], None)
+        if known:
+            before = self._seen_epoch
+            await asyncio.to_thread(
+                lambda: (
+                    table.merge_insert("record_id")
+                    .when_matched_update_all()
+                    .when_not_matched_insert_all()
+                    .execute(known)
+                )
+            )
+            self._wrote(before)
+            for row in known:
+                self._pending.pop(row["record_id"], None)
+        await self._maybe_compact(table, len(rows))
+        await self._maybe_index_namespace(table, len(rows))
+
+    async def _maybe_index_namespace(self, table: Any, writes: int = 1) -> None:
         """I1: (re)build the ``namespace`` BITMAP index every
         ``NAMESPACE_INDEX_EVERY`` writes once the table holds at least
         ``NAMESPACE_INDEX_MIN_ROWS`` rows. Rows written since the last build are
@@ -282,7 +354,7 @@ class LanceDBVectorStore:
         failure is logged, never raised, and disables further attempts."""
         if not self._namespace_index or self._ns_index_disabled:
             return
-        self._writes_since_ns_index += 1
+        self._writes_since_ns_index += writes
         if self._writes_since_ns_index < constants.NAMESPACE_INDEX_EVERY:
             return
         self._writes_since_ns_index = 0
@@ -297,13 +369,13 @@ class LanceDBVectorStore:
             self._ns_index_disabled = True
             _log.warning("vector.lance_namespace_index_failed", error=str(exc))
 
-    async def _maybe_compact(self, table: Any) -> None:
+    async def _maybe_compact(self, table: Any, writes: int = 1) -> None:
         """Merge fragments every ``compact_every`` writes (see ``__init__``).
 
         An exclusive table also removes its older versions in the same call."""
         if self._compact_every is None or self._rescore_active:
             return
-        self._upserts_since_compact += 1
+        self._upserts_since_compact += writes
         if self._upserts_since_compact < self._compact_every:
             return
         self._upserts_since_compact = 0
@@ -322,6 +394,7 @@ class LanceDBVectorStore:
     ) -> list[VectorHit]:
         # The table is per-embedder (name derives from embedder_id), so the
         # embedder scoping the port requires is structural here.
+        await self._commit_pending()
         table = await self._ensure_table()
 
         def _search() -> list[dict[str, Any]]:
@@ -349,6 +422,7 @@ class LanceDBVectorStore:
         call). A record without a stored vector is absent from the result."""
         if not record_ids:
             return {}
+        await self._commit_pending()
         table = await self._ensure_table()
         quoted = ", ".join("'" + rid.replace("'", "''") + "'" for rid in record_ids)
 
@@ -376,6 +450,7 @@ class LanceDBVectorStore:
         best first, exactly as :meth:`query` ranks them."""
         if not vectors:
             return []
+        await self._commit_pending()
         table = await self._ensure_table()
 
         def _search() -> list[dict[str, Any]]:
@@ -480,6 +555,7 @@ class LanceDBVectorStore:
         byte-identical guard that keeps ``profile="simple"`` unperturbed."""
         if not self._rescore_active:
             return await self.query(namespace, vector, embedder_id, top_k)
+        await self._commit_pending()
         table = await self._ensure_table()
         if not await self._ensure_index(table):
             return await self.query(namespace, vector, embedder_id, top_k)
@@ -508,6 +584,9 @@ class LanceDBVectorStore:
         table = await self._ensure_table()
         escaped = record_id.replace("'", "''")
         async with self._lock:
+            # A held row of this id never reaches the table (no copy to purge); the delete
+            # still runs, for a row written earlier. Other held rows are unaffected.
+            self._pending.pop(record_id, None)
             before = self._seen_epoch
             await asyncio.to_thread(table.delete, f"record_id = '{escaped}'")
             self._wrote(before)
@@ -520,6 +599,7 @@ class LanceDBVectorStore:
     async def delete_all(self) -> None:
         table = await self._ensure_table()
         async with self._lock:
+            self._pending.clear()
             before = self._seen_epoch
             await asyncio.to_thread(table.delete, "record_id IS NOT NULL")
             self._wrote(before)
@@ -546,6 +626,7 @@ class LanceDBVectorStore:
             return True
         table = await self._ensure_table()
         async with self._lock:
+            await self._write_pending(table)  # the rewrite then covers every live row
             pending = set(self._unpurged)
 
             def _purge() -> None:
@@ -577,6 +658,7 @@ class LanceDBVectorStore:
         stay in a data file until compaction rewrites that fragment."""
         if record_id in self._unpurged:
             return False
+        await self._commit_pending()
         await self._ensure_table()
         escaped = record_id.replace("'", "''")
         name = _table_name(self._embedder.embedder_id) + self._table_suffix
@@ -598,6 +680,7 @@ class LanceDBVectorStore:
     async def exists(self, record_id: str) -> bool:
         """M7 ``forget --verify`` support: is a row still present? Without this
         the erasure verifier cannot prove the default backend is clean."""
+        await self._commit_pending()
         table = await self._ensure_table()
         escaped = record_id.replace("'", "''")
 
