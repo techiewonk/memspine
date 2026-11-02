@@ -82,7 +82,12 @@ async def _open(data: Path, *, rerank: bool) -> tuple[Engine, float]:
 
 
 async def seed(
-    work: Path, size: int, *, name: str | None = None, reuse: bool = True
+    work: Path,
+    size: int,
+    *,
+    name: str | None = None,
+    reuse: bool = True,
+    max_seed_s: float = float("inf"),
 ) -> dict[str, Any]:
     """Seed (or reuse) ``work/<name or seed-<size>>``; returns the seeding facts."""
     data = work / (name or f"seed-{size}")
@@ -98,7 +103,10 @@ async def seed(
     texts = corpus_messages(size, seed=size)
     t0 = time.perf_counter()
     per_call: list[float] = []
+    seeded = 0
     for i in range(0, size, SESSION_TURNS):
+        if time.perf_counter() - t0 > max_seed_s:
+            break  # bounded run: the store holds what was seeded so far
         batch = [
             {"role": "user", "sender": SENDER, "content": text}
             for text in texts[i : i + SESSION_TURNS]
@@ -106,18 +114,32 @@ async def seed(
         c0 = time.perf_counter()
         await eng.ingest_messages(batch, namespace=NS, session_id=f"seed-{i // SESSION_TURNS}")
         per_call.append((time.perf_counter() - c0) * 1000)
+        seeded += len(batch)
     ingest_s = time.perf_counter() - t0
+    # Ingest cost by corpus position: per-call time of each tenth of the seeding calls.
+    tenth = max(1, len(per_call) // 10)
+    progression = [
+        {
+            "messages_before": k * SESSION_TURNS,
+            "call_p50_ms": round(percentile(per_call[k : k + tenth], 50), 1),
+        }
+        for k in range(0, len(per_call), tenth)
+    ]
     f0 = time.perf_counter()
     flushed = await eng.flush_windows(NS, final=True)
     flush_s = time.perf_counter() - f0
     await eng.stop()
     info = {
-        "size": size,
-        "sessions": -(-size // SESSION_TURNS),
+        "requested_size": size,
+        "size": seeded,
+        "truncated_by_time_budget": seeded < size,
+        "max_seed_s": max_seed_s,
+        "sessions": -(-seeded // SESSION_TURNS),
         "engine_start_ms": round(start_ms, 1),
         "ingest_wall_s": round(ingest_s, 2),
-        "ingest_msgs_per_s": round(size / ingest_s, 1),
+        "ingest_msgs_per_s": round(seeded / ingest_s, 1),
         "ingest_call_20_turns_ms": summarize(per_call),
+        "ingest_call_progression": progression,
         "flush_windows_s": round(flush_s, 2),
         "flush_counters": {k: v for k, v in flushed.items() if isinstance(v, (int, float))},
         "reused": False,
@@ -192,6 +214,7 @@ async def part_read(args: argparse.Namespace) -> None:
         settings={
             "template": "base (rules-only, onnx bge-small, SQLite + LanceDB + Tantivy)",
             "sizes": args.sizes,
+            "max_seed_s": args.max_seed_s,
             "reps": args.reps,
             "warmups": args.warmups,
             "queries": "perf_protocol.corpus_queries (invented)",
@@ -202,7 +225,7 @@ async def part_read(args: argparse.Namespace) -> None:
     )
     work = Path(args.work_dir)
     for size in args.sizes:
-        info = await seed(work, size)
+        info = await seed(work, size, max_seed_s=args.max_seed_s)
         data = work / f"seed-{size}"
         off = await read_series(data, rerank=False, reps=args.reps, warmups=args.warmups)
         on = await read_series(data, rerank=True, reps=args.reps, warmups=args.warmups)
@@ -402,7 +425,9 @@ async def part_concurrent(args: argparse.Namespace) -> None:
     work = Path(args.work_dir)
     # A store is bound to its path (the projector binding fingerprint), so it is seeded in
     # place rather than copied.
-    rec.record["results"]["seed"] = await seed(work, args.seed_size, name="live", reuse=False)
+    rec.record["results"]["seed"] = await seed(
+        work, args.seed_size, name="live", reuse=False, max_seed_s=args.max_seed_s
+    )
     eng, start_ms = await _open(work / "live", rerank=False)
     rec.record["results"]["engine_start_ms"] = round(start_ms, 1)
     written = args.seed_size
@@ -460,6 +485,7 @@ def main() -> None:
     parser.add_argument("--reps", type=int, default=100)
     parser.add_argument("--warmups", type=int, default=10)
     parser.add_argument("--seed-size", type=int, default=1000)
+    parser.add_argument("--max-seed-s", type=float, default=600.0)
     parser.add_argument("--rates", type=float, nargs="+", default=[1.0, 10.0, 50.0])
     parser.add_argument("--durations", type=float, nargs="+", default=[60.0, 30.0, 10.0])
     parser.add_argument(
