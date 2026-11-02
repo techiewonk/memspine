@@ -707,13 +707,13 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
   }
  },
- "json_schema_sha256": "8ef0f78d89ce92b12a7a0d4005d3353436a9e3d5b3fc789e4c6d4703cc887692",
+ "json_schema_sha256": "3f36e23e1430bc46bf4a2bb081cd90397d9d66d68c2b8faab666c7b3a259fae7",
  "preset:chat_roles": {
   "audit": {
    "actions": false,
@@ -879,7 +879,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -1456,7 +1461,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -1623,7 +1628,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -2200,7 +2210,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -2367,7 +2377,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": 2000,
     "chunk_overlap": 200,
     "context": 0,
@@ -2944,7 +2959,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -3111,7 +3126,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -3688,7 +3708,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -3855,7 +3875,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -4432,7 +4457,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -4599,7 +4624,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -5176,7 +5206,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -5933,7 +5963,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -6694,7 +6724,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -6861,7 +6891,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -7438,7 +7473,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -7605,7 +7640,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -8182,7 +8222,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -8349,7 +8389,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -8926,7 +8971,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -9093,7 +9138,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -9670,7 +9720,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -9837,7 +9887,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -10414,7 +10469,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -10581,7 +10636,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -11158,7 +11218,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -11325,7 +11385,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -11902,7 +11967,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -12069,7 +12134,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -12646,7 +12716,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -13403,7 +13473,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -13575,7 +13645,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -14152,7 +14227,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -14882,7 +14957,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "off",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -15049,7 +15124,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -15626,7 +15706,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -15801,7 +15881,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -16378,7 +16463,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -16549,7 +16634,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -17139,7 +17229,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -17314,7 +17404,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -17891,7 +17986,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -18058,7 +18153,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -18635,7 +18735,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -18803,7 +18903,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -19393,7 +19498,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -19560,7 +19665,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -20140,7 +20250,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0
@@ -20309,7 +20419,12 @@
    "rerank": {
     "balanced": false,
     "blend": null,
-    "chain": [],
+    "chain": [
+     {
+      "provider": "onnx",
+      "settings": {}
+     }
+    ],
     "chunk_chars": null,
     "chunk_overlap": 0,
     "context": 0,
@@ -20886,7 +21001,7 @@
    "window_async": true,
    "window_cache": true,
    "window_extract": "facts",
-   "window_idle_s": 120.0,
+   "window_idle_s": 30.0,
    "window_max_tokens": 1500,
    "window_max_turns": 6,
    "window_topic_k": 2.0

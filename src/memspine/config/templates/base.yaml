@@ -44,10 +44,11 @@ read:
 
 model:                          # ADR-082: one slot per model category
   rerank:
-    chain: []                   # reranking is opt-in per requirement; to enable, e.g.:
-    # chain:
-    #   - {provider: onnx, settings: {}}   # local cross-encoder (or flashrank | qwen3 | openai_compat)
-    # keep: 10                  # ... then keep the best 10
+    # ADR-093 (owner 2026-11-02, measured +23 ms p50 per read on the reference host): the
+    # pinned onnx MiniLM-L6 cross-encoder is the default; weights come from
+    # `memspine models fetch`. `chain: []` turns reranking off.
+    chain:
+      - {provider: onnx, settings: {}}
 
 prompts:
   selection:

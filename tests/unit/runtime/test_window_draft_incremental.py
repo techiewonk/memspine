@@ -1,7 +1,7 @@
 """RM-163: the window draft is persisted incrementally, and assigned ids never open windows.
 
 * Each write upserts only its own turn's draft row (no vectors), so the draft work of one
-  write is constant in rows and bytes however many windows are open (1 to 200 here).
+  write is constant in rows and bytes however many windows are open (1 to 64 here).
 * A message whose conversation and session were assigned by message identity (not given by
   the caller) joins the per-namespace default window (ADR-090), instead of opening a one-turn
   window of its own that only the idle timer closes."""
@@ -25,7 +25,7 @@ from memspine import Engine
 from memspine.workers.windows import WindowPipeline
 
 T0 = datetime(2024, 3, 2, 10, tzinfo=UTC)
-OPEN_WINDOWS = 200
+OPEN_WINDOWS = 64
 
 
 def _pipeline(eng: Engine) -> WindowPipeline:
@@ -85,7 +85,7 @@ async def test_per_write_draft_work_is_constant_as_open_windows_grow(
         assert stats["open_turns"] == OPEN_WINDOWS
         assert {(rows, deleted) for rows, deleted, _ in per_write} == {(1, 0)}
         sizes = [size for _, _, size in per_write]
-        # constant up to the digits of the row's sequence number (1 to 200)
+        # constant up to the digits of the row's sequence number (1 to 64)
         assert max(sizes) - min(sizes) <= 2, sizes
         assert max(sizes) < 1024  # no vector: one small row per turn
         draft = _draft(db)

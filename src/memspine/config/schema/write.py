@@ -51,7 +51,8 @@ class WriteConfig(ConfigModel):
     #: the usual two-sigma outlier line, not tuned. 0 turns the topic boundary off.
     window_topic_k: float = Field(default=2.0, ge=0.0)
     #: Seconds without a write in a namespace before the open window is cut (async mode). 0: never.
-    window_idle_s: float = Field(default=120.0, ge=0.0)
+    #: owner 2026-11-02 (PA-053 measurement): 30 s, so facts are ready ~40 s after a pause
+    window_idle_s: float = Field(default=30.0, ge=0.0)
     #: ``auto``: split a window's call into facts+edges / episode after repeated parse failures;
     #: ``always`` / ``never``. Only matters when more than one section is enabled.
     #: True (live): window calls run in a background task after the write returns (idle
