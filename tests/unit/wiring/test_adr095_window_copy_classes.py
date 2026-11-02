@@ -416,6 +416,47 @@ async def test_prepass_mention_cache(monkeypatch: pytest.MonkeyPatch, tmp_path: 
         await eng.stop()
 
 
+def _resolver_names(stage: Any) -> str:
+    rules = [str(key) for key in stage._rules._cache]
+    vectors = list(stage._vec._data) if stage._vec is not None else []
+    return " ".join([*rules, *vectors]).lower()
+
+
+async def test_resolver_name_caches(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """W2-09 (``write.resolver``): the resolver caches its rule decisions by normalised mention
+    name and the name vectors by name, in process memory. A hard erase leaves neither cache
+    holding the erased turn's names, and the names' cached embeddings leave the KV too."""
+    _router(monkeypatch, {"window_extract": CiteAllLLM()})
+    eng = Engine(
+        **_config(
+            tmp_path / "m.db", llm=True, window_max_turns=2, segment_max_turns=2, resolver=True
+        )
+    )
+    await eng.start()
+    try:
+        turns = await eng.ingest_messages(
+            [
+                _message(1, "I adopted a parrot.", sender="Zebulon"),
+                _message(2, "Dana bakes bread.", sender="Dana"),
+            ],
+            namespace=NS,
+            session_id="s1",
+            conversation_id="s1",
+        )
+        await eng.flush_windows(NS)
+        stage: Any = eng.__dict__.get("_entity_resolve_stage")
+        assert stage is not None, "the resolve stage was not built"
+        assert "zebulon" in _resolver_names(stage), "the resolver caches were not filled"
+        embedder: Any = eng._embedder
+        named = [k for k in stage._vec._data if "zebulon" in k]
+        assert named and await eng._cache.get(embedder._key(named[0], "emb")) is not None  # type: ignore[union-attr]
+        await eng.forget(turns[0].record_id, namespace=NS, hard=True)
+        assert "zebulon" not in _resolver_names(stage)
+        assert await eng._cache.get(embedder._key(named[0], "emb")) is None  # type: ignore[union-attr]
+    finally:
+        await eng.stop()
+
+
 # ---------------------------------------------------------------- in-flight background work
 
 

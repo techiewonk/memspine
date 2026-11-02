@@ -57,6 +57,24 @@ class CashewsCache:
             await self._client.cache.delete(self._key(key))
         self._deleted = True
 
+    async def delete_prefix(self, prefix: str) -> int:
+        """ADR-095: drop every key of this cache's namespace starting with ``prefix``. A disk
+        backend is sharded, and cashews' pattern scan skips sharded disk caches, so its shards
+        are walked directly; other backends use cashews' ``delete_match``. Returns how many
+        keys went (-1 when the backend does not report it)."""
+        full = self._key(prefix)
+        shards = [
+            shard
+            for backend in getattr(self._client.cache, "_backends", {}).values()
+            for shard in _disk_shards(backend)
+        ]
+        self._deleted = True
+        if shards:
+            return await asyncio.to_thread(_delete_prefix, shards, full)
+        async with asyncio.timeout(self._request_timeout_s):
+            await self._client.cache.delete_match(full + "*")
+        return -1
+
     async def compact(self) -> bool:
         """ADR-095 (caches copy class): a disk backend (diskcache SQLite) deletes a key only
         logically; the key, which carries the erased text's hash, stays in the database's free
@@ -87,6 +105,15 @@ def _disk_shards(backend: object) -> list[Any]:
         return []
     shards = getattr(inner, "_shards", None)
     return list(shards) if shards is not None else [inner]
+
+
+def _delete_prefix(shards: list[Any], prefix: str) -> int:
+    count = 0
+    for shard in shards:
+        for key in [k for k in shard.iterkeys() if isinstance(k, str) and k.startswith(prefix)]:
+            if shard.delete(key):
+                count += 1
+    return count
 
 
 def _vacuum_all(shards: list[Any]) -> bool:

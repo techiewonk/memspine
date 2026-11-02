@@ -46,3 +46,11 @@ class MemoryKV:
 
     async def delete(self, key: str) -> None:
         self._data.pop(key, None)
+
+    async def delete_prefix(self, prefix: str) -> int:
+        """ADR-095: drop every key starting with ``prefix`` (e.g. every cached query vector).
+        Optional on the port; returns how many keys went."""
+        doomed = [k for k in self._data if k.startswith(prefix)]
+        for key in doomed:
+            del self._data[key]
+        return len(doomed)

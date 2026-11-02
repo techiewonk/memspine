@@ -900,6 +900,10 @@ class OnlineResolver:
     def __len__(self) -> int:
         return len(self._cache)
 
+    def clear(self) -> None:
+        """ADR-095: drop every cached decision (its keys hold normalised mention names)."""
+        self._cache.clear()
+
     def resolve(
         self,
         mention: MentionView | Mention | str,

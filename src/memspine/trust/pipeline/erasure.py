@@ -401,12 +401,20 @@ async def _purge_caches(eng: Any, texts: Sequence[str]) -> None:
     for key in [k for k in eng._sentence_vectors if k[1] in erased]:
         del eng._sentence_vectors[key]
     forget_mentions(erased)
+    # ADR-095: query vectors are keyed by the query, which may name an erased subject: all go.
+    forget_queries = getattr(eng._embedder, "forget_queries", None)
+    if callable(forget_queries) and not await forget_queries():
+        _log.warning("memory.forget_query_vectors_kept", reason="kv_without_delete_prefix")
     forget_embedding = getattr(eng._embedder, "forget", None)
     for text in texts:
         if callable(forget_embedding):
             await forget_embedding(text)
         if eng._cached_extractor is not None:
             await eng._cached_extractor.forget(text)
+    # ADR-095 (resolver name caches): the W2-09 resolver's decision and name-vector caches.
+    resolve = eng.__dict__.get("_entity_resolve_stage")
+    if resolve is not None:
+        await resolve.forget_names(forget_embedding if callable(forget_embedding) else None)
 
 
 async def _forget_locked(

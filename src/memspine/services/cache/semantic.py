@@ -2,7 +2,9 @@
 
 Keys carry the *identity of the producer*, not just the content:
 
-- embeddings — ``emb:{embedder_id}:{xxh64(content)}`` (model swap invalidates),
+- embeddings — ``emb:{embedder_id}:{xxh64(content)}`` (model swap invalidates); query
+  vectors under their own ``embq{variant}:`` keys, every embedder (ADR-095: a hard erase drops
+  them all, since a query naming an erased subject is keyed by the query, not the record),
 - extraction — ``ext:{model_id}:{prompt_version}:{xxh64(content)}`` (a prompt upgrade
   cleanly invalidates, D-43/N7 — prompt provenance as a cache key; R3-15: the model id is
   part of the key too, a model swap on the same prompt used to serve the old model's facts).
@@ -24,6 +26,9 @@ from memspine.services.concurrency import model_slot
 from memspine.services.embedding.base import EmbedderManifest, EmbeddingService
 
 __all__ = ["CachedEmbedding", "CachedExtractor"]
+
+#: ADR-095: the key prefix of every cached query vector (``embq`` + the query variant).
+QUERY_KEY_PREFIX = "embq"
 
 
 def _pack(vector: list[float]) -> bytes:
@@ -72,16 +77,28 @@ class CachedEmbedding:
         for prefix in {"emb", "embq", f"embq{variant}"}:
             await self._kv.delete(self._key(text, prefix))
 
+    async def forget_queries(self) -> bool:
+        """ADR-095 erasure: drop every cached query vector. A query that names an erased subject
+        ("where does Zebulon live") is keyed by its own text, which no record holds, so the
+        erasure cannot name its key; query vectors are cheap to recompute, so all of them go.
+        False when the KV cannot delete by prefix (a custom backend): they then stay until
+        their TTL."""
+        delete_prefix = getattr(self._kv, "delete_prefix", None)
+        if not callable(delete_prefix):
+            return False
+        await delete_prefix(QUERY_KEY_PREFIX)
+        return True
+
     async def embed_queries(self, texts: list[str]) -> list[list[float]]:
-        """Query path for asymmetric embedders; cached under its own keys so a
-        query vector is never served as a document vector (or vice versa)."""
+        """Query path; cached under its own keys so a query vector is never served as a
+        document vector (or vice versa), and so an erasure can drop every query vector
+        (ADR-095). A symmetric embedder (no ``embed_queries``) embeds the query as a document."""
         inner = getattr(self._inner, "embed_queries", None)
-        if inner is None:
-            return await self.embed(texts)
+        producer = inner if inner is not None else self._inner.embed
         # N64: a query instruction changes the query vector; key it in, so turning
         # the instruction on or off never serves a vector made under the other.
         variant = getattr(self._inner, "query_variant", "")
-        return await self._cached(texts, inner, f"embq{variant}")
+        return await self._cached(texts, producer, f"{QUERY_KEY_PREFIX}{variant}")
 
     async def embed(self, texts: list[str]) -> list[list[float]]:
         return await self._cached(texts, self._inner.embed, "emb")

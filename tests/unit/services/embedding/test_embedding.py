@@ -84,3 +84,24 @@ async def test_memory_kv_ttl_and_eviction() -> None:
     assert await kv.get("t") is None
     await kv.delete("b")
     assert await kv.get("b") is None
+
+
+async def test_memory_kv_delete_prefix() -> None:
+    kv = MemoryKV()
+    for key in ("embq:a", "embqX:b", "emb:c"):
+        await kv.set(key, b"v")
+    assert await kv.delete_prefix("embq") == 2
+    assert await kv.get("emb:c") == b"v" and await kv.get("embq:a") is None
+
+
+async def test_forget_queries_drops_every_query_vector_and_keeps_documents() -> None:
+    """ADR-095: query vectors live under their own keys (also for a symmetric embedder), so an
+    erasure drops all of them; document vectors stay."""
+    kv = MemoryKV()
+    cached = CachedEmbedding(HashEmbedding(dim=16), kv)
+    await cached.embed(["a document"])
+    await cached.embed_queries(["where does Zebulon live"])
+    assert await kv.get(cached._key("where does Zebulon live", "embq")) is not None
+    assert await cached.forget_queries() is True
+    assert [k for k in kv._data if k.startswith("embq")] == []
+    assert await kv.get(cached._key("a document", "emb")) is not None

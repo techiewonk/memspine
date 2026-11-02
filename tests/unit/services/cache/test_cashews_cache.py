@@ -80,6 +80,27 @@ async def test_compact_leaves_no_deleted_key_in_the_disk_files(tmp_path: Path) -
         await client.close()
 
 
+@pytest.mark.parametrize("disk", [True, False])
+async def test_delete_prefix(tmp_path: Path, disk: bool) -> None:
+    """ADR-095: every key of this cache's namespace with the prefix goes (the sharded disk
+    backend is walked directly; cashews' own pattern scan skips it)."""
+    url = f"disk://?directory={tmp_path / 'cache'}" if disk else "mem://"
+    client = CashewsClient(CashewsSpec(url))
+    await client.open()
+    try:
+        kv = CashewsCache(client, namespace="a")
+        other = CashewsCache(client, namespace="b")
+        for key in ("embq:1", "embqV:2", "emb:3"):
+            await kv.set(key, b"v")
+        await other.set("embq:1", b"w")
+        await kv.delete_prefix("embq")
+        assert await kv.get("embq:1") is None and await kv.get("embqV:2") is None
+        assert await kv.get("emb:3") == b"v"
+        assert await other.get("embq:1") == b"w"  # another namespace keeps its keys
+    finally:
+        await client.close()
+
+
 async def test_compact_is_a_no_op_on_a_memory_backend() -> None:
     client = CashewsClient(CashewsSpec("mem://"))
     await client.open()

@@ -93,6 +93,12 @@ class _VectorCache:
     def __len__(self) -> int:
         return len(self._data)
 
+    def drain(self) -> list[str]:
+        """ADR-095: empty the cache; returns the names it held (to drop their KV vectors)."""
+        names = list(self._data)
+        self._data.clear()
+        return names
+
     async def vectors(self, surfaces: Sequence[str]) -> list[list[float]]:
         keys = [normalise_name(s) or s for s in surfaces]
         missing = list(dict.fromkeys(k for k in keys if k not in self._data))
@@ -128,6 +134,22 @@ class EntityResolveStage:
 
     def as_stage(self) -> EnvelopeStage:
         return EnvelopeStage("resolve", RESOLVE_ORDER, self.run)
+
+    async def forget_names(
+        self, forget_vector: Callable[[str], Awaitable[None]] | None = None
+    ) -> int:
+        """ADR-095 (resolver name caches): a hard erase empties the rule resolver's decision
+        cache (keyed by the normalised mention name) and the name-vector cache, and drops the
+        cached embeddings of those names (``forget_vector``, the embedder's ``forget``). Both
+        caches only save work (a hit never changes a result), so clearing them all is safe and
+        needs no name-to-record mapping. Returns how many names left the vector cache."""
+        async with self._lock:
+            self._rules.clear()
+            names = self._vec.drain() if self._vec is not None else []
+        if forget_vector is not None:
+            for name in names:
+                await forget_vector(name)
+        return len(names)
 
     # --- log -------------------------------------------------------------------------------------
     async def _load(self) -> None:

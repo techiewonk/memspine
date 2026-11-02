@@ -65,6 +65,8 @@ COPY_CLASSES: dict[str, tuple[str, str]] = {
     "mention projection": ("test_adr095_erasure_gate", "test_mention_projection"),
     "caches (kv)": ("test_adr095_erasure_gate", "test_kv_caches"),
     "caches (read results and memos)": ("test_adr095_erasure_gate", "test_read_side_caches"),
+    "cached query vectors": ("test_adr095_erasure_gate", "test_cached_query_vectors"),
+    "resolver name caches": ("test_adr095_window_copy_classes", "test_resolver_name_caches"),
     "logs and traces": ("test_adr095_erasure_gate", "test_logs_and_traces"),
     "restored backups": ("test_adr095_erasure_gate", "test_restored_backup_re_hides"),
     "truncated packed excerpts": ("test_adr095_erasure_gate", "test_truncated_packed_excerpts"),
@@ -551,6 +553,39 @@ async def test_kv_disk_cache_files(tmp_path: Path) -> None:
     assert _file_hits(tmp_path / "kv", [xxhash.xxh64_hexdigest(SECRET.encode())]) == {}
 
 
+QUERY = "where does Zebulon live"
+
+
+@pytest.mark.parametrize("backend", ["memory", "disk"])
+async def test_cached_query_vectors(tmp_path: Path, backend: str) -> None:
+    """A query naming the erased subject is cached under its own text, which no record holds,
+    so the erasure cannot name its key: a hard erase drops every cached query vector (memory
+    and disk KV; the disk files keep no page of the key's xxh64). Document vectors of live
+    records stay."""
+    cache = (
+        {"provider": "memory"}
+        if backend == "memory"
+        else {"provider": "disk", "settings": {"path": str(tmp_path / "kv")}}
+    )
+    eng = await _start(tmp_path, cache=cache)
+    try:
+        gone, _ = await _seed(eng)
+        await eng.search(QUERY, namespace=NS)
+        embedder: Any = eng._embedder
+        variant = getattr(getattr(embedder, "_inner", embedder), "query_variant", "")
+        key = embedder._key(QUERY, f"embq{variant}")
+        assert await eng._cache.get(key) is not None, "the query vector was not cached"  # type: ignore[union-attr]
+        await eng.forget(gone.record_id, namespace=NS, hard=True)
+        assert await eng._cache.get(key) is None  # type: ignore[union-attr]
+        assert await eng._cache.get(embedder._key(KEPT, "emb")) is not None  # type: ignore[union-attr]
+        if backend == "memory":
+            assert [k for k in _kv_keys(eng._cache) if k.startswith("embq")] == []
+    finally:
+        await eng.stop()
+    if backend == "disk":
+        assert _file_hits(tmp_path / "kv", [xxhash.xxh64_hexdigest(QUERY.encode())]) == {}
+
+
 def _read_cache_dump(eng: Engine) -> str:
     cache = eng.__dict__.get("_read_result_cache")
     if cache is None:
@@ -789,6 +824,8 @@ def test_every_copy_class_has_a_gate_test() -> None:
         "prepass mention cache",
         "caches (kv)",
         "caches (read results and memos)",
+        "cached query vectors",
+        "resolver name caches",
         "logs and traces",
         "restored backups",
         "truncated packed excerpts",
