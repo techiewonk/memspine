@@ -24,8 +24,8 @@ BUILTIN_PACK_FILES: Mapping[str, str] = MappingProxyType(
 )
 BUILTIN_PACK_DIGESTS: Mapping[str, str] = MappingProxyType(
     {
-        "memspine.core": "6f4c055db5e1d852a87d060bef33a874babaa2b01d3deae35a291f66afb121b1",
-        "memspine.proposed": "e5c014b6737e6d223197c3109368541f65f6e3fd39a9c7010ad15aed4c4d7cf9",
+        "memspine.core": "688f2b4551d95ccb9716cada53ca21ceea2321329d453c274c02e870a2b33815",
+        "memspine.proposed": "6a2d3037a7dfbe146f1f160492e62f1da9ee003055ac303fbbba654b5594f9bd",
     }
 )
 

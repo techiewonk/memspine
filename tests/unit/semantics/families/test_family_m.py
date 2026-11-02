@@ -15,7 +15,7 @@ from memspine.services.graph.qualifiers import EdgeQualifiers, QualifierFilter
 class TestFamilyM(FamilyContract):
     FAMILY = "travel_modes"
     DOMAIN = "travel"
-    ACTIVE = False
+    ACTIVE = True
     POSITIVE = (
         Claim(
             "visited",

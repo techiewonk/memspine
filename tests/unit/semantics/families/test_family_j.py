@@ -1,8 +1,9 @@
-"""Family J: possession lifecycle and opinions (RM-62), domain ``personal``."""
+"""Family J: possession lifecycle and opinions (RM-62), domain ``personal``.
+
+Activated once ``owns`` accepted species objects (owner decision 2026-11-02, ADR-094
+amendment), so every J event that opens or closes ``owns`` names a value it can hold."""
 
 from __future__ import annotations
-
-import pytest
 
 from families._harness import Claim, Door, Fact, FamilyContract, number, role, text
 from memspine.semantics import SemanticRegistry
@@ -12,7 +13,7 @@ from memspine.services.graph.qualifiers import EdgeQualifiers
 class TestFamilyJ(FamilyContract):
     FAMILY = "possession_lifecycle"
     DOMAIN = "personal"
-    ACTIVE = False
+    ACTIVE = True
     POSITIVE = (
         Claim("acquired", object_entity_type="object"),
         Claim("disposed_of", object_entity_type="work"),
@@ -50,18 +51,6 @@ class TestFamilyJ(FamilyContract):
     DOOR = Door("I lost my umbrella.", "lost", "umbrella", "entity", "object")
     DOOR_NEGATIVE = Door("I lost Utrecht.", "lost", "Utrecht", "entity", "place")
     FACT = Fact("Ilse", "lost", "Umbrella", kind="event")
-
-    @pytest.mark.xfail(
-        strict=True,
-        reason=(
-            "RM-62 J stays proposed: acquired, disposed_of, lost and returned open/close "
-            "owns and accept species objects, but owns cannot hold a species, so the "
-            "explicit transition has no well-typed target (owner decision: add species to "
-            "owns or drop it from the J events)"
-        ),
-    )
-    def test_positive(self, registry: SemanticRegistry) -> None:
-        super().test_positive(registry)
 
     def extra_positive(self, registry: SemanticRegistry, qualifiers: list[EdgeQualifiers]) -> None:
         """An event that opens or closes a state only through an explicit transition must
