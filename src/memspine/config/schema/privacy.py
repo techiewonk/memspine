@@ -70,7 +70,9 @@ class PrivacyConfig(ConfigModel):
       dependant keeps its row and its WRITE events (the erased text on disk, never served). On:
       each hidden dependant is hard-forgotten instead (row, log payloads, indexes, caches), and its
       queue entry is marked ``dropped_no_rederive`` (not consumed by the offline runner). Off
-      (default): dependants stay hidden and queued, as before.
+      (default, ADR-095 amendment 2026-11-02): a dependant with a live source left stays hidden
+      and queued; one whose every source is gone is still redacted the same way (an id-only
+      tombstone stays in the manifest, the queue and its lineage edges).
     - ``erasure_rederive`` (FU-ERASE; needs ``erasure``, no effect on dependants that
       ``erasure_redact_hidden`` already dropped): the sleep stage ``erasure_rederive`` consumes
       the queue. A hidden dependant that is a session or community summary or a mined fact is

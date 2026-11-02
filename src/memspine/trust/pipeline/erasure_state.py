@@ -73,7 +73,8 @@ __all__ = [
     "visible_id",
 ]
 
-#: queue-entry state of a hidden dependant that ``privacy.erasure_redact_hidden`` hard-forgot
+#: queue-entry state of a hidden dependant hard-forgotten instead of re-derived: every one under
+#: ``privacy.erasure_redact_hidden``, and by default one with no live source left (ADR-095)
 DROPPED = "dropped_no_rederive"
 MARKER_MANIFEST = "erasure_manifest"
 MARKER_PURGE = "erasure_purge"
@@ -306,17 +307,26 @@ async def forget(
         plan = plan_erasure([record_id], graph, generation=generation, already_lost=prior.lost)
         redact = bool(eng._config().privacy.erasure_redact_hidden)
         dropped: list[str] = []  # F2: hidden dependants hard-forgotten instead of re-derived
+        orphaned: set[str] = set()  # ADR-095 2026-11-02: no live source left to re-derive from
         for a in plan.actions:
             if a.hidden:
                 dep = await storage.get_record(a.record_id)
                 if dep is not None and dep.namespace == ns:
                     texts.extend(eng._erasable_texts(dep))
-                    if redact:
+                    # ADR-095 amendment 2026-11-02 (owner): a dependant whose every source is
+                    # gone is redacted by default (text and quote removed; its id stays in the
+                    # manifest's hidden list and the queue as an id-only tombstone). One with a
+                    # live source stays hidden with its text, pending re-derivation, unless
+                    # ``erasure_redact_hidden`` redacts every hidden dependant.
+                    no_source = a.needs_rederivation and not a.remaining_sources
+                    if redact or no_source:
                         try:
                             await eng._forget_target(storage, ns, a.record_id, True)
                         except MemspineError:  # legal hold: it stays hidden, queued as planned
                             continue
                         dropped.append(a.record_id)
+                        if not redact:
+                            orphaned.add(a.record_id)
         # Immediate invisibility: before any physical work, under the namespace lock.
         eng.__dict__["_erasure_state"] = apply_plan(prior, plan)
         eng.__dict__["_erasure_generation"] = generation
@@ -374,13 +384,22 @@ async def forget(
         await eng._forget_many(storage, ns, [record_id], True)
         if dropped:
             await eng._forget_many(storage, ns, dropped, True)
-            gone = await storage.lineage_parents(dropped)
-            gone_kids = await storage.lineage_children(dropped)
-            edges = [e for es in (*gone.values(), *gone_kids.values()) for e in es]
-            if edges:
-                await storage.delete_lineage(edges)
+            # The opt-in drops the dropped rows' lineage too; a sourceless dependant redacted
+            # by default keeps its id-only lineage edges (the tombstone the owner asked for).
+            unlinked = [rid for rid in dropped if rid not in orphaned]
+            if unlinked:
+                gone = await storage.lineage_parents(unlinked)
+                gone_kids = await storage.lineage_children(unlinked)
+                edges = [e for es in (*gone.values(), *gone_kids.values()) for e in es]
+                if edges:
+                    await storage.delete_lineage(edges)
             if tap.enabled():
-                tap.event("trust.erasure.redact_hidden", manifest=manifest_id, dropped=len(dropped))
+                tap.event(
+                    "trust.erasure.redact_hidden",
+                    manifest=manifest_id,
+                    dropped=len(dropped),
+                    no_source=len(orphaned),
+                )
         keep_lineage = str(reason or "").startswith("retention")  # expiry keeps lineage (ER-27)
         if eng._config().write.lineage_table and plan.edges_to_remove and not keep_lineage:
             await storage.delete_lineage(plan.edges_to_remove)

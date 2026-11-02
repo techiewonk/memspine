@@ -178,19 +178,11 @@ def _sha(text: str) -> str:
 # ---------------------------------------------------------------- copied excerpts
 
 
-_HIDDEN_KEEPS_TEXT = pytest.mark.xfail(
-    strict=True,
-    reason="RM-135 follow-up: with privacy.erasure_redact_hidden off (the default, F2), a hard "
-    "erase only hides a sole-source window fact pending re-derivation; its row and WRITE event "
-    "keep the fact text and evidence quote (trust/pipeline/erasure_state.py:314) even when no "
-    "live source is left to re-derive from",
-)
-
-
 @pytest.mark.parametrize(
     ("hard", "redact_hidden"),
     [
-        pytest.param(True, False, marks=_HIDDEN_KEEPS_TEXT, id="hard-default"),
+        # ADR-095 amendment 2026-11-02: a sole-source fact is redacted by default.
+        pytest.param(True, False, id="hard-default"),
         pytest.param(True, True, id="hard-redact_hidden"),
         pytest.param(False, False, id="soft"),
     ],

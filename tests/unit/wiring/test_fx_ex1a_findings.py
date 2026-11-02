@@ -239,17 +239,23 @@ def test_redact_flag_defaults_off() -> None:
 
 
 async def test_verify_forget_classifies_current_erasure_state() -> None:
+    """ADR-095 amendment 2026-11-02: a dependant with a live source left (``joint``, a member of
+    a and b) is hidden pending re-derivation; one whose only source was erased (``only_a``) is
+    redacted by default, so it is no longer a descendant; an independently supported one
+    (``both``) is kept."""
     eng = _engine(privacy={})
     await eng.start()
     try:
         a, b = await _turns(eng)
         only_a = await _derive_u(eng, f"User keeps a hive named {LANTERN}", [a.record_id])
+        joint = await _derive_u(eng, "User and sister share a hive", [a.record_id, b.record_id])
         both = await _derive_u(
             eng, "User and sister talk", [a.record_id, b.record_id], independent=True
         )
         await eng.forget(a.record_id, namespace="u", hard=True)
+        assert await eng._require_started().get_record(only_a.record_id) is None
         verdict = await eng.verify_forget(a.record_id, "u")
-        assert verdict["descendants_hidden_pending_rederive"] == [only_a.record_id]
+        assert verdict["descendants_hidden_pending_rederive"] == [joint.record_id]
         assert verdict["descendants_kept"] == [both.record_id]
         assert verdict["descendants_leaked"] == []
         assert verdict["clean"] is True, verdict
@@ -261,13 +267,15 @@ async def test_f4_a_visible_dependant_with_no_other_parent_is_a_leak() -> None:
     eng = _engine(privacy={})
     await eng.start()
     try:
-        a, _ = await _turns(eng)
-        only_a = await _derive_u(eng, f"User keeps a hive named {LANTERN}", [a.record_id])
+        a, b = await _turns(eng)
+        joint = await _derive_u(eng, "User and sister share a hive", [a.record_id, b.record_id])
         await eng.forget(a.record_id, namespace="u", hard=True)
-        # simulate a release that made the hidden dependant visible without re-deriving it
-        await eng.erasure_release([only_a.record_id], "u")
+        # simulate a release that made the hidden dependant visible without re-deriving it,
+        # then erase its other source without the cascade: no live parent is left
+        await eng.erasure_release([joint.record_id], "u")
+        await eng.forget(b.record_id, namespace="u", hard=True, cascade=False)
         verdict = await eng.verify_forget(a.record_id, "u")
-        assert verdict["descendants_leaked"] == [only_a.record_id]
+        assert verdict["descendants_leaked"] == [joint.record_id]
         assert verdict["clean"] is False
     finally:
         await eng.stop()
@@ -307,15 +315,41 @@ async def test_f2_redact_hidden_removes_every_trace_of_the_erased_text(tmp_path:
 
 
 async def test_f2_off_keeps_the_hidden_row_and_its_text(tmp_path: Path) -> None:
+    """Off (the default): a hidden dependant with a live source left keeps its row and text,
+    queued for re-derivation (ADR-095 amendment 2026-11-02)."""
+    eng = _engine(tmp_path, privacy={})
+    await eng.start()
+    try:
+        a, b = await _turns(eng)
+        joint = await _derive_u(
+            eng, f"User and sister share a hive named {LANTERN}", [a.record_id, b.record_id]
+        )
+        await eng.forget(a.record_id, namespace="u", hard=True)
+        assert await eng._require_started().get_record(joint.record_id) is not None
+        assert [i["record_id"] for i in eng.erasure_queue()] == [joint.record_id]
+        assert eng.erasure_status()["dropped_no_rederive"] == 0
+    finally:
+        await eng.stop()
+    assert _on_disk(tmp_path / "m.db", LANTERN)  # the negative control: the scan can see it
+
+
+async def test_f2_off_redacts_a_hidden_dependant_with_no_source_left(tmp_path: Path) -> None:
+    """ADR-095 amendment 2026-11-02 (owner): off, a dependant whose every source is erased is
+    redacted by default: no text on disk, an id-only tombstone (dropped queue entry, hidden id,
+    lineage edges)."""
     eng = _engine(tmp_path, privacy={})
     await eng.start()
     try:
         a, _ = await _turns(eng)
         only_a = await _derive_u(eng, f"User keeps a hive named {LANTERN}", [a.record_id])
         await eng.forget(a.record_id, namespace="u", hard=True)
-        assert await eng._require_started().get_record(only_a.record_id) is not None
-        assert [i["record_id"] for i in eng.erasure_queue()] == [only_a.record_id]
-        assert eng.erasure_status()["dropped_no_rederive"] == 0
+        assert await eng._require_started().get_record(only_a.record_id) is None
+        assert eng.erasure_queue() == []
+        (entry,) = eng.erasure_queue(include_dropped=True)
+        assert entry["record_id"] == only_a.record_id and entry["state"] == "dropped_no_rederive"
+        assert eng.erasure_status()["dropped_no_rederive"] == 1
+        verdict = await eng.verify_forget(a.record_id, "u")
+        assert verdict["clean"] is True, verdict
     finally:
         await eng.stop()
-    assert _on_disk(tmp_path / "m.db", LANTERN)  # the negative control: the scan can see it
+    assert _on_disk(tmp_path / "m.db", LANTERN) == []

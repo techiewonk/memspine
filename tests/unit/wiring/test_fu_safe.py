@@ -179,7 +179,12 @@ async def test_lesson_goes_through_the_door_and_follows_erasure() -> None:
         assert stored is not None and stored.layer
         await eng.forget(step.record_id, namespace="default", hard=True)
         assert eng.erasure_status()["hidden"] >= 1
-        assert lesson.record_id in {i["record_id"] for i in eng.erasure_queue()}
+        # ADR-095 amendment 2026-11-02: the lesson's only source is erased, so it is redacted
+        # by default (row gone) and kept as an id-only tombstone in the queue.
+        assert await storage.get_record(lesson.record_id) is None
+        states = {str(i["record_id"]): i["state"] for i in eng.erasure_queue(include_dropped=True)}
+        assert states.get(lesson.record_id) == "dropped_no_rederive"
+        assert lesson.record_id not in {i["record_id"] for i in eng.erasure_queue()}
     finally:
         await eng.stop()
 
