@@ -34,3 +34,10 @@ Further copy classes:
 - truncated packed excerpts.
 
 Each wave that adds a copy class adds its erasure test in the same wave.
+
+## Amendment 2026-11-02 (owner decision: hidden facts)
+
+A derived fact whose every source has been erased is redacted by default: its text and quote
+are removed and an id-only tombstone is kept for lineage. A fact that still has a live source
+stays hidden with its text, pending re-derivation. `erasure_redact_hidden` remains the opt-in
+that redacts every hidden fact.

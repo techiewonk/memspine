@@ -21,3 +21,15 @@ Built-in packs declare no top domain, so `graph_filter` by domain cannot match b
   `memspine.proposed`.
 - RM-66 closes as not applicable in the first cycle. The alias audit script stays as an
   optional diagnostic.
+
+## Amendment 2026-11-02 (owner decisions)
+
+- `owns` accepts species objects (pets and animals can be owned). Family J activates once its
+  fixtures pass.
+- Family M carries `participation_mode` as a claim qualifier through the canonical fact door;
+  it activates once the edge compiler fills it.
+- The judgement-call domains stand as built: commitments to work, documents to learning,
+  instructions to tools, and `colleague_of` and `occupation` in the work-status family.
+- Claim role bindings (obligor, beneficiary, participant and the like) compile into qualified
+  graph edges, so graph search and `graph_filter` can reach them. Claim qualifiers and
+  `statement_kind` pass through to claims and edges.

@@ -63,3 +63,15 @@ RM-146 (2026-11-01): `known_at` (timezone-aware; the time the claim was recorded
 producers. The model path sets the hash only when its window lines carry one.
 
 Open follow-ups: the edge compiler takes `status` from the live record rather than the write-time snapshot; reported claims are not facts.
+
+## Amendment 2026-11-02 (owner decision: rules scope)
+
+The rules-only default gains conservative deterministic rules:
+- residence moves with origin and destination at source precision;
+- visits;
+- corrections that supersede a prior claim from the same sender;
+- single-sentence pronoun coreference;
+- measurements with typed units, currency and amounts;
+- multi-source restatement support, so a claim keeps every supporting source.
+
+Anything ambiguous stays an unresolved annotation.
