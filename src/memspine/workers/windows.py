@@ -2351,6 +2351,7 @@ class WindowPipeline:
                 if not batch.covered and not batch.edges:
                     store.pending.remove(batch)
             await self._persist_draft(namespace, store)
+        await self._forget_in_stored_draft(namespace, record_id)
         for ready in self._prefetched.values():  # W2-05: a batched call's results, not committed
             if ready is not None and record_id in ready.job.members:
                 ready.job.cancelled = True
@@ -2363,6 +2364,32 @@ class WindowPipeline:
                     await self._cache.delete(key)
                 except Exception as exc:  # best effort; the entry is only a cached reply
                     _log.warning("window.cache_purge_failed", error=str(exc))
+
+    async def _forget_in_stored_draft(self, namespace: str, record_id: str) -> None:
+        """ADR-095 (window drafts): a namespace whose draft was not restored yet (a forget is the
+        first thing a restarted engine does there) keeps the turn only in the stored draft:
+        rewrite it without the turn (its id, content hash and vector). Under the restore lock,
+        so a concurrent first write restores the rewritten draft, never the old one."""
+        if (
+            self._outbox is None
+            or not hasattr(self._outbox, "load_draft")
+            or not hasattr(self._outbox, "save_draft")
+            or namespace in self._draft_restored
+        ):
+            return
+        async with self._restore_lock:
+            if namespace in self._draft_restored:
+                return  # restored meanwhile: the in-memory purge above already rewrote it
+            scope = self._scope(namespace)
+            payload = await self._outbox.load_draft(scope, WINDOW_STAGE)
+            if not payload:
+                return
+            turns = [t for t in payload.get("turns", []) if str(t.get("record_id")) != record_id]
+            if len(turns) == len(payload.get("turns", [])):
+                return
+            kept = {**payload, "turns": turns} if turns else None
+            await self._outbox.save_draft(scope, WINDOW_STAGE, kept)
+            self._counts["turns_dropped_forget"] += 1
 
     def take_edges(self, namespace: str) -> list[WindowEdgeBatch]:
         """Hand the pending call-1 edge batches of ``namespace`` to the sleep stage."""

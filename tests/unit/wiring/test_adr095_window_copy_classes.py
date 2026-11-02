@@ -266,15 +266,7 @@ def _draft_needles(turn: Any) -> list[str]:
     return [turn.record_id, *map(str, (envelope.get("input_fingerprints") or {}).values())]
 
 
-_DRAFT_AFTER_RESTART = pytest.mark.xfail(
-    strict=True,
-    reason="RM-135 follow-up: WindowPipeline.on_forget rewrites the open-window draft only when "
-    "the namespace's store is loaded (workers/windows.py:2285); a forget before a restarted "
-    "engine restores the draft leaves the turn's id, content hashes and vector in outbox_draft",
-)
-
-
-@pytest.mark.parametrize("restart", [False, pytest.param(True, marks=_DRAFT_AFTER_RESTART)])
+@pytest.mark.parametrize("restart", [False, True])
 async def test_window_drafts(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, restart: bool
 ) -> None:
