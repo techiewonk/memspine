@@ -115,13 +115,16 @@ def test_explicit_engine_config_revalidates_mutated_nested_model() -> None:
 def test_explicit_engine_config_accepts_valid_edits_before_startup() -> None:
     config = MemspineConfig.model_validate(
         {
+            # RM-155: a prebuilt config's provider settings are validated too
+            "storage": {"records": {"settings": {"path": ":memory:", "busy_timeout_s": 5.0}}},
+            "model": {"embedding": {"provider": "hash"}},
             "runtime": {
                 "provider_services": {
                     "health_timeout_s": 1.0,
                     "close_timeout_s": 1.0,
                     "startup_timeout_s": None,
                 }
-            }
+            },
         }
     )
     config.read.candidate_pool = 6
@@ -241,7 +244,7 @@ async def test_job_scope_needs_the_pipeline_hook() -> None:
 
 async def test_a_ready_config_skips_the_bootstrap() -> None:
     config = MemspineConfig(
-        storage={"records": {"settings": {"path": ":memory:"}}},
+        storage={"records": {"settings": {"path": ":memory:", "busy_timeout_s": 5.0}}},
         model={"embedding": {"provider": "hash"}},
         runtime={
             "provider_services": {

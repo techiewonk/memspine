@@ -37,6 +37,7 @@ async def _engine(
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {"provider": "sqlite", "settings": {"path": path, "busy_timeout_s": 5.0}}
         },

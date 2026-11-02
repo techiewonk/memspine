@@ -171,6 +171,7 @@ def _overrides(db: Path, redact: bool = False, rederive: bool = False) -> dict[s
     """
     return {
         "template": "core",
+        "deployment": {"id": "ex1a-embedded"},  # RM-155: the LLM slots are shared providers
         "storage": {
             "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
         },

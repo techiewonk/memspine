@@ -113,6 +113,7 @@ def _config(path: Path, *, llm: bool, associative: bool = False, **write: Any) -
     return {
         "template": "core",
         "dotenv_path": None,
+        "deployment": {"id": "test-deployment"},  # RM-155: shared LLM
         "storage": {
             "records": {"provider": "sqlite", "settings": {"path": str(path), "busy_timeout_s": 5}}
         },

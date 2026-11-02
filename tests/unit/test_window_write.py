@@ -172,6 +172,7 @@ async def _engine(
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",
@@ -393,6 +394,7 @@ async def test_off_by_default_is_inert() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",
@@ -416,6 +418,7 @@ async def test_missing_role_or_layer_fails_at_start() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",
@@ -728,6 +731,7 @@ async def test_close_session_without_windows_records_boundary() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",

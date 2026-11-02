@@ -92,8 +92,15 @@ def test_removed_fields_use_strict_schema_errors():
 def test_future_lexical_provider_name_is_not_reserved_by_the_schema():
     from memspine.config.loader import load_config
 
+    # RM-155: load_config validates the selected provider, so give it its settings and the
+    # deployment.id a shared provider needs
+    lexical = {
+        "provider": "opensearch",
+        "settings": {"connect_timeout_s": 1.0, "request_timeout_s": 1.0},
+    }
     config = load_config(
-        template="base", overrides={"storage": {"lexical": {"provider": "opensearch"}}}
+        template="base",
+        overrides={"deployment": {"id": "flags"}, "storage": {"lexical": lexical}},
     )
     assert config.config.storage.lexical.provider == "opensearch"
 

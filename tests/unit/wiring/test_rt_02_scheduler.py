@@ -591,6 +591,7 @@ async def test_engine_flag_on_gives_the_same_facts_and_releases_the_gate(
         eng = Engine(
             template="core",
             dotenv_path=None,
+            deployment={"id": "test-deployment"},  # RM-155: shared LLM
             storage={
                 "records": {
                     "provider": "sqlite",

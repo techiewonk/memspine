@@ -97,6 +97,7 @@ def _overrides(name: str, db: str | Path) -> dict[str, Any]:
     out: dict[str, Any] = {
         "template": "core",
         "data_profile": name,
+        "deployment": {"id": "profiles-test"},  # RM-155: the LLM slot is a shared provider
         "storage": {
             "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
         },

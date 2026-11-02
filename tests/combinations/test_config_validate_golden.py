@@ -82,6 +82,7 @@ async def test_missing_graph_service_hard_fails_naming_the_extra(
     monkeypatch.setitem(sys.modules, "neo4j", None)
     engine = make_engine(
         template="core",
+        deployment={"id": "golden"},  # RM-155: neo4j is a shared provider
         memories={"associative": {"enabled": True}},
         storage={
             "graph": {
@@ -124,6 +125,14 @@ async def test_strict_services_is_the_gate_default(make_engine) -> None:
         await engine.stop()
 
 
+@pytest.fixture
+def no_provider_validation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """These tests exercise layer merging with placeholder provider names; the selected
+    providers' own checks (RM-155, ``validate_providers``) are tested in
+    ``tests/unit/providers/test_validation.py``."""
+    monkeypatch.setattr("memspine.providers.validation.validate_providers", lambda config: None)
+
+
 @pytest.mark.parametrize(
     ("group", "selector", "settings_key"),
     [
@@ -136,6 +145,7 @@ async def test_strict_services_is_the_gate_default(make_engine) -> None:
         ("model.llm.window_extract", "provider", "settings"),
     ],
 )
+@pytest.mark.usefixtures("no_provider_validation")
 def test_provider_change_replaces_inherited_native_settings(
     group: str, selector: str, settings_key: str
 ) -> None:
@@ -183,6 +193,7 @@ def test_provider_settings_overlay_merges_same_provider_and_refreshes_sources() 
     assert "model.embedding.settings.model" not in loaded.sources
 
 
+@pytest.mark.usefixtures("no_provider_validation")
 def test_provider_change_applies_across_yaml_environment_and_kwargs_layers() -> None:
     loaded = load_config(
         template="base",

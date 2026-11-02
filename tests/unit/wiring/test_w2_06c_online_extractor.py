@@ -114,6 +114,7 @@ async def test_no_model_template_makes_zero_calls_with_every_write_flag_on(
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",
@@ -149,6 +150,7 @@ async def test_no_model_online_extractor_deposits_grounded_rule_fact(
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",
@@ -231,6 +233,7 @@ async def test_base_profile_defaults_to_durable_rules_only_ingestion(
     eng = Engine(
         template="base",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",
@@ -288,6 +291,7 @@ async def test_no_model_start_still_fails_with_the_flag_off() -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",
@@ -356,6 +360,7 @@ async def _outbox_engine(monkeypatch: pytest.MonkeyPatch, path: Path, **read: An
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",

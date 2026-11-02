@@ -89,6 +89,7 @@ async def _engine(monkeypatch: pytest.MonkeyPatch, path: Path, llm: LineLLM) -> 
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",

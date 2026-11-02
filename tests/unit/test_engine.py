@@ -221,8 +221,11 @@ async def test_search_updates_access_stats_through_the_log(engine: Engine) -> No
     assert record.scoring.last_accessed_at is not None
 
 
-async def test_failed_start_leaks_nothing() -> None:
+async def test_failed_start_leaks_nothing(monkeypatch: pytest.MonkeyPatch) -> None:
     """Regression: a mid-start ConfigError used to leak connected clients."""
+    # RM-155: load_config now rejects an unknown embedder before anything connects; switch
+    # that check off so the build path's failure (after the storage client connected) is hit.
+    monkeypatch.setattr("memspine.providers.validation.validate_providers", lambda config: None)
     eng = Engine(
         template="core",
         dotenv_path=None,

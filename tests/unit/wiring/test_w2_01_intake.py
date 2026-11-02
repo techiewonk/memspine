@@ -50,6 +50,7 @@ async def build(db: Path | str, **write: Any) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
         },
@@ -88,6 +89,7 @@ async def test_default_config_uses_canonical_gateway(tmp_path: Path) -> None:
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",
@@ -323,6 +325,7 @@ async def _windowed(db: Path, outbox: bool) -> Engine:
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {"provider": "sqlite", "settings": {"path": str(db), "busy_timeout_s": 5.0}}
         },

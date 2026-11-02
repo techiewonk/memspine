@@ -127,6 +127,7 @@ async def _engine(
     kw: dict[str, Any] = {
         "template": "core",
         "dotenv_path": None,
+        "deployment": {"id": "test-deployment"},  # RM-155: shared LLM
         "storage": {
             "records": {
                 "provider": "sqlite",

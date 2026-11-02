@@ -376,6 +376,7 @@ async def engine(monkeypatch: pytest.MonkeyPatch, llm: Any, **write: Any) -> Eng
     eng = Engine(
         template="core",
         dotenv_path=None,
+        deployment={"id": "test-deployment"},  # RM-155: shared LLM
         storage={
             "records": {
                 "provider": "sqlite",
@@ -546,6 +547,7 @@ def test_behavioural_inv_order_swap_passes_with_the_flag_and_fails_without(tmp_p
             return Engine(
                 template="core",
                 dotenv_path=None,
+                deployment={"id": "test-deployment"},  # RM-155: shared LLM
                 storage={
                     "records": {
                         "provider": "sqlite",
