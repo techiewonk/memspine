@@ -16,6 +16,7 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import ClassVar
 
+import orjson
 from datasketch import MinHashLSH
 
 from memspine.config.constants import CUE_TAG
@@ -28,6 +29,8 @@ from memspine.memories.semantic.entities import EntityExtractor
 from memspine.memories.semantic.write_pipeline import EDGE_CHANNEL, ScreenDerived, WritePipeline
 from memspine.observability import inspect as insp
 from memspine.observability.logging import EVENT_CONFLICT, EVENT_MERGE, get_logger
+from memspine.schemas.durable.lineage import LineageEdge
+from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.storage.base import StorageService
 from memspine.store.events import EventKind, MemoryEvent
@@ -353,10 +356,12 @@ class SemanticMemory(BaseMemory):
                 "consent_tags": sorted(set(kept.consent_tags) | set(incoming.consent_tags)),
                 "pii_tier": max(kept.pii_tier, incoming.pii_tier, key=_pii_rank),
                 "scoring": scoring,
+                **_restated_support(kept, incoming),
             }
         )
         # State first, audit second (see _resolve_conflict ordering contract).
         await self._write_event(merged)
+        await self._restatement_lineage(kept, merged)
         await self._append_event(
             MemoryEvent(
                 kind=EventKind.MERGE,
@@ -377,6 +382,30 @@ class SemanticMemory(BaseMemory):
             dropped_fingerprint=incoming.content_fingerprint,
         )
         return SemanticWriteResult(record=merged, action="merged")
+
+    async def _restatement_lineage(self, kept: MemoryRecord, merged: MemoryRecord) -> None:
+        """RM-22: a claim whose lineage is tabled (``write.lineage_table``) gets one ``support``
+        edge per newly added restatement source, so an erasure plan sees independent support."""
+        added = [p for p in merged.source.parents if p not in kept.source.parents]
+        add = getattr(self._storage, "add_lineage", None)
+        parents_of = getattr(self._storage, "lineage_parents", None)
+        if not added or add is None or parents_of is None:
+            return
+        if not (await parents_of([kept.record_id])).get(kept.record_id):
+            return  # the table is not in use for this record
+        found = {p: await self._storage.get_record(p) for p in added}
+        await add(
+            [
+                LineageEdge(
+                    child=kept.record_id,
+                    parent=p,
+                    role="support",
+                    parent_version=rec.version if rec is not None else None,
+                )
+                for p, rec in found.items()
+            ],
+            kept.namespace,
+        )
 
     async def _resolve_conflict(
         self, index: MinHashLSH, incoming: MemoryRecord, existing: MemoryRecord
@@ -623,6 +652,35 @@ class SemanticMemory(BaseMemory):
 
 def _without_disputed(tags: list[str]) -> list[str]:
     return [tag for tag in tags if tag != "disputed"]
+
+
+def _restated_support(kept: MemoryRecord, incoming: MemoryRecord) -> dict[str, object]:
+    """RM-22 (ADR-088 amendment 2026-11-02, multi-source restatement): when a canonical claim
+    absorbs a restatement of itself, the kept claim also keeps the restating source: its
+    parents gain the new source ids and its envelope the incoming evidence citing them (no
+    other claim field changes). An erasure of one source then leaves the claim supported by
+    the other. Records without a valid canonical envelope keep the plain M5 merge."""
+    kept_env, new_env = kept.fingerprint.envelope, incoming.fingerprint.envelope
+    added = [p for p in dict.fromkeys(incoming.source.parents) if p not in kept.source.parents]
+    if not kept_env or not new_env or not added:
+        return {}
+    evidence = list(kept_env.get("evidence") or [])
+    held = {orjson.dumps(item, option=orjson.OPT_SORT_KEYS) for item in evidence}
+    for item in new_env.get("evidence") or []:
+        turn = item.get("turn") if isinstance(item, dict) else None
+        key = orjson.dumps(item, option=orjson.OPT_SORT_KEYS)
+        if isinstance(turn, dict) and turn.get("source_id") in added and key not in held:
+            held.add(key)
+            evidence.append(item)
+    envelope = {**kept_env, "evidence": evidence}
+    try:
+        SemanticEnvelope.model_validate(envelope)
+    except ValueError:
+        return {}
+    return {
+        "source": kept.source.model_copy(update={"parents": [*kept.source.parents, *added]}),
+        "fingerprint": kept.fingerprint.model_copy(update={"envelope": envelope}),
+    }
 
 
 _PII_ORDER = {"none": 0, "low": 1, "high": 2, "regulated": 3}

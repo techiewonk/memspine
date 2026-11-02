@@ -55,7 +55,7 @@ def test_assistant_proposal_is_never_promoted_to_user_fact() -> None:
     result = mine_grounded_facts(_record("I work for Acme.", role="assistant"), SCOPE)
 
     assert not result.facts
-    assert result.unresolved[0].reason == "assistant_proposal"
+    assert result.unresolved[0].reason == "source_not_user"
 
 
 def test_quoted_reported_conditional_and_uncertain_text_yield_no_facts() -> None:

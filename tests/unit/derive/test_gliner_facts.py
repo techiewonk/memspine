@@ -95,7 +95,7 @@ async def test_ineligible_sources_never_reach_the_model() -> None:
     no_owner = await extractor.extract_grounded_facts(
         _record("I live in Lisbon.", sender=None), SCOPE
     )
-    assert [u.reason for u in assistant.unresolved] == ["assistant_proposal"]
+    assert [u.reason for u in assistant.unresolved] == ["source_not_user"]
     assert [u.reason for u in no_owner.unresolved] == ["missing_assertion_owner"]
     assert model.calls == 0
 

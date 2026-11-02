@@ -75,3 +75,24 @@ The rules-only default gains conservative deterministic rules:
 - multi-source restatement support, so a claim keeps every supporting source.
 
 Anything ambiguous stays an unresolved annotation.
+
+### Implementation (RM-22, RM-54, 2026-11-02)
+
+`derive/discourse_rules.py` holds the rules; `derive/non_generative_facts.py` carries the typed
+candidate (property key, unit, ISO currency, Decimal amount, context, outcome, resolved target,
+event start, source origin) to registry validation, and `PredicateTyping` stores the typed
+value. Moves bind `move_origin` / `move_destination` (and the destination residence) with the
+event at source precision, resolved only against an aware source time. A visit is a `visited`
+event. A `he` / `she` subject binds only to the one name of the preceding sentence. A
+correction (`I meant X, not Y`) or a cancellation is resolved by the window against the live
+claims of the same sender: the prior claim is archived with status `superseded` and the
+successor (the corrected claim, or the commitment with outcome `declined` / `missed`) is
+current; a known-time read before the change still finds the prior claim. An ingested
+document chunk yields only `reported` claims attributed to the document. The non-user reason
+is `source_not_user` (no alias). A restatement merged into a claim keeps its source in the
+claim's parents and evidence (a `support` lineage edge under `write.lineage_table`).
+Everything a rule cannot decide stays an unresolved annotation with its reason.
+
+Open: without `write.lineage_table` the erasure plan reads a multi-source claim as conjunctive
+(trust fallback), so it is hidden when one source is erased; erasing a correction does not
+reactivate the claim it superseded.

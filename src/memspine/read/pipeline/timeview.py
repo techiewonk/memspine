@@ -112,11 +112,30 @@ def _passive_scoped[**P, R](
     return wrapper
 
 
+def _known_current(record: MemoryRecord) -> bool:
+    """RM-22: under a known-time read (``recorded_before``) a fact superseded only AFTER the
+    cut was the current knowledge then: recorded before it, superseded at or after it, not a
+    retraction. Never admitted without a known-time bound."""
+    date_filter = active_date_filter()
+    bound = date_filter.recorded_before if date_filter is not None else None
+    if bound is None or record.superseded_at is None or "retract" in record.tags:
+        return False
+    cut = bound if bound.tzinfo else bound.replace(tzinfo=UTC)
+    recorded = (
+        record.recorded_at if record.recorded_at.tzinfo else record.recorded_at.replace(tzinfo=UTC)
+    )
+    ended = record.superseded_at
+    ended = ended if ended.tzinfo else ended.replace(tzinfo=UTC)
+    return recorded < cut <= ended
+
+
 def _current_at(record: MemoryRecord, as_of: datetime | None) -> bool:
     """W7: ``record`` is a superseded (ARCHIVED) fact that was the current one at
     ``as_of``: begun by then, ended after it, not a retraction, never quarantined."""
-    if as_of is None or record.status is not RecordStatus.ARCHIVED or record.quarantined:
+    if record.status is not RecordStatus.ARCHIVED or record.quarantined:
         return False
+    if as_of is None:
+        return _known_current(record)
     if record.valid_to is None or "retract" in record.tags:
         return False
     start = record.valid_from if record.valid_from.tzinfo else record.valid_from.replace(tzinfo=UTC)

@@ -123,7 +123,11 @@ async def test_f1_negatives_visit_work_other_home_and_missing_timezone(
         # visit / work / buying another home never replace or add a residence
         residences = sorted(c.object or "" for c in by_predicate(found, "resides_in"))
         assert residences == ["Braga", "Porto"]  # multiple homes: Porto is not replaced
-        assert not [c for c in found if c.object in ("Madrid", "Faro")]
+        # the visit is its own event claim (ADR-088 amendment 2026-11-02), never a residence;
+        # buying a flat claims nothing
+        assert [(c.predicate, c.object) for c in found if c.object in ("Madrid", "Faro")] == [
+            ("visited", "Madrid")
+        ]
         assert all(c.status == "active" for c in by_predicate(found, "resides_in"))
         # missing timezone: the source clock stays civil text and unresolved, never guessed
         assert naive.source.message is not None
@@ -139,14 +143,6 @@ async def test_f1_negatives_visit_work_other_home_and_missing_timezone(
         await eng.stop()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "RM-22: the rules-only producer has no move-event rule; 'I moved from Porto to "
-        "Lisbon last month' yields no move_origin/move_destination claim and no "
-        "month-precision period (core/rule_miner.py matches only 'moved to')"
-    ),
-)
 async def test_f1_move_event_binds_origin_destination_and_month_period(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

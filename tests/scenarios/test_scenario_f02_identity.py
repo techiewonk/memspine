@@ -161,13 +161,6 @@ async def test_f2_met_alex_yields_no_identity_guess(
         await eng.stop()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "RM-22: the rules-only producer has no local coreference; 'He lives in Leeds' after "
-        "'I met Alex' never binds the pronoun to the unique local Alex mention"
-    ),
-)
 async def test_f2_pronoun_binds_unique_local_mention(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

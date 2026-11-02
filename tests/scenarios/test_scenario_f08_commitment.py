@@ -33,6 +33,8 @@ from scenario_harness import (
 )
 from scenario_harness import boot as _boot
 
+from memspine.derive.non_generative_facts import FactStageResult, PendingClaimChange
+
 COMMIT = "I will send the quarterly report to Kim by 2026-11-05T17:00+01:00."
 CANCEL = "I cancel my quarterly report commitment."
 QUERY = "Who committed to the quarterly report"
@@ -63,9 +65,27 @@ def _commit(r: Any, s: Any) -> list[Any]:
     ]
 
 
+def _cancel(r: Any, s: Any) -> FactStageResult:
+    """The explicit cancellation as a pending change: the window resolves it to the one live
+    commitment of the same sender it names (RM-54) and closes it with outcome declined."""
+    return FactStageResult(
+        pending=(
+            PendingClaimChange(
+                kind="cancellation",
+                scope=s,
+                owner="agent-7",
+                evidence=support(r, CANCEL),
+                old_value="quarterly report",
+                outcome="declined",
+            ),
+        )
+    )
+
+
 def _extractor() -> ScriptedExtractor:
     ex = ScriptedExtractor()
     ex.on(COMMIT, _commit)
+    ex.on(CANCEL, _cancel)
     return ex
 
 
@@ -109,22 +129,25 @@ async def test_f8_commitment_is_separate_and_never_completed(
         await eng.stop()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "RM-54: a supported cancellation cannot close a commitment: GroundedFactCandidate "
-        "carries no outcome or target claim (derive/non_generative_facts.py), so the "
-        "commitment stays active with outcome none after an explicit cancel"
-    ),
-)
 async def test_f8_explicit_cancellation_closes_the_commitment(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     eng = await _boot(monkeypatch, tmp_path / "f8x.db", extractor=_extractor())
     try:
-        await send(eng, [_agent("x-1", COMMIT, "2026-10-20T09:00:00+01:00")])
-        await send(eng, [_agent("x-2", CANCEL, "2026-10-21T09:00:00+01:00")])
+        [commit_src] = await send(eng, [_agent("x-1", COMMIT, "2026-10-20T09:00:00+01:00")])
+        [cancel_src] = await send(eng, [_agent("x-2", CANCEL, "2026-10-21T09:00:00+01:00")])
         [commit] = by_predicate(await claims(eng), "committed_to")
         assert commit.outcome == "declined"
+        assert (commit.modality, commit.status, commit.principal) == (
+            "asserted",
+            "active",
+            "agent-7",
+        )
+        # the closed claim cites the cancellation and the commitment it closes, keeps its roles
+        assert set(commit.sources) == {commit_src.record_id, cancel_src.record_id}
+        assert commit.role("beneficiary") == [("Kim", "entity", "person", ("Kim",))]
+        # the open commitment is kept as superseded history with no outcome
+        [open_] = [c for c in await claims(eng, superseded=True) if c.status == "superseded"]
+        assert (open_.outcome, open_.sources) == ("none", (commit_src.record_id,))
     finally:
         await eng.stop()

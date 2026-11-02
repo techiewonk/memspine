@@ -665,6 +665,8 @@ class _Prepared:
     rule_facts: tuple[Any, ...] = ()
     unresolved: tuple[Any, ...] = ()
     annotation_batches: tuple[Any, ...] = ()
+    #: RM-22 / RM-54: rule envelope write id -> the prior claim it supersedes or closes
+    rule_targets: Mapping[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -777,7 +779,11 @@ class WindowPipeline:
         rule_only: bool = False,
         non_generative_extractor: Any = None,
         remove_derived: RemoveDerivedFn | None = None,
+        list_claims: Callable[[str], Awaitable[list[MemoryRecord]]] | None = None,
     ) -> None:
+        #: RM-22 / RM-54: the live (visible, active) canonical claims of a namespace, the
+        #: targets a correction or cancellation of the rules path resolves against
+        self._list_claims = list_claims
         #: W2-06b (the base prompt layout): one call per window or batch, NEW / CONTEXT / KNOWN.
         self._ctx = context_builder
         self._role_policy = role_policy  # W2-03: write.role_policy
@@ -871,6 +877,11 @@ class WindowPipeline:
             )
         #: (namespace, session) -> what the session-closed hook returned (the last 100).
         self.closed_results: dict[tuple[str, str], object] = {}
+
+    @property
+    def rule_only(self) -> bool:
+        """The rules-only path (no model call): it also derives document chunks (RM-54)."""
+        return self._rule_only
 
     @property
     def failure_ledger(self) -> FailureLedger | None:
@@ -2564,6 +2575,7 @@ class WindowPipeline:
             facts: list[Any] = []
             unresolved: list[Any] = []
             annotations: list[Any] = []
+            targets: dict[str, Any] = {}
             # RM-143 (c): the effect identity is fenced on every source of the window item, so
             # the annotation batches cover exactly that set. A source that is not a live input
             # (role-blocked, quarantined, deleted, or changed since its membership snapshot)
@@ -2596,7 +2608,10 @@ class WindowPipeline:
                                 ),
                             )
                         )
-                compiled = compile_grounded_facts(result, records, scope)
+                result, cited = await self._resolve_pending(ns, record, result)
+                compiled = compile_grounded_facts(result, [*records, *cited], scope)
+                for index, target in compiled.targets.items():
+                    targets[compiled.envelopes[index].write_id] = target
                 facts.extend(compiled.envelopes)
                 source = _source_snapshot(record, snapshots)
                 annotations.append(self._rule_annotations(record, source, result))
@@ -2635,6 +2650,7 @@ class WindowPipeline:
                 tuple(facts),
                 tuple(unresolved),
                 tuple(annotations),
+                {env.write_id: targets[env.write_id] for env in facts if env.write_id in targets},
             )
         # RM-154: the model path reads only the live snapshot inputs, like the rules path: a
         # stale or erased source's text reaches no model (window call, KNOWN pre-pass, GLiNER
@@ -2710,6 +2726,76 @@ class WindowPipeline:
                 await self._purge_window_cache(member_ids)
                 return None
         return _Prepared(job, records, merged, line_texts, window_id, len(groups), failed)
+
+    async def _resolve_pending(
+        self, ns: str, record: MemoryRecord, result: Any
+    ) -> tuple[Any, list[MemoryRecord]]:
+        """RM-22 / RM-54: bind each pending correction or cancellation of ``result`` to the one
+        live prior claim of the same sender it names (a grounded candidate with its target), or
+        keep it as an unresolved annotation. Returns the result without pending changes and the
+        stored sources the resolved candidates cite besides ``record``."""
+        pending = tuple(getattr(result, "pending", ()) or ())
+        if not pending:
+            return result, []
+        from memspine.derive.discourse_rules import resolve_pending
+        from memspine.derive.non_generative_facts import UnresolvedFactCandidate
+
+        claims = await self._list_claims(ns) if self._list_claims is not None else []
+        sources: dict[str, MemoryRecord | None] = {record.record_id: record}
+
+        async def load(source_id: str) -> MemoryRecord | None:
+            if source_id not in sources:
+                sources[source_id] = await self._get(source_id)
+            return sources[source_id]
+
+        for claim in claims:
+            for parent in claim.source.parents:
+                await load(parent)
+
+        def message_of(source_id: str) -> str | None:
+            found = sources.get(source_id)
+            message = found.source.message if found is not None else None
+            value = message.get("message_id") if isinstance(message, dict) else None
+            return value if isinstance(value, str) else None
+
+        facts = list(result.facts)
+        unresolved = list(result.unresolved)
+        cited: dict[str, MemoryRecord] = {}
+        live = {k: v for k, v in sources.items() if v is not None}
+        for change in pending:
+            candidate, note, extra = resolve_pending(
+                change, claims, message_of=message_of, records=live
+            )
+            if candidate is None:
+                unresolved.append(
+                    note
+                    or UnresolvedFactCandidate(
+                        source_id=record.record_id,
+                        source_version=record.version,
+                        reason="correction_requires_resolution",
+                    )
+                )
+                continue
+            missing = [sid for sid in extra if live.get(sid) is None]
+            if missing:
+                unresolved.append(
+                    UnresolvedFactCandidate(
+                        source_id=record.record_id,
+                        source_version=record.version,
+                        reason="cancellation_target_not_found",
+                        attribute=change.kind,
+                        value=change.old_value,
+                        span=change.evidence.span,
+                    )
+                )
+                continue
+            cited.update({sid: live[sid] for sid in extra if sid != record.record_id})
+            facts.append(candidate)
+            self._counts[f"rule_{change.kind}s_resolved"] += 1
+        resolved = result.model_copy(
+            update={"facts": tuple(facts), "unresolved": tuple(unresolved), "pending": ()}
+        )
+        return resolved, list(cited.values())
 
     async def _with_prompt_context(
         self,
@@ -2982,6 +3068,7 @@ class WindowPipeline:
             entity = envelope.subject.surface if envelope.subject is not None else envelope.speaker
             typing = envelope.registry
             predicate = typing.predicate if typing is not None else envelope.attribute
+            target = prepared.rule_targets.get(envelope.write_id)
             stored = await self._deposit_fact(
                 ns,
                 envelope.text,
@@ -3002,6 +3089,7 @@ class WindowPipeline:
                 require_live=source_ids,
                 trust_cap=envelope.assessment.source_trust,
                 envelope=envelope.model_dump(mode="json"),
+                **({"supersedes": target.record_id} if target is not None else {}),
             )
             if stored is None:
                 prepared.job.cancelled = True

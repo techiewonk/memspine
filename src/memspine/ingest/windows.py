@@ -252,7 +252,27 @@ def _build_windows(eng: Any, config: MemspineConfig) -> WindowPipeline | None:
         rule_only=rule_only,
         non_generative_extractor=configured_fact_extractor,
         remove_derived=_remove_window_derived(eng),
+        list_claims=_live_claims(eng) if rule_only else None,
     )
+
+
+def _live_claims(eng: Any) -> Any:
+    """RM-22 / RM-54: the live canonical claims of a namespace (active, not quarantined, not
+    erased or hidden), the only targets a rules-path correction or cancellation may act on."""
+    from memspine.trust.pipeline.erasure_state import visible_id
+
+    async def claims(namespace: str) -> list[MemoryRecord]:
+        storage = eng._require_started()
+        return [
+            r
+            for r in await storage.list_records(namespace, "semantic")
+            if r.fingerprint.envelope
+            and r.status is RecordStatus.ACTIVATED
+            and not r.quarantined
+            and visible_id(eng, r.record_id)
+        ]
+
+    return claims
 
 
 def _remove_window_derived(eng: Any) -> Any:

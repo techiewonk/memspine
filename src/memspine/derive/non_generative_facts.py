@@ -10,6 +10,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Mapping, Sequence
+from decimal import Decimal
+from pathlib import PurePath
 from typing import Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -22,12 +24,14 @@ from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
 from memspine.schemas.durable.ingestion import IngestionSourceSnapshot
 from memspine.schemas.durable.semantic import (
+    ClaimOutcome,
     ClaimProducer,
     ClaimQualifier,
     PredicateTyping,
     SemanticEnvelope,
 )
 from memspine.schemas.durable.semantic import RoleBinding as DurableRoleBinding
+from memspine.schemas.durable.temporal import Interval, TemporalRef
 from memspine.semantics import (
     QualifierValue,
     RoleBindingCheck,
@@ -39,13 +43,16 @@ from memspine.store.records import MemoryRecord
 from memspine.store.source_binding import source_binding
 
 __all__ = [
+    "ClaimTarget",
     "FactStageResult",
     "GroundedFactCandidate",
     "NonGenerativeFactExtractor",
+    "PendingClaimChange",
     "UnresolvedAnnotation",
     "UnresolvedFactCandidate",
     "assertion_owner",
     "compile_grounded_facts",
+    "document_owner",
     "mine_grounded_facts",
     "source_ineligible",
     "support_span",
@@ -60,7 +67,9 @@ _RULE_TO_PREDICATE = {
 }
 _CORRECTION = re.compile(r"\b(?:correction|I meant|rather than|not .+ but)\b", re.IGNORECASE)
 UnresolvedReason = Literal[
-    "assistant_proposal",
+    #: the source is not authored by a user (an assistant, agent, tool or system turn): its
+    #: text is never a user assertion (ADR-088 amendment 2026-11-02; renamed, no alias)
+    "source_not_user",
     "missing_assertion_owner",
     "correction_requires_resolution",
     "unsupported_predicate",
@@ -74,6 +83,18 @@ UnresolvedReason = Literal[
     "extractor_failed",
     "grounding_unsupported",
     "subject_not_speaker",
+    # RM-22 / RM-54 conservative rules (ADR-088 amendment 2026-11-02): each ambiguity stays an
+    # unresolved, unasserted annotation naming why
+    "correction_target_not_found",
+    "correction_target_ambiguous",
+    "cancellation_target_not_found",
+    "cancellation_target_ambiguous",
+    "ambiguous_antecedent",
+    "ambiguous_move",
+    "ambiguous_measurement",
+    "approximate_value",
+    "missing_unit",
+    "missing_currency",
 ]
 _OBJECT_TYPES: Mapping[str, tuple[ValueKind, EntityType | None]] = {
     "resides_in": ("entity", "place"),
@@ -88,6 +109,16 @@ class _Candidate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
 
+class ClaimTarget(_Candidate):
+    """RM-22 / RM-54: the prior claim a candidate acts on, resolved against the store to one
+    record before the candidate is compiled. ``supersede``: the candidate's claim replaces the
+    target (an explicit correction by the same sender); ``close``: the candidate is the target
+    with a lifecycle ``outcome`` (an explicit cancellation of a commitment)."""
+
+    action: Literal["supersede", "close"]
+    record_id: str = Field(min_length=1)
+
+
 class GroundedFactCandidate(_Candidate):
     scope: OwnerScope
     subject: str = Field(min_length=1)
@@ -96,7 +127,9 @@ class GroundedFactCandidate(_Candidate):
     object: str = Field(min_length=1)
     object_kind: ValueKind = "text"
     object_entity_type: EntityType | None = None
-    modality: Literal["asserted", "planned"]
+    #: ``reported``: the statement belongs to its source (a document) and is attributed to it,
+    #: never an assertion of whoever supplied the source
+    modality: Literal["asserted", "planned", "reported"]
     polarity: Literal["positive", "negative"] = "positive"
     assertion_owner: str = Field(min_length=1)
     evidence: Evidence
@@ -106,6 +139,45 @@ class GroundedFactCandidate(_Candidate):
     qualifiers: Mapping[str, ClaimQualifier] = Field(default_factory=dict)
     cardinality_scope: Mapping[str, str] = Field(default_factory=dict)
     source_time: str | None = None
+    #: RM-54: the typed value of a property predicate, passed to registry validation as is:
+    #: the registered property key, the explicit unit or ISO 4217 code, the Decimal amount as
+    #: written (never converted or guessed) and the property's explicit context qualifiers
+    attribute_key: str | None = None
+    unit: str | None = None
+    currency: str | None = None
+    amount: Decimal | None = None
+    context: Mapping[str, str] = Field(default_factory=dict)
+    #: RM-57: the lifecycle outcome the claim carries (``none`` unless it closes a claim)
+    outcome: ClaimOutcome = "none"
+    #: RM-22 / RM-54: the resolved prior claim this candidate supersedes or closes
+    target: ClaimTarget | None = None
+    #: D-100 Q-S2: the event start at source precision, resolved only against an aware source
+    #: time; None when the source states no event time the rules can read
+    event_start: TemporalRef | None = None
+    #: the source origin the registry checks for the predicate
+    source_origin: Literal["raw_message", "document"] = "raw_message"
+    producer_revision: str = Field(default="personal-rules:1", min_length=1)
+
+
+class PendingClaimChange(_Candidate):
+    """RM-22 / RM-54: an explicit change to a prior claim of the same sender that the source
+    names but cannot resolve alone: a correction (``I meant X, not Y``) or the cancellation of
+    a commitment. The window resolves it against the stored claims
+    (:func:`memspine.derive.discourse_rules.resolve_pending`) to one grounded candidate with a
+    :class:`ClaimTarget`, or to an unresolved annotation naming why."""
+
+    kind: Literal["correction", "cancellation"]
+    scope: OwnerScope
+    owner: str = Field(min_length=1)
+    evidence: Evidence
+    #: correction: the value replaced; cancellation: the commitment's object as written
+    old_value: str = Field(min_length=1)
+    #: correction: the value that replaces it
+    new_value: str | None = None
+    #: cancellation: the RM-57 outcome it sets
+    outcome: Literal["declined", "missed"] | None = None
+    #: the message id the source replies to; it narrows the target to that source's claims
+    reply_to: str | None = None
     producer_revision: str = Field(default="personal-rules:1", min_length=1)
 
 
@@ -160,12 +232,16 @@ class FactStageResult(_Candidate):
     #: DS-18: exact, unasserted source mentions the extractor found (the window binds them to
     #: the source as its annotation batch; they never key or assert a fact)
     mentions: tuple[MentionSpan, ...] = ()
+    #: RM-22 / RM-54: corrections and cancellations awaiting resolution against the store
+    pending: tuple[PendingClaimChange, ...] = ()
     generative_calls: Literal[0] = 0
 
 
 class CompiledFactStage(_Candidate):
     envelopes: tuple[SemanticEnvelope, ...] = ()
     unresolved: tuple[UnresolvedFactCandidate, ...] = ()
+    #: index into ``envelopes`` -> the resolved prior claim that envelope supersedes or closes
+    targets: Mapping[int, ClaimTarget] = Field(default_factory=dict)
     generative_calls: Literal[0] = 0
 
 
@@ -177,13 +253,28 @@ class NonGenerativeFactExtractor(Protocol):
     async def extract(self, record: MemoryRecord, scope: OwnerScope) -> FactStageResult: ...
 
 
+def document_owner(record: MemoryRecord) -> str | None:
+    """RM-54: the attribution of an ingested document chunk (``document:<file name>``); None
+    for every other source. A document's statements are its own, never the user's."""
+    path = record.source.doc_path
+    if (
+        record.memory_type != "resource"
+        or record.source.channel != "ingest"
+        or not path
+        or record.source.message is not None
+    ):
+        return None
+    name = PurePath(path.replace("\\", "/")).name
+    return f"document:{name}" if name else None
+
+
 def _owner(record: MemoryRecord) -> str | None:
     message = record.source.message or {}
     sender = message.get("sender") if isinstance(message, dict) else None
     value = sender.get("id") if isinstance(sender, dict) else None
     if isinstance(value, str) and value.strip():
         return value.strip()
-    return None
+    return document_owner(record)
 
 
 def _support_span(text: str, value: str) -> Span | None:
@@ -272,6 +363,7 @@ def compile_grounded_facts(
     registry = registry or load_builtin_registry()
     records = {record.record_id: record for record in sources}
     envelopes: list[SemanticEnvelope] = []
+    targets: dict[int, ClaimTarget] = {}
     unresolved = list(result.unresolved)
     for candidate in result.facts:
         turn = candidate.evidence.turn
@@ -290,19 +382,38 @@ def compile_grounded_facts(
         if _owner(source) != candidate.assertion_owner:
             unresolved.append(_unresolved(candidate, "invalid_assertion_owner"))
             continue
+        if candidate.modality == "reported" and candidate.source_origin != "document":
+            # Only a document's own statement is reported by the rules (RM-54); a person's
+            # report of another source asserts nothing and is never compiled.
+            unresolved.append(_unresolved(candidate, "semantic_validation_failed"))
+            continue
+        cardinality_scope = dict(candidate.cardinality_scope)
+        if candidate.attribute_key is not None:
+            cardinality_scope.setdefault("attribute_key", candidate.attribute_key)
         try:
             spec = registry.validate_compatibility(
                 candidate.predicate,
                 subject_type=candidate.subject_type,
                 value_kind=candidate.object_kind,
                 object_entity_type=candidate.object_entity_type,
+                attribute_key=candidate.attribute_key,
+                unit=candidate.unit,
+                currency=candidate.currency,
+                amount=candidate.amount,
                 role_names=(binding.role_name for binding in candidate.role_bindings),
                 qualifiers={
                     key: QualifierValue.model_validate(value.model_dump())
                     for key, value in candidate.qualifiers.items()
                 },
-                source_origin="raw_message",
+                context=dict(candidate.context) or None,
+                source_origin=candidate.source_origin,
             )
+            if (
+                candidate.amount is not None
+                and candidate.object_kind == "number"
+                and Decimal(candidate.object) != candidate.amount
+            ):
+                raise ValueError("the claim object must be the typed amount as written")
             registry.validate_role_bindings(
                 candidate.predicate,
                 (_binding_check(binding) for binding in candidate.role_bindings),
@@ -311,9 +422,9 @@ def compile_grounded_facts(
                 role = registry.roles[binding.role_name]
                 if binding.role_version != role.version:
                     raise ValueError("role binding version differs from active role")
-            if any(not candidate.cardinality_scope.get(key) for key in spec.cardinality_scope):
+            if any(not cardinality_scope.get(key) for key in spec.cardinality_scope):
                 raise ValueError("predicate cardinality requires explicit scope")
-        except (KeyError, ValueError):
+        except (KeyError, ValueError, ArithmeticError):
             unresolved.append(_unresolved(candidate, "semantic_validation_failed"))
             continue
 
@@ -334,7 +445,8 @@ def compile_grounded_facts(
                 source_id=record.record_id,
                 source_version=record.version,
                 seg_index=cited_turn.seg_index,
-                role=record.source.role,
+                # a document chunk is document content, whoever ingested it (role policy)
+                role="document" if document_owner(record) else record.source.role,
                 speaker=_owner(record),
                 source_at=record.source_at or record.valid_from,
                 content=record.content,
@@ -355,11 +467,22 @@ def compile_grounded_facts(
             [
                 {
                     "text": f"{candidate.subject} {candidate.predicate} {candidate.object}",
-                    "kind": ("state" if spec.cardinality in {"one", "contextual"} else "event"),
+                    # an append-only contextual property (a measurement) never supersedes
+                    "kind": (
+                        "state"
+                        if spec.cardinality == "one"
+                        or (
+                            spec.cardinality == "contextual"
+                            and spec.transition_policy != "append_only"
+                        )
+                        else "event"
+                    ),
                     "s": candidate.subject,
                     "r": candidate.predicate,
                     "o": candidate.object,
-                    "mode": candidate.modality,
+                    # a reported claim compiles as the source's assertion; its modality is
+                    # set to ``reported`` on the assessment below
+                    "mode": "asserted" if candidate.modality == "reported" else candidate.modality,
                     "neg": candidate.polarity == "negative",
                     "lines": sorted(set(cited)),
                     "span": candidate.evidence.span.quote if candidate.evidence.span else "",
@@ -379,24 +502,47 @@ def compile_grounded_facts(
             object_kind=candidate.object_kind,
             object_entity_type=candidate.object_entity_type,
             cardinality=spec.cardinality,
-            cardinality_scope=dict(candidate.cardinality_scope),
+            cardinality_scope=cardinality_scope,
+            attribute_key=candidate.attribute_key,
+            unit=candidate.unit,
+            currency=candidate.currency,
+            amount=candidate.amount,
         )
-        envelope = envelope.model_copy(
-            update={
-                "registry": typing,
-                "role_bindings": [
-                    DurableRoleBinding.model_validate(binding.model_dump(), strict=True)
-                    for binding in candidate.role_bindings
-                ],
-                "producer": ClaimProducer(kind="rules", revision=candidate.producer_revision),
-                # RM-157: qualifiers and the statement kind pass through to the claim
-                "qualifiers": dict(candidate.qualifiers),
-                "statement_kind": spec.statement_kind,
-            }
-        )
+        update: dict[str, object] = {
+            "registry": typing,
+            "role_bindings": [
+                DurableRoleBinding.model_validate(binding.model_dump(), strict=True)
+                for binding in candidate.role_bindings
+            ],
+            "producer": ClaimProducer(kind="rules", revision=candidate.producer_revision),
+            "outcome": candidate.outcome,
+            # RM-157: qualifiers and the statement kind pass through to the claim
+            "qualifiers": dict(candidate.qualifiers),
+            "statement_kind": spec.statement_kind,
+        }
+        assessment_update: dict[str, object] = {}
+        if candidate.modality == "reported":
+            assessment_update["modality"] = "reported"
+        if candidate.event_start is not None:
+            update["time"] = envelope.time.model_copy(
+                update={"event": Interval(start=candidate.event_start)}
+            )
+            assessment_update["time_precision"] = candidate.event_start.precision
+        if assessment_update:
+            update["assessment"] = envelope.assessment.model_copy(update=assessment_update)
+        envelope = envelope.model_copy(update=update)
         # Revalidate after attaching the registry typing; do not trust model_copy.
-        envelopes.append(SemanticEnvelope.model_validate(envelope.model_dump(), strict=True))
-    return CompiledFactStage(envelopes=tuple(envelopes), unresolved=tuple(unresolved))
+        try:
+            checked = SemanticEnvelope.model_validate(envelope.model_dump(), strict=True)
+        except ValueError:
+            unresolved.append(_unresolved(candidate, "compiler_rejected"))
+            continue
+        if candidate.target is not None:
+            targets[len(envelopes)] = candidate.target
+        envelopes.append(checked)
+    return CompiledFactStage(
+        envelopes=tuple(envelopes), unresolved=tuple(unresolved), targets=targets
+    )
 
 
 def assertion_owner(record: MemoryRecord) -> str | None:
@@ -421,11 +567,12 @@ def support_span(text: str, start: int, end: int) -> Span | None:
 
 def source_ineligible(record: MemoryRecord) -> FactStageResult | None:
     """The shared eligibility gate of every non-generative producer: only a user-authored
-    source with a sender id and no correction cue yields candidates. The unresolved result
-    when the source is not eligible, else None."""
+    message with a sender id and no correction cue yields user candidates. The unresolved
+    result when the source is not eligible, else None. A document chunk is not a user source
+    (``source_not_user``): only :func:`mine_grounded_facts` reads its own reported statements."""
     reason: UnresolvedReason | None = None
-    if record.source.role != "user":
-        reason = "assistant_proposal"
+    if record.source.role != "user" or document_owner(record) is not None:
+        reason = "source_not_user"
     elif _owner(record) is None:
         reason = "missing_assertion_owner"
     elif _CORRECTION.search(record.content):
@@ -444,14 +591,31 @@ def source_ineligible(record: MemoryRecord) -> FactStageResult | None:
 def mine_grounded_facts(record: MemoryRecord, scope: OwnerScope) -> FactStageResult:
     """Return deterministic grounded candidates for one authoritative raw turn.
 
-    Only user-authored records are eligible.  The miner is invoked directly and
-    has no LLM/provider seam, making the zero-generative-call guarantee
-    structural rather than an accounting convention.
+    Only user-authored records yield user facts; an ingested document chunk yields only its own
+    ``reported`` statements, attributed to the document (RM-54). An explicit correction or
+    cancellation is returned as a pending change for the window to resolve against the store
+    (RM-22). The miner is invoked directly and has no LLM/provider seam, making the
+    zero-generative-call guarantee structural rather than an accounting convention.
     """
+    from memspine.derive import discourse_rules
+
     source_id = record.record_id
     source_version = record.version
+    document = document_owner(record)
+    if document is not None:
+        ruled = discourse_rules.document_rules(record, scope, document)
+        return FactStageResult(facts=tuple(ruled.facts), unresolved=tuple(ruled.unresolved))
     ineligible = source_ineligible(record)
     if ineligible is not None:
+        owner = _owner(record)
+        if (
+            owner is not None
+            and record.source.role == "user"
+            and ineligible.unresolved[0].reason == "correction_requires_resolution"
+        ):
+            change = discourse_rules.pending_changes(record, scope, owner)
+            if change.pending:
+                return FactStageResult(pending=tuple(change.pending))
         return ineligible
     owner = _owner(record)
     assert owner is not None  # source_ineligible checked it
@@ -522,4 +686,16 @@ def mine_grounded_facts(record: MemoryRecord, scope: OwnerScope) -> FactStageRes
                 source_time=source_at.isoformat(),
             )
         )
-    return FactStageResult(facts=tuple(facts), unresolved=tuple(unresolved))
+    # RM-22 / RM-54 (ADR-088 amendment 2026-11-02): moves, visits, pronoun coreference and
+    # typed measurements; an explicit cancellation is a pending change of a prior claim.
+    ruled = discourse_rules.message_rules(record, scope, owner)
+    held = {(f.subject, f.predicate, f.object.casefold()) for f in facts}
+    for fact in ruled.facts:
+        if (fact.subject, fact.predicate, fact.object.casefold()) not in held:
+            held.add((fact.subject, fact.predicate, fact.object.casefold()))
+            facts.append(fact)
+    unresolved.extend(ruled.unresolved)
+    change = discourse_rules.pending_changes(record, scope, owner)
+    return FactStageResult(
+        facts=tuple(facts), unresolved=tuple(unresolved), pending=tuple(change.pending)
+    )

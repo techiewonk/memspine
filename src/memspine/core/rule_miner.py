@@ -28,7 +28,7 @@ from dataclasses import dataclass
 
 from memspine.prompts.models import ExtractedFact
 
-__all__ = ["RULES", "canonical_thing", "mine_rules"]
+__all__ = ["RULES", "asserted_match", "canonical_thing", "clean_value", "mine_rules"]
 
 #: "[3] [2023-05-08] Caroline: text" or "[2023-05-08] Caroline: text".
 _LINE = re.compile(
@@ -148,7 +148,7 @@ _TRAILING = re.compile(
 )
 
 
-def _clean(value: str) -> str | None:
+def clean_value(value: str) -> str | None:
     text = " ".join(value.split()).strip(" '\"-")
     previous = None
     while previous != text:
@@ -223,7 +223,7 @@ def _quoted_ranges(text: str) -> list[tuple[int, int]]:
     return ranges
 
 
-def _asserted_match(text: str, match: re.Match[str]) -> bool:
+def asserted_match(text: str, match: re.Match[str]) -> bool:
     """Conservative English scope guard, not general discourse resolution.
 
     Quoted values (e.g. a book title) are allowed when the predicate itself is
@@ -268,7 +268,7 @@ def _line_slots(text: str) -> list[tuple[str, str, str]]:
     found: list[tuple[str, str, str]] = []
     for rule in RULES:
         for m in rule.pattern.finditer(text):
-            if not _asserted_match(text, m):
+            if not asserted_match(text, m):
                 continue
             value = m["v"]
             if rule.attribute == "job" and re.search(r" (?:at|for) ", value):
@@ -277,25 +277,25 @@ def _line_slots(text: str) -> list[tuple[str, str, str]]:
                 found.append(("employer", "state", employer))
             found.append((rule.attribute, rule.kind, value))
     for m in _FAVOURITE.finditer(text):
-        if not _asserted_match(text, m):
+        if not asserted_match(text, m):
             continue
         found.append((f"favourite_{canonical_thing(m['thing'])}", "state", m["v"]))
     for m in _REL_STATE_RX.finditer(text):
-        if not _asserted_match(text, m):
+        if not asserted_match(text, m):
             continue
         rel = m["rel"].lower()
         slot = {"mom": "mother", "dad": "father"}.get(rel, rel)
         slot = "partner" if slot in {"wife", "husband", "boyfriend", "girlfriend"} else slot
         found.append((slot, "state", m["v"]))
     for m in _NO_LONGER.finditer(text):
-        if not _asserted_match(text, m):
+        if not asserted_match(text, m):
             continue
         found.append(("dislikes", "event", m["v"]))
     # N07 (plan v3.2, O-Mem attitude timeline): every like / dislike also sets a
     # single-valued attitude slot for its object, so a change of mind supersedes.
     for attribute, _, value in list(found):
         if attribute in ("likes", "dislikes"):
-            obj = _clean(value)
+            obj = clean_value(value)
             if obj:
                 key = "_".join(obj.lower().split())[:40]
                 found.append((f"attitude:{key}", "state", attribute))
@@ -366,7 +366,7 @@ def mine_rules(transcript: str) -> list[ExtractedFact]:
         turns = [int(match["n"])] if match["n"] else []
         seen: set[tuple[str, str]] = set()
         for attribute, kind, raw_value in _line_slots(match["text"]):
-            value = _clean(raw_value)
+            value = clean_value(raw_value)
             if value is None or (attribute, value.lower()) in seen:
                 continue
             seen.add((attribute, value.lower()))

@@ -214,8 +214,15 @@ async def _deposit_mined_fact(
     require_live: Sequence[str] = (),
     trust_cap: float | None = None,
     envelope: dict[str, Any] | None = None,
+    supersedes: str | None = None,
 ) -> MemoryRecord | None:
     """C6': one mined fact through the write door (firewall, ladder, MTI).
+
+    RM-22 / RM-54: ``supersedes`` is the record id of the prior claim this one replaces (a
+    resolved correction by the same sender) or closes (a cancelled commitment). Under the same
+    lock, before the write, the prior claim is archived with claim status ``superseded`` and
+    ``evolve_to`` the new record (it stays readable as known history); a prior claim that is no
+    longer live is left alone and the fact is written without superseding anything.
 
     FU-GAPS: ``envelope`` (the extraction envelope) is the compiled envelope as JSON; it is kept in
     the record's fingerprint blob (``fingerprint.envelope``), no migration.
@@ -307,6 +314,8 @@ async def _deposit_mined_fact(
                 source_id, role = turn.get("source_id"), evidence.get("role")
                 if source_id in parents and role in ("support", "binding", "context"):
                     evidence_roles[str(source_id)] = str(role)
+        if supersedes is not None:
+            await _close_superseded(eng, storage, ns, supersedes, record)
         written = await write_derived(
             eng,
             storage,
@@ -321,6 +330,58 @@ async def _deposit_mined_fact(
     if planned and eng._consolidation_option("auto_watch", False):
         await eng._auto_watch(ns, written, sources)
     return written
+
+
+async def _close_superseded(
+    eng: Any, storage: Any, ns: str, target_id: str, successor: MemoryRecord
+) -> bool:
+    """RM-22 / RM-54 (lock held): archive the live prior claim ``target_id`` as superseded by
+    ``successor``. Its canonical envelope keeps every field but ``status`` (``superseded``);
+    the record keeps its text and evidence, so a known-time read before the change still finds
+    it. False (nothing written) when the target is not a live claim of ``ns``."""
+    from memspine.trust.pipeline.erasure_state import visible_id
+
+    target = await storage.get_record(target_id)
+    if (
+        target is None
+        or target.namespace != ns
+        or target.status is not RecordStatus.ACTIVATED
+        or target.quarantined
+        or not target.fingerprint.envelope
+        or not visible_id(eng, target_id)
+    ):
+        return False
+    now = eng._clock()
+    envelope = dict(target.fingerprint.envelope)
+    envelope["status"] = "superseded"
+    closed = target.model_copy(
+        update={
+            "valid_to": successor.valid_from,
+            "superseded_at": now,
+            "status": RecordStatus.ARCHIVED,
+            "evolve_to": successor.record_id,
+            "tags": [t for t in target.tags if t != "disputed"],
+            "fingerprint": target.fingerprint.model_copy(update={"envelope": envelope}),
+        }
+    )
+    await eng._append_and_project(
+        MemoryEvent(
+            kind=EventKind.WRITE,
+            namespace=ns,
+            actor="system",
+            payload={
+                "record": closed.model_dump(mode="json"),
+                "correction": {
+                    "supersedes": target_id,
+                    "actor": "system",
+                    "reason": "rule_claim_change",
+                },
+            },
+        )
+    )
+    if eng._semantic is not None:
+        eng._semantic.invalidate_index(ns)
+    return True
 
 
 async def _auto_watch(

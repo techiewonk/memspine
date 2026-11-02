@@ -3,7 +3,10 @@
 Explicit distance 5 km and price EUR 12.34 are typed property values with an explicit unit
 or currency. A mass unit as a distance, a missing or malformed currency, a fractional count
 and a guessed (binary float) amount are rejected. The registry gate is checked directly; the
-end-to-end path proves that the rules-only profile never turns numbers into guessed facts."""
+end-to-end path proves that the rules-only profile turns an explicit measurement into a typed
+claim (ADR-088 amendment 2026-11-02) and never into a converted or guessed one: an
+approximate value, a missing unit or currency, or a value of no stated dimension stays an
+unresolved annotation."""
 
 from __future__ import annotations
 
@@ -123,7 +126,7 @@ def test_f11_amount_roles_need_an_explicit_unit() -> None:
     assert registry.validate_role_bindings(spec.name, [*others, with_unit]).name == spec.name
 
 
-async def test_f11_numbers_never_become_guessed_facts(
+async def test_f11_numbers_become_typed_never_guessed_facts(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     eng = await _boot(monkeypatch, tmp_path / "f11.db")
@@ -137,26 +140,54 @@ async def test_f11_numbers_never_become_guessed_facts(
             ],
         )
         await settle(eng)
-        assert await claims(eng) == []  # no conversion, no guessed measurement
+        # ADR-088 amendment 2026-11-02: an explicit measurement is a typed claim with its unit
+        # or currency and the Decimal amount as written; nothing is converted or guessed
+        found = by_predicate(await claims(eng), "has_measurement")
+        assert [
+            (c.subject, c.attribute_key, c.object, c.amount, c.unit, c.currency, c.principal)
+            for c in found
+        ] == [
+            ("hike", "length", "5", Decimal("5"), "km", None, "Mira"),
+            ("ticket", "price", "12.34", Decimal("12.34"), None, "EUR", "Mira"),
+        ]
+        assert all(isinstance(c.amount, Decimal) for c in found)
+        assert [c.sources for c in found] == [(hike.record_id,), (ticket.record_id,)]
         assert unresolved(eng) == []
         assert (hike.content, ticket.content) == (HIKE, TICKET)  # numbers kept verbatim
         hits = await eng.search(QUERY, namespace="a", top_k=5, recorded_before=cut)
         assert hits == []
         await assert_replay(eng, ["Mira"])
-        await assert_erased(eng, hike, [], QUERY)
+        await assert_erased(eng, hike, [found[0].record_id], QUERY)
+        assert [c.subject for c in await claims(eng)] == ["ticket"]
     finally:
         await eng.stop()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "RM-54: GroundedFactCandidate has no attribute_key, unit, currency or amount and "
-        "compile_grounded_facts never passes them to validate_compatibility "
-        "(derive/non_generative_facts.py), so every property predicate such as "
-        "has_measurement is rejected as semantic_validation_failed"
-    ),
-)
+async def test_f11_unclear_numbers_stay_unresolved(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    eng = await _boot(monkeypatch, tmp_path / "f11u.db")
+    try:
+        texts = {
+            "The hike is about 5 km long.": "approximate_value",
+            "The ticket costs 12.34.": "missing_currency",
+            "The ticket costs $12.34.": "missing_currency",
+            "The hike is 5 kg long.": "missing_unit",
+            "The hike is 5 km.": "ambiguous_measurement",
+        }
+        sent = await send(
+            eng,
+            [msg(f"u-{i}", "Mira", t, f"2026-10-01T09:0{i}Z") for i, t in enumerate(texts)],
+        )
+        assert await claims(eng) == []  # no converted, coerced or guessed value
+        reasons = {u.source.record_id: (u.reason, u.asserted) for u in unresolved(eng)}
+        assert reasons == {
+            r.record_id: (reason, False) for r, reason in zip(sent, texts.values(), strict=True)
+        }
+    finally:
+        await eng.stop()
+
+
 async def test_f11_typed_measurement_compiles_end_to_end(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -173,6 +204,10 @@ async def test_f11_typed_measurement_compiles_end_to_end(
                 subject="hike",
                 subject_type="event",
                 evidence=support(r, HIKE),
+                cardinality_scope={"valid_time": "2026-10-01", "context": "this trip"},
+                attribute_key="distance",
+                unit="km",
+                amount=Decimal("5"),
             )
         ],
     )
@@ -182,5 +217,7 @@ async def test_f11_typed_measurement_compiles_end_to_end(
         assert unresolved(eng) == []
         [measure] = by_predicate(await claims(eng), "has_measurement")
         assert measure.object == "5"
+        assert (measure.attribute_key, measure.unit, measure.currency) == ("distance", "km", None)
+        assert measure.amount == Decimal("5") and isinstance(measure.amount, Decimal)
     finally:
         await eng.stop()

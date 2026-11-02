@@ -168,6 +168,21 @@ class PredicateTyping(DurablePart):
     object_entity_type: EntityType | None = None
     cardinality: Literal["one", "many", "contextual", "unknown"]
     cardinality_scope: dict[str, str] = Field(default_factory=dict)
+    #: RM-54: the typed value of a property predicate (has_measurement, has_quantity ...): the
+    #: registered property key, its explicit unit or ISO currency code, and the Decimal amount as
+    #: written (never a converted or guessed number). All None for a non-property predicate.
+    attribute_key: str | None = None
+    unit: str | None = None
+    currency: str | None = None
+    amount: Decimal | None = None
+
+    @model_validator(mode="after")
+    def _typed_amount(self) -> PredicateTyping:
+        if self.amount is not None and not self.amount.is_finite():
+            raise ValueError("a typed amount must be a finite Decimal")
+        if (self.unit is not None or self.currency is not None) and self.amount is None:
+            raise ValueError("a unit or currency needs a typed amount")
+        return self
 
 
 class ClaimProducer(DurablePart):

@@ -251,3 +251,61 @@ async def test_audit_events_carry_full_rejected_snapshot() -> None:
     snapshot = conflict_events[-1].payload["incoming_record"]
     assert "Attackerville" in snapshot["content"]
     assert snapshot["trust"] == 0.1  # provenance + trust recoverable (E1)
+
+
+def _claim_record(text: str, record_id: str) -> MemoryRecord:
+    """A rules claim (canonical envelope) mined from one message ``record_id``."""
+    from memspine.derive.non_generative_facts import compile_grounded_facts, mine_grounded_facts
+    from memspine.schemas.durable.common import OwnerScope
+    from memspine.store.records import RecordFingerprint, SourceInfo
+
+    scope = OwnerScope(tenant="t", owner="agent/a")
+    source = MemoryRecord(
+        record_id=record_id,
+        namespace="agent/a",
+        memory_type="episodic",
+        content=text,
+        source=SourceInfo(
+            role="user",
+            channel="messages",
+            message={"message_id": record_id, "sender": {"id": "asha"}},
+        ),
+    )
+    [env] = compile_grounded_facts(mine_grounded_facts(source, scope), [source], scope).envelopes
+    return MemoryRecord(
+        namespace="agent/a",
+        memory_type="semantic",
+        content=env.text,
+        valid_from=NOW,
+        source=SourceInfo(role="assistant", channel="mining", parents=[record_id]),
+        fingerprint=RecordFingerprint(envelope=env.model_dump(mode="json")),
+    )
+
+
+async def test_restated_claim_keeps_every_supporting_source() -> None:
+    """RM-22: a restatement merged into a canonical claim adds its source to the claim's
+    parents and evidence, so the claim stays supported when one source is erased."""
+    semantic = await make_semantic()
+    first = await semantic.write(_claim_record("I live in Sweden.", "src-june"))
+    result = await semantic.write(_claim_record("Yes, I live in Sweden.", "src-july"))
+    assert result.action == "merged" and result.record.record_id == first.record.record_id
+    assert result.record.source.parents == ["src-june", "src-july"]
+    envelope = result.record.fingerprint.envelope
+    assert envelope is not None
+    assert [e["turn"]["source_id"] for e in envelope["evidence"]] == ["src-june", "src-july"]
+    stored = await semantic._storage.get_record(first.record.record_id)
+    assert stored is not None and stored.source.parents == ["src-june", "src-july"]
+
+
+async def test_plain_record_merge_keeps_its_parents() -> None:
+    semantic = await make_semantic()
+    base = rec("x").source
+    a = rec("alice prefers her coffee black in the morning")
+    b = rec("alice prefers her coffee black in the morning !")
+    await semantic.write(
+        a.model_copy(update={"source": base.model_copy(update={"parents": ["p1"]})})
+    )
+    result = await semantic.write(
+        b.model_copy(update={"source": base.model_copy(update={"parents": ["p2"]})})
+    )
+    assert result.action == "merged" and result.record.source.parents == ["p1"]

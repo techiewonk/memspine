@@ -84,18 +84,30 @@ async def test_f5_restated_move_is_one_claim_without_an_invented_date(
         await eng.stop()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "RM-22: a restated claim merges into the first claim without recording the second "
-        "source (memories/semantic/store.py SemanticMemory._merge keeps kept.source.parents), "
-        "so erasing the first source hides the claim although the July source still supports it"
-    ),
+@pytest.mark.parametrize(
+    "lineage_table",
+    [
+        pytest.param(
+            False,
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=(
+                    "RM-22: the restated claim keeps both sources (memories/semantic/store.py "
+                    "_restated_support), but without write.lineage_table the erasure plan "
+                    "reads a record with several source.parents as conjunctive members "
+                    "(trust/pipeline/erasure_state.py build_graph fallback role), so erasing "
+                    "the June source hides it pending re-derivation although the July source "
+                    "still supports it"
+                ),
+            ),
+        ),
+        True,
+    ],
 )
 async def test_f5_restated_claim_survives_erasure_of_one_support(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, lineage_table: bool
 ) -> None:
-    eng = await _boot(monkeypatch, tmp_path / "f5s.db")
+    eng = await _boot(monkeypatch, tmp_path / "f5s.db", lineage_table=lineage_table)
     try:
         [june] = await send(
             eng, [msg("s-1", "Asha", "I moved to Sweden four years ago.", "2026-06-10T09:00Z")]

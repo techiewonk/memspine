@@ -6297,6 +6297,7 @@ class Engine:
         require_live: Sequence[str] = (),
         trust_cap: float | None = None,
         envelope: dict[str, Any] | None = None,
+        supersedes: str | None = None,
     ) -> MemoryRecord | None:
         return await derive_integrate._deposit_mined_fact(
             self,
@@ -6317,6 +6318,7 @@ class Engine:
             require_live=require_live,
             trust_cap=trust_cap,
             envelope=envelope,
+            supersedes=supersedes,
         )
 
     async def _auto_watch(

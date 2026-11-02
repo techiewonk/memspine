@@ -590,6 +590,33 @@
       "additionalProperties": true,
       "description": "The registry interpretation of the claim's predicate (pinned version and digest).",
       "properties": {
+        "amount": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Amount"
+        },
+        "attribute_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attribute Key"
+        },
         "cardinality": {
           "enum": [
             "one",
@@ -606,6 +633,18 @@
           },
           "title": "Cardinality Scope",
           "type": "object"
+        },
+        "currency": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Currency"
         },
         "object_entity_type": {
           "anyOf": [
@@ -681,6 +720,18 @@
           ],
           "title": "Subject Type",
           "type": "string"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
         }
       },
       "required": [

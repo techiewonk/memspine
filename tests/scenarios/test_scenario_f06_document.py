@@ -1,8 +1,9 @@
 """F6 document (docs/BI01_CONTRACT_REWRITE_PLAN.md "Expanded synthetic fixtures (RM-54)").
 
 A release note states that project X requires version 4. The statement is the document's,
-pinned to its source; it is never a user assertion and never demonstrated compatibility. A
-user who reports what the note says asserts nothing either."""
+pinned to its source: a ``reported`` claim attributed to the document (RM-54), never a user
+assertion and never demonstrated compatibility. A user who reports what the note says asserts
+nothing either."""
 
 from __future__ import annotations
 
@@ -53,29 +54,32 @@ async def test_f6_document_statement_is_never_a_user_claim(
         assert chunk.source.doc_path is not None
         assert chunk.source.doc_path.endswith("RELEASE-4.0.md")
         assert (chunk.source.channel, chunk.source.message_id) == ("ingest", "chunk:0")
-        # no user assertion and no demonstrated compatibility from either source
-        assert await claims(eng) == []
+        # no user assertion and no demonstrated compatibility from either source: the only
+        # claim is the document's own statement, reported and attributed to the document
+        [claim] = await claims(eng)
+        assert (claim.predicate, claim.subject, claim.modality) == (
+            "requires",
+            "Project X",
+            "reported",
+        )
+        assert claim.principal == "document:RELEASE-4.0.md" and claim.sources == (chunk.record_id,)
+        assert claim.role("resource") == [
+            ("version 4 of the runtime", "text", None, ("version 4 of the runtime",))
+        ]
+        assert report.record_id not in {c.sources[0] for c in await claims(eng)}
         assert report.record_id not in {u.source.record_id for u in unresolved(eng)}
-        assert await semantic_hits(eng, QUERY) == []
+        # the one claim a read finds is the document's report, never a user's
+        assert await semantic_hits(eng, QUERY) == [claim.text]
         assert await semantic_hits(eng, QUERY, recorded_before=cut) == []
 
         await assert_replay(eng, ["release-notes", "Project X"])
-        await assert_erased(eng, chunk, [], QUERY)
+        await assert_erased(eng, chunk, [claim.record_id], QUERY)
         hits = await eng.search(QUERY, namespace="a", top_k=10)
         assert [r.record_id for r, _ in hits] == [report.record_id]  # only the user's turn
     finally:
         await eng.stop()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "RM-54: documents are not derived by the rules-only path (ingest_data writes resource "
-        "chunks only, and source_ineligible in derive/non_generative_facts.py drops every "
-        "non-user source), so the note never yields a reported 'requires' claim attributed "
-        "to the document chunk"
-    ),
-)
 async def test_f6_document_claim_is_reported_and_attributed(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -88,5 +92,8 @@ async def test_f6_document_claim_is_reported_and_attributed(
         [claim] = by_predicate(await claims(eng), "requires")
         assert claim.modality == "reported" and claim.principal != "user"
         assert claim.sources == (chunk.record_id,)
+        assert claim.evidence == (
+            (chunk.record_id, 13, len(NOTE), "Project X requires version 4 of the runtime."),
+        )
     finally:
         await eng.stop()

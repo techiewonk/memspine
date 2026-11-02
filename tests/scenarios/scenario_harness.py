@@ -18,6 +18,7 @@ import asyncio
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
@@ -56,6 +57,7 @@ async def boot(
     max_turns: int = 1,
     resource: bool = False,
     read: Mapping[str, Any] | None = None,
+    lineage_table: bool = False,
 ) -> Engine:
     """The default rules-only profile on ``path``; ``extractor`` replaces the built-in rules
     behind the configured non-generative extractor hook (the family fixtures, DS-18)."""
@@ -78,7 +80,12 @@ async def boot(
             **({"resource": {"enabled": True}} if resource else {}),
         },
         graph={"edge_compiler": True},
-        write={"window_async": False, "window_idle_s": 0.0, "window_max_turns": max_turns},
+        write={
+            "window_async": False,
+            "window_idle_s": 0.0,
+            "window_max_turns": max_turns,
+            **({"lineage_table": True} if lineage_table else {}),
+        },
         **({"read": dict(read)} if read is not None else {}),
     )
     await eng.start()
@@ -162,6 +169,11 @@ class Claim:
     event_resolved: bool
     known_at: datetime | None
     valid_from: datetime | None
+    #: RM-54: the typed value of a property claim (key, unit, currency, Decimal amount)
+    attribute_key: str | None = None
+    unit: str | None = None
+    currency: str | None = None
+    amount: Decimal | None = None
 
     def role(self, name: str) -> list[tuple[str, str, str | None, tuple[str, ...]]]:
         return [(v, k, t, q) for r, v, k, t, q in self.roles if r == name]
@@ -209,11 +221,16 @@ def _claim(record: MemoryRecord) -> Claim:
         event_resolved=env.time.event is not None,
         known_at=env.known_at,
         valid_from=record.valid_from,
+        attribute_key=env.registry.attribute_key,
+        unit=env.registry.unit,
+        currency=env.registry.currency,
+        amount=env.registry.amount,
     )
 
 
-async def claims(eng: Engine, ns: str = NS) -> list[Claim]:
-    """Every visible (not erased, not hidden, not deleted) rules-produced claim of ``ns``."""
+async def claims(eng: Engine, ns: str = NS, *, superseded: bool = False) -> list[Claim]:
+    """Every visible (not erased, not hidden, not deleted) rules-produced claim of ``ns``; a
+    claim a correction or closure superseded (RM-22 / RM-54) only with ``superseded``."""
     storage = eng._require_started()
     out = [
         _claim(r)
@@ -222,6 +239,8 @@ async def claims(eng: Engine, ns: str = NS) -> list[Claim]:
         and r.status.value != "deleted"
         and visible_id(eng, r.record_id)
     ]
+    if not superseded:
+        out = [c for c in out if c.status != "superseded"]
     return sorted(out, key=lambda c: (c.valid_from or datetime.min.replace(tzinfo=UTC), c.text))
 
 
@@ -433,7 +452,10 @@ class ScriptedExtractor:
         build = self.script.get(record.content)
         if build is None:
             return FactStageResult()
-        facts: list[GroundedFactCandidate] = list(build(record, scope))
+        built = build(record, scope)
+        if isinstance(built, FactStageResult):  # pending changes (RM-22 / RM-54)
+            return built
+        facts: list[GroundedFactCandidate] = list(built)
         return FactStageResult(facts=tuple(facts))
 
 
@@ -453,7 +475,10 @@ def candidate(
     modality: str = "asserted",
     cardinality_scope: Mapping[str, str] | None = None,
     qualifiers: Mapping[str, str] | None = None,
+    **typed: Any,
 ) -> GroundedFactCandidate:
+    """``typed``: the RM-54 typed-value fields (attribute_key, unit, currency, amount,
+    context) and the RM-57 outcome, passed through as is."""
     sender = assertion_owner(record) or "unknown"
     return GroundedFactCandidate(
         scope=scope,
@@ -473,4 +498,5 @@ def candidate(
             for key, value in (qualifiers or {}).items()
         },
         producer_revision="scenario-fixture:1",
+        **typed,
     )

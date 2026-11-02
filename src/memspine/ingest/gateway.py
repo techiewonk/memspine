@@ -231,6 +231,21 @@ class GatewayResult:
 
 
 # ------------------------------------------------------------------------------------------ helpers
+async def _observe_document_chunks(eng: Any, records: Sequence[MemoryRecord]) -> None:
+    """RM-54: under the rules-only window path, each new document chunk joins the windows like
+    a turn, so the rules read the document's own statements (``reported``, attributed to the
+    document; never a user fact). The model path does not derive documents here. Never fails
+    the ingest: with the durable outbox, discovery replays a chunk whose observe failed."""
+    windows = getattr(eng, "_windows", None)
+    if windows is None or not getattr(windows, "rule_only", False):
+        return
+    for record in records:
+        try:
+            await windows.observe(record, None)
+        except Exception as exc:
+            _log.warning("window.observe_failed", namespace=record.namespace, error=str(exc))
+
+
 def _digest(*parts: Any) -> str:
     blob = json.dumps(parts, ensure_ascii=True, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(blob.encode("utf-8")).hexdigest()[:24]
@@ -809,6 +824,7 @@ class IntakeGateway:
                     actor=a["actor"],
                 )
             landed.update({w: r.record_id for w, r in recs.items()})
+            await _observe_document_chunks(eng, list(recs.values()))
         if p["retract"]:
             db = await self._ledger()
             gone = await store.record_ids(db, p["skey"], p["retract"])

@@ -54,22 +54,29 @@ async def test_f4_suggestion_refusal_visit_keep_residence(
         )
         await settle(eng)
         found = await claims(eng)
-        # residence unchanged; no move plan, no never-moving trait, no visit-as-residence
+        # residence unchanged; no move plan, no never-moving trait, no visit-as-residence:
+        # the visit is its own event claim (ADR-088 amendment 2026-11-02)
         assert [(c.subject, c.object) for c in by_predicate(found, "resides_in")] == [
             ("Asha", "Porto")
         ]
-        assert [c.predicate for c in found] == ["resides_in"]
-        # the agent's text is a proposal, never an asserted claim of anyone
+        assert [c.predicate for c in found] == ["resides_in", "visited"]
+        # the agent's text is not a user's, never an asserted claim of anyone
         [note] = [u for u in unresolved(eng) if u.source.record_id == suggestion.record_id]
-        assert note.reason == "assistant_proposal" and note.asserted is False
+        assert note.reason == "source_not_user" and note.asserted is False
         assert refusal.record_id not in {c.sources[0] for c in found}
-        assert visit.record_id not in {c.sources[0] for c in found}
+        assert [c.predicate for c in found if visit.record_id in c.sources] == ["visited"]
 
-        assert await read_claims(eng, QUERY) == ["Asha resides_in Porto"]
+        # the read finds the one residence and, separately, the visit event
+        assert sorted(await read_claims(eng, QUERY)) == [
+            "Asha resides_in Porto",
+            "Asha visited Lisbon",
+        ]
         assert await semantic_hits(eng, QUERY, recorded_before=cut) == ["Asha resides_in Porto"]
         await assert_replay(eng, ["Asha", "Porto", "Lisbon"])
         await assert_erased(eng, suggestion, [], QUERY)
         await assert_erased(eng, home, [found[0].record_id], QUERY)
+        assert [c.predicate for c in await claims(eng)] == ["visited"]
+        await assert_erased(eng, visit, [found[1].record_id], QUERY)
         assert await claims(eng) == []
     finally:
         await eng.stop()
@@ -125,13 +132,6 @@ async def test_f4_plan_keeps_planned_modality_and_tentative_edges(
         await eng.stop()
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "RM-22: the rules-only producer has no visit or scoped-refusal rule; 'I visited Lisbon "
-        "last weekend' yields no visited event claim (core/rule_miner.py has no visit slot)"
-    ),
-)
 async def test_f4_visit_is_a_separate_event_claim(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -140,5 +140,7 @@ async def test_f4_visit_is_a_separate_event_claim(
         await send(eng, [msg("v-1", "Asha", "I visited Lisbon last weekend.", "2026-10-01T09:02Z")])
         [visit] = by_predicate(await claims(eng), "visited")
         assert (visit.object, visit.modality) == ("Lisbon", "asserted")
+        assert visit.subject == visit.principal == "Asha"
+        assert by_predicate(await claims(eng), "resides_in") == []
     finally:
         await eng.stop()
