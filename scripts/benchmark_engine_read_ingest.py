@@ -58,6 +58,10 @@ OUT_DIR = ROOT / "docs" / "provider_verification"
 NS = "corpus"
 SESSION_TURNS = 20
 RERANK_ON = {"rerank": {"chain": [{"provider": "onnx", "settings": {}}]}}
+#: ``write.*`` overrides applied to every engine this run opens (``--window-idle-s``).
+WRITE_OVERRIDES: dict[str, Any] = {}
+#: Concurrent part: give each session's step messages one ``conversation_id``.
+CONVERSATION_PER_SESSION = False
 
 
 def _config(data: Path, *, rerank: bool) -> dict[str, Any]:
@@ -72,6 +76,8 @@ def _config(data: Path, *, rerank: bool) -> dict[str, Any]:
     }
     if rerank:
         cfg["model"] = RERANK_ON
+    if WRITE_OVERRIDES:
+        cfg["write"] = dict(WRITE_OVERRIDES)
     return cfg
 
 
@@ -208,8 +214,8 @@ async def read_series(data: Path, *, rerank: bool, reps: int, warmups: int) -> d
 
 async def part_read(args: argparse.Namespace) -> None:
     rec = Recorder(
-        "rm26-read-latency-reranker",
-        OUT_DIR / f"perf-rm26-read-latency-reranker-{DATE}.json",
+        args.family or "rm26-read-latency-reranker",
+        OUT_DIR / f"perf-{args.family or 'rm26-read-latency-reranker'}-{DATE}{args.suffix}.json",
         allow_dirty=args.allow_dirty,
         ignore=[OUT_DIR],
         settings={
@@ -226,7 +232,7 @@ async def part_read(args: argparse.Namespace) -> None:
     )
     work = Path(args.work_dir)
     for size in args.sizes:
-        info = await seed(work, size, max_seed_s=args.max_seed_s)
+        info = await seed(work, size, max_seed_s=args.max_seed_s, reuse=not args.fresh_seed)
         data = work / f"seed-{size}"
         off = await read_series(data, rerank=False, reps=args.reps, warmups=args.warmups)
         on = await read_series(data, rerank=True, reps=args.reps, warmups=args.warmups)
@@ -245,6 +251,68 @@ async def part_read(args: argparse.Namespace) -> None:
 
 
 # ----------------------------------------------------------------------------- concurrent
+
+#: record id -> (perf_counter at the window cut, cut reason, turns in the window)
+CUTS: dict[str, tuple[float, str, int]] = {}
+#: per-cut (reason, turns, tokens) of the current step
+STEP_CUTS: list[tuple[str, int, int]] = []
+
+
+def install_cut_probe(eng: Engine) -> bool:
+    """Record when each record's window is cut, so derivation lag splits into the wait for
+    the cut (idle window, turn cap, session end) and the processing after it."""
+    windows = getattr(eng, "_windows", None)
+    if windows is None or not hasattr(windows, "_enqueue"):
+        return False
+    original = windows._enqueue
+
+    def enqueue(ns: str, store: Any, window: Any, win: Any) -> Any:
+        now = time.perf_counter()
+        turns = len(window.record_ids)
+        for record_id in window.record_ids:
+            CUTS[record_id] = (now, str(window.reason), turns)
+        STEP_CUTS.append((str(window.reason), turns, int(getattr(window, "tokens", 0) or 0)))
+        return original(ns, store, window, win)
+
+    windows._enqueue = enqueue
+    return True
+
+
+def _window_stats(eng: Engine, *, reset: bool = False) -> dict[str, Any] | None:
+    windows = getattr(eng, "_windows", None)
+    if windows is None:
+        return None
+    stats = windows.stats(reset=reset)
+    keep = (
+        "turns",
+        "windows",
+        "windows_by_reason",
+        "windows_processed",
+        "turns_per_window",
+        "calls",
+        "rule_facts_returned",
+        "rule_facts_unresolved",
+        "facts_returned",
+        "facts_deposited",
+        "windows_empty",
+    )
+    return {k: stats.get(k) for k in keep}
+
+
+def _record_message_ids(records: Any, ids: list[str]) -> dict[str, str]:
+    """record id -> message id for one ``ingest_messages`` call."""
+    out: dict[str, str] = {}
+    for k, record in enumerate(records or []):
+        source = getattr(record, "source", None)
+        message = getattr(source, "message", None)
+        mid = getattr(message, "message_id", None)
+        if mid is None and isinstance(message, dict):
+            mid = message.get("message_id")
+        if mid is None and k < len(ids):
+            mid = ids[k]
+        if mid is not None:
+            out[str(record.record_id)] = str(mid)
+    return out
 
 
 async def run_rate(
@@ -274,6 +342,9 @@ async def run_rate(
     lags: dict[str, float] = {}
     final_state: dict[str, str] = {}
     errors: list[str] = []
+    record_of: dict[str, str] = {}  # message id -> record id
+    STEP_CUTS.clear()
+    _window_stats(eng, reset=True)
     writing = True
     calls = 0
     acked_msgs = 0
@@ -287,8 +358,15 @@ async def run_rate(
             for k, mid in enumerate(ids)
         ]
         try:
-            await eng.ingest_messages(
-                msgs, namespace=NS, session_id=f"{label}-{first // SESSION_TURNS}"
+            session = f"{label}-{first // SESSION_TURNS}"
+            records = await eng.ingest_messages(
+                msgs,
+                namespace=NS,
+                session_id=session,
+                # --conversation-per-session: the session's turns share one conversation, so
+                # a window can hold several turns; otherwise every root message starts its
+                # own conversation (and its own window).
+                conversation_id=session if CONVERSATION_PER_SESSION else None,
             )
         except Exception as exc:  # recorded, not fatal
             errors.append(f"write: {type(exc).__name__}: {exc}"[:300])
@@ -296,6 +374,8 @@ async def run_rate(
         now = time.perf_counter()
         acks.append((now - scheduled) * 1000)
         acked_msgs += len(ids)
+        for rid, mid in _record_message_ids(records, ids).items():
+            record_of[mid] = rid
         for k, mid in enumerate(ids):
             if (first + k) % sample == 0:
                 acked_at[mid] = now
@@ -370,6 +450,24 @@ async def run_rate(
         except TimeoutError:
             pass
     lag_values = list(lags.values())
+    # Split each derived lag at its window cut: the wait for the cut (the configured idle
+    # window, a turn cap or a session end) and the processing after the cut.
+    cut_wait: list[float] = []
+    processing: list[float] = []
+    lag_by_reason: dict[str, list[float]] = {}
+    unmatched = 0
+    for mid, lag in lags.items():
+        cut = CUTS.get(record_of.get(mid, ""))
+        if cut is None or mid not in acked_at:
+            unmatched += 1
+            continue
+        wait = max(0.0, (cut[0] - acked_at[mid]) * 1000)
+        cut_wait.append(wait)
+        processing.append(max(0.0, lag - wait))
+        lag_by_reason.setdefault(cut[1], []).append(lag)
+    cut_reasons: dict[str, int] = {}
+    for reason, _, _ in STEP_CUTS:
+        cut_reasons[reason] = cut_reasons.get(reason, 0) + 1
     states: dict[str, int] = {}
     for mid in acked_at:
         state = final_state.get(mid, "unpolled")
@@ -391,6 +489,17 @@ async def run_rate(
         "read_ms": summarize(reads),
         "readers": readers,
         "derivation_lag_ms": summarize(lag_values),
+        "lag_wait_for_window_cut_ms": summarize(cut_wait),
+        "lag_processing_after_cut_ms": summarize(processing),
+        "lag_by_cut_reason_ms": {r: summarize(v) for r, v in lag_by_reason.items()},
+        "lag_split_unmatched": unmatched,
+        "window_cuts": {
+            "count": len(STEP_CUTS),
+            "by_reason": cut_reasons,
+            "turns_per_window": summarize([float(t) for _, t, _ in STEP_CUTS]),
+            "tokens_per_window": summarize([float(t) for _, _, t in STEP_CUTS]),
+        },
+        "window_stats": _window_stats(eng),
         "lag_sample_every": sample,
         "lag_tracked": len(acked_at),
         "derived": len(lag_values),
@@ -412,8 +521,9 @@ async def part_concurrent(args: argparse.Namespace) -> None:
     if args.steps:
         steps = [step for step in steps if step[0] in set(args.steps)]
     rec = Recorder(
-        "pa053-concurrent-ingest-search",
-        OUT_DIR / f"perf-pa053-concurrent-ingest-search-{DATE}.json",
+        args.family or "pa053-concurrent-ingest-search",
+        OUT_DIR
+        / f"perf-{args.family or 'pa053-concurrent-ingest-search'}-{DATE}{args.suffix}.json",
         allow_dirty=args.allow_dirty,
         ignore=[OUT_DIR],
         settings={
@@ -437,6 +547,12 @@ async def part_concurrent(args: argparse.Namespace) -> None:
                 "messages of the earlier steps"
             ),
             "lag_definition": "ack -> wait_for_derivation(facts) not pending (poll resolution)",
+            "lag_split": (
+                "per tracked message: wait = window cut time - ack (WindowPipeline._enqueue "
+                "probe); processing = lag - wait"
+            ),
+            "write_overrides": dict(WRITE_OVERRIDES),
+            "conversation_per_session": CONVERSATION_PER_SESSION,
             "logging": "WARNING",
         },
     )
@@ -448,6 +564,7 @@ async def part_concurrent(args: argparse.Namespace) -> None:
     )
     eng, start_ms = await _open(work / "live", rerank=False)
     rec.record["results"]["engine_start_ms"] = round(start_ms, 1)
+    rec.record["results"]["cut_probe_installed"] = install_cut_probe(eng)
     written = args.seed_size
     try:
         for label, rate, duration, batch in steps:
@@ -524,7 +641,25 @@ def main() -> None:
     parser.add_argument("--poll-ms", type=int, default=500)
     parser.add_argument("--tail-s", type=float, default=150.0)
     parser.add_argument("--allow-dirty", action="store_true")
+    parser.add_argument("--suffix", default="", help="record file suffix, e.g. -after")
+    parser.add_argument("--family", default=None, help="record family (and file) name")
+    parser.add_argument(
+        "--window-idle-s", type=float, default=None, help="override write.window_idle_s"
+    )
+    parser.add_argument(
+        "--fresh-seed", action="store_true", help="read part: reseed even if a seed exists"
+    )
+    parser.add_argument(
+        "--conversation-per-session",
+        action="store_true",
+        help="concurrent part: one conversation_id per session of step messages",
+    )
     args = parser.parse_args()
+    if args.conversation_per_session:
+        global CONVERSATION_PER_SESSION
+        CONVERSATION_PER_SESSION = True
+    if args.window_idle_s is not None:
+        WRITE_OVERRIDES["window_idle_s"] = args.window_idle_s
     configure_logging("WARNING")
     Path(args.work_dir).mkdir(parents=True, exist_ok=True)
     if args.part == "read":

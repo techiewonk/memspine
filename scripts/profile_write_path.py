@@ -51,7 +51,7 @@ from perf_protocol import ROOT, SENDER, Recorder, corpus_messages, corpus_querie
 from memspine.observability.logging import configure_logging
 
 DATE = "2026-11-02"
-OUT = ROOT / "docs" / "provider_verification" / f"perf-pa053-write-path-profile-{DATE}.json"
+OUT_DIR = ROOT / "docs" / "provider_verification"
 
 OP: contextvars.ContextVar[str] = contextvars.ContextVar("op", default="other")
 #: (op, span) -> list of (ms, thread kind)
@@ -247,11 +247,12 @@ async def run(args: argparse.Namespace) -> None:
     data = Path(args.work_dir) / "live"
     if not (data / "seed.json").exists():
         raise SystemExit(f"{data} has no seeded store; run benchmark_engine_read_ingest first")
+    out = OUT_DIR / f"perf-pa053-write-path-profile-{DATE}{args.suffix}.json"
     rec = Recorder(
         "pa053-write-path-profile",
-        OUT,
+        out,
         allow_dirty=args.allow_dirty,
-        ignore=[OUT.parent],
+        ignore=[OUT_DIR],
         settings={
             "store": "the seeded PA-053 store (<work-dir>/live), base template, rules-only",
             "reps": args.reps,
@@ -369,6 +370,7 @@ def main() -> None:
     parser.add_argument("--reps", type=int, default=10)
     parser.add_argument("--concurrent-reps", type=int, default=5)
     parser.add_argument("--allow-dirty", action="store_true")
+    parser.add_argument("--suffix", default="", help="record file suffix, e.g. -after")
     args = parser.parse_args()
     configure_logging("WARNING")
     asyncio.run(run(args))
