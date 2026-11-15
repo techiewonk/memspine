@@ -1,0 +1,23 @@
+{
+  "phase": "before",
+  "time_utc": "2026-11-15T15:56:13.4614736Z",
+  "head": "49421c8ec83c1a55c6b728b5dd3f3153fb33835e",
+  "tree": "6e1b07c40786c7a443aaf0899a348323b4d57e97",
+  "status": [],
+  "python": {
+    "executable": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv\\Scripts\\python.exe",
+    "version": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+    "packages": {
+      "pytest": "9.2.0",
+      "pytest-xdist": "3.8.0",
+      "temporalio": null,
+      "sqlalchemy": "2.1.6",
+      "pydantic": "2.14.2"
+    }
+  },
+  "locks": {
+    "uv.lock": "fd2c52e1c2d68616d580ff27c83e233ad259b20eed4607292014827da5833591",
+    "pyproject.toml": "6f43734642ce154f474d99114fd19b24933e7e3b660b2d418f46b27e2767bff0"
+  },
+  "command": ".venv\\Scripts\\python.exe -m pytest -p no:deepeval -o addopts= -q --tb=short -n 2 tests/scenarios/test_scenario_f01_residence.py tests/scenarios/test_scenario_f02_identity.py tests/scenarios/test_scenario_f03_correction.py tests/scenarios/test_scenario_f04_modality.py tests/scenarios/test_scenario_f05_later_evidence.py tests/unit/test_reply_links.py tests/unit/trust/pipeline/test_erasure_recovery_witness.py"
+}

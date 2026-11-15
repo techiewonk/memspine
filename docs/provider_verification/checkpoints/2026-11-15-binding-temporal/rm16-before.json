@@ -1,0 +1,41 @@
+{
+  "kind": "rm16_clean_revision_before",
+  "at_utc": "2026-11-15T15:57:02.535977+00:00",
+  "head": "49421c8ec83c1a55c6b728b5dd3f3153fb33835e",
+  "tree": "6e1b07c40786c7a443aaf0899a348323b4d57e97",
+  "status": "",
+  "lock_sha256": {
+    "uv.lock": "fd2c52e1c2d68616d580ff27c83e233ad259b20eed4607292014827da5833591",
+    "pyproject.toml": "6f43734642ce154f474d99114fd19b24933e7e3b660b2d418f46b27e2767bff0"
+  },
+  "interpreters": {
+    "temporal": {
+      "executable": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv-rm150\\Scripts\\python.exe",
+      "version": "3.13.5",
+      "packages": {
+        "temporalio": "1.35.0",
+        "resonate": null,
+        "pytest": "9.2.0",
+        "psycopg": null,
+        "neo4j": null,
+        "redis": "8.1.0",
+        "opensearch-py": null,
+        "weaviate-client": null
+      }
+    },
+    "native": {
+      "executable": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv\\Scripts\\python.exe",
+      "version": "3.13.5",
+      "packages": {
+        "temporalio": null,
+        "resonate": null,
+        "pytest": "9.2.0",
+        "psycopg": "3.3.6",
+        "neo4j": "6.4.1",
+        "redis": "8.1.0",
+        "opensearch-py": "3.2.0",
+        "weaviate-client": "4.24.1"
+      }
+    }
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "phase": "after",
+  "time_utc": "2026-11-15T15:58:56.2729809Z",
+  "head": "49421c8ec83c1a55c6b728b5dd3f3153fb33835e",
+  "tree": "6e1b07c40786c7a443aaf0899a348323b4d57e97",
+  "status": [],
+  "same_head": true,
+  "same_tree": true,
+  "same_status": true,
+  "exit_code": 0,
+  "summary": "82 passed in 134.42s (0:02:14)",
+  "log_sha256": "d2c7933ed1dcb05416a1cc02012cd29de8529cccafc2ad7dab8afcd2c9aa73ac"
+}

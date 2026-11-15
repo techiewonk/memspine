@@ -1,0 +1,47 @@
+{
+  "kind": "rm16_same_clean_revision_live_temporal_and_strict_native",
+  "at_utc": "2026-11-15T15:59:33.281646+00:00",
+  "verdict": "PASS",
+  "revision": {
+    "head": "49421c8ec83c1a55c6b728b5dd3f3153fb33835e",
+    "tree": "6e1b07c40786c7a443aaf0899a348323b4d57e97",
+    "before_status_clean": true,
+    "after_status_clean": true,
+    "lock_sha256": {
+      "uv.lock": "fd2c52e1c2d68616d580ff27c83e233ad259b20eed4607292014827da5833591",
+      "pyproject.toml": "6f43734642ce154f474d99114fd19b24933e7e3b660b2d418f46b27e2767bff0"
+    }
+  },
+  "interpreter_package_preflight": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-user-gates-2026-11-15\\rm16-before.json",
+  "temporal": {
+    "receipt_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-user-gates-2026-11-15\\temporal-live.json",
+    "receipt_sha256": "e6c1969ffa86750244be3faca2302a290fc0ac90884785747cf9a4c76e0c6d97",
+    "log_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-user-gates-2026-11-15\\temporal-live.log",
+    "exit_code": 0,
+    "result": "12 passed, 0 skipped",
+    "environment": "owned loopback Temporal service; default namespace; real SDK 1.35.0"
+  },
+  "native": {
+    "receipt_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-user-gates-2026-11-15\\native-live.json",
+    "receipt_sha256": "6431f3e94175a79fed955372dfde49da6d1ab3f85b59df94be36c28f89a8c04b",
+    "runner_report_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-user-gates-2026-11-15\\native-report.json",
+    "runner_report_sha256": "2130ae4e593bdb57b7e774ba4f631f6354efca672f648c91f31c4df681222839",
+    "log_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-user-gates-2026-11-15\\native-live.log",
+    "exit_code": 0,
+    "result": "8 passed, 2 warnings in 15.62s",
+    "skips": [],
+    "services_started": [
+      "postgres",
+      "neo4j",
+      "redis",
+      "valkey",
+      "opensearch",
+      "weaviate"
+    ],
+    "scope": "Strict provider_live contracts for PostgreSQL, Neo4j, Redis, Valkey, OpenSearch, Weaviate; MongoDB is not included in this runner."
+  },
+  "limitations": [
+    "This is the RM-16 intermediate same-revision live gate, not a clean full-unit, benchmark, model-quality or formal Phase C release gate.",
+    "The native runner covers its six selected provider services; MongoDB native coverage is separate."
+  ]
+}

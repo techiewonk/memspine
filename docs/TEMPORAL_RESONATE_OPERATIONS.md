@@ -110,9 +110,19 @@ There is no `dbos` selector, extra, runner file or `dbos_system_database_url` se
 Old settings are rejected. Historical ADRs and reports describe prior runs only.
 No database copying, re-embedding or workflow-history translation is performed.
 
-The durable ingestion outbox has its own `workers.transport` seam (`inline` or
-`taskiq`). This change replaces the former DBOS maintenance runner; it does not
-route ingestion windows through Temporal automatically or replace event-log truth.
+The durable ingestion outbox remains the job queue and progress authority; the
+event log remains memory truth. With
+`workers.outbox: true`, `workers.runner: temporal` and `workers.transport: inline`,
+Engine and CLI drains run staged discovery and window jobs through a Temporal
+Workflow and fenced Activity, which reuse the inline outbox's lease, source checks,
+idempotent effect path and watermarks. A lost or duplicate kick does not replace the
+durable rows. `workers.transport: taskiq` is a separate brokered option; Temporal
+does not take over the event log or turn every model call into its own Activity.
+The clean C2 revision `49421c8` has focused binding, live Temporal and strict
+native results in the [durable gate manifest](provider_verification/checkpoints/2026-11-15-binding-temporal/manifest.json).
+Production failover and volume attachment, native cross-process binding atomicity,
+actual-model quality and broader ingestion model/result orchestration remain
+separate acceptance work.
 
 See [ADR-071](adr/ADR-071-temporal-resonate-orchestration.md),
 [the change directive](TEMPORAL_RESONATE_CHANGE_DIRECTIVE.md), and

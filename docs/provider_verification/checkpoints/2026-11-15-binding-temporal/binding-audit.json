@@ -1,0 +1,74 @@
+{
+  "gate": "cross-message binding and F1-F5",
+  "verdict": "PASS",
+  "revision": "49421c8ec83c1a55c6b728b5dd3f3153fb33835e",
+  "tree": "6e1b07c40786c7a443aaf0899a348323b4d57e97",
+  "selected_modules": [
+    "tests/scenarios/test_scenario_f01_residence.py",
+    "tests/scenarios/test_scenario_f02_identity.py",
+    "tests/scenarios/test_scenario_f03_correction.py",
+    "tests/scenarios/test_scenario_f04_modality.py",
+    "tests/scenarios/test_scenario_f05_later_evidence.py",
+    "tests/unit/test_reply_links.py",
+    "tests/unit/trust/pipeline/test_erasure_recovery_witness.py"
+  ],
+  "result": {
+    "passed": 82,
+    "failed": 0,
+    "skipped": 0,
+    "exit_code": 0,
+    "duration_seconds": 134.42,
+    "workers": 2
+  },
+  "artifacts": {
+    "before": "binding-before.json",
+    "log": "binding-pytest.log",
+    "after": "binding-after.json",
+    "log_sha256": "d2c7933ed1dcb05416a1cc02012cd29de8529cccafc2ad7dab8afcd2c9aa73ac"
+  },
+  "source_scope": {
+    "rule": "derive/discourse_rules.py reply_move_origin: exact two-turn home-country text, no invented date",
+    "eligibility": "workers/windows.py _reply_move_origin: explicit canonical reply identity, same namespace/owner, visible parent, valid user roles, age ordering",
+    "deposit": "derive/pipeline/integrate.py _pinned_evidence_current: under namespace lock rechecks full rule input snapshots, evidence spans, reply identity and support/binding roles",
+    "erasure": "test_reply_links.py and test_erasure_recovery_witness.py: erase/restart/failure witnesses"
+  },
+  "limits": [
+    "Actual model quality is separate",
+    "Native cross-process atomicity and production deployment are separate",
+    "RM49 nine-memory-type acceptance and RM145 pin/index unification remain open",
+    "RM16 clean live Temporal/native service acceptance is separate"
+  ],
+  "active_doc_gaps": [
+    {
+      "path": "docs/TEMPORAL_RESONATE_CHANGE_DIRECTIVE.md",
+      "lines": [
+        22,
+        52,
+        53,
+        54,
+        525
+      ],
+      "issue": "Current text calls implemented local Temporal outbox path future/inline-taskiq only. ACD-07 broader model-result work remains pending."
+    },
+    {
+      "path": "docs/TEMPORAL_RESONATE_OPERATIONS.md",
+      "lines": [
+        113,
+        114,
+        115
+      ],
+      "issue": "Current text omits TemporalOutboxRunner around inline transport and says windows are not routed via Temporal."
+    },
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "lines": [
+        529,
+        530,
+        531,
+        532,
+        665
+      ],
+      "issue": "Current narrative and combined ACD-04/07 row say Temporal ingestion outbox integration pending; locally ACD-04 path exists, broader ACD-07/production remain open."
+    }
+  ]
+}

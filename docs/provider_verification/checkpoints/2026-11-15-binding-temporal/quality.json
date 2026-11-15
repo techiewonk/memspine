@@ -1,0 +1,61 @@
+{
+  "revision": {
+    "commit": "49421c8ec83c1a55c6b728b5dd3f3153fb33835e",
+    "tree": "6e1b07c40786c7a443aaf0899a348323b4d57e97",
+    "status_before": "",
+    "status_after": ""
+  },
+  "results": [
+    {
+      "gate": "ruff",
+      "command": [
+        "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "check",
+        "."
+      ],
+      "exit_code": 0,
+      "seconds": 0.205,
+      "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18"
+    },
+    {
+      "gate": "format",
+      "command": [
+        "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "format",
+        "--check",
+        "."
+      ],
+      "exit_code": 0,
+      "seconds": 0.188,
+      "log_sha256": "eab6b80ac5dfa5fb2c414fe0540b7883dd087dc0dc11a88aaab85b3baba8afec"
+    },
+    {
+      "gate": "mypy",
+      "command": [
+        "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv\\Scripts\\python.exe",
+        "-m",
+        "mypy",
+        "--strict",
+        "src/memspine"
+      ],
+      "exit_code": 0,
+      "seconds": 2.111,
+      "log_sha256": "dfbd26a4e54fc9aa7db7593495652be463e1b4c28c786dfc0c30a2dd11e5df7f"
+    }
+  ],
+  "scope": "Intermediate checkpoint quality checks only; not formal Phase C or entire test suite.",
+  "environment": {
+    "python": "3.13.5 (main, Jul 11 2025, 22:38:12) [MSC v.1944 64 bit (AMD64)]",
+    "executable": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv\\Scripts\\python.exe",
+    "packages": {
+      "ruff": "0.17.3",
+      "mypy": "2.4.1"
+    },
+    "uv_lock_sha256": "fd2c52e1c2d68616d580ff27c83e233ad259b20eed4607292014827da5833591",
+    "pyproject_sha256": "6f43734642ce154f474d99114fd19b24933e7e3b660b2d418f46b27e2767bff0"
+  }
+}

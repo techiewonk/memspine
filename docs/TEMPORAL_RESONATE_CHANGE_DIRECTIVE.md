@@ -1,8 +1,8 @@
 # Architectural Change Directive: Temporal macro-orchestration + local Resonate micro-orchestration
 
 Date: 2026-10-17. Audience: backend engineers and implementation agents.
-Status: active maintenance runner migrated and locally verified; owner selected option B, embedded Resonate plus an application-owned durable step journal (2026-10-17).
-DBOS has been removed from active source, dependencies, templates and configuration. The runtime now implements Temporal + embedded Resonate through the existing maintenance TaskRunner. Production deployment acceptance remains separate.
+Status: active maintenance runner and configured ingestion outbox drain locally verified; owner selected option B, embedded Resonate plus an application-owned durable step journal (2026-10-17).
+DBOS has been removed from active source, dependencies, templates and configuration. The runtime implements Temporal + embedded Resonate through the maintenance TaskRunner and a separate Temporal drain of the durable ingestion outbox. Production deployment acceptance remains separate.
 Reference template verified with CPython 3.13.5, `temporalio==1.34.0` and
 `resonate-sdk==0.8.1` in an isolated environment.
 
@@ -15,11 +15,16 @@ Reference template verified with CPython 3.13.5, `temporalio==1.34.0` and
 | Application journal | [`step_journal.py`](../src/memspine/workers/step_journal.py) | SQLite committed result reuse, changed-input rejection, leases and fencing |
 | Provider settings | [`schema/llm.py`](../src/memspine/config/schema/llm.py) | Typed Temporal/Resonate defaults and cross-field bounds |
 | Runtime wiring | [`container.py`](../src/memspine/runtime/container.py) | Provider settings to runner; Engine registers pipelines before start |
+| Ingestion outbox drain | [`temporal_outbox.py`](../src/memspine/runtime/temporal_outbox.py) and [`temporal_workflow.py`](../src/memspine/workers/temporal_workflow.py) | Configured Temporal Workflow and fenced Activity drain the existing durable outbox through its inline effect path |
 
 See [operations/configuration](TEMPORAL_RESONATE_OPERATIONS.md) and the
-[current live gate](provider_verification/temporal-live-final-tests.log).
+[current clean-revision gate](provider_verification/checkpoints/2026-11-15-binding-temporal/manifest.json).
 The checkpoint unit is a registered maintenance pipeline, not every nested model
-call. The existing durable ingestion outbox is an independent inline/taskiq seam.
+call. With `workers.outbox=true`, `workers.runner=temporal` and
+`workers.transport=inline`, Engine and CLI drains dispatch the outbox's staged work
+through `TemporalOutboxRunner`; the outbox remains the only durable queue and
+job-progress authority, while the event log remains memory truth.
+`workers.transport=taskiq` is a separate brokered option.
 This change does not serialize PipelineContext or add orchestration imports to
 pipeline functions. Workflows use the default SDK sandbox. Root package exports
 are lazy so importing a pure Workflow does not import Engine/Rich/model clients.
@@ -50,8 +55,13 @@ still not persistent. Completed leaf outputs are reused when the same journal
 file survives. Journal unit tests include an actual subprocess exit and reopening;
 the real SDK example verifies repeated Activity execution reuses completed rows.
 Real Temporal dispatch, failed-Activity retry, Worker reopen/result reuse and Engine
-sleep/reopen checks pass. Hard container failover, volume reattachment and production
-ingestion orchestration integration remain deployment/future-integration gates.
+sleep/reopen checks pass. On clean revision `49421c8`, the focused binding and
+recovery gate passed 82 tests, the live Temporal gate passed 12, and the strict
+native gate passed 8 across six configured services; the
+[durable evidence manifest](provider_verification/checkpoints/2026-11-15-binding-temporal/manifest.json)
+records their exact scope. Hard container failover, volume reattachment, native
+cross-process binding atomicity, actual-model quality and broader ingestion model
+work/result deposits as distinct Temporal boundaries remain separate gates.
 
 ## 1. Topology and responsibility boundaries
 
@@ -522,10 +532,10 @@ replacement of decorators on live-context functions.
 | ACD-01 | DONE: owner chose B | Application-owned SQLite journal; no native SDK durability claim |
 | ACD-02 | DONE: typed settings, optional extra and locked SDKs | No SDK imports in core/domain pipelines; strict settings, lifecycle and capabilities |
 | ACD-03 | DONE for maintenance invocation: identity/config/input fingerprints | Namespace/source identity, immutable revisions, input binding and authorization checked |
-| ACD-04 | Add durable outbox-to-Temporal submission | Crash between accept and dispatch loses no job; duplicate starts reconcile |
+| ACD-04 | DONE locally for configured ingestion outbox drains: Temporal Workflow and fenced Activity wrap the existing inline effect path | Accepted rows stay in the outbox across a lost kick; stable workflow identity joins duplicate starts; local retry/recovery and clean-revision gates pass. Native cross-process and deployment acceptance remain separate |
 | ACD-05 | DONE for registered maintenance pipeline Workflows and deployment queues | Replay test passes; no I/O/model/client construction inside Workflow |
 | ACD-06 | DONE: bounded local Resonate Activity | Local-only transport verified; cancellation/deadlines/retry budgets work |
-| ACD-07 | Integrate ingestion model work and result deposits | Exact provenance, historical source time, sender identity and idempotent graph/fact writes preserved |
+| ACD-07 | PENDING for broader ingestion model work and result deposits as distinct Temporal boundaries | Exact provenance, historical source time, sender identity and idempotent graph/fact writes preserved |
 | ACD-08 | DONE locally: canonical journal wired into active maintenance runner | Completed-step reuse proven under process death and ownership transfer; no unproven SQLite capability |
 | ACD-09 | Drain and retire DBOS workers | No dual ownership; all remaining jobs finish, are explicitly cancelled/compensated, or restart from application checkpoints |
 | ACD-10 | DONE: DBOS removed from selectors, extra and active wiring | Breaking change, no aliases/RETIRED map; historical documents/results remain historical |

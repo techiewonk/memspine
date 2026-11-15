@@ -1,0 +1,35 @@
+{
+  "kind": "rm16_temporal_live",
+  "start_utc": "2026-11-15T15:57:22.789735+00:00",
+  "end_utc": "2026-11-15T15:57:53.112253+00:00",
+  "head": "49421c8ec83c1a55c6b728b5dd3f3153fb33835e",
+  "tree": "6e1b07c40786c7a443aaf0899a348323b4d57e97",
+  "command": [
+    ".venv-rm150/Scripts/python.exe",
+    "-m",
+    "pytest",
+    "-p",
+    "no:deepeval",
+    "-o",
+    "addopts=",
+    "-q",
+    "-rs",
+    "--tb=short",
+    "tests/integration/test_runner_parity.py",
+    "tests/integration/test_temporal_resonate_recovery.py",
+    "tests/unit/workers/test_temporal_worker_settings.py"
+  ],
+  "environment": {
+    "MEMSPINE_TEST_TEMPORAL_ADDRESS": "127.0.0.1:<owned_port>",
+    "MEMSPINE_TEST_TEMPORAL_NAMESPACE": "default",
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1"
+  },
+  "exit_code": 0,
+  "summary_lines": [
+    "12 passed in 25.27s"
+  ],
+  "skip_lines": [],
+  "log_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-user-gates-2026-11-15\\temporal-live.log",
+  "log_sha256": "a51ce6a20c513295a91c8eb2ebcdc578a2146402e093010874be2d1d60e0cee6"
+}

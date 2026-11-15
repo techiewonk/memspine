@@ -1,0 +1,34 @@
+{
+  "kind": "rm16_native_live",
+  "start_utc": "2026-11-15T15:58:36.100893+00:00",
+  "end_utc": "2026-11-15T15:59:12.707644+00:00",
+  "head": "49421c8ec83c1a55c6b728b5dd3f3153fb33835e",
+  "tree": "6e1b07c40786c7a443aaf0899a348323b4d57e97",
+  "command": [
+    ".venv/Scripts/python.exe",
+    "scripts/run_provider_live_contracts.py",
+    "--docker",
+    "--require-all",
+    "--report",
+    "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-user-gates-2026-11-15\\native-report.json"
+  ],
+  "exit_code": 0,
+  "summary_lines": [
+    "8 passed, 2 warnings in 15.62s"
+  ],
+  "report_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-user-gates-2026-11-15\\native-report.json",
+  "report_sha256": "2130ae4e593bdb57b7e774ba4f631f6354efca672f648c91f31c4df681222839",
+  "report_gate_exit_code": 0,
+  "report_pytest_summary": "8 passed, 2 warnings in 15.62s",
+  "report_pytest_skips": [],
+  "services_started": [
+    "postgres",
+    "neo4j",
+    "redis",
+    "valkey",
+    "opensearch",
+    "weaviate"
+  ],
+  "log_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-user-gates-2026-11-15\\native-live.log",
+  "log_sha256": "f6a89d5bde7e53686388f3d4ce57ab9e85bd6857a2178a4a2d5ffc70f7dea316"
+}

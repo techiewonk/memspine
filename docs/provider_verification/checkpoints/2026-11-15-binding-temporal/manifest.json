@@ -1,0 +1,114 @@
+{
+  "kind": "intermediate_binding_temporal_validation",
+  "commit": "49421c8ec83c1a55c6b728b5dd3f3153fb33835e",
+  "tree": "6e1b07c40786c7a443aaf0899a348323b4d57e97",
+  "scope": "82 binding/recovery tests; 12 real Temporal tests; 8 strict native contracts across six providers; repository Ruff/format and strict source typing. Not full-suite, formal Phase C, model quality, Mongo native, cross-process binding atomicity or production failover.",
+  "provenance": "Original receipts retain execution-time external paths and hashes. Files are durably copied alongside this manifest; resolve their original basename and original SHA through this mapping. Uniform CRLF normalization is reversible. This manifest excludes itself and subsequent review receipts.",
+  "artifacts": [
+    {
+      "path": "binding-after.json",
+      "original_sha256": "39504ffbd6ec5a7b8091745ec189285594d4a55f9124539d5c5832f9e3d022d8",
+      "sha256": "68d048854055afc8084124085134dd1c1cd525692694386aff6a98a84a883bd2",
+      "bytes": 407,
+      "encoding_transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "binding-audit.json",
+      "original_sha256": "1f8c4e96501a78182e6c2e9e0855b819cc05bb203ec7a82d7352cf940f7c0a48",
+      "sha256": "8652daee457303aa69110c969845e47987872d0cfe621cefe7955dc90218dd6a",
+      "bytes": 2742,
+      "encoding_transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "binding-before.json",
+      "original_sha256": "75e24710c2c99e61ad45ebd86986d1a883ac0ca39fac9cba66ec0da631fd14af",
+      "sha256": "1c906d92855f1c62036db9d4dc740e3c371fa1116793983fe446ab65db2019bf",
+      "bytes": 1184,
+      "encoding_transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "binding-pytest.log",
+      "original_sha256": "d2c7933ed1dcb05416a1cc02012cd29de8529cccafc2ad7dab8afcd2c9aa73ac",
+      "sha256": "2d3cb01c48f767b640e58551e0446e1011f279aa0a32312568fc508509c1cc01",
+      "bytes": 2235,
+      "encoding_transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "format.log",
+      "original_sha256": "eab6b80ac5dfa5fb2c414fe0540b7883dd087dc0dc11a88aaab85b3baba8afec",
+      "sha256": "eab6b80ac5dfa5fb2c414fe0540b7883dd087dc0dc11a88aaab85b3baba8afec",
+      "bytes": 29,
+      "encoding_transform": "identical"
+    },
+    {
+      "path": "mypy.log",
+      "original_sha256": "dfbd26a4e54fc9aa7db7593495652be463e1b4c28c786dfc0c30a2dd11e5df7f",
+      "sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "bytes": 45,
+      "encoding_transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "native-live.json",
+      "original_sha256": "6431f3e94175a79fed955372dfde49da6d1ab3f85b59df94be36c28f89a8c04b",
+      "sha256": "6431f3e94175a79fed955372dfde49da6d1ab3f85b59df94be36c28f89a8c04b",
+      "bytes": 1198,
+      "encoding_transform": "identical"
+    },
+    {
+      "path": "native-live.log",
+      "original_sha256": "f6a89d5bde7e53686388f3d4ce57ab9e85bd6857a2178a4a2d5ffc70f7dea316",
+      "sha256": "f6a89d5bde7e53686388f3d4ce57ab9e85bd6857a2178a4a2d5ffc70f7dea316",
+      "bytes": 3605,
+      "encoding_transform": "identical"
+    },
+    {
+      "path": "native-report.json",
+      "original_sha256": "2130ae4e593bdb57b7e774ba4f631f6354efca672f648c91f31c4df681222839",
+      "sha256": "8f1b72f5692605593665eecd605571b00693abad4595049284b40e7a58f1734a",
+      "bytes": 4366,
+      "encoding_transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "quality.json",
+      "original_sha256": "a509e0bfd5ae5dacc0416cfe83b08a30d0e307575e00883ba005c972e9ce8594",
+      "sha256": "a509e0bfd5ae5dacc0416cfe83b08a30d0e307575e00883ba005c972e9ce8594",
+      "bytes": 1866,
+      "encoding_transform": "identical"
+    },
+    {
+      "path": "rm16-before.json",
+      "original_sha256": "b91cd42a90160e0854948a0acd1569e05911f5b341d7fef4d7ad56f46d78b03d",
+      "sha256": "b91cd42a90160e0854948a0acd1569e05911f5b341d7fef4d7ad56f46d78b03d",
+      "bytes": 1272,
+      "encoding_transform": "identical"
+    },
+    {
+      "path": "rm16-live-gates.json",
+      "original_sha256": "8464da23db55fd6d9ffb2a8fb1f573d5d7d413c4bad76bdc2e69f3ea6d489d3a",
+      "sha256": "8464da23db55fd6d9ffb2a8fb1f573d5d7d413c4bad76bdc2e69f3ea6d489d3a",
+      "bytes": 2337,
+      "encoding_transform": "identical"
+    },
+    {
+      "path": "ruff.log",
+      "original_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "bytes": 19,
+      "encoding_transform": "identical"
+    },
+    {
+      "path": "temporal-live.json",
+      "original_sha256": "e6c1969ffa86750244be3faca2302a290fc0ac90884785747cf9a4c76e0c6d97",
+      "sha256": "e6c1969ffa86750244be3faca2302a290fc0ac90884785747cf9a4c76e0c6d97",
+      "bytes": 1064,
+      "encoding_transform": "identical"
+    },
+    {
+      "path": "temporal-live.log",
+      "original_sha256": "a51ce6a20c513295a91c8eb2ebcdc578a2146402e093010874be2d1d60e0cee6",
+      "sha256": "a51ce6a20c513295a91c8eb2ebcdc578a2146402e093010874be2d1d60e0cee6",
+      "bytes": 773,
+      "encoding_transform": "identical"
+    }
+  ]
+}

@@ -1,0 +1,197 @@
+{
+  "kind": "binding_temporal_docs_evidence_review_round_2",
+  "reviewer": "Sol independent documentation/evidence R2",
+  "reviewed_at_utc": "2026-11-15T16:08:25.429197+00:00",
+  "base_c2_commit": "49421c8ec83c1a55c6b728b5dd3f3153fb33835e",
+  "base_c2_tree": "6e1b07c40786c7a443aaf0899a348323b4d57e97",
+  "verdict": "APPROVE",
+  "subject_count": 21,
+  "subjects": [
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "status": "modified",
+      "sha256": "2c1ec7fc1c1f129320e2196297e3e7fe24ade41c5275a61ab46f444062f6a691",
+      "bytes": 391592,
+      "git_clean_blob_oid": "fc604fdcd8a0405e172b2b479d2c90d89dc2c56b",
+      "lf_only": true
+    },
+    {
+      "path": "docs/TEMPORAL_RESONATE_CHANGE_DIRECTIVE.md",
+      "status": "modified",
+      "sha256": "96d9554ebce71f6f1d3eed6945c8552fee7f724638789e7c1e6baca633da7b0b",
+      "bytes": 33527,
+      "git_clean_blob_oid": "2104cf9dffee8b84a4c4b0ad8ff8d3c14bdfd828",
+      "lf_only": true
+    },
+    {
+      "path": "docs/TEMPORAL_RESONATE_OPERATIONS.md",
+      "status": "modified",
+      "sha256": "536938810279cf5204198140b951c8139c104204d318304461d67e8b02f8909d",
+      "bytes": 6739,
+      "git_clean_blob_oid": "c6edca063bf598d564eabe39e3628d2b1524227f",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/binding-after.json",
+      "status": "untracked",
+      "sha256": "68d048854055afc8084124085134dd1c1cd525692694386aff6a98a84a883bd2",
+      "bytes": 407,
+      "git_clean_blob_oid": "8de4e7ddc75728b0d99495e30f368b33e4f4998e",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/binding-audit.json",
+      "status": "untracked",
+      "sha256": "8652daee457303aa69110c969845e47987872d0cfe621cefe7955dc90218dd6a",
+      "bytes": 2742,
+      "git_clean_blob_oid": "94e770aa7af1955a5ed4be3e18c702126622c537",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/binding-before.json",
+      "status": "untracked",
+      "sha256": "1c906d92855f1c62036db9d4dc740e3c371fa1116793983fe446ab65db2019bf",
+      "bytes": 1184,
+      "git_clean_blob_oid": "14c38dfec4a6a9dde43c49ec0d792dfb92e3e888",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/binding-pytest.log",
+      "status": "untracked",
+      "sha256": "2d3cb01c48f767b640e58551e0446e1011f279aa0a32312568fc508509c1cc01",
+      "bytes": 2235,
+      "git_clean_blob_oid": "175556aed62c84d62947e6a2945286ab10117758",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/format.log",
+      "status": "untracked",
+      "sha256": "eab6b80ac5dfa5fb2c414fe0540b7883dd087dc0dc11a88aaab85b3baba8afec",
+      "bytes": 29,
+      "git_clean_blob_oid": "0ecd91694e140d1e0fdcfbca117875231affbba7",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/manifest.json",
+      "status": "untracked",
+      "sha256": "4032d5361541be98d80367a356f6122962e81d945468186d5ac392d0f343240a",
+      "bytes": 5156,
+      "git_clean_blob_oid": "36540cb2c6d2e1fe804e70b59a4dfd3692d7d704",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/mypy.log",
+      "status": "untracked",
+      "sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "bytes": 45,
+      "git_clean_blob_oid": "737f31c0adcdb2d296dc6d22c9f5eb628ff9982e",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/native-live.json",
+      "status": "untracked",
+      "sha256": "6431f3e94175a79fed955372dfde49da6d1ab3f85b59df94be36c28f89a8c04b",
+      "bytes": 1198,
+      "git_clean_blob_oid": "c27575a1aa4dbe4224dcdb0c87eecc47fd9cfa9c",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/native-live.log",
+      "status": "untracked",
+      "sha256": "f6a89d5bde7e53686388f3d4ce57ab9e85bd6857a2178a4a2d5ffc70f7dea316",
+      "bytes": 3605,
+      "git_clean_blob_oid": "8cac2e828decc3583b9af7de1b6452d560358e2e",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/native-report.json",
+      "status": "untracked",
+      "sha256": "8f1b72f5692605593665eecd605571b00693abad4595049284b40e7a58f1734a",
+      "bytes": 4366,
+      "git_clean_blob_oid": "c58d229f874468e4b809e60dac57dd44d97ec9d6",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/quality.json",
+      "status": "untracked",
+      "sha256": "a509e0bfd5ae5dacc0416cfe83b08a30d0e307575e00883ba005c972e9ce8594",
+      "bytes": 1866,
+      "git_clean_blob_oid": "0b6b025a3a445af7c719618004b5b83b5ff717ee",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/rm16-before.json",
+      "status": "untracked",
+      "sha256": "b91cd42a90160e0854948a0acd1569e05911f5b341d7fef4d7ad56f46d78b03d",
+      "bytes": 1272,
+      "git_clean_blob_oid": "17db13e7bbcd649059c0fd13329eb63ee1c992c1",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/rm16-live-gates.json",
+      "status": "untracked",
+      "sha256": "8464da23db55fd6d9ffb2a8fb1f573d5d7d413c4bad76bdc2e69f3ea6d489d3a",
+      "bytes": 2337,
+      "git_clean_blob_oid": "8c27d382b30c4a0f3799770d0c54cc806ecb66d9",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/ruff.log",
+      "status": "untracked",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "bytes": 19,
+      "git_clean_blob_oid": "1f5f344d054fae10f39140fb7199c99321d9190a",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/temporal-live.json",
+      "status": "untracked",
+      "sha256": "e6c1969ffa86750244be3faca2302a290fc0ac90884785747cf9a4c76e0c6d97",
+      "bytes": 1064,
+      "git_clean_blob_oid": "bfb8024cb58e63eba32c7b5f1026bed9636d4d4a",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-binding-temporal/temporal-live.log",
+      "status": "untracked",
+      "sha256": "a51ce6a20c513295a91c8eb2ebcdc578a2146402e093010874be2d1d60e0cee6",
+      "bytes": 773,
+      "git_clean_blob_oid": "b58baacc4b76210972279252f78ca8c69dfc3e91",
+      "lf_only": true
+    },
+    {
+      "path": "docs/v2/task_decision_dashboard.html",
+      "status": "modified",
+      "sha256": "f14c1c47884d4ea81a50215ef85f92207c85ebb5a21c481b986c96d71d68e0db",
+      "bytes": 429293,
+      "git_clean_blob_oid": "4f5f1917c227b6a25014b8ba5511d1f8835ece1e",
+      "lf_only": true
+    },
+    {
+      "path": "docs/v2/tracker.html",
+      "status": "modified",
+      "sha256": "bf700003ba3bcfcbfc22316c76a5a28b1789604ad35600a70751821014f07756",
+      "bytes": 355424,
+      "git_clean_blob_oid": "11d35dae393a93d3a8d8e22803271ca483d2ed47",
+      "lf_only": true
+    }
+  ],
+  "method": [
+    "independently enumerated all 21 Git worktree subjects and computed raw SHA-256, byte count and Git clean blob OID",
+    "compared actual C2 HEAD/tree with receipts and frozen comparison snapshot",
+    "validated all 15 manifest artifacts, size, SHA-256 and reversible original SHA-256 (6 CRLF normalized, 9 identical)",
+    "cross-checked gate receipt results against logs, original hash references, six native services and clean before/after states",
+    "reviewed changed documentation scope/status statements and all newly linked manifest paths",
+    "ran read-only tracker generator --check and git diff --check; checked evidence for obvious credentials"
+  ],
+  "checks": {
+    "delta": "five modified documentation/view files plus 15 evidence artifacts and one manifest; no runtime or extra paths",
+    "tracker": "python scripts/refresh_tracker.py --check succeeded: 342 tasks, DONE 292, OPEN 9, IN_PROGRESS 13; RM-16 DONE; ACD-04 local DONE and ACD-07 PENDING",
+    "gates": "binding 82 passed; real Temporal 12 passed; strict native 8 passed, zero skips, 2 warnings, six services; Ruff, format 1881 files, mypy strict 696 source files all exited 0",
+    "scope": "formal Phase C, full unit suite, actual model quality, native cross-process binding atomicity, Mongo native, production failover excluded"
+  },
+  "findings": [],
+  "limitations": [
+    "Review of frozen documentation/evidence subjects only; no runtime gates rerun."
+  ]
+}
