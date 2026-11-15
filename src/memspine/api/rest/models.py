@@ -16,6 +16,7 @@ from memspine.services.graph.qualifiers import QualifierFilter
 from memspine.store.records import MemoryRecord, PiiTier, SourceInfo
 
 __all__ = [
+    "AddEntityAliasRequest",
     "AssembleRequest",
     "AssembleResponse",
     "CorrectRequest",
@@ -23,6 +24,7 @@ __all__ = [
     "GrantRequest",
     "GrantView",
     "IngestMessagesRequest",
+    "MergeEntitiesRequest",
     "PlanRequest",
     "PromoteRequest",
     "QuarantineDecision",
@@ -63,6 +65,20 @@ class CorrectRequest(_Request):
     entity: str | None = None
     attribute: str | None = None
     reason: str = ""
+    actor: str = "user"
+
+
+class MergeEntitiesRequest(_Request):
+    keep: str = Field(min_length=1)
+    absorb: str = Field(min_length=1)
+    evidence: list[str] = Field(min_length=1)
+    actor: str = "user"
+
+
+class AddEntityAliasRequest(_Request):
+    entity: str = Field(min_length=1)
+    alias: str = Field(min_length=1)
+    evidence: list[str] = Field(min_length=1)
     actor: str = "user"
 
 

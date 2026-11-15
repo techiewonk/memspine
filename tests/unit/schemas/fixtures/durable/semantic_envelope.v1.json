@@ -22,6 +22,7 @@
     "time_precision": "month"
   },
   "attribute": "lives_in",
+  "cardinality_conflict": false,
   "change_hint": false,
   "checks": {
     "endpoints": true,

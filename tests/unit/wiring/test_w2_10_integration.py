@@ -495,6 +495,11 @@ async def test_e2e_aba_and_order_swap(
             if "window_fact" in r.tags
         ]
         assert any(t.startswith("integ:") for r in facts for t in r.tags)
+        # The model compiler has no trusted pinned registry scope here. RM-45
+        # cannot infer one from the transcript or the integration tag.
+        envelopes = [r.fingerprint.envelope for r in facts if r.fingerprint.envelope is not None]
+        assert envelopes and all(e["registry"] is None for e in envelopes)
+        assert all(not e["cardinality_conflict"] for e in envelopes)
 
     finally:
         await eng.stop()

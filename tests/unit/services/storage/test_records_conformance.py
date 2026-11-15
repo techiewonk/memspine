@@ -185,7 +185,7 @@ async def handle(request: pytest.FixtureRequest, tmp_path: Path) -> AsyncIterato
 
 
 def ev(
-    namespace: str = "ns/a", kind: EventKind = EventKind.WRITE, **payload: object
+    namespace: str = "ns/a", kind: EventKind = EventKind.MARKER, **payload: object
 ) -> MemoryEvent:
     return MemoryEvent(kind=kind, namespace=namespace, payload=dict(payload))
 
@@ -201,20 +201,6 @@ def _record(record_id: str, content: str, **kw: Any) -> MemoryRecord:
     )
 
 
-#: Known gap (found by this suite, RM-111): a `:memory:` SQLite store is a shared-cache
-#: database, whose table locks (SQLITE_LOCKED) are not retried by `busy_timeout`, so two
-#: write transactions in flight at once fail with "database table is locked" instead of
-#: waiting. File databases (WAL + busy timeout) and Postgres serialise correctly.
-MEMORY_CONCURRENCY_GAP = (
-    "sqlite :memory: (shared cache) raises 'database table is locked' for concurrent writers"
-)
-
-
-def _concurrent_writers(request: pytest.FixtureRequest, handle: Handle) -> None:
-    if handle.kind == "sqlite_memory":
-        request.applymarker(pytest.mark.xfail(strict=True, reason=MEMORY_CONCURRENCY_GAP))
-
-
 # ------------------------------------------------------------------------------- schema
 async def test_the_store_satisfies_the_port_and_its_schema_is_versioned(handle: Handle) -> None:
     store = handle.store
@@ -228,10 +214,7 @@ async def test_the_store_satisfies_the_port_and_its_schema_is_versioned(handle: 
 
 
 # ------------------------------------------------------------------------------- event log
-async def test_sequence_is_monotonic_under_concurrent_appenders(
-    request: pytest.FixtureRequest, handle: Handle
-) -> None:
-    _concurrent_writers(request, handle)
+async def test_sequence_is_monotonic_under_concurrent_appenders(handle: Handle) -> None:
     stores = [handle.store]
     if handle.reopen is not None:
         stores.append(await handle.reopen())  # a second "process" on the same data
@@ -354,10 +337,7 @@ async def test_projector_offsets_advance_only(handle: Handle) -> None:
         assert await (await handle.reopen()).get_offset("graph") == 2
 
 
-async def test_concurrent_checkpoints_keep_the_highest_mark(
-    request: pytest.FixtureRequest, handle: Handle
-) -> None:
-    _concurrent_writers(request, handle)
+async def test_concurrent_checkpoints_keep_the_highest_mark(handle: Handle) -> None:
     store = handle.store
     await asyncio.gather(*(store.set_offset("vectors", n) for n in (7, 12, 9, 11, 3)))
     assert await store.get_offset("vectors") == 12
@@ -494,7 +474,9 @@ async def test_erasure_removes_content_and_keeps_order(handle: Handle) -> None:
     await store.upsert_record(target)
     await store.upsert_record(child)
     kept = await store.append_event(ev(content="unrelated"))
-    written = await store.append_event(ev(record=target.model_dump(mode="json")))
+    written = await store.append_event(
+        ev(kind=EventKind.WRITE, record=target.model_dump(mode="json"))
+    )
     later = await store.append_event(ev(content="later"))
     assert [r.record_id for r in await store.list_children("ns/a", ["r-secret"])] == ["r-child"]
 
@@ -575,7 +557,18 @@ async def test_marker_scrub_rewrites_only_matching_markers(handle: Handle) -> No
     store = handle.store
     keep = await store.append_event(ev(kind=EventKind.MARKER, marker="other", text="stays"))
     card = await store.append_event(ev(kind=EventKind.MARKER, marker="card", text="secret entry"))
-    plain = await store.append_event(ev(content="secret entry"))
+    foreign = await store.append_event(
+        ev(namespace="ns/b", kind=EventKind.MARKER, marker="card", text="secret entry")
+    )
+    plain_record = _record("r-plain", "secret entry")
+    plain = await store.append_event(
+        ev(
+            kind=EventKind.WRITE,
+            record=plain_record.model_dump(mode="json"),
+            marker="card",
+            text="secret entry",
+        )
+    )
 
     def scrub(payload: dict[str, Any]) -> bool:
         if payload.get("text") == "secret entry":
@@ -583,13 +576,18 @@ async def test_marker_scrub_rewrites_only_matching_markers(handle: Handle) -> No
             return True
         return False
 
-    assert await store.scrub_marker_payloads("card", scrub) == [card.seq]
+    assert await store.scrub_marker_payloads("card", scrub, namespace="ns/a") == [card.seq]
     events = {e.seq: e for e in await store.read_events()}
     assert events[card.seq].payload == {"marker": "card", "text": "", "redacted": True}
     assert events[card.seq].fingerprint == card.fingerprint
     assert events[keep.seq].payload == {"marker": "other", "text": "stays"}
-    assert events[plain.seq].payload == {"content": "secret entry"}  # not a marker
-    assert await store.scrub_marker_payloads("card", scrub) == []  # idempotent
+    assert events[foreign.seq].payload == {"marker": "card", "text": "secret entry"}
+    assert events[plain.seq].payload == {
+        "record": plain_record.model_dump(mode="json"),
+        "marker": "card",
+        "text": "secret entry",
+    }
+    assert await store.scrub_marker_payloads("card", scrub, namespace="ns/a") == []  # idempotent
 
 
 # ------------------------------------------------------------------------------- RM-112 metadata
@@ -601,10 +599,7 @@ async def test_deployment_identity_is_claimed_once_and_shared(handle: Handle) ->
         assert await (await handle.reopen()).claim_deployment_id("dep-c") == "dep-a"
 
 
-async def test_concurrent_identity_claims_agree(
-    request: pytest.FixtureRequest, handle: Handle
-) -> None:
-    _concurrent_writers(request, handle)
+async def test_concurrent_identity_claims_agree(handle: Handle) -> None:
     stores = [handle.store]
     if handle.reopen is not None:
         stores.append(await handle.reopen())

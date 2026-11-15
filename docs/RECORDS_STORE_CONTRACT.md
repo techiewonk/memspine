@@ -224,15 +224,15 @@ read, hard forget and sleep; a restart that keeps the identity; `storage.graph: 
 LadybugDB; a GridFS documents slot sharing the records connector; and every SQL-only feature
 refused before a collection is created.
 
-## Known gaps found by the suite (2026-10-23)
+## Conformance findings
 
-- **SQLite `:memory:` with concurrent writers.** The in-memory store is a shared-cache
-  database. Its table locks (`SQLITE_LOCKED`) are not retried by `busy_timeout`, so two write
-  transactions in flight at once fail with "database table is locked". The three
-  concurrent-writer cases (appenders, checkpoints and, since RM-112, identity claims) are
-  strict `xfail` for `sqlite_memory`. File SQLite and Postgres
-  pass. The in-memory lease table is single-threaded, so the thread-race case is skipped
-  there.
+- **SQLite `:memory:` concurrent writers (fixed 2026-11-15).** Each client uses one
+  operational pooled connection, so its async transactions queue rather than racing on
+  shared-cache table locks (`SQLITE_LOCKED`). A separate anchor retains that client's
+  named in-memory database through operational pool disposal. The appenders, checkpoints
+  and deployment-identity conformance cases now pass for `sqlite_memory`. This is
+  per-client serialization; it does not assert cross-client or cross-process locking.
+  The in-memory lease table is single-threaded, so its thread-race case remains skipped.
 - **Fixed in this change.** `add_lineage` on Postgres returned -1 per edge, because
   psycopg leaves `rowcount` at -1 for an insert with implicit `RETURNING`. It now counts
   the returned rows.

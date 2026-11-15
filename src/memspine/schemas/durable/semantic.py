@@ -256,6 +256,10 @@ class SemanticEnvelope(DurableModel):
     src_class: SrcClass
     parents: list[str] = Field(default_factory=list)
     status: AssertionStatus = "active"
+    #: RM-45: scoped one-value expectation has distinct supported current values. This flag is
+    #: independent of ``status`` and the other conflict ladder's dispute reasons. It contains no
+    #: peer id or value; the projector must compare only claims with the same effective audience.
+    cardinality_conflict: bool = False
     verified: bool = False
     epoch: int | None = Field(default=None, ge=1)  # fencing epoch of the job that wrote it (ER-07)
     erasure_generation: int = Field(default=0, ge=0)

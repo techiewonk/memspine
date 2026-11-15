@@ -112,7 +112,12 @@ async def test_f1_negatives_visit_work_other_home_and_missing_timezone(
         await send(
             eng,
             [
-                msg("n-2", "Asha", "I visited Madrid last weekend.", "2026-10-03T10:00Z"),
+                msg(
+                    "n-2",
+                    "Asha",
+                    "I visited the city of Madrid last weekend.",
+                    "2026-10-03T10:00Z",
+                ),
                 msg("n-3", "Asha", "I work at the Lisbon office.", "2026-10-04T10:00Z"),
                 msg("n-4", "Asha", "I bought a flat in Faro.", "2026-10-05T10:00Z"),
             ],

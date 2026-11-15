@@ -34,6 +34,7 @@ from contextlib import AbstractAsyncContextManager, nullcontext
 from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Any, Protocol
+from uuid import uuid4
 
 from memspine.config import constants
 from memspine.core.window import (
@@ -281,6 +282,23 @@ def _claim_object_tags(envelope: Any) -> list[str]:
     if typing.object_entity_type is not None:
         tags.append(f"dst_type:{typing.object_entity_type}")
     return tags
+
+
+def _known_horizon(records: Sequence[MemoryRecord]) -> int | None:
+    """Inclusive maximum canonical WRITE seq among the source snapshots in one window."""
+    values = [record.fingerprint.source_seq for record in records]
+    if not values or any(value is None for value in values):
+        return None
+    return max(int(value) for value in values if value is not None)
+
+
+def _known_batch_horizon(windows: Sequence[Sequence[MemoryRecord]]) -> tuple[int, bool]:
+    """Safe shared cutoff for one batched prompt; unknown sources fail closed at zero."""
+    horizons = [_known_horizon(records) for records in windows]
+    if not horizons or any(value is None for value in horizons):
+        return 0, True
+    resolved = [int(value) for value in horizons if value is not None]
+    return min(resolved), len(set(resolved)) > 1
 
 
 def _snapshot_matches(snapshot: Mapping[str, Any] | None, record: MemoryRecord) -> bool:
@@ -667,6 +685,7 @@ class _Prepared:
     annotation_batches: tuple[Any, ...] = ()
     #: RM-22 / RM-54: rule envelope write id -> the prior claim it supersedes or closes
     rule_targets: Mapping[str, Any] = field(default_factory=dict)
+    window_context: dict[str, Any] | None = None
 
 
 @dataclass
@@ -703,6 +722,14 @@ class _Open:
     touch: int = 0
     #: record id -> (source version, content hash) of each open turn, for the restart draft
     sources: dict[str, tuple[int, str]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class _DraftChange:
+    generation: int
+    seq: int
+    signature: tuple[Any, ...] | None
+    row: dict[str, Any] | None
 
 
 class _OpenTurnsView:
@@ -820,6 +847,7 @@ class WindowPipeline:
         #: F-04 (``workers.outbox``): the durable queue and its runner; None = in-memory deque.
         self._outbox = outbox
         self._recover_task: asyncio.Task[Any] | None = None
+        self._wake_tasks: set[asyncio.Task[Any]] = set()
         #: W2-06a: only present with the base extraction envelope.
         self._env = envelope if "facts" in self.sections else None
         self._staged: list[tuple[str, dict[str, Any]]] = []
@@ -831,6 +859,12 @@ class WindowPipeline:
         #: RM-163: what the durable draft holds per namespace, ``(window key, record id) ->
         #: (seq, row signature)``, so a persist writes only the turns that changed.
         self._draft_rows: dict[str, dict[tuple[str, str], tuple[int, tuple[Any, ...]]]] = {}
+        #: Only touched turns enter this map. The generation protects a mutation made while
+        #: update_draft is awaiting its transactional write from an older completion.
+        self._draft_pending: dict[str, dict[tuple[str, str], _DraftChange]] = {}
+        self._draft_inflight: dict[str, set[tuple[str, str]]] = {}
+        self._draft_keys_by_record: dict[str, dict[str, set[tuple[str, str]]]] = {}
+        self._draft_generation = 0
         self._draft_seq = 0
         self._draft_lock = asyncio.Lock()
         #: RM-143 (a): record ids whose observe is in progress (discovery must not replay them)
@@ -1006,6 +1040,8 @@ class WindowPipeline:
         by_key: dict[str, list[tuple[WindowTurn, dict[str, Any]]]] = {}
         stale: list[tuple[MemoryRecord, str | None]] = []
         stored: dict[tuple[str, str], tuple[int, tuple[Any, ...]]] = {}
+        invalid: set[tuple[str, str]] = set()
+        staged_sources = self._outbox.staged_sources(self._scope(namespace), WINDOW_STAGE)
         for item in payload.get("turns", []):
             seq = int(item.get("seq") or 0)
             self._draft_seq = max(self._draft_seq, seq)
@@ -1014,10 +1050,18 @@ class WindowPipeline:
             stored[row_key] = (seq, ())
             record = await self._get(str(item["record_id"]))
             if record is None or record.status is not RecordStatus.ACTIVATED:
+                invalid.add(row_key)
                 continue
+            if staged_sources.get(record.record_id) == (
+                record.version,
+                fingerprint_payload({"content": record.content}),
+            ):
+                invalid.add(row_key)
+                continue  # a cut survived, but its old open draft had not yet been deleted
             if item.get("source_version") != record.version or item.get(
                 "content_hash"
             ) != fingerprint_payload({"content": record.content}):
+                invalid.add(row_key)
                 stale.append((record, item.get("session")))
                 continue
             when = item.get("when")
@@ -1047,6 +1091,11 @@ class WindowPipeline:
         # would add them twice.
         self._draft_restored.add(namespace)
         self._draft_rows[namespace] = stored
+        keys_by_record = self._draft_keys_by_record.setdefault(namespace, {})
+        for draft_key in stored:
+            keys_by_record.setdefault(draft_key[1], set()).add(draft_key)
+        for draft_key in invalid:
+            self._draft_delete(namespace, draft_key)
         store = self._store(namespace)
         for key, entries in by_key.items():
             win = self._window(store, key)
@@ -1091,66 +1140,124 @@ class WindowPipeline:
         for turn, vector in zip(turns, vectors, strict=False):
             turn.vector = vector
 
+    def _draft_upsert(self, namespace: str, win: _Open, turn: WindowTurn) -> None:
+        """Record the changed turn at its mutation site, without visiting other open turns."""
+        if self._outbox is None:
+            return
+        key = (win.key, turn.record_id)
+        version, content_hash = win.sources.get(turn.record_id, (0, ""))
+        signature = (
+            turn.session,
+            win.conversation_id,
+            version,
+            content_hash,
+            turn.when,
+            turn.tokens,
+        )
+        known = self._draft_rows.setdefault(namespace, {})
+        pending = self._draft_pending.setdefault(namespace, {})
+        previous = pending.get(key)
+        if previous is None and known.get(key, (0, ()))[1] == signature:
+            return
+        if key in known:
+            seq = known[key][0]
+        elif previous is not None and previous.row is not None:
+            seq = previous.seq
+        else:
+            self._draft_seq += 1
+            seq = self._draft_seq
+        self._draft_generation += 1
+        pending[key] = _DraftChange(
+            self._draft_generation,
+            seq,
+            signature,
+            {
+                "record_id": turn.record_id,
+                "window_key": win.key,
+                "session": turn.session,
+                "conversation_id": win.conversation_id,
+                "source_version": version,
+                "content_hash": content_hash,
+                "when": turn.when.isoformat() if turn.when is not None else None,
+                "tokens": turn.tokens,
+                "seq": seq,
+                "policy_revision": self._policy_revision,
+            },
+        )
+        self._draft_keys_by_record.setdefault(namespace, {}).setdefault(turn.record_id, set()).add(
+            key
+        )
+
+    def _draft_delete(self, namespace: str, key: tuple[str, str]) -> None:
+        """A cut or erasure removes a turn, including one whose upsert is still in flight."""
+        if self._outbox is None:
+            return
+        known = self._draft_rows.setdefault(namespace, {})
+        pending = self._draft_pending.setdefault(namespace, {})
+        previous = pending.get(key)
+        if key not in known and key not in self._draft_inflight.get(namespace, set()):
+            if previous is not None:
+                del pending[key]  # the new turn never reached the draft
+            self._draft_unindex(namespace, key)
+            return
+        self._draft_generation += 1
+        pending[key] = _DraftChange(self._draft_generation, 0, None, None)
+        self._draft_keys_by_record.setdefault(namespace, {}).setdefault(key[1], set()).add(key)
+
+    def _draft_unindex(self, namespace: str, key: tuple[str, str]) -> None:
+        by_record = self._draft_keys_by_record.get(namespace, {})
+        keys = by_record.get(key[1])
+        if keys is not None:
+            keys.discard(key)
+            if not keys:
+                del by_record[key[1]]
+
     async def _persist_draft(self, namespace: str, store: _Store) -> None:
-        """RM-163: write the draft delta of ``namespace``: one upserted row per open turn that
-        is new or changed, one delete per turn that left. A write costs O(its own turn) in
-        rows and bytes, not O(open turns). The delta is applied atomically, and the known rows
-        advance only after it is durable (a failed write is retried in full by the next)."""
+        """Atomically persist only explicit mutations, retaining failed and later deltas."""
         if self._outbox is None or not hasattr(self._outbox, "update_draft"):
             return
         async with self._draft_lock:
             known = self._draft_rows.setdefault(namespace, {})
-            current: set[tuple[str, str]] = set()
-            changed: list[tuple[tuple[str, str], int, tuple[Any, ...], WindowTurn, _Open]] = []
-            seq = self._draft_seq
-            for win in store.windows.values():
-                for turn in win.segmenter.open_turns:
-                    key = (win.key, turn.record_id)
-                    version, content_hash = win.sources.get(turn.record_id, (0, ""))
-                    signature = (
-                        turn.session,
-                        win.conversation_id,
-                        version,
-                        content_hash,
-                        turn.when,
-                        turn.tokens,
-                    )
-                    current.add(key)
-                    was = known.get(key)
-                    if was is not None and was[1] == signature:
-                        continue
-                    if was is None:
-                        seq += 1
-                    changed.append((key, was[0] if was is not None else seq, signature, turn, win))
-            removed = [key for key in known if key not in current]
-            if not changed and not removed:
+            pending = self._draft_pending.setdefault(namespace, {})
+            if not pending:
                 return
-            rows = [
-                {
-                    "record_id": turn.record_id,
-                    "window_key": win.key,
-                    "session": turn.session,
-                    "conversation_id": win.conversation_id,
-                    "source_version": signature[2],
-                    "content_hash": signature[3],
-                    "when": turn.when.isoformat() if turn.when is not None else None,
-                    "tokens": turn.tokens,
-                    "seq": row_seq,
-                    "policy_revision": self._policy_revision,
-                }
-                for _key, row_seq, signature, turn, win in changed
-            ]
-            written = await self._outbox.update_draft(
-                self._scope(namespace), WINDOW_STAGE, rows, removed
+            snapshot = pending.copy()
+            rows = [change.row for change in snapshot.values() if change.row is not None]
+            removed = [key for key, change in snapshot.items() if change.row is None]
+            self._draft_inflight[namespace] = set(snapshot)
+            # InlineRunner offloads update_draft to a thread. Cancelling its await does
+            # not cancel that SQL transaction, so keep the draft lock until that exact
+            # operation settles. Otherwise a later delete can commit first and the
+            # abandoned upsert can resurrect an erased turn.
+            writing = asyncio.create_task(
+                self._outbox.update_draft(self._scope(namespace), WINDOW_STAGE, rows, removed)
             )
-            self._draft_seq = seq
-            for key, row_seq, signature, _turn, _win in changed:
-                known[key] = (row_seq, signature)
-            for key in removed:
-                del known[key]
-            self._counts["draft_rows_written"] += len(rows)
-            self._counts["draft_rows_deleted"] += len(removed)
-            self._counts["draft_bytes_written"] += int(written or 0)
+            cancelled = False
+            try:
+                while not writing.done():
+                    try:
+                        await asyncio.shield(writing)
+                    except asyncio.CancelledError:
+                        cancelled = True
+                        if not writing.done():
+                            continue  # another cancellation cannot detach the SQL worker
+                written = writing.result()
+                for key, change in snapshot.items():
+                    if change.signature is None:
+                        known.pop(key, None)
+                    else:
+                        known[key] = (change.seq, change.signature)
+                    if pending.get(key) is change:
+                        del pending[key]
+                        if change.signature is None:
+                            self._draft_unindex(namespace, key)
+                self._counts["draft_rows_written"] += len(rows)
+                self._counts["draft_rows_deleted"] += len(removed)
+                self._counts["draft_bytes_written"] += int(written or 0)
+            finally:
+                self._draft_inflight.pop(namespace, None)
+            if cancelled:
+                raise asyncio.CancelledError
 
     async def observe(self, record: MemoryRecord, session: str | None) -> None:
         """Add one just-written episodic turn. Quarantined or instruction-flagged turns never
@@ -1159,6 +1266,16 @@ class WindowPipeline:
             return
         if record.status is not RecordStatus.ACTIVATED:
             return
+        # WRITE projection stamps the canonical source snapshot sequence. Refresh the just
+        # committed record here; the pre-append object passed by the caller cannot know it.
+        projected = await self._get(record.record_id)
+        if (
+            projected is not None
+            and projected.version == record.version
+            and projected.content == record.content
+            and projected.source == record.source
+        ):
+            record = projected
         self._recover_in_background()
         ns = record.namespace
         await self._restore_draft(ns)
@@ -1254,6 +1371,7 @@ class WindowPipeline:
             record.version,
             fingerprint_payload({"content": record.content}),
         )
+        self._draft_upsert(ns, win, turn)
         # DS-06/DS-07: only this turn's own window is cut; another conversation or session of
         # the namespace is never flushed or closed by it.
         for window in win.segmenter.add(turn):
@@ -1275,7 +1393,17 @@ class WindowPipeline:
         return OwnerScope(tenant=_TENANT, owner=ns)
 
     def _enqueue(self, ns: str, store: _Store, window: Window, win: _Open) -> None:
+        snapshots = [
+            {
+                "record_id": record_id,
+                "source_version": win.sources[record_id][0],
+                "content_hash": win.sources[record_id][1],
+            }
+            for record_id in window.record_ids
+            if record_id in win.sources
+        ]
         for record_id in window.record_ids:
+            self._draft_delete(ns, (win.key, record_id))
             win.sources.pop(record_id, None)
         if self._outbox is not None:
             self._staged.append(
@@ -1283,11 +1411,13 @@ class WindowPipeline:
                     ns,
                     {
                         "kind": "window",
+                        "_staging_id": uuid4().hex,
                         "window_key": win.key,
                         "session": window.session,
                         "conversation_id": win.conversation_id,
                         "reason": window.reason,
                         "record_ids": window.record_ids,
+                        "source_snapshots": snapshots,
                         **(
                             {"tokens": window.tokens, "staged_at": self._clock()}
                             if self._batcher is not None
@@ -1337,6 +1467,7 @@ class WindowPipeline:
                     ns,
                     {
                         "kind": "closed",
+                        "_staging_id": uuid4().hex,
                         "session": session,
                         # the count travels with the item: the in-memory tally dies with the process
                         "windows": store.session_windows.pop(session, 0),
@@ -1348,64 +1479,47 @@ class WindowPipeline:
         if self._async and self._outbox is None:
             self._ensure_worker(ns, store)
 
-    async def _persist_staged(self, *, force: bool = False, wake: bool = True) -> None:
-        """Outbox mode: write the items ``_enqueue`` staged (in order), then wake the workers.
-        Staging keeps the segmenter code synchronous and in its old order; the database write
-        happens here, off the event loop (``InlineRunner.enqueue``).
-
-        Cancellation waits for the in-flight acceptance to settle: cancelling a ``to_thread``
-        await does not stop its database write. Only acknowledged items leave staging. A provider
-        exception after an unknown commit remains an at-least-once retry boundary, not an
-        exactly-once guarantee; durable source/job reconciliation is a separate requirement.
-        """
-        if self._outbox is None or not self._staged:
+    async def _persist_staged(
+        self, *, force: bool = False, wake: bool = True, namespace: str | None = None
+    ) -> None:
+        """Durably hand off every cut before promotion and before deleting its draft rows.
+        A rejected cut remains in the staged stream and is retried in order through normal
+        admission. The staging ID and atomic promotion marker settle unknown acknowledgments."""
+        if self._outbox is None:
             return
         deferred_s: float | None = None
-        staged: list[tuple[str, dict[str, Any]]] = []
-        accepted = 0
-        try:
-            async with self._persist_lock:
+        promoted: set[str] = set()
+        async with self._persist_lock:
+            if self._staged:
+                # One transaction per scope. Keep memory staging until the write is known
+                # durable; a cancelled thread can finish afterward and the IDs dedupe retry.
                 staged, self._staged = self._staged, []
                 try:
-                    for ns, payload in staged:
-                        if force:  # flush / session close: accept past the hard cap, never defer
-                            enqueue = self._outbox.enqueue(
-                                self._scope(ns), WINDOW_STAGE, payload, force=True
-                            )
-                        else:
-                            enqueue = self._outbox.enqueue(self._scope(ns), WINDOW_STAGE, payload)
-                        task = asyncio.create_task(enqueue)
-                        cancelled: asyncio.CancelledError | None = None
-                        while True:
-                            try:
-                                await asyncio.shield(task)
-                                break
-                            except asyncio.CancelledError as exc:
-                                if task.cancelled():
-                                    raise
-                                # Keep the same acceptance alive even under repeated cancellation.
-                                cancelled = exc
-                            except BaseException as exc:
-                                if cancelled is not None:
-                                    raise cancelled from exc
-                                raise
-                        accepted += 1
-                        if cancelled is not None:
-                            raise cancelled
-                except BackpressureRejected as rejected:
-                    # Refused before acceptance; retry this item and the remaining suffix later.
-                    self._counts["windows_deferred_backpressure"] += 1
-                    deferred_s = rejected.receipt.retry_after_s
-                finally:
-                    # New work can have arrived while enqueue awaited I/O. Restore older work
-                    # before it, but never re-stage an item whose acceptance was acknowledged.
-                    self._staged = staged[accepted:] + self._staged
-        finally:
-            if self._async and not self._stopped:
-                for ns in dict.fromkeys(n for n, _ in staged[:accepted]) if wake else ():
+                    for ns in dict.fromkeys(ns for ns, _ in staged):
+                        payloads = [payload for item_ns, payload in staged if item_ns == ns]
+                        await self._outbox.stage_items(self._scope(ns), WINDOW_STAGE, payloads)
+                except BaseException:
+                    self._staged = staged + self._staged
+                    raise
+            for scope in self._outbox.staged_scopes(WINDOW_STAGE):
+                if namespace is not None and scope.owner != namespace:
+                    continue
+                for offset, payload in self._outbox.staged_items(scope, WINDOW_STAGE):
+                    try:
+                        if await self._outbox.promote_staged(
+                            scope, WINDOW_STAGE, offset, payload, force=force
+                        ):
+                            promoted.add(scope.owner)
+                    except BackpressureRejected as rejected:
+                        self._counts["windows_deferred_backpressure"] += 1
+                        deferred_s = rejected.receipt.retry_after_s
+                        break  # preserve order within this namespace
+        if self._async and not self._stopped:
+            if wake:
+                for ns in promoted:
                     self._ensure_worker(ns, self._store(ns))
-                if deferred_s is not None:
-                    self._retry_persist_later(deferred_s)
+            if deferred_s is not None:
+                self._retry_persist_later(deferred_s)
 
     def _retry_persist_later(self, delay_s: float) -> None:
         """Offer the deferred (backpressured) items again after the receipt's retry time."""
@@ -1452,23 +1566,41 @@ class WindowPipeline:
     def _ensure_worker(self, ns: str, store: _Store) -> None:
         if store.worker is not None and not store.worker.done():
             return
-        with priority_scope(Priority.DERIVE):  # RT-02: window work is background derive
-            store.worker = asyncio.get_running_loop().create_task(self._drain(ns, store))
 
-    async def _drain(self, ns: str, store: _Store, *, final: bool = False) -> None:
+        async def run() -> None:
+            await self._drain(ns, store)
+
+        with priority_scope(Priority.DERIVE):  # RT-02: window work is background derive
+            store.worker = asyncio.get_running_loop().create_task(run())
+
+    async def _drain(self, ns: str, store: _Store, *, final: bool = False) -> dict[str, int]:
         """Run what is queued. ``final`` (a flush, a session close) never holds a window back
         for company (W2-05 batching); the background worker does, up to the batch age."""
+        totals = {"steps": 0, "items": 0, "holes": 0}
         if self._outbox is not None:
             if self._batcher is not None and not final and not self._outbox_batch_ready(ns, store):
-                return
-            await self._outbox.drain(self._scope(ns))
-            return
+                return totals
+            scope = self._scope(ns)
+            while True:
+                report = await self._outbox.drain(scope)
+                totals["steps"] += report.jobs
+                totals["items"] += report.items
+                totals["holes"] += report.holes
+                before = len(self._outbox.staged_items(scope, WINDOW_STAGE))
+                if not before:
+                    break
+                await self._persist_staged(namespace=ns)
+                if len(self._outbox.staged_items(scope, WINDOW_STAGE)) == before:
+                    break  # still rejected: the retry timer or next drain offers it later
+            if not self._staged:
+                await self._outbox.prune_promoted_staged(scope, WINDOW_STAGE)
+            return totals
         async with store.run_lock:
             while store.queue and not self._stopped:
                 if self._batcher is not None:
                     jobs = self._take_batch(ns, store, final)
                     if jobs is None:
-                        return  # held: the timer (or the next window) wakes the worker
+                        return totals  # held: the timer (or the next window) wakes the worker
                     if len(jobs) > 1:
                         await self._drain_batch(ns, store, jobs)
                         continue
@@ -1495,6 +1627,40 @@ class WindowPipeline:
                     _log.warning("window.job_failed", namespace=ns, error=str(exc), exc_info=True)
                 finally:
                     store.inflight = None
+        return totals
+
+    async def drain_durable(self, namespace: str | None = None) -> dict[str, int]:
+        """Drain persisted discovery/window work through the normal staged handoff path.
+
+        Used by the CLI; it does not close open windows or sessions. An explicit
+        namespace stays scoped, while an all-scope drain discovers stored rows even
+        when this process has not observed that namespace yet.
+        """
+        if self._outbox is None:
+            raise RuntimeError("durable window drain requires an outbox")
+        await self._await_recovery()
+        await self._persist_staged(namespace=namespace)
+        if namespace is None:
+            outbox = self._outbox
+            names = dict.fromkeys(
+                [
+                    *self._stores,
+                    *(scope.owner for scope in outbox.staged_scopes(WINDOW_STAGE)),
+                    *(scope.owner for scope in outbox.store.item_scopes(DISCOVERY_STAGE)),
+                    *(scope.owner for scope in outbox.store.item_scopes(WINDOW_STAGE)),
+                    *(scope.owner for scope in outbox.store.hole_scopes(DISCOVERY_STAGE)),
+                    *(scope.owner for scope in outbox.store.hole_scopes(WINDOW_STAGE)),
+                    *(scope.owner for scope, _ in outbox.store.live_scopes()),
+                ]
+            )
+        else:
+            names = {namespace: None}
+        totals = {"steps": 0, "items": 0, "holes": 0}
+        for ns in names:
+            report = await self._drain(ns, self._store(ns), final=True)
+            for key in totals:
+                totals[key] += report[key]
+        return totals
 
     async def flush(self, namespace: str | None = None, *, final: bool = True) -> dict[str, Any]:
         """Process every closed window now. ``final`` also closes the open ones (and fires the
@@ -1503,11 +1669,15 @@ class WindowPipeline:
             await self._await_recovery()
         if namespace is not None:
             await self._restore_draft(namespace)
+        await self._persist_staged(force=final, namespace=namespace)
         names = [namespace] if namespace is not None else list(self._stores)
         for ns in names:
             store = self._stores.get(ns)
             if store is None:
-                continue
+                if self._outbox is not None:
+                    store = self._store(ns)
+                else:
+                    continue
             for win in store.windows.values():
                 if win.idle is not None:
                     win.idle.cancel()
@@ -1522,7 +1692,7 @@ class WindowPipeline:
                     self._enqueue_closed(ns, store, session)
                 store.open_sessions.clear()
                 store.last_session = None
-                await self._persist_staged(force=True)  # an explicit flush defers nothing
+                await self._persist_staged(force=True, namespace=ns)  # explicit flush
                 await self._persist_draft(ns, store)
                 await self._flush_marks()
             if store.worker is not None and not store.worker.done():
@@ -1556,7 +1726,7 @@ class WindowPipeline:
             store.last_session = next(reversed(store.open_sessions), None)
         before = self._counts["sessions_closed"]
         self._enqueue_closed(namespace, store, session)
-        await self._persist_staged(force=True)
+        await self._persist_staged(force=True, namespace=namespace)
         await self._persist_draft(namespace, store)
         await self._flush_marks()
         if store.worker is not None and not store.worker.done():
@@ -1587,6 +1757,7 @@ class WindowPipeline:
         """Cancel timers and workers. Windows still queued are abandoned (counted)."""
         self._stopped = True
         if self._outbox is not None:
+            await self._persist_staged()
             # ER-10: bounded drain. The offset in hand finishes (or its job is released after the
             # grace); everything else stays in the outbox and resumes at the next start.
             if self._recover_task is not None and not self._recover_task.done():
@@ -1594,6 +1765,8 @@ class WindowPipeline:
                 with contextlib.suppress(asyncio.CancelledError, Exception):
                     await self._recover_task
             await self._outbox.stop(_STOP_GRACE_S)
+            if self._wake_tasks:
+                await asyncio.gather(*tuple(self._wake_tasks), return_exceptions=True)
         self._prefetched.clear()
         for store in self._stores.values():
             for win in store.windows.values():
@@ -1645,7 +1818,18 @@ class WindowPipeline:
         if self._outbox is None:
             return None
         await self._await_recovery()
-        return await self._outbox.wait(self._scope(namespace), list(capabilities), timeout)
+        await self._persist_staged(namespace=namespace)
+        outcome = await self._outbox.wait(self._scope(namespace), list(capabilities), timeout)
+        if WINDOW_STAGE in capabilities and self._outbox.staged_items(
+            self._scope(namespace), WINDOW_STAGE
+        ):
+            return replace(
+                outcome,
+                status="partial",
+                ready=tuple(cap for cap in outcome.ready if cap != WINDOW_STAGE),
+                pending=tuple(dict.fromkeys((*outcome.pending, WINDOW_STAGE))),
+            )
+        return outcome
 
     def derivation_effect_status(self, namespace: str) -> list[dict[str, Any]]:
         """Durable layer counts/failures; empty when the outbox is disabled."""
@@ -1669,14 +1853,46 @@ class WindowPipeline:
                 "erased": not kept,
             }
         ids = payload.get("record_ids")
-        if payload.get("kind") != "window" or not isinstance(ids, list) or record_id not in ids:
+        sources = payload.get("survivor_sources")
+        source_ids = (
+            [source.get("record_id") for source in sources if isinstance(source, dict)]
+            if isinstance(sources, list)
+            else []
+        )
+        if (
+            payload.get("kind") not in ("window", "window_context_missing")
+            or not isinstance(ids, list)
+            or (record_id not in ids and record_id not in source_ids)
+        ):
             return None
         self._counts["turns_dropped_forget"] += 1
         kept = [r for r in ids if r != record_id]
         if not kept:
             self._counts["windows_cancelled_forget"] += 1
-            return {**payload, "kind": "empty", "record_ids": []}
-        return {**payload, "record_ids": kept}
+            return {
+                key: value
+                for key, value in {
+                    **payload,
+                    "kind": "empty",
+                    "record_ids": [],
+                    "source_snapshots": [],
+                }.items()
+                if key != "survivor_sources"
+            }
+        updated = {**payload, "record_ids": kept}
+        if isinstance(payload.get("source_snapshots"), list):
+            updated["source_snapshots"] = [
+                source
+                for source in payload["source_snapshots"]
+                if isinstance(source, dict) and source.get("record_id") != record_id
+            ]
+        if isinstance(payload.get("survivor_sources"), list):
+            updated["survivor_sources"] = [
+                source
+                for source in payload["survivor_sources"]
+                if isinstance(source, dict) and source.get("record_id") != record_id
+            ]
+        return updated
 
     async def _outbox_prepare(self, scope: OwnerScope, offset: int, payload: dict[str, Any]) -> Any:
         """Outbox handler, phase 1 (no lock held): the window's model calls, or the session
@@ -1686,6 +1902,8 @@ class WindowPipeline:
         kind = payload.get("kind")
         if kind == "closed":
             return ("closed", payload)
+        if kind == "window_context_missing":
+            raise RuntimeError("survivor re-derive is blocked: completed window context is missing")
         if kind != "window":
             return None
         ledger = _costs.installed()
@@ -1695,16 +1913,29 @@ class WindowPipeline:
             ledger.budget.note_paused(ns)
             self._counts["windows_deferred_budget"] += 1
             return ("deferred", payload)
+        record_ids = self._survivor_rederive_ids(ns, payload)
+        window_context = self._window_context(payload)
         window = Window(
-            turns=[WindowTurn(record_id=r, text="", tokens=1) for r in payload["record_ids"]],
+            turns=[WindowTurn(record_id=r, text="", tokens=1) for r in record_ids],
             reason=str(payload.get("reason", "")),
             session=payload.get("session"),
         )
         if self._batcher is not None:  # W2-05: a batched call may have prepared this offset already
             if (ns, offset) in self._prefetched:
                 ready = self._prefetched.pop((ns, offset))
-                store.inflight = ready.job if ready is not None else None
-                return ("window", await self._with_model_annotations(ns, ready))
+                if (
+                    ready is not None
+                    and not ready.job.cancelled
+                    and ready.job.members == frozenset(record_ids)
+                ):
+                    store.inflight = ready.job
+                    annotated = await self._with_model_annotations(ns, ready)
+                    if isinstance(annotated, _Prepared):
+                        annotated = replace(annotated, window_context=window_context)
+                    return ("window", annotated)
+                store.inflight = (
+                    None  # stale batch result: rebuild from this item's current sources
+                )
             batched = await self._outbox_prepare_batch(ns, store, offset)
             if batched is not _MISSING:
                 return ("window", await self._with_model_annotations(ns, batched))
@@ -1717,7 +1948,11 @@ class WindowPipeline:
         store.inflight = job  # a forget during the call cancels it
         try:
             prepared = await self._prepare_job(ns, job, strict=True)
+            if prepared is None:
+                return ("context_only", window_context)
             prepared = await self._with_model_annotations(ns, prepared)
+            if isinstance(prepared, _Prepared):
+                prepared = replace(prepared, window_context=window_context)
         except BaseException:
             store.inflight = None
             raise
@@ -1915,8 +2150,9 @@ class WindowPipeline:
         jobs: list[_Job] = []
         for item in batch:
             payload = item.ref[1]  # type: ignore[index]
+            record_ids = self._survivor_rederive_ids(ns, payload)
             window = Window(
-                turns=[WindowTurn(record_id=r, text="", tokens=1) for r in payload["record_ids"]],
+                turns=[WindowTurn(record_id=r, text="", tokens=1) for r in record_ids],
                 reason=str(payload.get("reason", "")),
                 session=payload.get("session"),
             )
@@ -1934,10 +2170,51 @@ class WindowPipeline:
         finally:
             store.inflight_batch = []
         for item, ready in zip(batch[1:], prepared[1:], strict=True):
+            payload = item.ref[1]  # type: ignore[index]
+            if isinstance(ready, _Prepared):
+                ready = replace(ready, window_context=self._window_context(payload))
             self._prefetched[(ns, item.ref[0])] = ready  # type: ignore[index]
         first = prepared[0]
+        first_payload = batch[0].ref[1]  # type: ignore[index]
+        if isinstance(first, _Prepared):
+            first = replace(first, window_context=self._window_context(first_payload))
         store.inflight = first.job if first is not None else None
         return first
+
+    @staticmethod
+    def _window_context(payload: Mapping[str, Any]) -> dict[str, Any]:
+        """The non-content fields needed to replay the original window grouping and rules."""
+        return {
+            "window_key": payload.get("window_key"),
+            "reason": payload.get("reason"),
+            "session": payload.get("session"),
+            "conversation_id": payload.get("conversation_id"),
+        }
+
+    def _survivor_rederive_ids(self, namespace: str, payload: Mapping[str, Any]) -> list[str]:
+        """Honor the source snapshots captured atomically with survivor intent creation."""
+        ids = [str(value) for value in payload.get("record_ids", ()) if value]
+        expected = payload.get("survivor_sources")
+        if not isinstance(expected, list):
+            return ids
+        by_id = {
+            str(source.get("record_id")): source
+            for source in expected
+            if isinstance(source, Mapping) and source.get("record_id")
+        }
+        if not ids or len(by_id) != len(ids) or self._outbox is None:
+            return []
+        snapshots = self._membership(namespace, ids)
+        if snapshots is None:
+            return []
+        current = {str(source.get("record_id")): source for source in snapshots.values()}
+        fields = ("source_id", "source_version", "content_hash", "erasure_generation")
+        return [
+            record_id
+            for record_id in ids
+            if record_id in current
+            and all(current[record_id].get(key) == by_id[record_id].get(key) for key in fields)
+        ]
 
     def _outbox_batch_ready(self, ns: str, store: _Store) -> bool:
         """Background drain gate (outbox mode): False holds the queued windows for company."""
@@ -2092,12 +2369,15 @@ class WindowPipeline:
             "turn_count": base,
         }
         if self._ctx is not None:
+            known_seq, horizon_limited = _known_batch_horizon([records for _, _, records in live])
             variables = await self._with_prompt_context(
                 ns,
                 variables,
                 [t for texts in texts_by_window for t in texts],
                 len(live),
                 live[0][1].conversation_id,
+                known_seq=known_seq,
+                horizon_limited=horizon_limited,
             )
         self._counts["windows_processed"] += len(live)
         self._counts["batches"] += 1
@@ -2208,6 +2488,8 @@ class WindowPipeline:
         try:
             if kind == "closed":
                 await self._session_closed(ns, store, body["session"], int(body.get("windows", 0)))
+            elif kind == "context_only":
+                return
             elif kind == "deferred":
                 assert self._outbox is not None
                 await self._outbox.park(scope, WINDOW_STAGE, body)
@@ -2230,6 +2512,19 @@ class WindowPipeline:
         if prepared is None:
             return layers
         kind, body = prepared
+        if kind == "context_only":
+            results = {
+                layer: {
+                    "count": 0,
+                    "producer_revision": "window-extraction:base",
+                    "policy_revision": self._policy_revision,
+                }
+                for layer in layers
+            }
+            if results:
+                layer = "facts" if "facts" in results else next(iter(results))
+                results[layer]["artifact"] = {"window_context": dict(body)}
+            return results
         if kind != "window" or body is None:
             return layers
         merged = body.merged
@@ -2280,6 +2575,26 @@ class WindowPipeline:
                 or "personal-rules:1",
                 "policy_revision": self._policy_revision,
             }
+        if isinstance(prepared, tuple) and prepared[0] == "window":
+            body = prepared[1]
+            if isinstance(body, _Prepared) and body.window_context is not None:
+                unresolved = results.get("unresolved")
+                if isinstance(unresolved, dict):
+                    artifact = unresolved.get("artifact")
+                    artifact = dict(artifact) if isinstance(artifact, dict) else {}
+                    artifact["window_context"] = dict(body.window_context)
+                    unresolved["artifact"] = artifact
+                # This quote-free artifact survives item compaction with the effect. The erasure
+                # transaction deletes it together with every source-bound effect row.
+                for layer in ("facts", "unresolved", *results.keys()):
+                    result = results.get(layer)
+                    if not isinstance(result, dict) or layer == "annotations":
+                        continue
+                    artifact = result.get("artifact")
+                    artifact = dict(artifact) if isinstance(artifact, dict) else {}
+                    artifact["window_context"] = dict(body.window_context)
+                    result["artifact"] = artifact
+                    break
         return results
 
     def unresolved_annotations(self, namespace: str) -> list[dict[str, Any]]:
@@ -2292,50 +2607,36 @@ class WindowPipeline:
         for row in self.derivation_effect_status(namespace):
             if row.get("layer") != "unresolved" or row.get("state") != "complete":
                 continue
-            offset = int(row.get("offset", -1))
-            items = (row.get("artifact") or {}).get("unresolved_annotations", [])
-            for source in row.get("identity", {}).get("sources", []):
-                record_id = str(source.get("record_id"))
+            offset = row.get("offset")
+            artifact = row.get("artifact")
+            identity = row.get("identity")
+            if not isinstance(offset, int) or not isinstance(identity, dict):
+                continue
+            items = artifact.get("unresolved_annotations") if isinstance(artifact, dict) else None
+            sources = identity.get("sources")
+            if not isinstance(sources, list):
+                continue
+            items = items if isinstance(items, list) else []
+            for source in sources:
+                if not isinstance(source, dict) or not isinstance(source.get("record_id"), str):
+                    continue
+                record_id = source["record_id"]
                 if record_id in latest and latest[record_id][0] > offset:
                     continue
-                mine = [i for i in items if i.get("source", {}).get("record_id") == record_id]
+                mine = [
+                    item
+                    for item in items
+                    if isinstance(item, dict)
+                    and isinstance(item.get("source"), dict)
+                    and item["source"].get("record_id") == record_id
+                ]
                 latest[record_id] = (offset, mine)
         return [item for _, items in latest.values() for item in items]
 
-    async def reresolve_unresolved(self, namespace: str) -> int:
-        """RM-42: run the rules again over every live source that has unresolved annotations,
-        after a policy or registry activation. The sources are queued as one window item; its
-        effect states their new unresolved set and deposits what now resolves (the ladder keeps
-        a fact that was already stored). Returns the number of sources queued."""
-        if self._outbox is None or not self._rule_only:
-            return 0
-        ids = list(
-            dict.fromkeys(
-                str(item["source"]["record_id"]) for item in self.unresolved_annotations(namespace)
-            )
-        )
-        live: list[str] = []
-        for record_id in ids:
-            record = await self._get(record_id)
-            if record is not None and record.status is RecordStatus.ACTIVATED:
-                live.append(record_id)
-        if not live:
-            return 0
-        scope = self._scope(namespace)
-        await self._outbox.enqueue(
-            scope,
-            WINDOW_STAGE,
-            {
-                "kind": "window",
-                "window_key": "reresolve",
-                "reason": "reresolve",
-                "record_ids": live,
-            },
-            force=True,
-        )
-        await self._outbox.drain(scope)
-        self._counts["unresolved_reresolved"] += len(live)
-        return len(live)
+    async def drain_activation(self, namespace: str) -> None:
+        """Wake the durable window obligation after its activation transaction commits."""
+        if self._outbox is not None:
+            await self._outbox.drain(self._scope(namespace))
 
     async def _outbox_compensate(
         self,
@@ -2408,12 +2709,29 @@ class WindowPipeline:
         if record_id in self._marking:
             self._marking[record_id] = True  # being published right now: fenced after the write
         if self._outbox is not None:
+            pending = self._outbox.pending_items(self._scope(namespace), WINDOW_STAGE)
+            self._counts["turns_dropped_forget"] += sum(
+                1
+                for _, payload in pending
+                if payload.get("kind") == "window" and record_id in payload.get("record_ids", ())
+            )
             # Advance the fence before touching queues or in-flight flags.  A
             # worker returning from inference can no longer authorize effects.
             await self._outbox.erase_source(self._scope(namespace), WINDOW_STAGE, record_id)
+            self._staged = [
+                (ns, self._forget_in_item(payload, record_id) or payload)
+                if ns == namespace
+                else (ns, payload)
+                for ns, payload in self._staged
+            ]
             await self._persist_staged()  # an item still staged is as queued as one stored
             await self._outbox.rewrite_pending(
                 self._scope(namespace), WINDOW_STAGE, lambda p: self._forget_in_item(p, record_id)
+            )
+            await self._outbox.rewrite_all_items(
+                self._scope(namespace),
+                WINDOW_STAGE,
+                lambda p: self._forget_in_item(p, record_id),
             )
             await self._outbox.rewrite_all_stage_items(
                 DISCOVERY_STAGE, lambda p: self._forget_in_item(p, record_id)
@@ -2423,6 +2741,7 @@ class WindowPipeline:
             for win in list(store.windows.values()):
                 if win.segmenter.discard(record_id):
                     self._counts["turns_dropped_forget"] += 1
+                    self._draft_delete(namespace, (win.key, record_id))
                     win.sources.pop(record_id, None)
                     self._prune(store, win)
             for job in list(store.queue):
@@ -2459,6 +2778,14 @@ class WindowPipeline:
                     await self._cache.delete(key)
                 except Exception as exc:  # best effort; the entry is only a cached reply
                     _log.warning("window.cache_purge_failed", error=str(exc))
+        if self._async and self._outbox is not None:
+            # The survivor intent is durable already; wake reconciliation after the forget hook
+            # returns so it can become a job without holding the namespace write lock.
+            task = asyncio.get_running_loop().create_task(
+                self._outbox.drain(self._scope(namespace))
+            )
+            self._wake_tasks.add(task)
+            task.add_done_callback(self._wake_tasks.discard)
 
     async def _forget_in_stored_draft(self, namespace: str, record_id: str) -> None:
         """ADR-095 (window drafts): delete every stored draft row of the turn (its id, content
@@ -2474,8 +2801,13 @@ class WindowPipeline:
             )
             known = self._draft_rows.get(namespace)
             if known is not None:
-                for key in [k for k in known if k[1] == record_id]:
-                    del known[key]
+                for key in self._draft_keys_by_record.get(namespace, {}).get(record_id, ()):
+                    known.pop(key, None)
+            pending = self._draft_pending.get(namespace)
+            if pending is not None:
+                for key in self._draft_keys_by_record.get(namespace, {}).get(record_id, ()):
+                    pending.pop(key, None)
+            self._draft_keys_by_record.get(namespace, {}).pop(record_id, None)
         if deleted and namespace not in self._draft_restored:
             self._counts["turns_dropped_forget"] += 1
 
@@ -2590,24 +2922,37 @@ class WindowPipeline:
                 _log.warning("window.cache_write_failed", error=str(exc))
         return raw
 
+    def source_exclusion_reason(self, record: MemoryRecord) -> str | None:
+        """The current source policy shared by window preparation and unresolved inspection."""
+        if record.status is not RecordStatus.ACTIVATED:
+            return "inactive"
+        if record.quarantined:
+            return "quarantined"
+        if record.instruction_flag:
+            return "instruction"
+        if self._role_policy:
+            reason = role_filter.block_reason(record.tags)
+            if reason is not None:
+                return reason
+        if role_filter.derive_use_of(record.tags) == "excluded":
+            return "excluded"
+        return None
+
     async def _live_turns(self, window: Window) -> list[MemoryRecord]:
         live: list[MemoryRecord] = []
         for turn in window.turns:
             record = await self._get(turn.record_id)
-            if (
-                record is None
-                or record.status is not RecordStatus.ACTIVATED
-                or record.quarantined
-                or record.instruction_flag
-            ):
+            if record is None:
                 self._counts["turns_excluded"] += 1
                 continue
-            if self._role_policy:  # W2-03: system turns and echoes are raw only
-                why = role_filter.block_reason(record.tags)
-                if why is not None:
-                    self._counts[f"turns_excluded_{why}"] += 1
-                    tap.event("write.role.derive_skip", reason=why, id=record.record_id)
-                    continue
+            reason = self.source_exclusion_reason(record)
+            if reason in ("inactive", "quarantined", "instruction"):
+                self._counts["turns_excluded"] += 1
+                continue
+            if reason is not None:  # W2-03: system turns and echoes are raw only
+                self._counts[f"turns_excluded_{reason}"] += 1
+                tap.event("write.role.derive_skip", reason=reason, id=record.record_id)
+                continue
             live.append(record)
         return live
 
@@ -2724,6 +3069,11 @@ class WindowPipeline:
                             )
                         )
                 result, cited = await self._resolve_pending(ns, record, result)
+                if self._non_generative_extractor is None:
+                    bound, parent = await self._reply_move_origin(ns, record, scope)
+                    if bound is not None and parent is not None:
+                        result = result.model_copy(update={"facts": (*result.facts, bound)})
+                        cited.append(parent)
                 compiled = compile_grounded_facts(result, [*records, *cited], scope)
                 for index, target in compiled.targets.items():
                     targets[compiled.envelopes[index].write_id] = target
@@ -2787,8 +3137,14 @@ class WindowPipeline:
             "turn_count": len(records),
         }
         if self._ctx is not None:
+            source_horizon = _known_horizon(records)
             variables = await self._with_prompt_context(
-                ns, variables, line_texts, conversation_id=_conversation_id(records[0])
+                ns,
+                variables,
+                line_texts,
+                conversation_id=_conversation_id(records[0]),
+                known_seq=source_horizon or 0,
+                horizon_limited=source_horizon is None,
             )
         self._counts["windows_processed"] += 1
         tap.event(
@@ -2841,6 +3197,56 @@ class WindowPipeline:
                 await self._purge_window_cache(member_ids)
                 return None
         return _Prepared(job, records, merged, line_texts, window_id, len(groups), failed)
+
+    async def _reply_move_origin(
+        self, ns: str, reply: MemoryRecord, scope: OwnerScope
+    ) -> tuple[Any | None, MemoryRecord | None]:
+        """Load only the canonical parent of a live explicit reply for the F5 rule."""
+        from memspine.derive.discourse_rules import reply_move_origin
+        from memspine.derive.non_generative_facts import assertion_owner, document_owner
+
+        message = reply.source.message
+        if not isinstance(message, dict) or reply.namespace != ns:
+            return None, None
+        reply_id = message.get("reply_to")
+        if not isinstance(reply_id, str) or not reply_id:
+            return None, None
+        parent_tags = [
+            tag[len(constants.REPLY_TO_PREFIX) :]
+            for tag in reply.tags
+            if tag.startswith(constants.REPLY_TO_PREFIX)
+        ]
+        if len(parent_tags) != 1:
+            return None, None
+        parent = await self._get(parent_tags[0])
+        if (
+            parent is None
+            or parent.namespace != ns
+            or parent.status is not RecordStatus.ACTIVATED
+            or parent.quarantined
+            or parent.instruction_flag
+            or parent.source.role != "user"
+            or reply.source.role != "user"
+            or document_owner(parent) is not None
+            or document_owner(reply) is not None
+            or role_filter.block_reason(parent.tags) is not None
+            or parent.recorded_at > reply.recorded_at
+            or (
+                parent.source_at is not None
+                and reply.source_at is not None
+                and parent.source_at.utcoffset() is not None
+                and reply.source_at.utcoffset() is not None
+                and parent.source_at > reply.source_at
+            )
+        ):
+            return None, None
+        old_message = parent.source.message
+        if not isinstance(old_message, dict) or old_message.get("message_id") != reply_id:
+            return None, None
+        owner = assertion_owner(reply)
+        if owner is None or owner != assertion_owner(parent):
+            return None, None
+        return reply_move_origin(reply, parent, scope, owner), parent
 
     async def _resolve_pending(
         self, ns: str, record: MemoryRecord, result: Any
@@ -2919,12 +3325,17 @@ class WindowPipeline:
         texts: Sequence[str],
         windows: int = 0,
         conversation_id: str | None = None,
+        *,
+        known_seq: int | None = None,
+        horizon_limited: bool = False,
     ) -> dict[str, Any]:
         """W2-06b: add CONTEXT (the previous window's tail) and KNOWN to the prompt variables."""
         assert self._ctx is not None
         store = self._store(ns)
         tail = store.tails.get(conversation_id, [])
-        built = await self._ctx.build(ns, "\n".join(texts), tail)
+        built = await self._ctx.build(ns, "\n".join(texts), tail, known_seq=known_seq)
+        if horizon_limited:
+            built = replace(built, deferred=tuple(dict.fromkeys((*built.deferred, "horizon"))))
         store.tails[conversation_id] = self._ctx.tail(texts)
         if built.deferred:  # DS-12: KNOWN was capped or partly read (a hint, never complete)
             self._counts["known_deferred"] += 1

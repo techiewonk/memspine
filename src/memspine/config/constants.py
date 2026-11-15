@@ -611,6 +611,8 @@ CAUSAL_WALK_DECAY = 0.9
 #: G27 (``write(reply_to=)``, ADR-061): the tag prefix naming the record a turn
 #: answers, and the rel of the LINK written beside it (associative memory on).
 REPLY_TO_PREFIX = "reply_to:"
+#: ADR-090 durable intake: immutable write ID tag on a raw message record.
+IDEM_TAG_PREFIX = "idem:"
 
 # W2-03 (``write.role_policy``): tags a raw turn carries so derivation can tell what it may use.
 ROLE_USE_TAG_PREFIX = "derive_use:"  # derive_use:stated|proposal|evidence|excluded

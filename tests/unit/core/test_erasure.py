@@ -59,6 +59,46 @@ def test_top_level_snapshot_is_scrubbed() -> None:
     assert not retained_fields(payload, "r1")
 
 
+def test_source_addressed_quote_is_removed_from_nested_role_evidence_only() -> None:
+    payload = {
+        "record": _snapshot("claim", "Asha resides in Sweden"),
+        "fingerprint": {
+            "envelope": {
+                "evidence": [
+                    {
+                        "role": "support",
+                        "turn": {"source_id": "erased", "source_version": 1, "seg_index": 0},
+                        "span": {"start": 0, "end": 12, "quote": "erased quote"},
+                    }
+                ],
+                "role_bindings": [
+                    {
+                        "evidence": [
+                            {
+                                "role": "binding",
+                                "turn": {
+                                    "source_id": "survivor",
+                                    "source_version": 1,
+                                    "seg_index": 0,
+                                },
+                                "span": {"start": 0, "end": 8, "quote": "lawful quote"},
+                            }
+                        ]
+                    }
+                ],
+            }
+        },
+    }
+    assert "evidence.quote" in retained_fields(payload, "erased")
+    assert redact_record(payload, "erased")
+    assert payload["fingerprint"]["envelope"]["evidence"][0]["span"]["quote"] is None
+    assert (
+        payload["fingerprint"]["envelope"]["role_bindings"][0]["evidence"][0]["span"]["quote"]
+        == "lawful quote"
+    )
+    assert not retained_fields(payload, "erased")
+
+
 def test_history_entries_are_scrubbed_and_detected() -> None:
     """The CRITICAL blind spot: supersession (e.g. a persona update) parks the
     prior version's content in ``history`` with no record_id of its own."""

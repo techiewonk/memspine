@@ -149,10 +149,7 @@ async def test_duplicate_source_id_and_session_conflicts_are_rejected(engine: En
         namespace="conflict",
     )
     assert reply[0].source.message["session_id"] == "S1"
-    assert (
-        reply[0].source.message["conversation_id"]
-        == root.source.message["conversation_id"]
-    )
+    assert reply[0].source.message["conversation_id"] == root.source.message["conversation_id"]
     with pytest.raises(ValueError, match="another session"):
         await engine.ingest_messages(
             [

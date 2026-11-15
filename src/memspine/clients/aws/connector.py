@@ -14,6 +14,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import probe
 from memspine.clients.base import ConnectorIdentity, Locality, Scope
 from memspine.exceptions import MissingServiceError, StorageError
@@ -100,9 +101,10 @@ class AwsConnector:
         return await probe(deadline_s, check)
 
     def close_blocking(self) -> None:
-        client, self._client, self._session = self._client, None, None
+        client = self._client
         if client is not None and hasattr(client, "close"):
             client.close()
+        self._client = self._session = None
 
     async def close(self) -> None:
-        await asyncio.to_thread(self.close_blocking)
+        await drain_close(asyncio.to_thread(self.close_blocking))

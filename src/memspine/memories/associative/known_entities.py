@@ -60,12 +60,16 @@ class _Entry:
         changed (latest name or alias row) first, then by entity id."""
         return (-self.latest, self.entity_id)
 
-    def known(self, namespace: str) -> KnownEntity | None:
+    def known(self, namespace: str, through_seq: int | None = None) -> KnownEntity | None:
         canonical = self.names.get("name")
-        if canonical is None:
+        if canonical is None or (through_seq is not None and canonical[1] > through_seq):
             return None  # only aliases left (a partial page): not presentable
         aliases = sorted(
-            (text for ref, (text, _) in self.names.items() if ref.startswith("alias:")),
+            (
+                text
+                for ref, (text, seq) in self.names.items()
+                if ref.startswith("alias:") and (through_seq is None or seq <= through_seq)
+            ),
         )
         return KnownEntity(
             _display(canonical[0]),
@@ -93,6 +97,12 @@ def _entries(rows: Iterable[EntityIndexRow], namespace: str) -> dict[str, _Entry
     return out
 
 
+def _entries_through(
+    rows: Iterable[EntityIndexRow], namespace: str, horizon: int | None
+) -> dict[str, _Entry]:
+    return _entries((row for row in rows if horizon is None or row.seq <= horizon), namespace)
+
+
 def _key(text: str) -> str:
     return " ".join(unicodedata.normalize("NFKC", text).casefold().split())
 
@@ -116,6 +126,8 @@ class _Cursor:
     recheck: set[str] = field(default_factory=set)
     #: other processes' removal signals of the namespace as last seen (None: never read)
     gone: dict[str, int] | None = None
+    #: One bounded incremental cache per namespace; changing horizons restarts the scan.
+    horizon: int | None = None
 
 
 class KnownEntityCursor:
@@ -186,7 +198,7 @@ class KnownEntityCursor:
             return
         if entity_ids is None or state.capped:
             # Unknown scope, or a capped set (the removal may free room): recomputed by a rescan.
-            self._state[namespace] = _Cursor(gone=state.gone)
+            self._state[namespace] = _Cursor(gone=state.gone, horizon=state.horizon)
             return
         for entity_id in entity_ids:
             state.entries.pop(entity_id, None)
@@ -199,29 +211,45 @@ class KnownEntityCursor:
             self._bound = projector
         return projector
 
-    async def __call__(self, namespace: str, text: str) -> KnownSet:
+    async def __call__(self, namespace: str, text: str, known_seq: int | None = None) -> KnownSet:
         projector = self._bind()
         storage = self._storage()
         store = entity_index_store_of(storage)
-        self._state.setdefault(namespace, _Cursor())
+        self._state.setdefault(namespace, _Cursor(horizon=known_seq))
+        state = self._state[namespace]
+        if state.horizon != known_seq:
+            if (
+                state.horizon is not None
+                and known_seq is not None
+                and known_seq > state.horizon
+                and not state.capped
+            ):
+                # The keyset scan is ordered by seq: an uncapped completed/partial prefix can
+                # safely continue forward. A capped prefix must restart because later rows can
+                # change which entities belong in the bounded best-ranked set.
+                state.horizon = known_seq
+            else:
+                self._state[namespace] = _Cursor(horizon=known_seq)
         # The watermark first: its catch-up may apply removals (the hook evicts them).
         watermark = await index_watermark(storage, namespace, projector)
         await self._signal(store, namespace)
         state = self._state[namespace]
         await self._recheck(store, namespace, state)
-        complete = await self._advance(store, namespace, state, watermark)
+        complete = await self._advance(store, namespace, state, watermark, known_seq)
         chosen = self._choose(state, text)
         known: list[KnownEntity] = []
         for entry in chosen:
-            fresh = _entries(
-                await store.select(namespace, "name", entity_id=entry.entity_id), namespace
+            fresh = _entries_through(
+                await store.select(namespace, "name", entity_id=entry.entity_id),
+                namespace,
+                known_seq,
             )
             current = fresh.get(entry.entity_id)
             if current is None:
                 state.entries.pop(entry.entity_id, None)  # forgotten or erased since it was read
                 continue
             state.entries[entry.entity_id] = current
-            entity = current.known(namespace)
+            entity = current.known(namespace, known_seq)
             if entity is not None:
                 known.append(entity)
         reason = "capped" if state.capped else (None if complete else "behind")
@@ -241,35 +269,54 @@ class KnownEntityCursor:
             return
         fresh = state.mark is None and not state.entries and not state.scanning
         if state.gone is not None and not fresh:
-            state = self._state[namespace] = _Cursor()
+            state = self._state[namespace] = _Cursor(horizon=state.horizon)
         state.gone = gone
 
     async def _recheck(self, store: EntityIndexStore, namespace: str, state: _Cursor) -> None:
         """Re-read the entities a removal touched; one that still has names is kept again."""
         ids, state.recheck = sorted(state.recheck), set()
         for entity_id in ids:
-            current = _entries(
-                await store.select(namespace, "name", entity_id=entity_id), namespace
+            current = _entries_through(
+                await store.select(namespace, "name", entity_id=entity_id),
+                namespace,
+                state.horizon,
             ).get(entity_id)
             if current is not None:
                 state.entries[entity_id] = current
         self._trim(state)
 
     async def _advance(
-        self, store: EntityIndexStore, namespace: str, state: _Cursor, watermark: int | None
+        self,
+        store: EntityIndexStore,
+        namespace: str,
+        state: _Cursor,
+        watermark: int | None,
+        horizon: int | None = None,
     ) -> bool:
         """Scan past the proven mark; True when every row up to ``watermark`` has been read."""
+        if watermark is None:
+            # Without a projection watermark no scanned prefix is proven: a later catch-up may
+            # still insert a low-sequence row behind the cursor. Keep the prior proven state.
+            self.rows_read = 0
+            return False
+        target = min(watermark, horizon) if horizon is not None else watermark
         self.rows_read = 0
         for _ in range(self.max_pages):
             if not state.scanning:
-                state.scanning, state.scan_mark = True, watermark
+                state.scanning, state.scan_mark = True, target
                 state.scan_after = self._start(state)
+            else:
+                state.scan_mark = target
             rows = await store.select_after(
                 namespace, "name", after=state.scan_after, limit=self.page
             )
             self.rows_read += len(rows)
             partial: set[str] = set()
+            past_horizon = False
             for row in rows:
+                if target is not None and row.seq > target:
+                    past_horizon = True
+                    break
                 if row.namespace != namespace or not row.entity_id:
                     continue
                 entry = state.entries.get(row.entity_id)
@@ -278,27 +325,37 @@ class KnownEntityCursor:
                     if row.ref != "name":
                         partial.add(row.entity_id)  # its canonical row was read (and cut) before
                 entry.add(row)
-            if rows:
-                state.scan_after = row_cursor(rows[-1])
+            scanned_rows = [row for row in rows if target is None or row.seq <= target]
+            if scanned_rows:
+                state.scan_after = row_cursor(scanned_rows[-1])
             self._trim(state)
             for entity_id in sorted(partial & state.entries.keys()):
-                found = _entries(
-                    await store.select(namespace, "name", entity_id=entity_id), namespace
+                found = _entries_through(
+                    await store.select(namespace, "name", entity_id=entity_id),
+                    namespace,
+                    horizon,
                 )
                 if entity_id in found:
                     state.entries[entity_id] = found[entity_id]
+            if past_horizon:
+                state.scanning = False
+                state.mark = target
+                state.last = state.scan_after
+                break
             if len(rows) < self.page:
                 state.scanning = False
                 if state.scan_mark is not None:
                     state.mark = max(state.mark or 0, state.scan_mark)
                     state.last = state.scan_after
-                if watermark is None or (state.mark is not None and state.mark >= watermark):
+                if target is None or (state.mark is not None and state.mark >= target):
                     break
         return (
             not state.scanning
-            and watermark is not None
+            and target is not None
             and state.mark is not None
-            and state.mark >= watermark
+            and watermark >= target
+            and state.mark >= target
+            and (horizon is None or watermark >= horizon)
         )
 
     @staticmethod

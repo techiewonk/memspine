@@ -6,7 +6,7 @@ be imported without a cycle while both paths keep using the same ContextVars.
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from typing import Any
@@ -37,7 +37,6 @@ _RECALL_MARKERS = (
     constants.COUNT_MARKER,
 )
 
-IDEM_TAG_PREFIX = "idem:"
 INTAKE_LANDED: ContextVar[dict[str, str] | None] = ContextVar("intake_landed", default=None)
 
 
@@ -46,14 +45,19 @@ def _looks_like_recall(content: str) -> bool:
 
 
 def _reply_target(turn: Mapping[str, Any], index: int, written: Mapping[int, str]) -> str | None:
-    """Resolve a write-door reply to a record id, or skip a non-written parent."""
+    """Resolve a write-door reply to a record id."""
     raw: object = turn.get("reply_to")
     if raw is None:
         return None
     if isinstance(raw, str) and raw:
         return raw
     if isinstance(raw, int) and not isinstance(raw, bool) and 0 <= raw < index:
-        return written.get(raw)
+        parent = written.get(raw)
+        if parent is None and turn.get("_message_envelope") is not None:
+            from memspine.ingest.message_parent import ReplyParentUnavailable
+
+            raise ReplyParentUnavailable("reply parent is unavailable")
+        return parent
     raise ValueError(
         f"messages[{index}]['reply_to'] must be a record id or the index of an earlier message"
     )
@@ -67,6 +71,27 @@ def _turn_content(turn: Mapping[str, Any]) -> str:
     content = turn["content"]
     caption = turn.get("caption")
     return f"{content} [image: {caption}]".strip() if caption else content
+
+
+def deterministic_skip_reason(
+    turn: Mapping[str, Any],
+    *,
+    skip_roles: Collection[str],
+    skip_injected_recall: bool,
+    role_policy: bool,
+) -> str | None:
+    """Whether this raw turn is known to have no record before or during apply.
+
+    Role policy retains raw turns even when their role or echo is excluded from
+    derivation. Reuse this predicate at acceptance, apply, and crash recovery.
+    """
+    if role_policy:
+        return None
+    if turn.get("role") in skip_roles:
+        return "role"
+    if skip_injected_recall and _looks_like_recall(_turn_content(turn)):
+        return "injected_recall"
+    return None
 
 
 def _index_view_prefixes(

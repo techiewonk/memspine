@@ -10,13 +10,17 @@ from __future__ import annotations
 from collections.abc import Iterable, Sequence
 
 from memspine.store.records import MemoryRecord
-
-VISIBILITY_PREFIX = "visibility:"
-VISIBILITIES: tuple[str, ...] = ("owner_shared", "participants", "private")
+from memspine.store.visibility_policy import (
+    VISIBILITIES,
+    VISIBILITY_PREFIX,
+    audience_key,
+    normalize_participant,
+    visibility_of,
+)
 
 
 def _norm(name: str) -> str:
-    return " ".join(name.strip().casefold().split())
+    return normalize_participant(name)
 
 
 def _names(names: Iterable[str]) -> list[str]:
@@ -38,26 +42,13 @@ def participants_of(record: MemoryRecord) -> list[str]:
     return list(record.axes.participants)
 
 
-def visibility_of(tags: Iterable[str]) -> str | None:
-    found = [
-        t[len(VISIBILITY_PREFIX) :]
-        for t in tags
-        if t.startswith(VISIBILITY_PREFIX) and t[len(VISIBILITY_PREFIX) :] in VISIBILITIES
-    ]
-    return max(found, key=VISIBILITIES.index) if found else None
-
-
 def visible_to(record: MemoryRecord, viewer: str) -> bool:
-    visibility = visibility_of(record.tags)
-    names = [_norm(n) for n in participants_of(record)]
-    who = _norm(viewer)
-    if visibility == "owner_shared":
+    audience = audience_key(record)
+    if audience[0] == "owner_shared":
         return True
-    if visibility == "private":
-        return bool(names) and names[0] == who
-    if visibility == "participants":
-        return who in names
-    return not names or who in names
+    if audience[0] == "default" and len(audience) == 1:
+        return True
+    return _norm(viewer) in audience[1:]
 
 
 def restrict_to_parents(record: MemoryRecord, parents: Sequence[MemoryRecord]) -> MemoryRecord:

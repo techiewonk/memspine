@@ -23,6 +23,7 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import probe
 from memspine.clients._common.endpoints import is_loopback
 from memspine.clients.base import ConnectorIdentity, Locality, Scope
@@ -201,9 +202,13 @@ class PostgresClient:
         return await probe(deadline_s, check)
 
     async def close(self) -> None:
+        await drain_close(self._close_owned())
+
+    async def _close_owned(self) -> None:
         if self._engine is not None:
-            engine, self._engine = self._engine, None
+            engine = self._engine
             await engine.dispose()
+            self._engine = None
 
     # -- lent sync access (clients/postgres/sync.py) -----------------------------------------
     def sync_engine(

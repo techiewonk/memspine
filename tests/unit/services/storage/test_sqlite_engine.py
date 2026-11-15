@@ -9,6 +9,7 @@ import pytest
 
 from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.exceptions import RebuildUnavailableError, StorageError
+from memspine.services.storage.projector import fold_records
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.services.storage.sqlite.migrations import upgrade_to_head
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
@@ -42,7 +43,15 @@ async def make_storage(
 
 
 def ev(namespace: str = "ns/a", **payload: object) -> MemoryEvent:
-    return MemoryEvent(kind=EventKind.WRITE, namespace=namespace, payload=dict(payload))
+    return MemoryEvent(kind=EventKind.MARKER, namespace=namespace, payload=dict(payload))
+
+
+def write_ev(record: MemoryRecord) -> MemoryEvent:
+    return MemoryEvent(
+        kind=EventKind.WRITE,
+        namespace=record.namespace,
+        payload={"record": record.model_dump(mode="json")},
+    )
 
 
 async def test_append_assigns_monotonic_seq_and_round_trips() -> None:
@@ -178,21 +187,29 @@ async def test_ephemeral_offsets_never_touch_the_database_file(tmp_path: Path) -
     ephemeral = SQLiteStorage(client1, mode=EventLogMode.EPHEMERAL)
     await ephemeral.start()
     for i in range(5):
-        appended = await ephemeral.append_event(ev(content=str(i)))
-        await ephemeral.set_offset("records", appended.seq or 0)
-    assert await ephemeral.get_offset("records") == 5  # in-memory only
+        record = MemoryRecord(namespace="ns/a", memory_type="semantic", content=str(i))
+        appended = await ephemeral.append_ephemeral_records(write_ev(record), fold_records)
+        assert appended.seq == i + 1
+        assert await ephemeral.get_record(record.record_id) is not None
+        await ephemeral.set_offset("dict", appended.seq)
+    assert await ephemeral.get_offset("dict") == 5  # generic projector checkpoint is in memory
+    assert await ephemeral.get_offset("records") == 0  # no replayable history checkpoint
+    assert await ephemeral.read_events() == []
     await client1.close()
 
     client2 = SQLiteClient(SQLiteSpec(db))
     await client2.open()
     full = SQLiteStorage(client2, mode=EventLogMode.FULL)
     await full.start()
+    assert await full.get_offset("dict") == 0  # ephemeral checkpoint did not leak to disk
     assert await full.get_offset("records") == 0  # nothing leaked to disk
-    projector = DictProjector("records")
-    e1 = await full.append_event(ev(content="first real event"))
+    real_record = MemoryRecord(namespace="ns/a", memory_type="semantic", content="first real event")
+    e1 = await full.append_event(write_ev(real_record))
     assert e1.seq == 1
-    applied = await catch_up(full, [projector])
-    assert applied["records"] == 1  # the first full-mode event is projected
+    applied = await full.advance_records(e1.seq, 1, fold_records)
+    assert applied.applied_count == 1  # the first full-mode event is projected
+    assert await full.get_offset("records") == 1
+    assert await full.get_record(real_record.record_id) is not None
     await client2.close()
 
 

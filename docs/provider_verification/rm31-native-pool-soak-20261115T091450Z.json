@@ -1,0 +1,4298 @@
+{
+  "schema_version": 1,
+  "run_id": "eb6b18062d4f",
+  "created_at_utc": "2026-11-15T09:14:52.785400+00:00",
+  "declared_before_run": {
+    "warmups_per_provider": 5,
+    "measured_cycles_per_provider": 30,
+    "wall_cap_s": 600.0,
+    "per_cycle_timeout_s": 15,
+    "close_settle_s": 0.2,
+    "no_overlapping_runs": true
+  },
+  "scope": {
+    "included": [
+      "postgres",
+      "redis",
+      "valkey",
+      "mongo",
+      "neo4j"
+    ],
+    "excluded": {
+      "opensearch": "not in owned RM-136 stack; isolated PA-054 workflow required",
+      "weaviate": "not in owned RM-136 stack; isolated PA-054 workflow required",
+      "temporal": "not a data provider pool"
+    },
+    "cycle_owner": "Memspine connector-owned native pool; Engine facade excluded"
+  },
+  "image_ids": {
+    "neo4j": "sha256:f1e52d4dc6da122468c4a3c1050a4f5e117f6d3268625237c34d49166f0d6082",
+    "redis": "sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499",
+    "postgres": "sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a",
+    "mongo": "sha256:52ba5332636758f2375228827d5cf7460e25c02063ba19c243e5d262cf4e7924",
+    "valkey": "sha256:640c5e62cea04b6d6f2084232651d0cc70362d31f4f805e7be94dbed6855e8f2"
+  },
+  "native_versions": {
+    "observer": "separate docker exec processes; not measured client pools",
+    "neo4j": "5.26.32",
+    "redis": "Redis server v=7.4.11 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=40ff01a501d8e4b6",
+    "postgres": "16.15 (Debian 16.15-1.pgdg12+2)",
+    "mongo": "db version v7.0.41",
+    "valkey": "Valkey server v=8.1.10 sha=00000000:0 malloc=jemalloc-5.3.0 bits=64 build=f1f7d07da9c59343",
+    "drivers": {
+      "SQLAlchemy": "2.1.6",
+      "psycopg": "3.3.6",
+      "redis": "8.1.0",
+      "pymongo": "4.19.0",
+      "neo4j": "6.4.1"
+    }
+  },
+  "source": {
+    "revision": "88ae38ed916b2869deeed8f17c72249568e1bf3d",
+    "dirty": true,
+    "harness_sha256": "d36bb156b322d8b8a69024a55ac2f37c7fb9c393e2d133a38a9bf2e5afb994db",
+    "source_file_sha256": {
+      "scripts/local_services.py": "fe499efc08edfeb8aa63973d454b951250500e9f49f4904487986ef68c4f7059",
+      "src/memspine/clients/postgres/connector.py": "3965d4b7839a153bd518cda1ac71bdc7809f7f88c7e99c1dbd2de10fdf35d3c5",
+      "src/memspine/clients/cashews.py": "6563967726693346e9de3b88184f6bfa62bd1a8b0c612a8075fa2b2ff5d45471",
+      "src/memspine/clients/mongodb/connector.py": "141f6bcff546403a953191ef3aed8e428d70d0d2790e51186adc345ab9c017b4",
+      "src/memspine/clients/neo4j.py": "d52a7ac331df8438a0599e08877f43696f9868f3e0e45b255ef3666790115bdb"
+    }
+  },
+  "credentials_recorded": false,
+  "rss_handle_interpretation": "diagnostic slopes only; finite run does not prove unbounded leak freedom",
+  "providers": {
+    "postgres": {
+      "summary": {
+        "warmups_completed": 5,
+        "measured_completed": 30,
+        "failure_types": [],
+        "telemetry_coverage": 35,
+        "owned_outstanding_zero_after_settle": true,
+        "rss_post_stop_slope_bytes_per_cycle": 8671.309454949944,
+        "handle_post_stop_slope_per_cycle": 0.0
+      },
+      "samples": [
+        {
+          "cycle": 0,
+          "phase": "warmup",
+          "rss_before": 45064192,
+          "handles_before": 180,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 349.357,
+          "rss_after_stop": 80015360,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 1,
+          "phase": "warmup",
+          "rss_before": 80015360,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 41.278,
+          "rss_after_stop": 80031744,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 2,
+          "phase": "warmup",
+          "rss_before": 80031744,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 29.946,
+          "rss_after_stop": 80076800,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 3,
+          "phase": "warmup",
+          "rss_before": 80076800,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 14.934,
+          "rss_after_stop": 80093184,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 4,
+          "phase": "warmup",
+          "rss_before": 80093184,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 30.137,
+          "rss_after_stop": 80142336,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 5,
+          "phase": "measured",
+          "rss_before": 80142336,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 33.45,
+          "rss_after_stop": 80146432,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 6,
+          "phase": "measured",
+          "rss_before": 80146432,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 29.727,
+          "rss_after_stop": 80187392,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 7,
+          "phase": "measured",
+          "rss_before": 80187392,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 30.297,
+          "rss_after_stop": 80191488,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 8,
+          "phase": "measured",
+          "rss_before": 80191488,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 16.901,
+          "rss_after_stop": 80240640,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 9,
+          "phase": "measured",
+          "rss_before": 80240640,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 16.297,
+          "rss_after_stop": 80252928,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 10,
+          "phase": "measured",
+          "rss_before": 80252928,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 29.102,
+          "rss_after_stop": 80273408,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 11,
+          "phase": "measured",
+          "rss_before": 80273408,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 15.486,
+          "rss_after_stop": 80289792,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 12,
+          "phase": "measured",
+          "rss_before": 80289792,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 16.144,
+          "rss_after_stop": 80302080,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 13,
+          "phase": "measured",
+          "rss_before": 80302080,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 29.771,
+          "rss_after_stop": 80302080,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 14,
+          "phase": "measured",
+          "rss_before": 80302080,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 30.157,
+          "rss_after_stop": 80302080,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 15,
+          "phase": "measured",
+          "rss_before": 80302080,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 15.592,
+          "rss_after_stop": 80302080,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 16,
+          "phase": "measured",
+          "rss_before": 80302080,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 30.48,
+          "rss_after_stop": 80302080,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 17,
+          "phase": "measured",
+          "rss_before": 80302080,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 15.466,
+          "rss_after_stop": 80302080,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 18,
+          "phase": "measured",
+          "rss_before": 80302080,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 31.399,
+          "rss_after_stop": 80306176,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 19,
+          "phase": "measured",
+          "rss_before": 80306176,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 31.75,
+          "rss_after_stop": 80310272,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 20,
+          "phase": "measured",
+          "rss_before": 80310272,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 17.389,
+          "rss_after_stop": 80310272,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 21,
+          "phase": "measured",
+          "rss_before": 80310272,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 28.516,
+          "rss_after_stop": 80310272,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 22,
+          "phase": "measured",
+          "rss_before": 80310272,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 16.725,
+          "rss_after_stop": 80314368,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 23,
+          "phase": "measured",
+          "rss_before": 80314368,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 28.958,
+          "rss_after_stop": 80326656,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 24,
+          "phase": "measured",
+          "rss_before": 80326656,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 29.798,
+          "rss_after_stop": 80334848,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 25,
+          "phase": "measured",
+          "rss_before": 80334848,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 31.054,
+          "rss_after_stop": 80375808,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 26,
+          "phase": "measured",
+          "rss_before": 80375808,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 30.933,
+          "rss_after_stop": 80379904,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 27,
+          "phase": "measured",
+          "rss_before": 80379904,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 15.046,
+          "rss_after_stop": 80388096,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 28,
+          "phase": "measured",
+          "rss_before": 80388096,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 14.179,
+          "rss_after_stop": 80400384,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 29,
+          "phase": "measured",
+          "rss_before": 80400384,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 29.742,
+          "rss_after_stop": 80412672,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 30,
+          "phase": "measured",
+          "rss_before": 80412672,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 32.097,
+          "rss_after_stop": 80437248,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 31,
+          "phase": "measured",
+          "rss_before": 80437248,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 14.507,
+          "rss_after_stop": 80445440,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 32,
+          "phase": "measured",
+          "rss_before": 80445440,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 14.524,
+          "rss_after_stop": 80445440,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 33,
+          "phase": "measured",
+          "rss_before": 80445440,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 14.466,
+          "rss_after_stop": 80449536,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 34,
+          "phase": "measured",
+          "rss_before": 80449536,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "checked_out": 0,
+            "checked_in": 1
+          },
+          "telemetry_after_close": {
+            "checked_out": 0,
+            "checked_in": 0
+          },
+          "ownership": "memspine.PostgresClient-owned SQLAlchemy pool",
+          "duration_ms": 14.484,
+          "rss_after_stop": 80449536,
+          "handles_after_stop": 227
+        }
+      ]
+    },
+    "redis": {
+      "summary": {
+        "warmups_completed": 5,
+        "measured_completed": 30,
+        "failure_types": [],
+        "telemetry_coverage": 35,
+        "owned_outstanding_zero_after_settle": true,
+        "rss_post_stop_slope_bytes_per_cycle": 7668.040044493882,
+        "handle_post_stop_slope_per_cycle": 0.0
+      },
+      "samples": [
+        {
+          "cycle": 0,
+          "phase": "warmup",
+          "rss_before": 80449536,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 213.879,
+          "rss_after_stop": 91836416,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 1,
+          "phase": "warmup",
+          "rss_before": 91836416,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 8.495,
+          "rss_after_stop": 91885568,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 2,
+          "phase": "warmup",
+          "rss_before": 91885568,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 8.208,
+          "rss_after_stop": 91938816,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 3,
+          "phase": "warmup",
+          "rss_before": 91938816,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.568,
+          "rss_after_stop": 91967488,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 4,
+          "phase": "warmup",
+          "rss_before": 91967488,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.333,
+          "rss_after_stop": 92028928,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 5,
+          "phase": "measured",
+          "rss_before": 92028928,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.235,
+          "rss_after_stop": 92049408,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 6,
+          "phase": "measured",
+          "rss_before": 92049408,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.337,
+          "rss_after_stop": 92094464,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 7,
+          "phase": "measured",
+          "rss_before": 92094464,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.467,
+          "rss_after_stop": 92147712,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 8,
+          "phase": "measured",
+          "rss_before": 92147712,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.284,
+          "rss_after_stop": 92172288,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 9,
+          "phase": "measured",
+          "rss_before": 92172288,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.275,
+          "rss_after_stop": 92172288,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 10,
+          "phase": "measured",
+          "rss_before": 92172288,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.893,
+          "rss_after_stop": 92172288,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 11,
+          "phase": "measured",
+          "rss_before": 92172288,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.938,
+          "rss_after_stop": 92172288,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 12,
+          "phase": "measured",
+          "rss_before": 92172288,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.977,
+          "rss_after_stop": 92176384,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 13,
+          "phase": "measured",
+          "rss_before": 92176384,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.053,
+          "rss_after_stop": 92184576,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 14,
+          "phase": "measured",
+          "rss_before": 92184576,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.872,
+          "rss_after_stop": 92200960,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 15,
+          "phase": "measured",
+          "rss_before": 92200960,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.893,
+          "rss_after_stop": 92217344,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 16,
+          "phase": "measured",
+          "rss_before": 92217344,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.343,
+          "rss_after_stop": 92229632,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 17,
+          "phase": "measured",
+          "rss_before": 92229632,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.062,
+          "rss_after_stop": 92233728,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 18,
+          "phase": "measured",
+          "rss_before": 92233728,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.069,
+          "rss_after_stop": 92254208,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 19,
+          "phase": "measured",
+          "rss_before": 92254208,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.524,
+          "rss_after_stop": 92295168,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 20,
+          "phase": "measured",
+          "rss_before": 92295168,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.085,
+          "rss_after_stop": 92295168,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 21,
+          "phase": "measured",
+          "rss_before": 92295168,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.911,
+          "rss_after_stop": 92295168,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 22,
+          "phase": "measured",
+          "rss_before": 92295168,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.95,
+          "rss_after_stop": 92295168,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 23,
+          "phase": "measured",
+          "rss_before": 92295168,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.057,
+          "rss_after_stop": 92295168,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 24,
+          "phase": "measured",
+          "rss_before": 92295168,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.401,
+          "rss_after_stop": 92295168,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 25,
+          "phase": "measured",
+          "rss_before": 92295168,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.197,
+          "rss_after_stop": 92295168,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 26,
+          "phase": "measured",
+          "rss_before": 92295168,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 25.61,
+          "rss_after_stop": 92295168,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 27,
+          "phase": "measured",
+          "rss_before": 92295168,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.238,
+          "rss_after_stop": 92299264,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 28,
+          "phase": "measured",
+          "rss_before": 92299264,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.351,
+          "rss_after_stop": 92303360,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 29,
+          "phase": "measured",
+          "rss_before": 92303360,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.959,
+          "rss_after_stop": 92311552,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 30,
+          "phase": "measured",
+          "rss_before": 92311552,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.494,
+          "rss_after_stop": 92311552,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 31,
+          "phase": "measured",
+          "rss_before": 92311552,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.913,
+          "rss_after_stop": 92311552,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 32,
+          "phase": "measured",
+          "rss_before": 92311552,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.872,
+          "rss_after_stop": 92311552,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 33,
+          "phase": "measured",
+          "rss_before": 92311552,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.217,
+          "rss_after_stop": 92311552,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 34,
+          "phase": "measured",
+          "rss_before": 92311552,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.979,
+          "rss_after_stop": 92311552,
+          "handles_after_stop": 227
+        }
+      ]
+    },
+    "valkey": {
+      "summary": {
+        "warmups_completed": 5,
+        "measured_completed": 30,
+        "failure_types": [],
+        "telemetry_coverage": 35,
+        "owned_outstanding_zero_after_settle": true,
+        "rss_post_stop_slope_bytes_per_cycle": 7350.019132369299,
+        "handle_post_stop_slope_per_cycle": 0.0
+      },
+      "samples": [
+        {
+          "cycle": 0,
+          "phase": "warmup",
+          "rss_before": 92311552,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.886,
+          "rss_after_stop": 92311552,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 1,
+          "phase": "warmup",
+          "rss_before": 92311552,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.875,
+          "rss_after_stop": 92311552,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 2,
+          "phase": "warmup",
+          "rss_before": 92311552,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.227,
+          "rss_after_stop": 92336128,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 3,
+          "phase": "warmup",
+          "rss_before": 92336128,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.911,
+          "rss_after_stop": 92336128,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 4,
+          "phase": "warmup",
+          "rss_before": 92336128,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.032,
+          "rss_after_stop": 92344320,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 5,
+          "phase": "measured",
+          "rss_before": 92344320,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.011,
+          "rss_after_stop": 92364800,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 6,
+          "phase": "measured",
+          "rss_before": 92364800,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.676,
+          "rss_after_stop": 92372992,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 7,
+          "phase": "measured",
+          "rss_before": 92372992,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.258,
+          "rss_after_stop": 92372992,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 8,
+          "phase": "measured",
+          "rss_before": 92372992,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.87,
+          "rss_after_stop": 92372992,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 9,
+          "phase": "measured",
+          "rss_before": 92372992,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.018,
+          "rss_after_stop": 92372992,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 10,
+          "phase": "measured",
+          "rss_before": 92372992,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.162,
+          "rss_after_stop": 92372992,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 11,
+          "phase": "measured",
+          "rss_before": 92372992,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 6.953,
+          "rss_after_stop": 92372992,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 12,
+          "phase": "measured",
+          "rss_before": 92372992,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.013,
+          "rss_after_stop": 92372992,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 13,
+          "phase": "measured",
+          "rss_before": 92372992,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.139,
+          "rss_after_stop": 92372992,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 14,
+          "phase": "measured",
+          "rss_before": 92372992,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.277,
+          "rss_after_stop": 92377088,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 15,
+          "phase": "measured",
+          "rss_before": 92377088,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 8.844,
+          "rss_after_stop": 92381184,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 16,
+          "phase": "measured",
+          "rss_before": 92381184,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.359,
+          "rss_after_stop": 92385280,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 17,
+          "phase": "measured",
+          "rss_before": 92385280,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.519,
+          "rss_after_stop": 92475392,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 18,
+          "phase": "measured",
+          "rss_before": 92475392,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.408,
+          "rss_after_stop": 92475392,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 19,
+          "phase": "measured",
+          "rss_before": 92475392,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.098,
+          "rss_after_stop": 92475392,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 20,
+          "phase": "measured",
+          "rss_before": 92475392,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.17,
+          "rss_after_stop": 92475392,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 21,
+          "phase": "measured",
+          "rss_before": 92475392,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.319,
+          "rss_after_stop": 92475392,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 22,
+          "phase": "measured",
+          "rss_before": 92475392,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.06,
+          "rss_after_stop": 92475392,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 23,
+          "phase": "measured",
+          "rss_before": 92475392,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.072,
+          "rss_after_stop": 92475392,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 24,
+          "phase": "measured",
+          "rss_before": 92475392,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.356,
+          "rss_after_stop": 92479488,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 25,
+          "phase": "measured",
+          "rss_before": 92479488,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.598,
+          "rss_after_stop": 92479488,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 26,
+          "phase": "measured",
+          "rss_before": 92479488,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.839,
+          "rss_after_stop": 92479488,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 27,
+          "phase": "measured",
+          "rss_before": 92479488,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 8.003,
+          "rss_after_stop": 92532736,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 28,
+          "phase": "measured",
+          "rss_before": 92532736,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 8.244,
+          "rss_after_stop": 92536832,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 29,
+          "phase": "measured",
+          "rss_before": 92536832,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 8.115,
+          "rss_after_stop": 92536832,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 30,
+          "phase": "measured",
+          "rss_before": 92536832,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.9,
+          "rss_after_stop": 92536832,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 31,
+          "phase": "measured",
+          "rss_before": 92536832,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.594,
+          "rss_after_stop": 92536832,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 32,
+          "phase": "measured",
+          "rss_before": 92536832,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.096,
+          "rss_after_stop": 92536832,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 33,
+          "phase": "measured",
+          "rss_before": 92536832,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.087,
+          "rss_after_stop": 92536832,
+          "handles_after_stop": 227
+        },
+        {
+          "cycle": 34,
+          "phase": "measured",
+          "rss_before": 92536832,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "in_use": 0,
+            "available": 1
+          },
+          "telemetry_after_close": {
+            "in_use": 0,
+            "available": 1,
+            "connected_sockets": 0
+          },
+          "ownership": "memspine.CashewsClient-owned redis.asyncio pool",
+          "duration_ms": 7.316,
+          "rss_after_stop": 92536832,
+          "handles_after_stop": 227
+        }
+      ]
+    },
+    "mongo": {
+      "summary": {
+        "warmups_completed": 5,
+        "measured_completed": 30,
+        "failure_types": [],
+        "telemetry_coverage": 35,
+        "owned_outstanding_zero_after_settle": true,
+        "rss_post_stop_slope_bytes_per_cycle": -5064.642491657397,
+        "handle_post_stop_slope_per_cycle": 0.0
+      },
+      "samples": [
+        {
+          "cycle": 0,
+          "phase": "warmup",
+          "rss_before": 92536832,
+          "handles_before": 227,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 1,
+              "closed": 0,
+              "checkout_events": 2,
+              "checkin_events": 2,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 228.898,
+          "rss_after_stop": 94081024,
+          "handles_after_stop": 233
+        },
+        {
+          "cycle": 1,
+          "phase": "warmup",
+          "rss_before": 94081024,
+          "handles_before": 233,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 2,
+              "closed": 1,
+              "checkout_events": 5,
+              "checkin_events": 5,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 217.326,
+          "rss_after_stop": 94105600,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 2,
+          "phase": "warmup",
+          "rss_before": 94105600,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 3,
+              "closed": 2,
+              "checkout_events": 8,
+              "checkin_events": 8,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 214.806,
+          "rss_after_stop": 94113792,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 3,
+          "phase": "warmup",
+          "rss_before": 94113792,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 4,
+              "closed": 3,
+              "checkout_events": 11,
+              "checkin_events": 11,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 218.11,
+          "rss_after_stop": 94113792,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 4,
+          "phase": "warmup",
+          "rss_before": 94113792,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 5,
+              "closed": 4,
+              "checkout_events": 14,
+              "checkin_events": 14,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 217.914,
+          "rss_after_stop": 94007296,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 5,
+          "phase": "measured",
+          "rss_before": 94007296,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 6,
+              "closed": 5,
+              "checkout_events": 17,
+              "checkin_events": 17,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 217.189,
+          "rss_after_stop": 94023680,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 6,
+          "phase": "measured",
+          "rss_before": 94023680,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 7,
+              "closed": 6,
+              "checkout_events": 20,
+              "checkin_events": 20,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 216.465,
+          "rss_after_stop": 94064640,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 7,
+          "phase": "measured",
+          "rss_before": 94064640,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 8,
+              "closed": 7,
+              "checkout_events": 23,
+              "checkin_events": 23,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 215.768,
+          "rss_after_stop": 94081024,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 8,
+          "phase": "measured",
+          "rss_before": 94081024,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 9,
+              "closed": 8,
+              "checkout_events": 26,
+              "checkin_events": 26,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 219.339,
+          "rss_after_stop": 94097408,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 9,
+          "phase": "measured",
+          "rss_before": 94097408,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 10,
+              "closed": 9,
+              "checkout_events": 29,
+              "checkin_events": 29,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 215.601,
+          "rss_after_stop": 93884416,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 10,
+          "phase": "measured",
+          "rss_before": 93884416,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 11,
+              "closed": 10,
+              "checkout_events": 32,
+              "checkin_events": 32,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 217.405,
+          "rss_after_stop": 93884416,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 11,
+          "phase": "measured",
+          "rss_before": 93884416,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 12,
+              "closed": 11,
+              "checkout_events": 35,
+              "checkin_events": 35,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 215.968,
+          "rss_after_stop": 93884416,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 12,
+          "phase": "measured",
+          "rss_before": 93884416,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 13,
+              "closed": 12,
+              "checkout_events": 38,
+              "checkin_events": 38,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 216.814,
+          "rss_after_stop": 93884416,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 13,
+          "phase": "measured",
+          "rss_before": 93884416,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 14,
+              "closed": 13,
+              "checkout_events": 41,
+              "checkin_events": 41,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 218.215,
+          "rss_after_stop": 93884416,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 14,
+          "phase": "measured",
+          "rss_before": 93884416,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 15,
+              "closed": 14,
+              "checkout_events": 44,
+              "checkin_events": 44,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 216.968,
+          "rss_after_stop": 93896704,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 15,
+          "phase": "measured",
+          "rss_before": 93896704,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 16,
+              "closed": 15,
+              "checkout_events": 47,
+              "checkin_events": 47,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 215.459,
+          "rss_after_stop": 93900800,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 16,
+          "phase": "measured",
+          "rss_before": 93900800,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 17,
+              "closed": 16,
+              "checkout_events": 50,
+              "checkin_events": 50,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 218.827,
+          "rss_after_stop": 93913088,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 17,
+          "phase": "measured",
+          "rss_before": 93913088,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 18,
+              "closed": 17,
+              "checkout_events": 53,
+              "checkin_events": 53,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 214.803,
+          "rss_after_stop": 93921280,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 18,
+          "phase": "measured",
+          "rss_before": 93921280,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 19,
+              "closed": 18,
+              "checkout_events": 56,
+              "checkin_events": 56,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 217.648,
+          "rss_after_stop": 93769728,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 19,
+          "phase": "measured",
+          "rss_before": 93769728,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 20,
+              "closed": 19,
+              "checkout_events": 59,
+              "checkin_events": 59,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 216.441,
+          "rss_after_stop": 93773824,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 20,
+          "phase": "measured",
+          "rss_before": 93773824,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 21,
+              "closed": 20,
+              "checkout_events": 62,
+              "checkin_events": 62,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 217.227,
+          "rss_after_stop": 93773824,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 21,
+          "phase": "measured",
+          "rss_before": 93773824,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 22,
+              "closed": 21,
+              "checkout_events": 65,
+              "checkin_events": 65,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 214.439,
+          "rss_after_stop": 93773824,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 22,
+          "phase": "measured",
+          "rss_before": 93773824,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 23,
+              "closed": 22,
+              "checkout_events": 68,
+              "checkin_events": 68,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 214.811,
+          "rss_after_stop": 93777920,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 23,
+          "phase": "measured",
+          "rss_before": 93777920,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 24,
+              "closed": 23,
+              "checkout_events": 71,
+              "checkin_events": 71,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 215.433,
+          "rss_after_stop": 93786112,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 24,
+          "phase": "measured",
+          "rss_before": 93786112,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 25,
+              "closed": 24,
+              "checkout_events": 74,
+              "checkin_events": 74,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 214.912,
+          "rss_after_stop": 93859840,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 25,
+          "phase": "measured",
+          "rss_before": 93859840,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 26,
+              "closed": 25,
+              "checkout_events": 77,
+              "checkin_events": 77,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 216.751,
+          "rss_after_stop": 93863936,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 26,
+          "phase": "measured",
+          "rss_before": 93863936,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 27,
+              "closed": 26,
+              "checkout_events": 80,
+              "checkin_events": 80,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 214.385,
+          "rss_after_stop": 93863936,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 27,
+          "phase": "measured",
+          "rss_before": 93863936,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 28,
+              "closed": 27,
+              "checkout_events": 83,
+              "checkin_events": 83,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 217.465,
+          "rss_after_stop": 93863936,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 28,
+          "phase": "measured",
+          "rss_before": 93863936,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 29,
+              "closed": 28,
+              "checkout_events": 86,
+              "checkin_events": 86,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 215.863,
+          "rss_after_stop": 93863936,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 29,
+          "phase": "measured",
+          "rss_before": 93863936,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 30,
+              "closed": 29,
+              "checkout_events": 89,
+              "checkin_events": 89,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 214.919,
+          "rss_after_stop": 93868032,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 30,
+          "phase": "measured",
+          "rss_before": 93868032,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 31,
+              "closed": 30,
+              "checkout_events": 92,
+              "checkin_events": 92,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 213.805,
+          "rss_after_stop": 93868032,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 31,
+          "phase": "measured",
+          "rss_before": 93868032,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 32,
+              "closed": 31,
+              "checkout_events": 95,
+              "checkin_events": 95,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 217.615,
+          "rss_after_stop": 93868032,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 32,
+          "phase": "measured",
+          "rss_before": 93868032,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 33,
+              "closed": 32,
+              "checkout_events": 98,
+              "checkin_events": 98,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 217.498,
+          "rss_after_stop": 93884416,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 33,
+          "phase": "measured",
+          "rss_before": 93884416,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 34,
+              "closed": 33,
+              "checkout_events": 101,
+              "checkin_events": 101,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 218.736,
+          "rss_after_stop": 93888512,
+          "handles_after_stop": 235
+        },
+        {
+          "cycle": 34,
+          "phase": "measured",
+          "rss_before": 93888512,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener": {
+              "created": 35,
+              "closed": 34,
+              "checkout_events": 104,
+              "checkin_events": 104,
+              "checked_out": 0,
+              "open_created_connections": 1
+            }
+          },
+          "telemetry_after_close": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0,
+            "listener_delta_created": 1,
+            "listener_delta_closed": 1,
+            "listener_checked_out": 0,
+            "listener_open_delta": 0
+          },
+          "ownership": "memspine.MongoConnector-owned PyMongo pool",
+          "duration_ms": 218.612,
+          "rss_after_stop": 93888512,
+          "handles_after_stop": 235
+        }
+      ]
+    },
+    "neo4j": {
+      "summary": {
+        "warmups_completed": 5,
+        "measured_completed": 30,
+        "failure_types": [],
+        "telemetry_coverage": 35,
+        "owned_outstanding_zero_after_settle": true,
+        "rss_post_stop_slope_bytes_per_cycle": -7553.224471635151,
+        "handle_post_stop_slope_per_cycle": 0.0
+      },
+      "samples": [
+        {
+          "cycle": 0,
+          "phase": "warmup",
+          "rss_before": 93888512,
+          "handles_before": 235,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 512.802,
+          "rss_after_stop": 146522112,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 1,
+          "phase": "warmup",
+          "rss_before": 146522112,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 216.942,
+          "rss_after_stop": 146567168,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 2,
+          "phase": "warmup",
+          "rss_before": 146571264,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 215.235,
+          "rss_after_stop": 146604032,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 3,
+          "phase": "warmup",
+          "rss_before": 146604032,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 215.739,
+          "rss_after_stop": 146620416,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 4,
+          "phase": "warmup",
+          "rss_before": 146620416,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 214.342,
+          "rss_after_stop": 146681856,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 5,
+          "phase": "measured",
+          "rss_before": 146681856,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 216.66,
+          "rss_after_stop": 146685952,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 6,
+          "phase": "measured",
+          "rss_before": 146685952,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 217.32,
+          "rss_after_stop": 146698240,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 7,
+          "phase": "measured",
+          "rss_before": 146698240,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 220.242,
+          "rss_after_stop": 146702336,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 8,
+          "phase": "measured",
+          "rss_before": 146702336,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 216.367,
+          "rss_after_stop": 146706432,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 9,
+          "phase": "measured",
+          "rss_before": 146706432,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 217.998,
+          "rss_after_stop": 146100224,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 10,
+          "phase": "measured",
+          "rss_before": 146100224,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 215.514,
+          "rss_after_stop": 146116608,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 11,
+          "phase": "measured",
+          "rss_before": 146116608,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 218.696,
+          "rss_after_stop": 146124800,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 12,
+          "phase": "measured",
+          "rss_before": 146124800,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 217.122,
+          "rss_after_stop": 146173952,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 13,
+          "phase": "measured",
+          "rss_before": 146173952,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 216.751,
+          "rss_after_stop": 146198528,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 14,
+          "phase": "measured",
+          "rss_before": 146198528,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 217.387,
+          "rss_after_stop": 146235392,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 15,
+          "phase": "measured",
+          "rss_before": 146239488,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 219.022,
+          "rss_after_stop": 146239488,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 16,
+          "phase": "measured",
+          "rss_before": 146239488,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 218.19,
+          "rss_after_stop": 146243584,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 17,
+          "phase": "measured",
+          "rss_before": 146243584,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 215.663,
+          "rss_after_stop": 146247680,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 18,
+          "phase": "measured",
+          "rss_before": 146247680,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 217.929,
+          "rss_after_stop": 146247680,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 19,
+          "phase": "measured",
+          "rss_before": 146247680,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 215.989,
+          "rss_after_stop": 146247680,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 20,
+          "phase": "measured",
+          "rss_before": 146247680,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 214.858,
+          "rss_after_stop": 146247680,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 21,
+          "phase": "measured",
+          "rss_before": 146247680,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 219.407,
+          "rss_after_stop": 146251776,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 22,
+          "phase": "measured",
+          "rss_before": 146251776,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 217.289,
+          "rss_after_stop": 146255872,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 23,
+          "phase": "measured",
+          "rss_before": 146255872,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 216.463,
+          "rss_after_stop": 146227200,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 24,
+          "phase": "measured",
+          "rss_before": 146227200,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 216.273,
+          "rss_after_stop": 146243584,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 25,
+          "phase": "measured",
+          "rss_before": 146243584,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 217.458,
+          "rss_after_stop": 146259968,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 26,
+          "phase": "measured",
+          "rss_before": 146259968,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 216.907,
+          "rss_after_stop": 146259968,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 27,
+          "phase": "measured",
+          "rss_before": 146259968,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 218.955,
+          "rss_after_stop": 146259968,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 28,
+          "phase": "measured",
+          "rss_before": 146259968,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 214.898,
+          "rss_after_stop": 146259968,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 29,
+          "phase": "measured",
+          "rss_before": 146259968,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 216.969,
+          "rss_after_stop": 146259968,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 30,
+          "phase": "measured",
+          "rss_before": 146259968,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 219.534,
+          "rss_after_stop": 146259968,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 31,
+          "phase": "measured",
+          "rss_before": 146259968,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 218.605,
+          "rss_after_stop": 146268160,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 32,
+          "phase": "measured",
+          "rss_before": 146268160,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 216.432,
+          "rss_after_stop": 146268160,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 33,
+          "phase": "measured",
+          "rss_before": 146268160,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 216.497,
+          "rss_after_stop": 146268160,
+          "handles_after_stop": 263
+        },
+        {
+          "cycle": 34,
+          "phase": "measured",
+          "rss_before": 146268160,
+          "handles_before": 263,
+          "error_type": null,
+          "telemetry_available": true,
+          "owned_outstanding_after_settle": 0,
+          "telemetry_before_close": {
+            "pooled_sockets": 1
+          },
+          "telemetry_after_close": {
+            "pooled_sockets": 0
+          },
+          "ownership": "memspine.Neo4jClient-owned native driver pool",
+          "duration_ms": 215.863,
+          "rss_after_stop": 146268160,
+          "handles_after_stop": 263
+        }
+      ]
+    }
+  },
+  "wall_s": 17.414,
+  "passed_connector_subset": true
+}

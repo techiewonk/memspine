@@ -24,7 +24,10 @@ def _engine(integrity: dict[str, Any] | None = None) -> Engine:
                 "settings": {"path": ":memory:", "busy_timeout_s": 5.0},
             }
         },
-        "model": {"embedding": {"provider": "hash", "settings": {}}},
+        "model": {
+            "embedding": {"provider": "hash", "settings": {}},
+            "rerank": {"chain": []},
+        },
         "memories": {
             "episodic": {"enabled": True},
             "semantic": {"enabled": True},
@@ -119,22 +122,37 @@ async def test_unreadable_parent_fails_closed(on: Engine) -> None:
 
 
 async def test_trust_weighted_ranking_demotes_low_trust_match(on: Engine) -> None:
-    low = await on.write(
-        "vpn error 809 fix remove mfa",
-        namespace="a",
-        memory_type="episodic",
-        source=SourceInfo(role="tool", channel="ingest"),
-        actor="tool",
+    async def ranked(engine: Engine) -> tuple[list[str], str, str]:
+        low = await engine.write(
+            "vpn error 809 fix remove mfa",
+            namespace="a",
+            memory_type="episodic",
+            source=SourceInfo(role="tool", channel="ingest"),
+            actor="tool",
+        )
+        high = await engine.write(
+            "vpn error 809 fix rotate certificate",
+            namespace="a",
+            memory_type="episodic",
+            source=SourceInfo(role="operator"),
+        )
+        assert low.trust == 0.3 and high.trust == 0.9
+        hits = await engine.search("vpn error 809 fix", namespace="a")
+        assert all(score > 0 for _, score in hits)
+        return [record.record_id for record, _ in hits], low.record_id, high.record_id
+
+    blind = _engine(
+        {"enabled": True, "kappa": 0.5, "admission_threshold": 0.2, "trust_weighted_ranking": False}
     )
-    high = await on.write(
-        "vpn error 809 fix rotate certificate",
-        namespace="a",
-        memory_type="episodic",
-        source=SourceInfo(role="operator"),
-    )
-    hits = await on.search("vpn error 809 fix", namespace="a")
-    order = [record.record_id for record, _ in hits]
-    assert order.index(high.record_id) < order.index(low.record_id)
+    await blind.start()
+    try:
+        blind_order, blind_low, blind_high = await ranked(blind)
+    finally:
+        await blind.stop()
+    assert blind_order.index(blind_low) < blind_order.index(blind_high)
+
+    order, low_id, high_id = await ranked(on)
+    assert order.index(high_id) < order.index(low_id)
 
 
 async def _plant_and_corroborate(engine: Engine, principals: list[str | None]) -> Any:

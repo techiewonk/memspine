@@ -6,11 +6,9 @@ kept in storage.records: ``match_key(name or alias) -> entity ids``, written onl
 (every n-gram), so this module keeps one namespace's name map in process, loaded with one
 index query and dropped whenever the projector changes that namespace.
 
-Other processes. Each cached entry remembers the projector's durable high-water mark
-(``get_offset``) it covers, and every event seq this process applied is noted here. A lookup
-reads the durable mark (one primary-key read); more events behind the mark than this process
-applied since the entry was built means another process (or Engine) wrote to the store, and
-the entry is reloaded.
+Other processes. Each cached entry remembers the durable reset epoch and namespace mutation
+revision. A peer's projection or direct purge changes that revision even while the conservative
+global replay offset is held back by an unrelated namespace.
 
 Order: each key's ids are sorted (uuid7 ids sort by creation time). Merge groups are not
 folded into a key; :meth:`EntityLookup.expand` adds the merged partners of found ids.
@@ -32,35 +30,17 @@ __all__ = [
     "note_applied",
 ]
 
-#: The name index projector's name, the key of its durable high-water mark.
-INDEX_PROJECTOR = "entity_index"
-
 
 @dataclass
 class _Entry:
     index: dict[str, list[str]]
     #: entity id -> its merge partners (both directions, transitive)
     groups: dict[str, list[str]] = field(default_factory=dict)
-    #: the durable projector mark this entry covers (None: no durable mark available)
-    baseline: int | None = None
-    #: seqs this process applied to the store after ``baseline``
-    own: set[int] = field(default_factory=set)
+    #: Durable ``(reset_epoch, namespace_mutation_revision)`` this entry covers.
+    baseline: tuple[int, int] | None = None
 
-    def fresh(self, durable: int | None) -> bool:
-        """No other process / Engine projected into the store since ``baseline``.
-
-        The mark is shared and advance-only, so it is compared by count: every event
-        in ``(baseline, durable]`` must be one this process applied (event seqs are
-        dense on SQLite; a gap only causes a needless reload)."""
-        if durable is None or self.baseline is None:
-            return durable is None and self.baseline is None
-        if durable < self.baseline:
-            return False
-        if durable - self.baseline > sum(1 for seq in self.own if seq <= durable):
-            return False
-        self.baseline = durable
-        self.own = {seq for seq in self.own if seq > durable}
-        return True
+    def fresh(self, durable: tuple[int, int] | None) -> bool:
+        return self.baseline == durable
 
 
 @dataclass
@@ -88,12 +68,7 @@ def _state(storage: Any) -> _StoreState:
 
 
 def note_applied(storage: Any, seq: int | None) -> None:
-    """The index projector of this process applied the event ``seq``."""
-    if seq is None:
-        return
-    for entry in _state(storage).entries.values():
-        if entry.baseline is not None and seq > entry.baseline:
-            entry.own.add(int(seq))
+    """Compatibility hook; ordered projection invalidates after its atomic commit."""
 
 
 def invalidate(storage: Any, namespace: str | None = None) -> None:
@@ -106,13 +81,14 @@ def invalidate(storage: Any, namespace: str | None = None) -> None:
         state.entries.pop(namespace, None)
 
 
-async def _durable_mark(storage: Any) -> int | None:
-    get_offset = getattr(storage, "get_offset", None)
-    if not callable(get_offset):
+async def _durable_mark(storage: Any, namespace: str) -> tuple[int, int] | None:
+    revision = getattr(storage, "entity_index_revision", None)
+    if not callable(revision):
         return None
     try:
-        return int(await get_offset(INDEX_PROJECTOR))
-    except Exception:  # no offsets table / fake storage: in-process tracking only
+        epoch, changed = await revision(namespace)
+        return int(epoch), int(changed)
+    except Exception:  # no projection metadata / fake storage: local invalidation only
         return None
 
 
@@ -170,14 +146,15 @@ async def entity_lookup(storage: Any, namespace: str) -> EntityLookup:
     """The name index of ``namespace`` from the cache when it is fresh, else loaded once and
     cached. Costs one durable-mark read when fresh."""
     state = _state(storage)
-    durable = await _durable_mark(storage)
+    durable = await _durable_mark(storage, namespace)
     entry = state.entries.get(namespace)
     if entry is not None and not entry.fresh(durable):
         entry = None  # another process / Engine moved the projection: reload
     if entry is None:
         version = state.version
         index, groups = await _load(storage, namespace)
-        entry = _Entry(index, groups, baseline=durable)
-        if state.version == version:  # no change during the load
+        observed = await _durable_mark(storage, namespace)
+        entry = _Entry(index, groups, baseline=observed)
+        if state.version == version and observed == durable:  # stable across the load
             state.entries[namespace] = entry
     return EntityLookup(entry)

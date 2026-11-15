@@ -457,7 +457,7 @@
       "window_async": true,
       "window_cache": true,
       "window_extract": "off",
-      "window_idle_s": 120.0,
+      "window_idle_s": 30.0,
       "window_max_tokens": 1500,
       "window_max_turns": 6,
       "window_topic_k": 2.0

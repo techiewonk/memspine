@@ -18,6 +18,10 @@ entry stays loaded at zero references, until ``idle_ttl_s`` expires, ``memory_bu
 ``max_models_per_category`` evicts it (least recently used idle entry first, never one in
 use), or :meth:`ResourceRegistry.evict_idle` drains it. Connections always close on their last
 release.
+
+Failed closes keep their zero-reference entry keyed. New acquisitions wait for a close in
+progress and fail closed if it failed; :meth:`ResourceRegistry.retry_failed_close` is the
+explicit retry path. The registry keeps ownership until native cleanup succeeds.
 """
 
 from __future__ import annotations
@@ -43,6 +47,7 @@ if TYPE_CHECKING:
 
 __all__ = [
     "Lease",
+    "ResourceCleanupPendingError",
     "ResourceKey",
     "ResourceRegistry",
     "RetentionPolicy",
@@ -61,6 +66,10 @@ _log = get_logger(__name__)
 
 class _BuildCancelled(Exception):
     """The holder that was building (or warming) an entry was cancelled; waiters retry."""
+
+
+class ResourceCleanupPendingError(RuntimeError):
+    """A keyed resource could not close; a new owner must wait for explicit cleanup retry."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +206,7 @@ class _Entry[T]:
     warm_done: concurrent.futures.Future[None] | None = None
     warm_error: str | None = None
     closing: bool = field(default=False)
+    close_done: concurrent.futures.Future[None] | None = None
     last_used: float = 0.0
     size_mb: float | None = None
 
@@ -295,19 +305,37 @@ class ResourceRegistry:
             raise RuntimeError("resource key was created in another process")
         loop = asyncio.get_running_loop() if key.scope.startswith("loop:") else None
         while True:
+            closing: concurrent.futures.Future[None] | None = None
             with self._lock:
                 entry = self._entries.get(key)
-                if entry is not None and (
-                    entry.closing or (entry.loop is not None and entry.loop.is_closed())
-                ):
+                if entry is not None and entry.closing:
+                    closing = entry.close_done
+                elif entry is not None and entry.loop is not None and entry.loop.is_closed():
                     self._entries.pop(key, None)
                     entry = None
-                builder = entry is None
-                if entry is None:
-                    entry = _Entry(key, concurrent.futures.Future(), close, warm, loop, kind)
-                    self._entries[key] = entry
-                entry.refs += 1
-                entry.last_used = self._clock()
+                if closing is not None:
+                    builder = False
+                else:
+                    builder = entry is None
+                    if entry is None:
+                        entry = _Entry(key, concurrent.futures.Future(), close, warm, loop, kind)
+                        self._entries[key] = entry
+                    entry.refs += 1
+                    entry.last_used = self._clock()
+            if closing is not None:
+                try:
+                    await asyncio.shield(asyncio.wrap_future(closing))
+                except BaseException as exc:
+                    current = asyncio.current_task()
+                    if isinstance(exc, asyncio.CancelledError) and (
+                        current is not None and current.cancelling()
+                    ):
+                        raise
+                    raise ResourceCleanupPendingError(
+                        f"shared resource cleanup pending: {key.category}"
+                    ) from exc
+                continue
+            assert entry is not None
             if builder:
                 before = self._rss_mb() if kind == "weights" else None
                 try:
@@ -327,7 +355,32 @@ class ResourceRegistry:
                 entry.built.set_result(value)
                 _log.debug("provider.shared_resource_built", category=key.category, scope=key.scope)
                 if kind == "weights":
-                    await self._close_all(self._select_victims(self.retention, None))
+                    try:
+                        await self._close_all(self._select_victims(self.retention, None))
+                    except BaseException as original:
+                        # The build is published but its Lease has not been returned. A
+                        # cancelled eviction must not strand this new reference at refs=1.
+                        # It was never lent, so close it regardless of keep-warm policy.
+                        release_task = asyncio.create_task(
+                            self._release(entry, retain_allowed=False)
+                        )
+                        while not release_task.done():
+                            try:
+                                await asyncio.shield(release_task)
+                            except asyncio.CancelledError:
+                                # Repeated cancellation cannot abandon an unpublished
+                                # resource while its close is still in progress.
+                                continue
+                            except BaseException:
+                                break
+                        try:
+                            release_task.result()
+                        except BaseException as cleanup_error:
+                            original.add_note(
+                                "unpublished resource cleanup failed: "
+                                f"{type(cleanup_error).__name__}"
+                            )
+                        raise
                 return Lease(self, entry)
             try:
                 await asyncio.shield(asyncio.wrap_future(entry.built))
@@ -387,7 +440,7 @@ class ResourceRegistry:
             done.set_result(None)
             return
 
-    async def _release(self, entry: _Entry[Any]) -> None:
+    async def _release(self, entry: _Entry[Any], *, retain_allowed: bool = True) -> None:
         policy = self.retention
         with self._lock:
             entry.refs -= 1
@@ -395,30 +448,67 @@ class ResourceRegistry:
             last = entry.refs <= 0
             retain = (
                 last
+                and retain_allowed
                 and policy.keep_warm
                 and entry.kind == "weights"
                 and entry.loop is None
                 and self._entries.get(entry.key) is entry
                 and entry.usable()
             )
-            if last and not retain:
-                entry.closing = True
-                if self._entries.get(entry.key) is entry:
-                    self._entries.pop(entry.key)
+            if last and not retain and self._entries.get(entry.key) is entry:
+                self._mark_closing(entry)
         if retain:
             if policy.idle_ttl_s is not None:
                 self._schedule_sweep(policy.idle_ttl_s)
             await self._close_all(self._select_victims(policy, None))
             return
-        if last and entry.close is not None and entry.usable():
-            await entry.close(entry.built.result())
+        if last and entry.close_done is not None:
+            await self._finish_close(entry)
+
+    def _mark_closing(self, entry: _Entry[Any]) -> None:
+        """Mark a mapped zero-ref entry for close while holding ``_lock``."""
+        entry.closing = True
+        entry.close_done = concurrent.futures.Future()
+
+    async def _finish_close(self, entry: _Entry[Any]) -> None:
+        done = entry.close_done
+        assert done is not None
+        try:
+            if entry.close is not None and entry.usable():
+                await entry.close(entry.built.result())
+        except BaseException as exc:
+            done.set_exception(exc)
+            raise
+        with self._lock:
+            if self._entries.get(entry.key) is entry:
+                self._entries.pop(entry.key)
+        done.set_result(None)
+
+    async def retry_failed_close(self, key: ResourceKey) -> None:
+        """Retry a failed zero-ref close; the key stays unavailable until this succeeds."""
+        with self._lock:
+            entry = self._entries.get(key)
+            if entry is None or not entry.closing or entry.close_done is None:
+                raise ValueError("no failed close for resource key")
+            if entry.loop is not None and entry.loop is not asyncio.get_running_loop():
+                raise RuntimeError("loop-scoped cleanup must retry on its owning event loop")
+            if not entry.close_done.done():
+                raise ResourceCleanupPendingError(f"shared resource still closing: {key.category}")
+            if entry.close_done.exception() is None:
+                raise ValueError("resource close did not fail")
+            self._mark_closing(entry)
+        await self._finish_close(entry)
 
     # -- eviction -----------------------------------------------------------------------
 
     def _select_victims(self, policy: RetentionPolicy, now: float | None) -> list[_Entry[Any]]:
         """Pick idle retained weights to close (never one with a holder) and unmap them."""
         with self._lock:
-            weights = [e for e in self._entries.values() if e.kind == "weights" and e.usable()]
+            weights = [
+                e
+                for e in self._entries.values()
+                if e.kind == "weights" and e.usable() and not e.closing
+            ]
             idle = sorted((e for e in weights if e.refs <= 0), key=lambda e: e.last_used)
             victims: list[_Entry[Any]] = []
             if now is not None and policy.idle_ttl_s is not None:
@@ -444,24 +534,31 @@ class ResourceRegistry:
                     victims.append(e)
                     total -= e.size_mb
             for e in victims:
-                e.closing = True
-                if self._entries.get(e.key) is e:
-                    self._entries.pop(e.key)
+                self._mark_closing(e)
             return victims
 
-    async def _close_all(self, victims: list[_Entry[Any]]) -> None:
-        for e in victims:
+    async def _close_all(self, victims: list[_Entry[Any]]) -> int:
+        closed = 0
+        for index, e in enumerate(victims):
             _log.debug("provider.shared_resource_evicted", category=e.key.category)
-            if e.close is None:
-                continue
             try:
-                await e.close(e.built.result())
+                await self._finish_close(e)
+            except asyncio.CancelledError:
+                # Selection marked every victim closing. Leave unattempted entries
+                # retryable instead of stranding them with an unfinished close future.
+                for pending in victims[index + 1 :]:
+                    assert pending.close_done is not None
+                    pending.close_done.set_exception(asyncio.CancelledError())
+                raise
             except Exception as exc:  # one failed close must not keep the others loaded
                 _log.warning(
                     "provider.shared_resource_evict_failed",
                     category=e.key.category,
                     error=type(exc).__name__,
                 )
+            else:
+                closed += 1
+        return closed
 
     def _schedule_sweep(self, delay_s: float) -> None:
         loop = asyncio.get_running_loop()
@@ -477,8 +574,7 @@ class ResourceRegistry:
         """Close idle retained weights past ``idle_ttl_s`` and enforce the memory budget and
         per-category cap. Returns how many closed (the idle timer runs this too)."""
         victims = self._select_victims(self.retention, self._clock())
-        await self._close_all(victims)
-        return len(victims)
+        return await self._close_all(victims)
 
     async def evict_idle(self, category: str | None = None) -> int:
         """Close every retained idle weight entry (optionally of one category)."""
@@ -489,13 +585,12 @@ class ResourceRegistry:
                 if e.kind == "weights"
                 and e.refs <= 0
                 and e.usable()
+                and not e.closing
                 and (category is None or e.key.category == category)
             ]
             for e in victims:
-                e.closing = True
-                self._entries.pop(e.key)
-        await self._close_all(victims)
-        return len(victims)
+                self._mark_closing(e)
+        return await self._close_all(victims)
 
     def stats(self) -> tuple[SharedResourceStats, ...]:
         """Snapshot for readiness: references and warm state per shared resource."""

@@ -29,6 +29,10 @@ __all__ = [
     "metadata",
     "projector_offsets",
     "provider_projector_bindings",
+    "record_append_erasure_fence",
+    "record_append_identity",
+    "record_projection_visibility",
+    "records_projection_state",
 ]
 
 metadata = MetaData()
@@ -57,6 +61,7 @@ memory_events = Table(
     Column("compressed", Boolean, nullable=False, default=False),
     Column("fingerprint", String, nullable=False),
     Index("ix_memory_events_namespace", "namespace"),
+    Index("ix_memory_events_namespace_seq", "namespace", "seq"),
     Index("ix_memory_events_kind", "kind"),
     sqlite_autoincrement=True,
 )
@@ -90,6 +95,9 @@ memory_records = Table(
     metadata,
     Column("record_id", String, primary_key=True),
     Column("namespace", String, nullable=False),
+    # RM-45: pure physical key of a complete currently comparable claim group.
+    # NULL rows remain in the record model but are absent from indexed group pages.
+    Column("claim_group_key", String(64)),
     Column("memory_type", String, nullable=False),
     Column("content", String, nullable=False),
     Column("content_fingerprint", String, nullable=False),
@@ -160,12 +168,50 @@ memory_records = Table(
     Column("source_tz", String),
     Column("participants", LargeBinary),
     Index("ix_memory_records_ns_type", "namespace", "memory_type"),
+    Index("ix_memory_records_claim_group", "namespace", "claim_group_key", "record_id"),
     Index("ix_memory_records_fingerprint", "content_fingerprint"),
     Index("ix_memory_records_fact_key", "namespace", "entity", "attribute"),
     Index("ix_memory_records_tier", "tier"),
     Index("ix_memory_records_ns_group", "namespace", "group_id"),
     Index("ix_memory_records_ns_session", "namespace", "session_key"),
     Index("ix_memory_records_ns_layer", "namespace", "layer"),
+)
+
+# ID-only permanent erasure and temporary hide membership.  The canonical log is
+# authoritative; this table is rebuilt by the ordered records projector.
+record_projection_visibility = Table(
+    "record_projection_visibility",
+    metadata,
+    Column("namespace", String, primary_key=True),
+    Column("record_id", String, primary_key=True),
+    Column("erased", Boolean, nullable=False, server_default="0"),
+    Column("hidden", Boolean, nullable=False, server_default="0"),
+)
+
+# Irreversible append-side ID fence. It survives projection reset and event
+# pruning; a fresh WRITE can never reuse a globally unique erased record id.
+record_append_erasure_fence = Table(
+    "record_append_erasure_fence",
+    metadata,
+    Column("record_id", String, primary_key=True),
+)
+
+# First canonical WRITE fixes a globally unique record id's namespace before any
+# projector runs. Erasure may consult this ID-only authority even with zero rows.
+record_append_identity = Table(
+    "record_append_identity",
+    metadata,
+    Column("record_id", String, primary_key=True),
+    Column("namespace", String, nullable=False),
+)
+
+# Private certified records writer cursor. The public projector offset is updated
+# beside this row in the same fold transaction and cannot be advanced generically.
+records_projection_state = Table(
+    "records_projection_state",
+    metadata,
+    Column("id", Integer, primary_key=True),
+    Column("cursor", Integer, nullable=False),
 )
 
 # Zero-dep graph fallback (P6, D-26): adjacency lists for associative memory,

@@ -80,6 +80,94 @@ async def test_without_a_policy_weights_close_on_last_release() -> None:
     assert weights.closed == 1 and reg.stats() == ()
 
 
+async def test_cancelled_eviction_releases_new_weights_before_lease_return() -> None:
+    reg, _, _ = _registry(RetentionPolicy(keep_warm=True, max_models_per_category=1))
+    made: list[_Weights] = []
+    closing_a = asyncio.Event()
+    a_attempts = 0
+
+    async def build(name: str) -> _Weights:
+        weights = _Weights(name)
+        made.append(weights)
+        return weights
+
+    async def close(weights: _Weights) -> None:
+        nonlocal a_attempts
+        if weights.name == "a":
+            a_attempts += 1
+            if a_attempts == 1:
+                closing_a.set()
+                await asyncio.Event().wait()
+        weights.closed += 1
+
+    a_key = resource_key("model.embedding", {"model": "a"}, scope="thread")
+    b_key = resource_key("model.embedding", {"model": "b"}, scope="thread")
+    a = await reg.acquire(a_key, lambda: build("a"), close=close, kind="weights")
+    await a.aclose()  # retained idle, then selected for eviction by B's build
+    pending_b = asyncio.create_task(
+        reg.acquire(b_key, lambda: build("b"), close=close, kind="weights")
+    )
+    await closing_a.wait()
+    assert len(made) == 2 and any(s.key == b_key and s.refs == 1 for s in reg.stats())
+    pending_b.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await pending_b
+    assert made[1].closed == 1
+    assert not [s for s in reg.stats() if s.key == b_key]  # no unowned ref or warm B
+    assert [s.refs for s in reg.stats() if s.key == a_key] == [0]  # failed A stays owned
+    await reg.retry_failed_close(a_key)
+    assert made[0].closed == 1 and reg.stats() == ()
+
+
+async def test_double_cancel_drains_unpublished_weight_release() -> None:
+    reg, _, _ = _registry(RetentionPolicy(keep_warm=True, max_models_per_category=1))
+    closing_a, closing_b, release_b = asyncio.Event(), asyncio.Event(), asyncio.Event()
+    made: dict[str, _Weights] = {}
+    a_attempts = 0
+
+    async def build(name: str) -> _Weights:
+        made[name] = _Weights(name)
+        return made[name]
+
+    async def close(weights: _Weights) -> None:
+        nonlocal a_attempts
+        if weights.name == "a":
+            a_attempts += 1
+            if a_attempts == 1:
+                closing_a.set()
+                await asyncio.Event().wait()
+        else:
+            closing_b.set()
+            await release_b.wait()
+        weights.closed += 1
+
+    a_key = resource_key("model.embedding", {"model": "a"}, scope="thread")
+    b_key = resource_key("model.embedding", {"model": "b"}, scope="thread")
+    a = await reg.acquire(a_key, lambda: build("a"), close=close, kind="weights")
+    await a.aclose()
+    pending_b = asyncio.create_task(
+        reg.acquire(b_key, lambda: build("b"), close=close, kind="weights")
+    )
+    try:
+        await closing_a.wait()
+        pending_b.cancel()
+        await closing_b.wait()
+        pending_b.cancel()
+        await asyncio.sleep(0)
+        assert not pending_b.done()
+        pending_b.cancel()
+        await asyncio.sleep(0)
+        assert not pending_b.done(), "later cancel abandoned B's close before lease return"
+    finally:
+        release_b.set()
+    with pytest.raises(asyncio.CancelledError):
+        await pending_b
+    assert made["b"].closed == 1
+    assert not [s for s in reg.stats() if s.key == b_key]
+    await reg.retry_failed_close(a_key)
+    assert reg.stats() == ()
+
+
 async def test_keep_warm_retains_weights_at_zero_refs_and_reuses_them() -> None:
     reg, _, _ = _registry(RetentionPolicy(keep_warm=True))
     built: list[_Weights] = []

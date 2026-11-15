@@ -1,0 +1,75 @@
+{
+  "kind": "whole_wave_round_2_checkpoint_metadata_receipt",
+  "reviewer": "sol_whole_wave_review2",
+  "created_at_utc": "2026-11-15T15:40:35.827078+00:00",
+  "verdict": "APPROVE",
+  "scope": "Metadata and proof-encoding recheck only; unchanged 211-path source approval remains in the original round-2 coverage ledger.",
+  "reviewed_index": {
+    "path": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\docs\\provider_verification\\checkpoints\\2026-11-15-wave\\index.json",
+    "sha256": "d8391cce486da2eec4b5673eef4cba9714d12d5a23d43a62a8268573a52f4829"
+  },
+  "reviewed_proof_objects": [
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/subject-manifest.json",
+      "sha256": "65be292af2b787d5a4b4006ee889a126e766c3501c80975d8ef63c91892164aa",
+      "git_clean_blob_oid": "08c3b730337ae6ce7046b69d5d028dd1554b4599",
+      "clean_filter_byte_identical": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/round-1.json",
+      "sha256": "e8212559105200a1dcdbd20b88a58a72f421aaded73529d6accdb3e82404a316",
+      "git_clean_blob_oid": "048895e6584b37035c3c342602262bcdccc11508",
+      "clean_filter_byte_identical": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/round-2.json",
+      "sha256": "39dcf4b7f226fbed528b7ee2c50e36a1a8868533de6f8ec0ddef3a1d741327f3",
+      "git_clean_blob_oid": "b384d842876ad65690a5e8d1dadacb35c6fe153f",
+      "clean_filter_byte_identical": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/subject-git-blobs.json",
+      "sha256": "7189c0c1b079bc90707ccdd8ff367ac4f207629a350a1f3c757a187ca6069abc",
+      "git_clean_blob_oid": "8537c0bac10356013f9bb0469f3966e8085c2a31",
+      "clean_filter_byte_identical": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/index.json",
+      "sha256": "d8391cce486da2eec4b5673eef4cba9714d12d5a23d43a62a8268573a52f4829",
+      "git_clean_blob_oid": "3ce3d07e665f941b53a42af57d1a4b2e8d9a0dc3",
+      "clean_filter_byte_identical": true
+    }
+  ],
+  "original_review_input_sha256": {
+    "subject-manifest.json": "65be292af2b787d5a4b4006ee889a126e766c3501c80975d8ef63c91892164aa",
+    "round-1.json": "6cf4fe111510c96fe49ebca72a2e61ac1ec1daa59df6b8d5c316cc2179c05f21",
+    "round-2.json": "a842135f8abeb121139cbe10973c38d0b3149bc5e09872ae6adee4118ad3207a"
+  },
+  "ledger_copy_normalization": {
+    "round-1.json": "uniform CRLF-to-LF; exact reversal recreates original bytes; parsed JSON identical",
+    "round-2.json": "uniform CRLF-to-LF; exact reversal recreates original bytes; parsed JSON identical"
+  },
+  "reviewed_subject_git_blob_map": {
+    "path": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\docs\\provider_verification\\checkpoints\\2026-11-15-wave\\subject-git-blobs.json",
+    "sha256": "7189c0c1b079bc90707ccdd8ff367ac4f207629a350a1f3c757a187ca6069abc",
+    "mapped_paths": 211,
+    "previously_independent_clean_blob_validation": "211/211 entries; 171 identical, 40 CRLF-to-LF; map SHA unchanged"
+  },
+  "subject_count": 211,
+  "subject_hash_mismatch_paths": [],
+  "base_head": "88ae38ed916b2869deeed8f17c72249568e1bf3d",
+  "base_tree": "ca69da43e77c3959451a79abebec0e4490118cac",
+  "proof_output_paths_excluded_from_subject_manifest": [
+    "docs/provider_verification/checkpoints/2026-11-15-wave/index.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-1-metadata.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-1.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-2-metadata.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-2.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/subject-git-blobs.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/subject-manifest.json"
+  ],
+  "proof_output_exclusion_reason": "Seven proof outputs follow the reviewed freeze. The index hashes only immutable inputs and map; it and the receipts are outside the subject manifest. Receipts hash the fixed index and objects, never themselves or each other, avoiding circular hashes.",
+  "historical_temp_references": "Temp archives named inside captured artifacts are historical and nonessential; this receipt does not claim their durable preservation.",
+  "checkpoint_state": "No C1 commit or staged blob identity claimed. Root verifies staged blobs separately.",
+  "findings": []
+}

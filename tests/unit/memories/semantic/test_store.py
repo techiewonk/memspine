@@ -8,13 +8,25 @@ from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.core.policies.conflict import ConflictPolicy
 from memspine.core.policies.dedup import DedupPolicy
 from memspine.memories.semantic.facts import fact_at
-from memspine.memories.semantic.store import SemanticMemory
+from memspine.memories.semantic.store import SemanticMemory, _restated_support
 from memspine.prompts.models import ExtractedFact
+from memspine.schemas.durable.assessment import Assessment
+from memspine.schemas.durable.common import OwnerScope
+from memspine.schemas.durable.evidence import Evidence, TurnRef
+from memspine.schemas.durable.identity import AssertionKey
+from memspine.schemas.durable.semantic import (
+    Mention,
+    PredicateTyping,
+    RoleBinding,
+    SemanticEnvelope,
+)
+from memspine.semantics.registry import load_builtin_registry
 from memspine.services.embedding.hash import HashEmbedding
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, MemoryEvent
-from memspine.store.records import MemoryRecord, RecordStatus
+from memspine.store.records import MemoryRecord, RecordStatus, RestatementSupportProof
+from memspine.trust.restatement import claim_digest, valid_proof
 
 NOW = datetime(2026, 7, 7, tzinfo=UTC)
 
@@ -46,7 +58,6 @@ async def make_semantic(extractor: StubExtractor | None = None) -> SemanticMemor
         appended = await storage.append_event(event)
         assert appended.seq is not None
         await projector.apply(appended)
-        await storage.set_offset(projector.name, appended.seq)
 
     return SemanticMemory(
         storage=storage,
@@ -72,11 +83,115 @@ def rec(
 
 async def test_plain_add_annotates_sketches() -> None:
     semantic = await make_semantic()
-    result = await semantic.write(rec("alice prefers black coffee"))
+    forged = rec("alice prefers black coffee")
+    forged = forged.model_copy(
+        update={
+            "fingerprint": forged.fingerprint.model_copy(
+                update={
+                    "restatement_support": RestatementSupportProof(
+                        claim_digest="a" * 64, source_ids=["source-a", "source-b"]
+                    )
+                }
+            )
+        }
+    )
+    result = await semantic.write(forged)
     assert result.action == "added"
     stored = await semantic._storage.get_record(result.record.record_id)
     assert stored is not None
     assert stored.simhash is not None and stored.minhash_sig  # D-27 at rest
+    assert stored.fingerprint.restatement_support is None  # caller proof is never accepted
+
+
+def test_restatement_merge_carries_each_source_role_evidence() -> None:
+    def claim(source_id: str, binding_id: str) -> MemoryRecord:
+        turn = TurnRef(source_id=source_id, source_version=1, seg_index=0)
+        role_evidence = Evidence(role="binding", turn=turn, source_family="Asha")
+        env = SemanticEnvelope(
+            write_id=f"write-{source_id}",
+            assertion_key=AssertionKey(src="asha", rel="resides_in", dst="sweden", kind="event"),
+            occurrence_id=f"occ-{source_id}",
+            scope=OwnerScope(tenant="default", owner="agent/a"),
+            text="Asha resides in Sweden",
+            kind="event",
+            subject=Mention(surface="Asha", mention_id=f"mention-{source_id}"),
+            attribute="resides_in",
+            value="Sweden",
+            speaker="Asha",
+            evidence=[Evidence(role="support", turn=turn, source_family="Asha")],
+            assessment=Assessment(source_trust=0.8, binding="bound", modality="asserted"),
+            src_class="user_stated",
+            role_bindings=[
+                RoleBinding(
+                    binding_id=binding_id,
+                    role_name="resident",
+                    role_version=1,
+                    value_kind="entity",
+                    value="Sweden",
+                    entity_type="place",
+                    evidence=[role_evidence],
+                )
+            ],
+        )
+        return MemoryRecord(
+            namespace="agent/a",
+            memory_type="semantic",
+            content="Asha resides in Sweden",
+            source={"parents": [source_id]},
+            fingerprint={"envelope": env.model_dump(mode="json")},
+        )
+
+    kept = claim("source-a", "binding-a")
+    incoming = claim("source-b", "binding-b")
+    update = _restated_support(kept, incoming)
+    merged = kept.model_copy(update=update)
+    role_binding = merged.fingerprint.envelope["role_bindings"][0]
+    evidence_sources = {
+        item["turn"]["source_id"] for item in role_binding["evidence"] if item.get("turn")
+    }
+    assert evidence_sources == {"source-a", "source-b"}
+    assert set(valid_proof(merged)) == {"source-a", "source-b"}
+    flagged_env = {**merged.fingerprint.envelope, "cardinality_conflict": True}
+    flagged = merged.model_copy(
+        update={"fingerprint": merged.fingerprint.model_copy(update={"envelope": flagged_env})}
+    )
+    assert set(valid_proof(flagged)) == {"source-a", "source-b"}
+    changed_value = {**flagged_env, "value": "Norway"}
+    changed = flagged.model_copy(
+        update={"fingerprint": flagged.fingerprint.model_copy(update={"envelope": changed_value})}
+    )
+    assert valid_proof(changed) == ()
+    changed_scope = {**flagged_env, "scope": {**flagged_env["scope"], "owner": "agent/b"}}
+    scoped = flagged.model_copy(
+        update={"fingerprint": flagged.fingerprint.model_copy(update={"envelope": changed_scope})}
+    )
+    assert valid_proof(scoped) == ()
+
+
+def test_cardinality_flag_is_not_part_of_restatement_identity() -> None:
+    semantic = load_builtin_registry()
+    assert semantic.predicates["born_in"].cardinality == "one"
+    raw = SemanticEnvelope(
+        write_id="write-a",
+        assertion_key=AssertionKey(src="mira", rel="born_in", dst="lisbon", kind="state"),
+        occurrence_id="occ-a",
+        scope=OwnerScope(tenant="default", owner="agent/a"),
+        text="Mira was born in Lisbon",
+        kind="state",
+        subject=Mention(surface="Mira", mention_id="m-a"),
+        attribute="born_in",
+        value="Lisbon",
+        evidence=[
+            Evidence(
+                role="support",
+                turn=TurnRef(source_id="source-a", source_version=1, seg_index=0),
+                source_family="Mira",
+            )
+        ],
+        assessment=Assessment(source_trust=0.8, binding="bound", modality="asserted"),
+        src_class="user_stated",
+    ).model_dump(mode="json")
+    assert claim_digest(raw) == claim_digest({**raw, "cardinality_conflict": True})
 
 
 async def test_near_duplicate_merges_union_preserving() -> None:
@@ -96,6 +211,278 @@ async def test_near_duplicate_merges_union_preserving() -> None:
 
     events = await semantic._storage.read_events()
     assert EventKind.MERGE in {event.kind for event in events}  # audit trail
+
+
+async def test_scoped_canonical_claims_keep_competing_supported_values() -> None:
+    semantic = await make_semantic()
+    registry = load_builtin_registry()
+
+    def typed_claim(
+        place: str,
+        source_id: str,
+        *,
+        subject_id: str = "mira",
+        precision: str = "city",
+        trust: float = 0.5,
+        tags: list[str] | None = None,
+    ) -> MemoryRecord:
+        env = SemanticEnvelope(
+            write_id=f"write-{source_id}",
+            assertion_key=AssertionKey(src=subject_id, rel="born_in", dst=place, kind="state"),
+            occurrence_id=f"occ-{source_id}",
+            scope=OwnerScope(tenant="default", owner="agent/a"),
+            text=f"Mira was born in {place}",
+            kind="state",
+            subject=Mention(
+                surface="Mira", mention_id=f"mention-{source_id}", entity_id=subject_id
+            ),
+            attribute="born_in",
+            value=place,
+            evidence=[
+                Evidence(
+                    role="support",
+                    turn=TurnRef(source_id=source_id, source_version=1, seg_index=0),
+                    source_family=source_id,
+                )
+            ],
+            assessment=Assessment(source_trust=0.8, binding="bound", modality="asserted"),
+            src_class="user_stated",
+            registry=PredicateTyping(
+                predicate="born_in",
+                predicate_version=registry.predicates["born_in"].version,
+                registry_digest=registry.digest,
+                subject_type="person",
+                object_kind="entity",
+                object_entity_type="place",
+                cardinality="one",
+                cardinality_scope={"precision": precision},
+            ),
+        )
+        return MemoryRecord(
+            namespace="agent/a",
+            memory_type="semantic",
+            content="Mira birthplace fact",
+            source={"parents": [source_id]},
+            entity="Mira",
+            attribute="born_in",
+            fingerprint={"envelope": env.model_dump(mode="json")},
+            valid_from=NOW,
+            trust=trust,
+            tags=tags or [],
+        )
+
+    a = await semantic.write(typed_claim("Lisbon", "source-lisbon"))
+    b = await semantic.write(typed_claim("Porto", "source-porto"))
+    assert {a.action, b.action} == {"added"}
+    stored = [await semantic._storage.get_record(result.record.record_id) for result in (a, b)]
+    assert all(record is not None and record.status is RecordStatus.ACTIVATED for record in stored)
+    envelopes = [
+        SemanticEnvelope.model_validate(record.fingerprint.envelope) for record in stored if record
+    ]
+    assert all(env.cardinality_conflict for env in envelopes)
+    assert {env.value for env in envelopes} == {"Lisbon", "Porto"}
+    assert {env.evidence[0].turn.source_id for env in envelopes if env.evidence[0].turn} == {
+        "source-lisbon",
+        "source-porto",
+    }
+    same = await semantic.write(typed_claim("Lisbon", "source-lisbon-again"))
+    assert same.action == "merged" and same.record.record_id == a.record.record_id
+    same_env = SemanticEnvelope.model_validate(same.record.fingerprint.envelope)
+    assert {item.turn.source_id for item in same_env.evidence if item.turn} == {
+        "source-lisbon",
+        "source-lisbon-again",
+    }
+    correction = typed_claim("Madrid", "source-madrid")
+    correction_env = SemanticEnvelope.model_validate(correction.fingerprint.envelope).model_copy(
+        update={"change_hint": True}
+    )
+    correction = correction.model_copy(
+        update={
+            "fingerprint": correction.fingerprint.model_copy(
+                update={"envelope": correction_env.model_dump(mode="json")}
+            )
+        }
+    )
+    corrected = await semantic.write(correction)
+    assert corrected.action == "added"  # change hint cannot choose between two live predecessors
+    assert corrected.record.status is RecordStatus.ACTIVATED
+    for prior_id in (a.record.record_id, b.record.record_id):
+        prior = await semantic._storage.get_record(prior_id)
+        assert prior is not None and prior.status is RecordStatus.ACTIVATED
+
+    other_scope = await semantic.write(typed_claim("Faro", "source-region", precision="region"))
+    other_subject = await semantic.write(
+        typed_claim("Braga", "source-other-subject", subject_id="other")
+    )
+    assert other_scope.action == other_subject.action == "added"
+    for result in (other_scope, other_subject):
+        stored_result = await semantic._storage.get_record(result.record.record_id)
+        assert stored_result is not None and stored_result.status is RecordStatus.ACTIVATED
+
+    # With one comparable predecessor, an explicit typed change still uses M4.
+    unique = await make_semantic()
+    old = await unique.write(typed_claim("Lisbon", "unique-old"))
+    change = typed_claim("Porto", "unique-change")
+    change_env = SemanticEnvelope.model_validate(change.fingerprint.envelope).model_copy(
+        update={"change_hint": True}
+    )
+    change = change.model_copy(
+        update={
+            "fingerprint": change.fingerprint.model_copy(
+                update={"envelope": change_env.model_dump(mode="json")}
+            )
+        }
+    )
+    changed = await unique.write(change)
+    old_after = await unique._storage.get_record(old.record.record_id)
+    assert changed.action == "updated"
+    assert old_after is not None and old_after.status is RecordStatus.ARCHIVED
+    low = typed_claim("Braga", "low-trust", trust=0.1)
+    low_env = SemanticEnvelope.model_validate(low.fingerprint.envelope).model_copy(
+        update={"change_hint": True}
+    )
+    low = low.model_copy(
+        update={
+            "fingerprint": low.fingerprint.model_copy(
+                update={"envelope": low_env.model_dump(mode="json")}
+            )
+        }
+    )
+    assert (await unique.write(low)).action == "rejected"
+    unique._conflict = ConflictPolicy.bind({"inferred_defers": True})
+    inferred = typed_claim("Braga", "inferred", tags=["src:inferred"])
+    inferred_env = SemanticEnvelope.model_validate(inferred.fingerprint.envelope).model_copy(
+        update={"change_hint": True}
+    )
+    inferred = inferred.model_copy(
+        update={
+            "fingerprint": inferred.fingerprint.model_copy(
+                update={"envelope": inferred_env.model_dump(mode="json")}
+            )
+        }
+    )
+    assert (await unique.write(inferred)).action == "rejected"
+    unique._conflict = ConflictPolicy.bind()
+    extras_only = typed_claim("Braga", "extras-only")
+    extras_env = SemanticEnvelope.model_validate(extras_only.fingerprint.envelope).model_copy(
+        update={"extras": {"replaces": changed.record.record_id}}
+    )
+    extras_only = extras_only.model_copy(
+        update={
+            "fingerprint": extras_only.fingerprint.model_copy(
+                update={"envelope": extras_env.model_dump(mode="json")}
+            )
+        }
+    )
+    unsupported_hint = await unique.write(extras_only)
+    still_current = await unique._storage.get_record(changed.record.record_id)
+    assert unsupported_hint.action == "added"
+    assert still_current is not None and still_current.status is RecordStatus.ACTIVATED
+
+    for precision, value, expected in (
+        ("country", "Porto", "added"),
+        ("city", "Porto", "added"),
+        ("city", "Lisbon", "invalidated"),
+    ):
+        retractions = await make_semantic()
+        prior = await retractions.write(typed_claim("Lisbon", "retract-prior"))
+        incoming = typed_claim(
+            value, f"retract-{precision}-{value}", precision=precision, tags=["retract"]
+        )
+        result = await retractions.write(incoming)
+        prior_after = await retractions._storage.get_record(prior.record.record_id)
+        assert result.action == expected
+        assert prior_after is not None
+        assert (prior_after.status is RecordStatus.ARCHIVED) == (expected == "invalidated")
+
+    negation = await make_semantic()
+    prior = await negation.write(typed_claim("Lisbon", "negated-prior"))
+    denied = typed_claim("Porto", "negated-other-value")
+    denied_env = SemanticEnvelope.model_validate(denied.fingerprint.envelope)
+    denied_env = denied_env.model_copy(
+        update={
+            "change_hint": True,
+            "assessment": denied_env.assessment.model_copy(update={"modality": "negated"}),
+        }
+    )
+    denied = denied.model_copy(
+        update={
+            "fingerprint": denied.fingerprint.model_copy(
+                update={"envelope": denied_env.model_dump(mode="json")}
+            )
+        }
+    )
+    assert (await negation.write(denied)).action == "added"
+    prior_after = await negation._storage.get_record(prior.record.record_id)
+    assert prior_after is not None and prior_after.status is RecordStatus.ACTIVATED
+
+    for trust, action in ((0.5, "invalidated"), (0.1, "rejected")):
+        matching = await make_semantic()
+        prior = await matching.write(typed_claim("Lisbon", f"negated-prior-{trust}"))
+        denied = typed_claim("Lisbon", f"negated-same-{trust}", trust=trust)
+        denied_env = SemanticEnvelope.model_validate(denied.fingerprint.envelope)
+        denied_env = denied_env.model_copy(
+            update={
+                "change_hint": True,
+                "assessment": denied_env.assessment.model_copy(update={"modality": "negated"}),
+            }
+        )
+        denied = denied.model_copy(
+            update={
+                "fingerprint": denied.fingerprint.model_copy(
+                    update={"envelope": denied_env.model_dump(mode="json")}
+                )
+            }
+        )
+        assert (await matching.write(denied)).action == action
+        prior_after = await matching._storage.get_record(prior.record.record_id)
+        assert prior_after is not None
+        assert (prior_after.status is RecordStatus.ARCHIVED) == (action == "invalidated")
+
+    for tags in ([], ["retract"]):
+        mixed = await make_semantic()
+        prior = await mixed.write(typed_claim("Lisbon", "typed-prior"))
+        untyped = MemoryRecord(
+            namespace="agent/a",
+            memory_type="semantic",
+            content="Mira was born in Porto",
+            entity="Mira",
+            attribute="born_in",
+            tags=tags,
+            valid_from=NOW,
+        )
+        result = await mixed.write(untyped)
+        prior_after = await mixed._storage.get_record(prior.record.record_id)
+        assert result.action == "added"
+        assert prior_after is not None and prior_after.status is RecordStatus.ACTIVATED
+
+    interleaved = await make_semantic()
+    berlin = await interleaved.write(
+        MemoryRecord(
+            namespace="agent/a",
+            memory_type="semantic",
+            content="Mira was born in Berlin",
+            entity="Mira",
+            attribute="born_in",
+            valid_from=NOW,
+        )
+    )
+    lisbon = await interleaved.write(typed_claim("Lisbon", "typed-middle"))
+    porto = await interleaved.write(
+        MemoryRecord(
+            namespace="agent/a",
+            memory_type="semantic",
+            content="Mira was born in Porto",
+            entity="Mira",
+            attribute="born_in",
+            valid_from=NOW,
+        )
+    )
+    berlin_after = await interleaved._storage.get_record(berlin.record.record_id)
+    lisbon_after = await interleaved._storage.get_record(lisbon.record.record_id)
+    assert porto.action == "updated"
+    assert berlin_after is not None and berlin_after.status is RecordStatus.ARCHIVED
+    assert lisbon_after is not None and lisbon_after.status is RecordStatus.ACTIVATED
 
 
 async def test_conflicting_fact_updates_bi_temporally() -> None:

@@ -10,6 +10,8 @@ from typing import Any
 from memspine.config import constants
 from memspine.core.event_date import SAID_PREFIX, happened_tag
 from memspine.core.fact_views import view_tags
+from memspine.derive import role_filter
+from memspine.derive.rule_source_snapshot import rule_input_snapshot
 from memspine.derive.write import write_derived
 from memspine.exceptions import MemspineError
 from memspine.models.encoders.query.perspective import inherit_perspective_tags
@@ -18,6 +20,7 @@ from memspine.observability import tap
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordFingerprint, RecordStatus, SourceInfo
 from memspine.store.scope import validate_namespace
+from memspine.store.source_binding import source_binding
 from memspine.workers.list_cards import LIST_CARD_KEY_PREFIX, ListCard
 
 #: The anticipated-question cue tag (the value the read and ingest paths share).
@@ -194,6 +197,161 @@ async def _deposit_anticipated_cues(
     )
 
 
+async def _pinned_evidence_current(
+    eng: Any,
+    storage: Any,
+    ns: str,
+    parents: Sequence[str],
+    envelope: dict[str, Any],
+) -> list[MemoryRecord] | None:
+    """Fence every cited source snapshot immediately before an envelope deposit.
+
+    Rules envelopes carry system-authored full rule-input snapshots for all cited turns.
+    Every envelope must still cite each parent at its current version and keep its exact
+    quoted span. The caller holds the namespace write lock through the following write.
+    """
+    parent_ids = set(parents)
+    if not parent_ids or len(parent_ids) != len(parents):
+        return None
+    producer = envelope.get("producer")
+    rules = isinstance(producer, dict) and producer.get("kind") == "rules"
+    registry = envelope.get("registry")
+    reply_origin = (
+        rules
+        and len(parent_ids) > 1
+        and isinstance(registry, dict)
+        and registry.get("predicate") == "move_origin"
+    )
+    extras = envelope.get("extras")
+    hashes = extras.get("rule_input_snapshots") if isinstance(extras, dict) else None
+    if rules and (
+        not isinstance(hashes, dict)
+        or set(hashes) != parent_ids
+        or any(not isinstance(value, str) for value in hashes.values())
+    ):
+        return None
+    evidence = envelope.get("evidence")
+    if not isinstance(evidence, list) or not evidence:
+        return None
+    role_bindings = envelope.get("role_bindings", [])
+    if not isinstance(role_bindings, list):
+        return None
+    cited = list(evidence)
+    for binding in role_bindings:
+        if not isinstance(binding, dict) or not isinstance(binding.get("evidence"), list):
+            return None
+        cited.extend(binding["evidence"])
+    current: dict[str, MemoryRecord] = {}
+    for source_id in parent_ids:
+        source = await storage.get_record(source_id)
+        if source is None:
+            return None
+        source = eng._inflate.inflate(source)
+        if (
+            source.namespace != ns
+            or source.status is not RecordStatus.ACTIVATED
+            or source.quarantined
+            or source.instruction_flag
+        ):
+            return None
+        if rules:
+            assert isinstance(hashes, dict)
+            if rule_input_snapshot(source) != hashes[source_id]:
+                return None
+            if reply_origin and (
+                source.source.role != "user" or role_filter.block_reason(source.tags) is not None
+            ):
+                return None
+        current[source_id] = source
+    seen: set[str] = set()
+    for item in cited:
+        if not isinstance(item, dict):
+            return None
+        turn = item.get("turn")
+        if turn is None and item.get("role") == "context":
+            continue
+        if not isinstance(turn, dict):
+            return None
+        cited_source_id = turn.get("source_id")
+        version = turn.get("source_version")
+        source = current.get(cited_source_id) if isinstance(cited_source_id, str) else None
+        if source is None or type(version) is not int or version != source.version:
+            return None
+        seen.add(source.record_id)
+        span = item.get("span")
+        if span is None:
+            continue
+        if not isinstance(span, dict):
+            return None
+        start, end, quote = span.get("start"), span.get("end"), span.get("quote")
+        if (
+            type(start) is not int
+            or type(end) is not int
+            or not (0 <= start < end <= len(source.content))
+            or not isinstance(quote, str)
+            or source.content[start:end] != quote
+        ):
+            return None
+    if seen != parent_ids:
+        return None
+    if reply_origin:
+        link = extras.get("rule_reply_link") if isinstance(extras, dict) else None
+        if not isinstance(link, dict):
+            return None
+        reply_id = link.get("reply_record")
+        parent_id = link.get("parent_record")
+        message_id = link.get("parent_message")
+        if (
+            not isinstance(reply_id, str)
+            or not isinstance(parent_id, str)
+            or not isinstance(message_id, str)
+            or not message_id
+            or reply_id == parent_id
+            or set((reply_id, parent_id)) != parent_ids
+        ):
+            return None
+        reply, parent = current[reply_id], current[parent_id]
+        reply_message, parent_message = reply.source.message, parent.source.message
+        if (
+            not isinstance(reply_message, dict)
+            or not isinstance(parent_message, dict)
+            or reply_message.get("reply_to") != message_id
+            or parent_message.get("message_id") != message_id
+        ):
+            return None
+        tags = [
+            tag[len(constants.REPLY_TO_PREFIX) :]
+            for tag in reply.tags
+            if tag.startswith(constants.REPLY_TO_PREFIX)
+        ]
+        if tags != [parent_id]:
+            return None
+        if not all(
+            any(
+                isinstance(item, dict)
+                and item.get("role") == role
+                and isinstance(item.get("turn"), dict)
+                and item["turn"].get("source_id") == source_id
+                for item in evidence
+            )
+            for role, source_id in (("support", reply_id), ("binding", parent_id))
+        ):
+            return None
+    binding_hash = envelope.get("source_binding_hash")
+    if binding_hash is not None:
+        provenance = envelope.get("provenance")
+        primary_source_id = provenance.get("source_id") if isinstance(provenance, dict) else None
+        primary = current.get(primary_source_id) if isinstance(primary_source_id, str) else None
+        # A model window may use a synthetic provenance.source_id for the window;
+        # its binding hash still names a cited source line. Rules candidates use
+        # the actual support source id. In either case the hash must match a
+        # freshly loaded, evidence-pinned parent.
+        candidates = [primary] if primary is not None else list(current.values())
+        if not any(source_binding(source).binding_hash == binding_hash for source in candidates):
+            return None
+    return list(current.values())
+
+
 async def _deposit_mined_fact(
     eng: Any,
     namespace: str,
@@ -303,6 +461,12 @@ async def _deposit_mined_fact(
         site = "window_extract" if require_live else "mine_facts"
         if await eng._derived_parents_gone(ns, [*parents, *require_live], site):  # I72
             return None
+        if envelope is not None:
+            current_sources = await _pinned_evidence_current(eng, storage, ns, parents, envelope)
+            if current_sources is None:
+                tap.event("write.extract.rejected", reason="stale_evidence", site=site)
+                return None
+            cap = [*(cap or []), min(source.trust for source in current_sources)]
         evidence_roles: dict[str, str] = {}
         if envelope is not None:
             for evidence in envelope.get("evidence", []):
@@ -353,7 +517,29 @@ async def _close_superseded(
         return False
     now = eng._clock()
     envelope = dict(target.fingerprint.envelope)
+    proof = target.fingerprint.restatement_support
+    proof_is_valid = False
+    if proof is not None:
+        from memspine.trust.restatement import valid_proof
+
+        proof_is_valid = bool(valid_proof(target))
     envelope["status"] = "superseded"
+    fingerprint_updates: dict[str, Any] = {"envelope": envelope}
+    if proof is not None:
+        if proof_is_valid:
+            from memspine.trust.restatement import claim_digest
+
+            digest = claim_digest(envelope)
+            if digest is not None:
+                fingerprint_updates["restatement_support"] = proof.model_copy(
+                    update={"claim_digest": digest}
+                )
+            else:
+                fingerprint_updates["restatement_support"] = None
+        else:
+            # An invalid pre-transition proof must never become valid by matching the
+            # system's superseded envelope digest after this lifecycle change.
+            fingerprint_updates["restatement_support"] = None
     closed = target.model_copy(
         update={
             "valid_to": successor.valid_from,
@@ -361,7 +547,7 @@ async def _close_superseded(
             "status": RecordStatus.ARCHIVED,
             "evolve_to": successor.record_id,
             "tags": [t for t in target.tags if t != "disputed"],
-            "fingerprint": target.fingerprint.model_copy(update={"envelope": envelope}),
+            "fingerprint": target.fingerprint.model_copy(update=fingerprint_updates),
         }
     )
     await eng._append_and_project(

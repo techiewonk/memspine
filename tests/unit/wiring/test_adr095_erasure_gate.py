@@ -324,8 +324,10 @@ async def test_lexical_projection_tantivy(tmp_path: Path, hard: bool) -> None:
     finally:
         await eng.stop()
     if hard:  # the persisted index, reopened: no segment holds an erased term
+        del index  # release the test's raw handle before opening a second one
         reopened = tantivy.Index.open(str(tmp_path / "m.db.tantivy"))
         assert [n for n in NEEDLES if _doc_freq(reopened, n)] == []
+        del reopened  # its meta lock is not readable on Windows
         assert _file_hits(tmp_path, NEEDLES) == {}
 
 
@@ -346,6 +348,7 @@ async def test_lexical_rebuild_never_resurrects_a_hard_erased_record(tmp_path: P
             await eng.rebuild()
             assert not await lexical.exists(gone.record_id)
             assert await lexical.exists(kept.record_id)  # live documents survive the rebuild
+            assert [n for n in NEEDLES if _doc_freq(lexical.connector.index, n)] == []  # type: ignore[attr-defined]
             report = await eng.verify_forget(gone.record_id)
             assert report["lexical_absent"] is True and report["clean"] is True
     finally:
@@ -362,8 +365,10 @@ async def test_lexical_rebuild_never_resurrects_a_hard_erased_record(tmp_path: P
         assert [n for n in NEEDLES if _doc_freq(index, n)] == []
     finally:
         await eng.stop()
+    del index
     reopened = tantivy.Index.open(str(tmp_path / "m.db.tantivy"))
     assert [n for n in NEEDLES if _doc_freq(reopened, n)] == []
+    del reopened  # release Tantivy's meta lock before the raw file scan
     assert _file_hits(tmp_path / "m.db.tantivy", NEEDLES) == {}
 
 

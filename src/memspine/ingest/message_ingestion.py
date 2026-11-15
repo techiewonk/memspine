@@ -8,7 +8,9 @@ from datetime import datetime
 from typing import Any
 
 from memspine.ingest import gateway
+from memspine.ingest.message_helpers import deterministic_skip_reason
 from memspine.ingest.message_identity import normalise_messages, validate_message_fields
+from memspine.ingest.message_parent import ReplyParentUnavailable, require_stored_parent
 from memspine.ingest.message_retry import input_fingerprint, prepare_retries
 from memspine.ingest.message_schema import ValidatedMessageBatch
 from memspine.ingest.message_store import lookup_conversations, lookup_messages
@@ -90,6 +92,7 @@ async def _ingest_once(
 ) -> list[MemoryRecord] | None:
     storage = eng._require_started()
     requested: list[str] = []
+    submitted_ids: set[str] = set()
     conversations = [conversation_id] if conversation_id else []
     for index, raw in enumerate(messages):
         if not isinstance(raw, Mapping):
@@ -99,10 +102,21 @@ async def _ingest_once(
             value = raw.get(key)
             if isinstance(value, str):
                 requested.append(value)
+                if key == "message_id":
+                    submitted_ids.add(value)
         cid = raw.get("conversation_id")
         if isinstance(cid, str):
             conversations.append(cid)
     identities = await lookup_messages(db, ns, requested)
+    # A failed intent permanently refuses retries of its own input IDs. Its
+    # already-landed prefix remains a live source message, however, and may be
+    # referenced by a new reply after restart if the current parent gate passes.
+    if any(
+        identities[mid].get("intent_status") == "failed"
+        for mid in submitted_ids
+        if mid in identities
+    ):
+        raise ReplyParentUnavailable("reply parent is unavailable")
     # Only a committed-but-unapplied owner needs waiting. Applied skipped records
     # (e.g. excluded system messages) are still reserved identities, not new input.
     if any(
@@ -120,6 +134,26 @@ async def _ingest_once(
         if r is not None
     ]
     inputs, reused = prepare_retries(messages, stored, session_id, conversation_id, identities)
+    # A reservation proves identity ownership, not that its raw parent is still
+    # available to this caller. Check the live record before committing a child
+    # intent: otherwise a soft-forgotten parent fails only during apply and
+    # leaves a durable, unapplicable child reservation behind.
+    for turn in inputs:
+        parent_id = turn.get("reply_to")
+        if not isinstance(parent_id, str) or parent_id not in identities:
+            continue  # same-batch and unresolved references are checked below
+        identity = identities[parent_id]
+        if identity.get("erased"):
+            raise ReplyParentUnavailable("reply parent is unavailable")
+        await require_stored_parent(
+            storage,
+            ns,
+            parent_id,
+            identity.get("record_id"),
+            actor,
+            session_id=identity.get("session_id"),
+            conversation_id=identity.get("conversation_id"),
+        )
     if valid_from is not None:
         stamp = eng._localize(valid_from)  # ADR-090: a naive batch time is refused
         for turn in inputs:
@@ -139,6 +173,25 @@ async def _ingest_once(
     known = {mid: str(m["record_id"]) for mid, m in identities.items() if m.get("record_id")}
     positions: dict[str, int] = {}
     fresh = [t for t in turns if t["message_id"] not in reused]
+    # The apply path deterministically drops these raw turns. A same-batch reply
+    # to one of them cannot ever acquire a parent record, so refuse the entire
+    # batch before reserving either public message ID in the intake ledger.
+    firewall = eng._config().firewall
+    fresh_by_id = {str(turn["message_id"]): turn for turn in fresh}
+    for turn in fresh:
+        reply_to = turn.get("reply_to")
+        parent = fresh_by_id.get(reply_to) if isinstance(reply_to, str) else None
+        if (
+            parent is not None
+            and deterministic_skip_reason(
+                parent,
+                skip_roles=firewall.skip_message_roles,
+                skip_injected_recall=firewall.skip_injected_recall,
+                role_policy=bool(eng._config().write.role_policy),
+            )
+            is not None
+        ):
+            raise ReplyParentUnavailable("reply parent is unavailable")
     originals = {str(t["message_id"]): raw for t, raw in zip(turns, messages, strict=True)}
     for i, turn in enumerate(fresh):
         public: dict[str, Any] = {

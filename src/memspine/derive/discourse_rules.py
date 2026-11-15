@@ -9,7 +9,8 @@ unresolved, unasserted annotation naming why:
   claims plus the destination residence (multiple homes; nothing is replaced). The move time is
   kept at source precision (a month, a year), resolved only against an aware source time
   (D-100 Q-S2); no day is invented. A move without two named places is ``ambiguous_move``.
-- **visit** (``I visited X``): a ``visited`` event claim, never a residence.
+- **visit** (``I visited the city of X``): a ``visited`` event claim only when the
+  source explicitly types the object as a place, never a residence. A bare name is unresolved.
 - **pronoun** (``I met Alex. He lives in Leeds.``): a third-person statement whose ``he`` /
   ``she`` subject binds to the one name of the immediately preceding sentence of the same
   source; none or several names is ``ambiguous_antecedent``.
@@ -54,6 +55,7 @@ __all__ = [
     "document_rules",
     "message_rules",
     "pending_changes",
+    "reply_move_origin",
     "resolve_pending",
 ]
 
@@ -86,10 +88,57 @@ _MOVE = re.compile(
 )
 #: A move statement the strict form does not cover ("moved here from my home country").
 _MOVE_LOOSE = re.compile(r"\bI (?:just |recently )?moved (?:\w+ )?from\b", re.IGNORECASE)
-_VISIT = re.compile(rf"\bI (?:just |recently )?visited (?P<v>{_NAME})", re.IGNORECASE)
+# A deliberately narrow two-turn statement: the reply supplies only the missing origin.
+_HOME_ORIGIN = re.compile(
+    r"\s*I moved here from my home country (?P<years>one|two|three|four|five|six|seven|eight|nine|[1-9]\d?) years ago\.\s*",
+    re.IGNORECASE,
+)
+_HOME_REPLY = re.compile(
+    rf"\s*The home country I mentioned is (?P<country>{_NAME})\.\s*",
+    re.IGNORECASE,
+)
+_VISIT_PLACE = r"the (?P<visit_place>city|town|village|country|island) of "
+_VISIT_PERSON = (
+    r"my (?P<visit_person>friend|brother|sister|mother|father|son|daughter|aunt|uncle|"
+    r"cousin|colleague|coworker|co-worker|partner|wife|husband|neighbou?r) "
+)
+_VISIT_OBJECT = rf"(?:{_VISIT_PLACE}|{_VISIT_PERSON})?(?P<v>{_NAME})"
+_VISIT = re.compile(rf"\bI (?:just |recently )?visited {_VISIT_OBJECT}", re.IGNORECASE)
+_VISIT_IRREAL = re.compile(
+    r"\b(?:hypothetic\w*|in (?:a|my) dream|in (?:my|the) imagination|not (?:really|actually))\b",
+    re.IGNORECASE,
+)
+_VISIT_CONTRAST = re.compile(r"\b(?:but|however|nevertheless)\b", re.IGNORECASE)
+_VISIT_CLAUSE = re.compile(r"\b(?:and|but|however|nevertheless)\b", re.IGNORECASE)
+_VISIT_RETRACTION = re.compile(
+    r"\b(?:I\s+)?(?:did(?:\s+not|n't)|never)\s+(?:\w+\s+){0,2}"
+    r"(?P<action>go|went|travel(?:ed|led)?|visit(?:ed)?|arriv(?:e|ed)|(?:make|made) it)\b",
+    re.IGNORECASE,
+)
+_VISIT_DENIAL_DESTINATION = re.compile(
+    rf"^\s+(?:onward\s+)?(?:to|in|at)\s+(?:(?:the (?:city|town|village|country|island) of )?"
+    rf"(?P<place>{_NAME})|(?P<venue>(?:the|a) (?!city\b|town\b|village\b|country\b|"
+    r"island\b|place\b|area\b|destination\b|region\b)[a-z]+))\b",
+    re.IGNORECASE,
+)
+_VISIT_DENIAL_DIRECT_OBJECT = re.compile(rf"^\s+(?P<place>{_NAME})\b")
+_VISIT_CONTRAST_QUALIFIER = re.compile(
+    r"^\s*,?\s*(?:not (?:really|actually)|hypothetic\w*(?: speaking)?|"
+    r"(?:only |just )?in (?:a|my) dream|(?:only |just )?in (?:my|the) imagination)"
+    r"[\s,.!?]*$",
+    re.IGNORECASE,
+)
+_VISIT_ANAPHORIC_IRREAL = re.compile(
+    r"^\s*(?:(?:it|that|the (?:visit|trip))\s+(?:was|is)\s+(?:only |just )?"
+    r"(?:hypothetic\w*|in (?:a|my) dream|in (?:my|the) imagination)"
+    r"|I\s+(?:only |just )?(?:imagined|dreamed)\s+(?:it|that|the (?:visit|trip)))"
+    r"[\s,.!?]*$",
+    re.IGNORECASE,
+)
 _PRONOUN = re.compile(
-    rf"^(?P<p>He|She) (?:(?:now |currently )?(?P<home>lives in)|(?P<work>works (?:at|for))"
-    rf"|(?P<visit>visited)) (?P<v>{_NAME})\b"
+    rf"^(?P<p>He|She) (?:(?:(?:now |currently )?(?P<home>lives in)"
+    rf"|(?P<work>works (?:at|for))) (?P<other_v>{_NAME})"
+    rf"|(?P<visit>visited) {_VISIT_OBJECT})\b"
 )
 _CAPITAL = re.compile(r"(?-i:\b[A-Z][a-z]+\b)")
 _APPROX = r"(?P<approx>about |around |roughly |approximately |nearly |almost |over |under |~)?"
@@ -330,15 +379,119 @@ def _moves(record: MemoryRecord, scope: OwnerScope, owner: str, out: Mined) -> N
                 break
 
 
+def reply_move_origin(
+    reply: MemoryRecord, parent: MemoryRecord, scope: OwnerScope, owner: str
+) -> GroundedFactCandidate | None:
+    """Bind the one named country in an explicit reply to its earlier home-country move.
+
+    The caller validates the canonical reply identity and source visibility before invoking
+    this source-local rule. Neither turn alone is a move-origin assertion.
+    """
+    old = _HOME_ORIGIN.fullmatch(parent.content)
+    new = _HOME_REPLY.fullmatch(reply.content)
+    if (
+        old is None
+        or new is None
+        or not asserted_match(parent.content, old)
+        or not asserted_match(reply.content, new)
+    ):
+        return None
+    origin_span = sentence_span(parent.content, old.start(), old.end() - 1)
+    reply_span = sentence_span(reply.content, new.start(), new.end() - 1)
+    if origin_span is None or reply_span is None:
+        return None
+    year_words = ("one", "two", "three", "four", "five", "six", "seven", "eight", "nine")
+    written_years = old["years"].lower()
+    years = (
+        year_words.index(written_years) + 1 if written_years in year_words else int(written_years)
+    )
+    at = parent.source_at
+    zone = _local_tz(parent)
+    phrase = old.group("years") + " years ago"
+    if at is None or zone is None or years >= at.astimezone(zone).year:
+        event = TemporalRef(text=phrase, basis="none")
+    else:
+        year = at.astimezone(zone).year - years
+        event = TemporalRef(
+            text=phrase,
+            at=datetime(year, 1, 1, tzinfo=zone),
+            precision="year",
+            approximate=True,
+            basis="source_time",
+            anchor=at,
+        )
+    return _fact(
+        reply,
+        scope,
+        owner,
+        reply_span,
+        predicate="move_origin",
+        obj=new["country"],
+        event_start=event,
+        context_evidence=(
+            _evidence(parent, origin_span, owner).model_copy(update={"role": "binding"}),
+        ),
+    )
+
+
 def _visits(record: MemoryRecord, scope: OwnerScope, owner: str, out: Mined) -> None:
     text = record.content
     for match in _VISIT.finditer(text):
-        if not asserted_match(text, match) or match["v"].endswith(("'s", "\u2019s")):
-            continue  # hedged, or a possessive ("visited Alex's flat") that names no place
+        if not asserted_match(text, match):
+            continue
         span = _span(record, match)
         if span is None:
             continue
+        if not _visit_suffix_asserted(text, match.end(), span.end, match["v"]):
+            continue
+        reason = _visit_object_reason(match)
+        if reason is not None:
+            out.unresolved.append(_note(record, reason, "visited", match["v"], span))
+            continue
         out.facts.append(_fact(record, scope, owner, span, predicate="visited", obj=match["v"]))
+
+
+def _visit_object_reason(match: re.Match[str]) -> UnresolvedReason | None:
+    """A proper name alone does not establish the place type required by ``visited``."""
+    if match["v"].endswith(("'s", "\u2019s")):
+        return "ambiguous_visit_object"  # the owner of a flat is not the visited place
+    if match["visit_person"]:
+        return "visit_object_not_place"
+    if not match["visit_place"]:
+        return "ambiguous_visit_object"
+    return None
+
+
+def _visit_suffix_asserted(text: str, end: int, sentence_end: int, visited: str) -> bool:
+    """Reject an irrealis visit or a contrast that retracts the act of going.
+
+    A contrast about another action or an explicitly different destination does not
+    retract the visit. Unknown and deictic destinations remain conservative.
+    This is a bounded clause check, not general contradiction resolution.
+    """
+    suffix = text[end:sentence_end]
+    first_clause = _VISIT_CLAUSE.split(suffix, maxsplit=1)[0]
+    if _VISIT_IRREAL.search(first_clause):
+        return False
+    contrast = _VISIT_CONTRAST.search(suffix)
+    if contrast is None:
+        return True
+    contrast_clause = _VISIT_CLAUSE.split(suffix[contrast.end() :], maxsplit=1)[0]
+    if _VISIT_CONTRAST_QUALIFIER.fullmatch(contrast_clause) or _VISIT_ANAPHORIC_IRREAL.fullmatch(
+        contrast_clause
+    ):
+        return False
+    denial = _VISIT_RETRACTION.search(contrast_clause)
+    if denial is None:
+        return True
+    remainder = contrast_clause[denial.end() :]
+    destination = _VISIT_DENIAL_DESTINATION.match(remainder)
+    if destination is None and denial["action"].lower().startswith("visit"):
+        destination = _VISIT_DENIAL_DIRECT_OBJECT.match(remainder)
+    if destination is None:
+        return False
+    place = destination["place"]
+    return place is None or place.casefold() != visited.casefold()
 
 
 def _pronouns(record: MemoryRecord, scope: OwnerScope, owner: str, out: Mined) -> None:
@@ -352,14 +505,24 @@ def _pronouns(record: MemoryRecord, scope: OwnerScope, owner: str, out: Mined) -
             continue
         offset = start + lead
         span = sentence_span(text, offset + match.start(), offset + match.end())
+        if (
+            match["visit"]
+            and span is not None
+            and not _visit_suffix_asserted(text, offset + match.end(), span.end, match["v"])
+        ):
+            continue
         predicate = "resides_in" if match["home"] else "employed_by" if match["work"] else "visited"
+        value = match["v"] or match["other_v"]
         names = _antecedents(text, sentences[index - 1], owner) if index > 0 else []
         if span is None or len(names) != 1:
             # no earlier sentence, no name or several names: the pronoun is not bound
-            out.unresolved.append(
-                _note(record, "ambiguous_antecedent", predicate, match["v"], span)
-            )
+            out.unresolved.append(_note(record, "ambiguous_antecedent", predicate, value, span))
             continue
+        if match["visit"]:
+            reason = _visit_object_reason(match)
+            if reason is not None:
+                out.unresolved.append(_note(record, reason, predicate, value, span))
+                continue
         out.facts.append(
             _fact(
                 record,
@@ -367,7 +530,7 @@ def _pronouns(record: MemoryRecord, scope: OwnerScope, owner: str, out: Mined) -
                 owner,
                 span,
                 predicate=predicate,
-                obj=match["v"],
+                obj=value,
                 subject=names[0],
                 object_entity_type="organisation" if predicate == "employed_by" else "place",
             )

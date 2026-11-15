@@ -50,7 +50,6 @@ async def make_semantic(*, cosine_threshold: float = 0.9) -> SemanticMemory:
         appended = await storage.append_event(event)
         assert appended.seq is not None
         await projector.apply(appended)
-        await storage.set_offset(projector.name, appended.seq)
 
     return SemanticMemory(
         storage=storage,

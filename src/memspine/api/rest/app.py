@@ -49,6 +49,7 @@ from memspine.api.rest.auth import (
     route_path,
 )
 from memspine.api.rest.models import (
+    AddEntityAliasRequest,
     AssembleRequest,
     AssembleResponse,
     CorrectRequest,
@@ -56,6 +57,7 @@ from memspine.api.rest.models import (
     GrantRequest,
     GrantView,
     IngestMessagesRequest,
+    MergeEntitiesRequest,
     PlanRequest,
     PromoteRequest,
     QuarantineDecision,
@@ -575,6 +577,26 @@ def build_app(
         )
 
     # ── prospective (M13.8) ──────────────────────────────────────────────────
+
+    @app.post("/entities/merge")
+    async def merge_entities(
+        body: MergeEntitiesRequest, ns: Namespace, request: Request
+    ) -> dict[str, bool]:
+        scope(request, ns)  # enforce the scoped principal/viewer binding
+        await engine.merge_entities(
+            body.keep, body.absorb, body.evidence, ns, actor=_actor(request, body.actor)
+        )
+        return {"merged": True}
+
+    @app.post("/entities/alias")
+    async def add_entity_alias(
+        body: AddEntityAliasRequest, ns: Namespace, request: Request
+    ) -> dict[str, bool]:
+        scope(request, ns)
+        await engine.add_entity_alias(
+            body.entity, body.alias, body.evidence, ns, actor=_actor(request, body.actor)
+        )
+        return {"added": True}
 
     @app.post("/watches")
     async def watch(body: WatchRequest, ns: Namespace, request: Request) -> MemoryRecord:

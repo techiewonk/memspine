@@ -165,7 +165,7 @@ def _engine_kw(**kw: Any) -> Any:
         "template": "base",
         "dotenv_path": None,
         "storage": {"records": {"provider": "sqlite", "settings": {"path": ":memory:"}}},
-        "model": {"embedding": {"provider": "hash"}},
+        "model": {"embedding": {"provider": "hash"}, "rerank": {"chain": []}},
     }
     config.update(kw)
     return Engine(**config)

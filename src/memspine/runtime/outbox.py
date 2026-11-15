@@ -42,6 +42,7 @@ projected effects (rebuildable projections) instead of acknowledging them.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import threading
 from collections.abc import Iterator, Sequence
@@ -59,6 +60,7 @@ from sqlalchemy import (
     not_,
     or_,
     select,
+    text,
     update,
 )
 from sqlalchemy.engine import Connection, Engine
@@ -156,6 +158,29 @@ def _source_fence_key(source: dict[str, Any]) -> tuple[str, str, str, int, str, 
         snapshot.content_hash,
         snapshot.erasure_generation,
     )
+
+
+def _window_context_value(context: Any) -> dict[str, Any] | None:
+    """Validate and whitelist the non-content window context held by an effect artifact."""
+    required = {"window_key", "reason", "session", "conversation_id"}
+    if not isinstance(context, dict) or not required.issubset(context):
+        return None
+    if not isinstance(context["window_key"], str) or not isinstance(context["reason"], str):
+        return None
+    if any(
+        context[key] is not None and not isinstance(context[key], str)
+        for key in ("session", "conversation_id")
+    ):
+        return None
+    return {key: context[key] for key in required}
+
+
+def _compacted_window_payload(context: Any) -> dict[str, Any]:
+    """Rebuild the non-content window envelope retained in a completed effect artifact."""
+    valid = _window_context_value(context)
+    if valid is None:
+        return {"kind": "window_context_missing"}
+    return {"kind": "window", **valid}
 
 
 def _effect_artifact_json(effect: dict[str, Any]) -> str | None:
@@ -319,6 +344,75 @@ class SqlJobStore:
                 conn.exec_driver_sql("ROLLBACK")
                 raise
             conn.exec_driver_sql("COMMIT")
+
+    @staticmethod
+    def _window_source_ids(payloads: Sequence[dict[str, Any]]) -> list[str]:
+        return sorted(
+            {str(record_id) for payload in payloads for record_id in payload.get("record_ids", ())}
+        )
+
+    def _lock_window_sources(
+        self, c: Connection, scope: OwnerScope, stage: str, record_ids: Sequence[str]
+    ) -> None:
+        """Serialize staging, promotion and erasure even before membership exists.
+
+        SQLite's fenced transaction owns the write lock already. Postgres takes one stable
+        advisory transaction lock per source before locking existing membership rows. An
+        absent row cannot be protected by ``FOR UPDATE`` alone.
+        """
+        if self.engine.dialect.name != "postgresql":
+            return
+        for record_id in ("", *sorted(set(record_ids))):
+            # The scope lock also serializes offset allocation for disjoint-source cuts.
+            identity = "\x1f".join((scope.tenant, scope.owner, scope.owner_kind, stage, record_id))
+            key = int.from_bytes(hashlib.sha256(identity.encode()).digest()[:8], "big", signed=True)
+            c.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+            if not record_id:
+                continue
+            c.execute(
+                select(outbox_source_membership.c.record_id)
+                .where(
+                    *_scope_where(outbox_source_membership, scope),
+                    outbox_source_membership.c.stage == stage,
+                    outbox_source_membership.c.record_id == record_id,
+                )
+                .with_for_update()
+            ).first()
+
+    @staticmethod
+    def _sanitize_staged_sources(
+        c: Connection, scope: OwnerScope, stage: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Remove every inactive source and its snapshot before a staged write or promotion."""
+        ids = payload.get("record_ids")
+        if not isinstance(ids, list) or not ids:
+            return payload
+        erased = set(
+            c.execute(
+                select(outbox_source_membership.c.record_id)
+                .where(
+                    *_scope_where(outbox_source_membership, scope),
+                    outbox_source_membership.c.stage == stage,
+                    outbox_source_membership.c.record_id.in_(ids),
+                    outbox_source_membership.c.active.is_(False),
+                )
+                .with_for_update()
+            ).scalars()
+        )
+        if not erased:
+            return payload
+        kept = {**payload, "record_ids": [rid for rid in ids if rid not in erased]}
+        for field in ("source_snapshots", "survivor_sources"):
+            sources = payload.get(field)
+            if isinstance(sources, list):
+                kept[field] = [
+                    source
+                    for source in sources
+                    if isinstance(source, dict) and source.get("record_id") not in erased
+                ]
+        if not kept["record_ids"]:
+            kept["kind"] = "empty"
+        return kept
 
     @staticmethod
     def _lease_live(c: Connection, job_id: str, epoch: int, at: datetime) -> bool:
@@ -754,6 +848,162 @@ class SqlJobStore:
             )
         return offset
 
+    def stage_items(
+        self, scope: OwnerScope, stage: str, payloads: Sequence[dict[str, Any]], at: datetime
+    ) -> None:
+        """Durably hold cuts before their draft rows may be removed. Stable staging IDs make
+        an interrupted write retry safe. The staging stream has no runnable handler."""
+        held_stage = f"{stage}.staged"
+        with self._fenced_tx() as c:
+            self._lock_window_sources(c, scope, stage, self._window_source_ids(payloads))
+            rows = c.execute(
+                select(outbox_item.c.payload).where(
+                    *_scope_where(outbox_item, scope), outbox_item.c.stage == held_stage
+                )
+            ).all()
+            known = {json.loads(row.payload).get("_staging_id") for row in rows}
+            top = c.execute(
+                select(func.max(outbox_item.c.item_offset)).where(
+                    *_scope_where(outbox_item, scope), outbox_item.c.stage == held_stage
+                )
+            ).scalar()
+            offset = -1 if top is None else int(top)
+            for payload in payloads:
+                if payload["_staging_id"] in known:
+                    continue
+                payload = self._sanitize_staged_sources(c, scope, stage, payload)
+                offset += 1
+                c.execute(
+                    insert(outbox_item).values(
+                        tenant=scope.tenant,
+                        owner=scope.owner,
+                        owner_kind=scope.owner_kind,
+                        stage=held_stage,
+                        item_offset=offset,
+                        payload=json.dumps(payload, default=str),
+                        created_at=_ts(at),
+                    )
+                )
+                known.add(payload["_staging_id"])
+
+    def promote_staged(
+        self,
+        scope: OwnerScope,
+        stage: str,
+        staged_offset: int,
+        at: datetime,
+        underived: bool = False,
+    ) -> int | None:
+        """Move one staged cut to the runnable stream in one transaction. The retained
+        promotion marker prevents a repeated enqueue after an unknown acknowledgment."""
+        held_stage = f"{stage}.staged"
+        key = [
+            *_scope_where(outbox_item, scope),
+            outbox_item.c.stage == held_stage,
+            outbox_item.c.item_offset == staged_offset,
+        ]
+        with self._fenced_tx() as c:
+            row = c.execute(select(outbox_item.c.payload).where(*key)).first()
+            if row is None:
+                return None
+            self._lock_window_sources(
+                c, scope, stage, self._window_source_ids((dict(json.loads(row.payload)),))
+            )
+            # Re-read after the advisory locks: an erasure may have scrubbed this row while
+            # promotion waited for its source lock on Postgres.
+            row = c.execute(select(outbox_item.c.payload).where(*key).with_for_update()).first()
+            if row is None:
+                return None
+            payload = dict(json.loads(row.payload))
+            if "_promoted_offset" in payload:
+                return int(payload["_promoted_offset"])
+            payload = self._sanitize_staged_sources(c, scope, stage, payload)
+            if underived:
+                payload["_underived"] = True
+            if payload.get("kind") == "empty":
+                offset = -1
+            else:
+                top = c.execute(
+                    select(func.max(outbox_item.c.item_offset)).where(
+                        *_scope_where(outbox_item, scope), outbox_item.c.stage == stage
+                    )
+                ).scalar()
+                progress = c.execute(
+                    select(outbox_progress.c.watermark, outbox_progress.c.target_offset).where(
+                        *_scope_where(outbox_progress, scope), outbox_progress.c.job_kind == stage
+                    )
+                ).first()
+                job_target = c.execute(
+                    select(func.max(outbox.c.target_offset)).where(
+                        *_scope_where(outbox, scope), outbox.c.stage == stage
+                    )
+                ).scalar()
+                offset = (
+                    max(
+                        -1 if top is None else int(top),
+                        -1 if progress is None else int(progress.watermark),
+                        -1
+                        if progress is None or progress.target_offset is None
+                        else int(progress.target_offset),
+                        -1 if job_target is None else int(job_target),
+                    )
+                    + 1
+                )
+                c.execute(
+                    insert(outbox_item).values(
+                        tenant=scope.tenant,
+                        owner=scope.owner,
+                        owner_kind=scope.owner_kind,
+                        stage=stage,
+                        item_offset=offset,
+                        payload=json.dumps(payload, default=str),
+                        created_at=_ts(at),
+                    )
+                )
+            payload["_promoted_offset"] = offset
+            c.execute(
+                update(outbox_item).where(*key).values(payload=json.dumps(payload, default=str))
+            )
+            return offset
+
+    def prune_promoted_staged(self, scope: OwnerScope, stage: str, through: int) -> int:
+        """Bound the staging log after canonical work passes its contiguous watermark."""
+        held_stage = f"{stage}.staged"
+        removed = 0
+        with self._tx() as c:
+            rows = c.execute(
+                select(outbox_item.c.item_offset, outbox_item.c.payload).where(
+                    *_scope_where(outbox_item, scope), outbox_item.c.stage == held_stage
+                )
+            ).all()
+            for row in rows:
+                payload = json.loads(row.payload)
+                promoted = payload.get("_promoted_offset")
+                if promoted is None or int(promoted) > through:
+                    continue
+                ids = payload.get("record_ids")
+                if (
+                    isinstance(ids, list)
+                    and ids
+                    and c.execute(
+                        select(outbox_draft.c.record_id).where(
+                            *_scope_where(outbox_draft, scope),
+                            outbox_draft.c.stage == stage,
+                            outbox_draft.c.record_id.in_(ids),
+                        )
+                    ).first()
+                ):
+                    continue  # an interrupted draft deletion may still need this cut marker
+                c.execute(
+                    delete(outbox_item).where(
+                        *_scope_where(outbox_item, scope),
+                        outbox_item.c.stage == held_stage,
+                        outbox_item.c.item_offset == row.item_offset,
+                    )
+                )
+                removed += 1
+        return removed
+
     def get_item(self, scope: OwnerScope, stage: str, offset: int) -> dict[str, Any] | None:
         with self._tx() as c:
             r = c.execute(
@@ -980,6 +1230,10 @@ class SqlJobStore:
         the refused record ids."""
         refused: list[str] = []
         with self._fenced_tx() as c:
+            if stage == "window":
+                self._lock_window_sources(
+                    c, scope, stage, [str(source["record_id"]) for source in sources]
+                )
             for source in sorted(sources, key=lambda s: str(s["record_id"])):
                 record_id = str(source["record_id"])
                 key = [
@@ -1088,10 +1342,32 @@ class SqlJobStore:
             outbox_source_membership.c.record_id == record_id,
         ]
         with self._fenced_tx() as c:
+            if stage == "window":
+                self._lock_window_sources(c, scope, stage, (record_id,))
             row = c.execute(
                 select(outbox_source_membership.c.erasure_generation).where(*key).with_for_update()
             ).first()
             if row is None:
+                if stage == "window":
+                    # A crash can leave a staged cut before its membership is published.
+                    # Fence future promotion/marking as well as the current durable copy.
+                    c.execute(
+                        insert(outbox_source_membership).values(
+                            tenant=scope.tenant,
+                            owner=scope.owner,
+                            owner_kind=scope.owner_kind,
+                            stage=stage,
+                            record_id=record_id,
+                            source_id=record_id,
+                            source_version=0,
+                            content_hash="",
+                            erasure_generation=1,
+                            active=False,
+                            accepted_at=_ts(datetime.now(UTC)),
+                        )
+                    )
+                    rewritten = self._scrub_window_items(c, scope, record_id)
+                    self._reopen_source_missing_holes(c, scope, rewritten)
                 return False
             c.execute(
                 update(outbox_source_membership)
@@ -1101,8 +1377,277 @@ class SqlJobStore:
                     active=False,
                 )
             )
+            if stage == "window":
+                rewritten = self._scrub_window_items(c, scope, record_id)
+                self._reopen_source_missing_holes(c, scope, rewritten)
+                self._queue_window_survivors(c, scope, record_id)
             self._delete_source_effects(c, scope, stage, record_id)
         return True
+
+    @staticmethod
+    def _scrub_window_items(c: Connection, scope: OwnerScope, record_id: str) -> set[int]:
+        """Scrub this source from every retained and pending window item atomically with erase."""
+        rows = c.execute(
+            select(outbox_item.c.stage, outbox_item.c.item_offset, outbox_item.c.payload).where(
+                *_scope_where(outbox_item, scope),
+                outbox_item.c.stage.in_(("window", "window.staged")),
+            )
+        ).all()
+        rewritten: set[int] = set()
+        for row in rows:
+            try:
+                payload = dict(json.loads(row.payload))
+            except (TypeError, ValueError):
+                # Unknown bytes cannot prove the erased source is absent.
+                payload = {"kind": "empty", "record_ids": []}
+                c.execute(
+                    update(outbox_item)
+                    .where(
+                        *_scope_where(outbox_item, scope),
+                        outbox_item.c.stage == row.stage,
+                        outbox_item.c.item_offset == row.item_offset,
+                    )
+                    .values(payload=json.dumps(payload))
+                )
+                if row.stage == "window":
+                    rewritten.add(int(row.item_offset))
+                continue
+            ids = payload.get("record_ids")
+            sources = payload.get("survivor_sources")
+            source_ids = (
+                [source.get("record_id") for source in sources if isinstance(source, dict)]
+                if isinstance(sources, list)
+                else []
+            )
+            if (
+                record_id not in (ids if isinstance(ids, list) else ())
+                and record_id not in source_ids
+            ):
+                continue
+            kept = [value for value in ids if value != record_id] if isinstance(ids, list) else []
+            if isinstance(sources, list):
+                sources = [
+                    source
+                    for source in sources
+                    if isinstance(source, dict) and source.get("record_id") != record_id
+                ]
+            if not kept:
+                payload = {**payload, "kind": "empty", "record_ids": [], "source_snapshots": []}
+            else:
+                payload["record_ids"] = kept
+                if isinstance(sources, list):
+                    payload["survivor_sources"] = sources
+                snapshots = payload.get("source_snapshots")
+                if isinstance(snapshots, list):
+                    payload["source_snapshots"] = [
+                        source
+                        for source in snapshots
+                        if isinstance(source, dict) and source.get("record_id") != record_id
+                    ]
+            c.execute(
+                update(outbox_item)
+                .where(
+                    *_scope_where(outbox_item, scope),
+                    outbox_item.c.stage == row.stage,
+                    outbox_item.c.item_offset == row.item_offset,
+                )
+                .values(payload=json.dumps(payload, default=str))
+            )
+            if row.stage == "window":
+                rewritten.add(int(row.item_offset))
+        return rewritten
+
+    @staticmethod
+    def _reopen_source_missing_holes(c: Connection, scope: OwnerScope, rewritten: set[int]) -> None:
+        """Reopen rewritten source_missing holes in the same transaction as their source scrub."""
+        if not rewritten:
+            return
+        key = [*_scope_where(outbox_progress, scope), outbox_progress.c.job_kind == "window"]
+        row = c.execute(select(outbox_progress.c.holes).where(*key)).first()
+        if row is None:
+            return
+        holes = list(json.loads(row.holes))
+        changed = False
+        for hole in holes:
+            if (
+                int(hole.get("offset", -1)) in rewritten
+                and hole.get("reason") == "source_missing"
+                and not hole.get("waived", False)
+            ):
+                hole.update(reason="raised", attempts=0, last_error="reopened: item rewritten")
+                changed = True
+        if changed:
+            c.execute(update(outbox_progress).where(*key).values(holes=json.dumps(holes)))
+
+    @staticmethod
+    def _queue_window_survivors(c: Connection, scope: OwnerScope, record_id: str) -> None:
+        """Append one canonical window item for each completed mixed-source effect erased.
+
+        The intent is written in the same fenced transaction as source deactivation and effect
+        removal. It contains source ids only; the window handler reloads and validates current
+        source snapshots before inference or projection.
+        """
+        effects = c.execute(
+            select(
+                outbox_effect.c.item_offset,
+                outbox_effect.c.identity,
+                outbox_effect.c.state,
+                outbox_effect.c.artifact,
+            ).where(*_scope_where(outbox_effect, scope), outbox_effect.c.stage == "window")
+        ).all()
+        groups: dict[
+            tuple[int, str], tuple[list[str], list[dict[str, Any]], dict[str, Any] | None]
+        ] = {}
+        for effect in effects:
+            try:
+                identity = json.loads(effect.identity)
+                sources = identity.get("sources", [])
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if not isinstance(sources, list):
+                continue
+            source_key = json.dumps(sources, sort_keys=True, separators=(",", ":"))
+            key = (int(effect.item_offset), source_key)
+            try:
+                artifact = json.loads(effect.artifact) if effect.artifact is not None else None
+            except (TypeError, ValueError):
+                artifact = None
+            context = artifact.get("window_context") if isinstance(artifact, dict) else None
+            states, _grouped_sources, grouped_context = groups.setdefault(
+                key, ([], sources, context if isinstance(context, dict) else None)
+            )
+            states.append(str(effect.state))
+            if grouped_context is None and isinstance(context, dict):
+                groups[key] = (states, sources, context)
+
+        pending: list[tuple[int, dict[str, Any]]] = []
+        for (offset, _source_key), (states, sources, context) in groups.items():
+            if not states or any(state != "complete" for state in states):
+                continue
+            if not any(
+                isinstance(source, dict) and source.get("record_id") == record_id
+                for source in sources
+            ):
+                continue
+            item_row = c.execute(
+                select(outbox_item.c.payload).where(
+                    *_scope_where(outbox_item, scope),
+                    outbox_item.c.stage == "window",
+                    outbox_item.c.item_offset == offset,
+                )
+            ).first()
+            if item_row is None:
+                payload = _compacted_window_payload(context)
+            else:
+                try:
+                    payload = dict(json.loads(item_row.payload))
+                except (TypeError, ValueError):
+                    payload = _compacted_window_payload(context)
+            if payload.get("kind") == "window":
+                payload_context = {
+                    key: payload.get(key)
+                    for key in ("window_key", "reason", "session", "conversation_id")
+                }
+                if _window_context_value(payload_context) is None:
+                    payload = _compacted_window_payload(context)
+            if payload.get("kind") not in ("window", "window_context_missing"):
+                continue
+            payload_ids = payload.get("record_ids")
+            original_order = (
+                [item for item in payload_ids if isinstance(item, str)]
+                if isinstance(payload_ids, list)
+                else [source.get("record_id") for source in sources if isinstance(source, dict)]
+            )
+
+            live_sources: list[dict[str, Any]] = []
+            for source in sources:
+                if not isinstance(source, dict):
+                    continue
+                source_id = source.get("record_id")
+                if not isinstance(source_id, str) or source_id == record_id:
+                    continue
+                active = c.execute(
+                    select(
+                        outbox_source_membership.c.record_id,
+                        outbox_source_membership.c.source_id,
+                        outbox_source_membership.c.source_version,
+                        outbox_source_membership.c.content_hash,
+                        outbox_source_membership.c.erasure_generation,
+                    ).where(
+                        *_scope_where(outbox_source_membership, scope),
+                        outbox_source_membership.c.stage == "window",
+                        outbox_source_membership.c.record_id == source_id,
+                        outbox_source_membership.c.active.is_(True),
+                    )
+                ).first()
+                if active is not None:
+                    live_sources.append(
+                        {
+                            "record_id": active.record_id,
+                            "source_id": active.source_id,
+                            "source_version": int(active.source_version),
+                            "content_hash": active.content_hash,
+                            "erasure_generation": int(active.erasure_generation),
+                        }
+                    )
+            live_by_id = {source["record_id"]: source for source in live_sources}
+            live_sources = [
+                live_by_id[source_id] for source_id in original_order if source_id in live_by_id
+            ]
+            if live_sources:
+                pending.append(
+                    (
+                        offset,
+                        {
+                            **payload,
+                            "record_ids": [source["record_id"] for source in live_sources],
+                            "survivor_sources": live_sources,
+                        },
+                    )
+                )
+
+        if not pending:
+            return
+        top = c.execute(
+            select(func.max(outbox_item.c.item_offset)).where(
+                *_scope_where(outbox_item, scope), outbox_item.c.stage == "window"
+            )
+        ).scalar()
+        progress = c.execute(
+            select(outbox_progress.c.watermark, outbox_progress.c.target_offset).where(
+                *_scope_where(outbox_progress, scope),
+                outbox_progress.c.job_kind == "window",
+            )
+        ).first()
+        job_target = c.execute(
+            select(func.max(outbox.c.target_offset)).where(
+                *_scope_where(outbox, scope), outbox.c.stage == "window"
+            )
+        ).scalar()
+        next_offset = (
+            max(
+                -1 if top is None else int(top),
+                -1 if progress is None else int(progress.watermark),
+                -1
+                if progress is None or progress.target_offset is None
+                else int(progress.target_offset),
+                -1 if job_target is None else int(job_target),
+            )
+            + 1
+        )
+        for _old_offset, payload in sorted(pending, key=lambda item: item[0]):
+            c.execute(
+                insert(outbox_item).values(
+                    tenant=scope.tenant,
+                    owner=scope.owner,
+                    owner_kind=scope.owner_kind,
+                    stage="window",
+                    item_offset=next_offset,
+                    payload=json.dumps(payload, default=str),
+                    created_at=_ts(datetime.now(UTC)),
+                )
+            )
+            next_offset += 1
 
     def has_source(self, scope: OwnerScope, stage: str, record_id: str) -> bool:
         with self._tx() as c:

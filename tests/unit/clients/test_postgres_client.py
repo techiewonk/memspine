@@ -50,7 +50,7 @@ def test_driver_timeout_is_whole_seconds_with_the_driver_floor() -> None:
     assert driver_connect_timeout(2.1) == 3
 
 
-def test_connect_timeout_is_one_overall_deadline(silent_port: int) -> None:
+def _connect_to_silent_port(silent_port: int) -> float:
     client = PostgresClient(
         PostgresSpec(
             f"postgresql://unused:unused@localhost:{silent_port}/unused",
@@ -66,5 +66,16 @@ def test_connect_timeout_is_one_overall_deadline(silent_port: int) -> None:
 
     # psycopg's async mode needs a selector loop (Windows defaults to Proactor).
     elapsed = asyncio.run(attempt(), loop_factory=asyncio.SelectorEventLoop)
-    assert _DEADLINE_S <= elapsed < _DEADLINE_S + _SLACK_S
     assert not asyncio.run(client.health(1.0), loop_factory=asyncio.SelectorEventLoop)
+    return elapsed
+
+
+def test_connect_timeout_is_one_overall_deadline(silent_port: int) -> None:
+    # The default gate still verifies that the silent peer raises TimeoutError.
+    _connect_to_silent_port(silent_port)
+
+
+@pytest.mark.perf
+def test_connect_timeout_meets_wall_deadline(silent_port: int) -> None:
+    elapsed = _connect_to_silent_port(silent_port)
+    assert _DEADLINE_S <= elapsed < _DEADLINE_S + _SLACK_S

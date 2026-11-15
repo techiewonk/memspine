@@ -253,6 +253,10 @@ class TantivyLexical:
         return terms[:MAX_LEXICAL_QUERY_TERMS]
 
     def _search(self, namespace: str, terms: list[str], top_k: int) -> list[LexicalHit]:
+        with self._conn.lock:
+            return self._search_unlocked(namespace, terms, top_k)
+
+    def _search_unlocked(self, namespace: str, terms: list[str], top_k: int) -> list[LexicalHit]:
         import tantivy
 
         schema = self._conn.schema
@@ -305,9 +309,10 @@ class TantivyLexical:
     def _exists(self, record_id: str) -> bool:
         import tantivy
 
-        searcher = self._conn.index.searcher()
-        query = tantivy.Query.term_query(self._conn.schema, "record_id", record_id)
-        return bool(searcher.search(query, 1).hits)
+        with self._conn.lock:
+            searcher = self._conn.index.searcher()
+            query = tantivy.Query.term_query(self._conn.schema, "record_id", record_id)
+            return bool(searcher.search(query, 1).hits)
 
     async def clear(self) -> None:
         await self._ensure()

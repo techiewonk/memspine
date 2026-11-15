@@ -1,0 +1,439 @@
+{
+  "artifact": "PA-113 dependency refresh preparation",
+  "prepared_at_utc": "2026-11-15T10:55:10.532726+00:00",
+  "status": "plan_only_pending_execution",
+  "pa113_status": "OPEN",
+  "scope": "Read-only inventory and future execution plan; no upgrade, install, benchmark or compatibility test executed for this artifact.",
+  "source_evidence": {
+    "audit_path": "docs/provider_verification/dependency-audit.json",
+    "audit_checked_at": "2026-11-15T10:04:40.503886+00:00",
+    "audit_sha256": "823b4340efefa71b6743479333e6cbfec8fb6e8f455327559f037dea604d6fd7",
+    "pyproject_sha256": "6f43734642ce154f474d99114fd19b24933e7e3b660b2d418f46b27e2767bff0",
+    "uv_lock_sha256": "fd2c52e1c2d68616d580ff27c83e233ad259b20eed4607292014827da5833591",
+    "audit_source_hashes_match_current": true,
+    "direct_and_build_rows": 68,
+    "outdated_locked_direct_rows": 23,
+    "build_isolated_unlocked_row": "hatchling",
+    "metadata_limit": "Published Requires-Python and release-file metadata, not runtime proof"
+  },
+  "policy": {
+    "python": "3.13",
+    "uv_tool": ".venv-rm150/Scripts/uv.exe (0.13.8); use its absolute path when executing later",
+    "resolution": "Whole graph, stable non-yanked, compatible releases; no dependency overrides or blind independent latest-version pins.",
+    "direct_minimums": "After actual candidate resolution and fresh metadata audit, align direct minimums to compatible selected releases per ADR-070; inspect entire transitive diff.",
+    "ladybug": "Keep existing >=0.22.1,<0.23; audited 0.22.3 is already permitted. No cap widening.",
+    "huggingface_hub": "Keep current >=2.2.0,<3 policy; do not revive historical <2 blocker text.",
+    "optional_core_boundary": "Preserve slim core and optional extras; model/native packages are separate lanes.",
+    "historical_evidence": "Old native and performance results remain tied to their old source and lock hashes."
+  },
+  "packages": [
+    {
+      "name": "any-llm-sdk",
+      "locked": [
+        "1.41.0"
+      ],
+      "audited_target_within_constraints": "1.50.0",
+      "declared_areas": [
+        "anyllm"
+      ],
+      "test_lane": "optional-anyllm",
+      "gates": [
+        "tests/unit/test_registries.py",
+        "tests/unit/providers/test_model_slot_descriptors.py",
+        "base-package import smoke"
+      ],
+      "limitation": "Provider SDK extras and hosted API calls require separate opt-in; base import is not provider runtime proof."
+    },
+    {
+      "name": "boto3",
+      "locked": [
+        "1.43.123"
+      ],
+      "audited_target_within_constraints": "1.44.3",
+      "declared_areas": [
+        "aws"
+      ],
+      "test_lane": "optional-aws",
+      "gates": [
+        "tests/unit/clients/test_s3_connector.py",
+        "tests/unit/clients/test_model_http_clients.py",
+        "boto3 and Bedrock client import smoke"
+      ],
+      "limitation": "Mock contracts only; no paid Bedrock or S3 call."
+    },
+    {
+      "name": "fastapi",
+      "locked": [
+        "0.162.0"
+      ],
+      "audited_target_within_constraints": "0.163.1",
+      "declared_areas": [
+        "group:dev",
+        "rest"
+      ],
+      "test_lane": "rest",
+      "gates": [
+        "tests/unit/api/rest/"
+      ],
+      "limitation": "ASGI route, validation and lifecycle tests; no external server deployment claim."
+    },
+    {
+      "name": "import-linter",
+      "locked": [
+        "2.15"
+      ],
+      "audited_target_within_constraints": "2.16",
+      "declared_areas": [
+        "dev"
+      ],
+      "test_lane": "dev-tooling",
+      "gates": [
+        "tests/unit/test_ci_importlinter.py",
+        "scripts/ci_importlinter.py"
+      ],
+      "limitation": "Architecture lint must run with the selected candidate environment."
+    },
+    {
+      "name": "json-repair",
+      "locked": [
+        "0.64.2"
+      ],
+      "audited_target_within_constraints": "0.64.9",
+      "declared_areas": [
+        "core"
+      ],
+      "test_lane": "core-structured-llm",
+      "gates": [
+        "tests/unit/services/llm/test_structured.py",
+        "tests/unit/services/llm/test_structured_retry.py"
+      ],
+      "limitation": "Offline repair and retry contracts; no model service call."
+    },
+    {
+      "name": "ladybug",
+      "locked": [
+        "0.22.1"
+      ],
+      "audited_target_within_constraints": "0.22.3",
+      "declared_areas": [
+        "graph"
+      ],
+      "test_lane": "graph-native",
+      "gates": [
+        "tests/unit/services/graph/test_ladybug.py",
+        "tests/unit/services/graph/test_rm96_pushdown_walk.py",
+        "tests/unit/services/graph/test_rm116_ladybug_frontier.py",
+        "tests/unit/test_graph_erasure.py",
+        "tests/unit/core/test_replay.py",
+        "scripts/benchmark_graph_filter.py"
+      ],
+      "limitation": "Existing <0.23 storage-format cap remains; real graph parity/replay/erasure and fresh quiet RM-96 timing required."
+    },
+    {
+      "name": "llama-cpp-python",
+      "locked": [
+        "0.3.36"
+      ],
+      "audited_target_within_constraints": "0.3.37",
+      "declared_areas": [
+        "llmlocal"
+      ],
+      "test_lane": "optional-native-build",
+      "gates": [
+        "tests/unit/providers/test_provider_llamacpp_lifecycle.py",
+        "Windows CPython 3.13 native build and inference gate"
+      ],
+      "limitation": "Audited 0.3.37 has no Windows CPython 3.13 wheel; mock tests and metadata cannot establish native build or model inference."
+    },
+    {
+      "name": "mkdocs-material",
+      "locked": [
+        "9.8.0"
+      ],
+      "audited_target_within_constraints": "9.8.1",
+      "declared_areas": [
+        "dev"
+      ],
+      "test_lane": "docs-tooling",
+      "gates": [
+        "mkdocs build --strict"
+      ],
+      "limitation": "Docs build only; no runtime behavior claim."
+    },
+    {
+      "name": "onnxruntime",
+      "locked": [
+        "1.31.1"
+      ],
+      "audited_target_within_constraints": "1.32.0",
+      "declared_areas": [
+        "core"
+      ],
+      "test_lane": "core-onnx",
+      "gates": [
+        "tests/unit/clients/test_onnx_weights.py",
+        "tests/unit/clients/test_onnx_files.py",
+        "tests/unit/services/embedding/test_onnx_parity.py",
+        "scripts/benchmark_onnx_envelope.py"
+      ],
+      "limitation": "Use existing offline fixtures/cache; no model-weight download or unsupported execution-provider claim."
+    },
+    {
+      "name": "psycopg",
+      "locked": [
+        "3.3.6"
+      ],
+      "audited_target_within_constraints": "3.3.9",
+      "declared_areas": [
+        "postgres"
+      ],
+      "test_lane": "live-postgres",
+      "gates": [
+        "tests/unit/clients/test_postgres_client.py",
+        "tests/integration/test_rm34_pg_event_order.py",
+        "tests/integration/test_storage_backends.py",
+        "tests/integration/providers/test_pgvector_contract.py",
+        "tests/unit/services/storage/test_intake_ledger_conformance.py"
+      ],
+      "limitation": "Run against an isolated owned database; global commit order, cancellation and ledger need real PostgreSQL."
+    },
+    {
+      "name": "pydantic",
+      "locked": [
+        "2.14.2"
+      ],
+      "audited_target_within_constraints": "2.14.3",
+      "declared_areas": [
+        "core"
+      ],
+      "test_lane": "core-config",
+      "gates": [
+        "tests/unit/config/",
+        "tests/combinations/test_config_validate_golden.py",
+        "tests/unit/providers/test_provider_settings.py"
+      ],
+      "limitation": "Validate schema rejection, effective config and golden serialization."
+    },
+    {
+      "name": "pydantic-settings",
+      "locked": [
+        "2.16.2"
+      ],
+      "audited_target_within_constraints": "2.16.3",
+      "declared_areas": [
+        "core"
+      ],
+      "test_lane": "core-config",
+      "gates": [
+        "tests/unit/config/",
+        "tests/combinations/test_config_validate_golden.py",
+        "tests/unit/config/test_effective_config_snapshot.py"
+      ],
+      "limitation": "Validate environment/config precedence without exposing local secrets."
+    },
+    {
+      "name": "pymongo",
+      "locked": [
+        "4.19.0"
+      ],
+      "audited_target_within_constraints": "4.20.0",
+      "declared_areas": [
+        "mongodb"
+      ],
+      "test_lane": "live-mongodb",
+      "gates": [
+        "tests/unit/services/storage/test_mongodb_records.py",
+        "tests/integration/test_mongodb_managed_live.py",
+        "tests/e2e/test_mongodb_engine.py"
+      ],
+      "limitation": "Native async driver, transaction, replica-set, reopen and engine paths need an owned live server."
+    },
+    {
+      "name": "pytest-asyncio",
+      "locked": [
+        "1.4.1"
+      ],
+      "audited_target_within_constraints": "1.5.0",
+      "declared_areas": [
+        "dev"
+      ],
+      "test_lane": "dev-tooling",
+      "gates": [
+        "tests/unit/test_asyncio_loop_factory_hook.py",
+        "chunked asynchronous unit and integration suites"
+      ],
+      "limitation": "Fixture-loop and cancellation behavior must be checked under the candidate plugin."
+    },
+    {
+      "name": "ruff",
+      "locked": [
+        "0.17.3"
+      ],
+      "audited_target_within_constraints": "0.17.5",
+      "declared_areas": [
+        "dev"
+      ],
+      "test_lane": "dev-tooling",
+      "gates": [
+        "ruff check .",
+        "ruff format --check ."
+      ],
+      "limitation": "Tool output and formatting must be evaluated against the candidate release."
+    },
+    {
+      "name": "sentence-transformers",
+      "locked": [
+        "6.2.0"
+      ],
+      "audited_target_within_constraints": "6.3.0",
+      "declared_areas": [
+        "st"
+      ],
+      "test_lane": "optional-model",
+      "gates": [
+        "tests/unit/providers/test_shared_model_weights.py",
+        "tests/unit/providers/test_provider_reranker_wiring.py",
+        "sentence-transformers import smoke"
+      ],
+      "limitation": "No model-weight download; real model quality/inference remains separate."
+    },
+    {
+      "name": "sqlalchemy",
+      "locked": [
+        "2.1.6"
+      ],
+      "audited_target_within_constraints": "2.1.8",
+      "declared_areas": [
+        "core"
+      ],
+      "test_lane": "core-sql",
+      "gates": [
+        "tests/unit/services/storage/test_migrations.py",
+        "tests/unit/services/storage/test_sqlite_engine.py",
+        "tests/integration/test_storage_backends.py",
+        "tests/integration/test_rm34_pg_event_order.py"
+      ],
+      "limitation": "Exercise async SQL, migration, real PostgreSQL order/ledger and cancellation against isolated DB paths."
+    },
+    {
+      "name": "sqlcipher3",
+      "locked": [
+        "0.6.4"
+      ],
+      "audited_target_within_constraints": "0.6.5",
+      "declared_areas": [
+        "encrypt"
+      ],
+      "test_lane": "optional-encrypt-native",
+      "gates": [
+        "tests/unit/clients/test_sqlite_encryption.py",
+        "separate [encrypt] install and import smoke"
+      ],
+      "limitation": "Native wheel/build and encrypted file round trip are separate; not in the no-heavy candidate lane."
+    },
+    {
+      "name": "temporalio",
+      "locked": [
+        "1.35.0"
+      ],
+      "audited_target_within_constraints": "1.36.1",
+      "declared_areas": [
+        "temporal"
+      ],
+      "test_lane": "live-temporal",
+      "gates": [
+        "tests/unit/workers/test_temporal_runner.py",
+        "tests/unit/runtime/test_temporal_outbox_transport.py",
+        "tests/integration/test_temporal_resonate_recovery.py"
+      ],
+      "limitation": "Use actual pinned SDK and owned server for Activity dispatch, Engine reopen, continue-as-new history/serialization and shutdown; mocks alone are insufficient."
+    },
+    {
+      "name": "transformers",
+      "locked": [
+        "5.22.1"
+      ],
+      "audited_target_within_constraints": "5.23.0",
+      "declared_areas": [
+        "decider",
+        "st"
+      ],
+      "test_lane": "optional-model",
+      "gates": [
+        "tests/unit/services/decider/test_decider.py",
+        "tests/unit/services/rerank/test_qwen3_rerank.py",
+        "tests/unit/providers/test_model_slot_descriptors.py",
+        "transformers import smoke"
+      ],
+      "limitation": "Decider/ST/NER compatibility requires separate optional lanes; no model-weight download."
+    },
+    {
+      "name": "typer",
+      "locked": [
+        "0.27.3"
+      ],
+      "audited_target_within_constraints": "0.29.1",
+      "declared_areas": [
+        "core"
+      ],
+      "test_lane": "core-cli",
+      "gates": [
+        "tests/unit/test_cli.py",
+        "tests/unit/test_cli_outbox.py",
+        "tests/unit/test_cli_models_fetch.py"
+      ],
+      "limitation": "CLI parsing/help and same-backend outbox behavior."
+    },
+    {
+      "name": "types-pyyaml",
+      "locked": [
+        "6.0.12.20261030"
+      ],
+      "audited_target_within_constraints": "6.0.12.20261113",
+      "declared_areas": [
+        "group:dev"
+      ],
+      "test_lane": "dev-typing",
+      "gates": [
+        "mypy --strict src/memspine",
+        "tests/unit/config/test_loader.py"
+      ],
+      "limitation": "Typing stubs are checked by strict mypy; no runtime package behavior is implied."
+    },
+    {
+      "name": "xxhash",
+      "locked": [
+        "4.0.2"
+      ],
+      "audited_target_within_constraints": "4.1.0",
+      "declared_areas": [
+        "core"
+      ],
+      "test_lane": "core-fingerprint",
+      "gates": [
+        "tests/unit/core/policies/test_dedup.py",
+        "tests/unit/providers/test_provider_fingerprint.py",
+        "tests/unit/golden/"
+      ],
+      "limitation": "Preserve content identity, dedup and provider fingerprint goldens."
+    }
+  ],
+  "future_execution": [
+    "Wait for reviewed RM-34/RM-45 wave checkpoint and a verified clean baseline revision. Reuse that reviewed clean main checkout as baseline; use Codex create_worktree for one isolated candidate worktree from exactly that checkpoint.",
+    "Give baseline and candidate separate fresh Python 3.13 environments and separate owned service/database/path fixtures; never mutate main .venv, .venv-rm150, current lock or the currently owned service stack during preparation. Serialize destructive integration cases.",
+    "Record baseline tests under the old lock before candidate changes. In candidate run absolute modern uv lock --upgrade for the full graph, inspect direct/transitive additions, removals, downgrades, constraints, yanks and wheel metadata, then update direct minimums based on actual compatible resolution.",
+    "Check candidate lock with uv lock --check. Install dev plus no-heavy graph/postgres/mongodb/neo4j/temporal/rest/aws/anyllm/cache/taskiq extras into candidate environment with uv sync --locked; run uv pip check --python on that exact interpreter, import smokes and build-isolated wheel.",
+    "Run Ruff, strict mypy, config and golden tests, focused package lanes, then unit/integration/combinations/evals in memory-bounded chunks. Preserve exact pass/skip/xfail/quarantine counts and compare baseline versus candidate under the same code and fixtures.",
+    "Run real PostgreSQL global ordering/ledger and cancellation, Mongo transaction/reopen, seven-backend lifecycle, Temporal Activity/reopen/continue-as-new history/shutdown, Ladybug graph/replay/erasure in isolated owned services. Never expose DSNs or credentials in logs.",
+    "Run optional SQLCipher, ST/decider/NER and llama-cpp native/toolchain lanes separately. Do not download model weights or claim untested native inference.",
+    "For RM-96, use a corrected quiet reference-host protocol, same world/fixture/source and fresh candidate samples; do not relabel historical benchmark records.",
+    "Refresh dependency audit only after candidate changes, with --out directed to candidate artifact (audit --check writes its default output). Record exact revision, hashes, interpreter, lock, wheel/install/import, test and residual evidence.",
+    "Route any runtime compatibility fix through bounded independent reviews. Require two distinct final reviews of dependency diff, provenance and reproducibility before root decides whether to merge or close PA-113."
+  ],
+  "reference_docs": [
+    "docs/adr/ADR-070-python313-dependency-refresh.md",
+    "docs/adr/ADR-071-temporal-resonate-orchestration.md",
+    "docs/adr/ADR-084-own-onnx-embedder-and-reranker.md",
+    "docs/adr/ADR-085-own-openai-compatible-client-and-anyllm-extra.md"
+  ]
+}

@@ -50,6 +50,7 @@ from urllib.error import HTTPError
 from urllib.parse import urlsplit
 from urllib.request import urlopen
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import probe
 from memspine.clients.base import ConnectorIdentity, Locality, Scope
 from memspine.exceptions import MissingServiceError, StorageError
@@ -719,13 +720,17 @@ class MongodLauncher:
     async def close(self) -> None:
         """Stop the owned server with ``shutdown`` (terminate if it hangs); an adopted server
         is left running. Idempotent."""
-        await asyncio.to_thread(self._close_sync)
+        await drain_close(asyncio.to_thread(self._close_sync))
 
     def _close_sync(self) -> None:
         with self._lock:
-            self._opened = False
-            process, self._process = self._process, None
-            if process is None or process.poll() is not None:
+            process = self._process
+            if process is None:
+                self._opened = False
+                return
+            if process.poll() is not None:
+                self._process = None
+                self._opened = False
                 return
             _log.info("mongod.shutdown", extra={"port": self._spec.port})
             try:
@@ -739,12 +744,16 @@ class MongodLauncher:
             try:
                 process.wait(self._spec.shutdown_timeout_s)
             except subprocess.TimeoutExpired:
-                self._process = process
                 self._terminate()
+            self._process = None
+            self._opened = False
 
     def _terminate(self) -> None:
-        process, self._process = self._process, None
-        if process is None or process.poll() is not None:
+        process = self._process
+        if process is None:
+            return
+        if process.poll() is not None:
+            self._process = None
             return
         process.terminate()
         try:
@@ -752,6 +761,7 @@ class MongodLauncher:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(_TERMINATE_GRACE_S)
+        self._process = None
 
 
 def _vcruntime_message(code: int) -> str:

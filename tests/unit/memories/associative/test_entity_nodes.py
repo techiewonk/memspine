@@ -28,6 +28,7 @@ from memspine.memories.associative.links import RESERVED_RELS, link_event
 from memspine.memories.associative.projector import GraphProjector
 from memspine.memories.associative.store import AssociativeMemory
 from memspine.services.graph.sql_adjacency import SqlAdjacencyGraph
+from memspine.services.storage.entity_projection_memory import MemoryEntityIndexProjection
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
 
@@ -38,16 +39,15 @@ class _Writer:
     """The write door's entity step: links minted into the event, then every projector."""
 
     def __init__(self, graph: SqlAdjacencyGraph, policy: EntityPolicy | None = ON) -> None:
-        self.storage = object()
+        self.storage = MemoryEntityIndexProjection()
         self.index = EntityIndexProjector(self.storage)
         self.graph = GraphProjector(graph, policy)
         self.policy = policy
-        self.log: list[MemoryEvent] = []
+        self.log = self.storage.events
 
     async def apply(self, event: MemoryEvent) -> MemoryEvent:
         event = await with_entity_links(self.storage, event, self.policy, projector=self.index)
-        event = event.model_copy(update={"seq": len(self.log) + 1})
-        self.log.append(event)
+        event = self.storage.append(event)
         await self.index.apply(event)
         await self.graph.apply(event)
         return event

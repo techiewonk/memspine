@@ -11,6 +11,7 @@ import os
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import probe
 from memspine.clients._common.endpoints import endpoint_from_env, is_loopback
 from memspine.clients._common.secrets import auth_digest
@@ -173,6 +174,10 @@ class WeaviateClient:
         return await probe(deadline_s, check)
 
     async def close(self) -> None:
-        client, self._client = self._client, None
+        await drain_close(self._close_owned())
+
+    async def _close_owned(self) -> None:
+        client = self._client
         if client is not None:
             await client.close()
+            self._client = None

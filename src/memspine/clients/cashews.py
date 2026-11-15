@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 from urllib.parse import parse_qsl, urlsplit
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import probe
 from memspine.clients._common.endpoints import is_loopback
 from memspine.clients._common.secrets import auth_digest
@@ -124,6 +125,10 @@ class CashewsClient:
         return await probe(deadline_s, check)
 
     async def close(self) -> None:
+        await drain_close(self._close_owned())
+
+    async def _close_owned(self) -> None:
         if self._cache is not None:
-            cache, self._cache = self._cache, None
+            cache = self._cache
             await cache.close()
+            self._cache = None

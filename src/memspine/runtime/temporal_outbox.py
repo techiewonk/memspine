@@ -54,7 +54,7 @@ from typing import Any
 
 from memspine.exceptions import ConfigError, MissingServiceError
 from memspine.observability import tap
-from memspine.runtime.runner import DrainReport, FenceReason, InlineRunner, _Fenced
+from memspine.runtime.runner import DrainReport, FenceReason, InlineRunner, _Fenced, _Stop
 from memspine.schemas.durable.common import OwnerScope
 
 __all__ = [
@@ -64,6 +64,7 @@ __all__ = [
     "OutboxActivity",
     "OutboxActivityFenced",
     "TemporalFailure",
+    "TemporalOutboxRunner",
     "drain_request",
     "kick_outbox_drain",
     "outbox_workflow_id",
@@ -156,11 +157,18 @@ def _parse(request: object) -> tuple[OwnerScope, str, int]:
     return scope, stage, max_items
 
 
-def outbox_workflow_id(deployment_id: str, scope: OwnerScope, stage: str) -> str:
-    """One drain workflow per (deployment, scope, stage): duplicate kicks join the running one.
+def outbox_workflow_id(
+    deployment_id: str, scope: OwnerScope, stage: str, config_fingerprint: str
+) -> str:
+    """One drain workflow per (deployment, backend config, scope, stage).
+
+    Duplicate kicks for the same backend join the running one; different backends
+    never join one another's workflow even when a deployment id was reused.
     Bounded and opaque: no tenant or owner text reaches Temporal's visibility store."""
     digest = hashlib.sha256(
-        "\0".join((deployment_id, scope.tenant, scope.owner, scope.owner_kind, stage)).encode()
+        "\0".join(
+            (deployment_id, config_fingerprint, scope.tenant, scope.owner, scope.owner_kind, stage)
+        ).encode()
     ).hexdigest()[:32]
     return f"memspine-outbox-{digest}"
 
@@ -197,6 +205,26 @@ class OutboxActivity:
         back, ``more``) or ``drained``. Raises :class:`OutboxActivityFenced` on a fence and
         :class:`InvalidDrainRequest` on bad input. Any other exception (a crash) leaves the lease
         to expire, so a retry reclaims and replays."""
+        runner = self.runner
+        if isinstance(runner, TemporalOutboxRunner):
+            runner._validate_request(request)
+            runner._activity_enter()
+        try:
+            return await self._drain_step(
+                request, owner=owner, heartbeat=heartbeat, retry_holes=retry_holes
+            )
+        finally:
+            if isinstance(runner, TemporalOutboxRunner):
+                runner._activity_exit()
+
+    async def _drain_step(
+        self,
+        request: Mapping[str, Any],
+        *,
+        owner: str | None,
+        heartbeat: Callable[[dict[str, Any]], None] | None,
+        retry_holes: bool,
+    ) -> dict[str, Any]:
         scope, stage, max_items = _parse(request)
         runner = self.runner
         if stage not in runner.stages:
@@ -241,6 +269,9 @@ class OutboxActivity:
             raise OutboxActivityFenced(fence.reason, retry_after_s=retry_after) from fence
         except asyncio.CancelledError:
             # Temporal cancelled the Activity (timeout or workflow cancel): give the job back.
+            await runner._release(claim)
+            raise
+        except _Stop:
             await runner._release(claim)
             raise
         if not finished and not await runner._release(claim):
@@ -330,10 +361,171 @@ class OutboxActivity:
         register(OUTBOX_DRAIN_ACTIVITY, self.temporal_activity)
 
 
+class TemporalOutboxRunner(InlineRunner):
+    """Producer-side outbox transport. The Activity uses this runner's plain fenced step.
+
+    Window ingestion owns the handlers and calls ``drain`` as before. Only the transport
+    changes: a drain awaits one workflow per durable scope, discovery before windows.
+    """
+
+    def __init__(
+        self,
+        *args: Any,
+        deployment_id: str,
+        config_fingerprint: str,
+        activity_timeout_s: float,
+        retry_max_attempts: int,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(*args, **kwargs)
+        self.deployment_id = deployment_id
+        if len(config_fingerprint) != 64 or any(
+            char not in "0123456789abcdef" for char in config_fingerprint
+        ):
+            raise ConfigError("Temporal outbox config_fingerprint must be a SHA-256 digest")
+        self.config_fingerprint = config_fingerprint
+        self.activity_timeout_s = activity_timeout_s
+        self.retry_max_attempts = retry_max_attempts
+        self._temporal_runner: Any = None
+        self._activity_tasks: set[asyncio.Task[Any]] = set()
+        self._io_tasks: set[asyncio.Task[Any]] = set()
+
+    def _activity_enter(self) -> None:
+        if self._stopping:
+            raise RuntimeError("Temporal outbox runner is stopping")
+        task = asyncio.current_task()
+        if task is None:
+            raise RuntimeError("Temporal outbox Activity needs an asyncio task")
+        self._activity_tasks.add(task)
+
+    def _activity_exit(self) -> None:
+        task = asyncio.current_task()
+        if task is not None:
+            self._activity_tasks.discard(task)
+
+    async def _io(self, fn: Callable[..., Any], *args: Any, **kw: Any) -> Any:
+        # Shield SQL work from Activity cancellation. asyncio.to_thread continues
+        # running after its caller is cancelled; the tracked task lets stop wait
+        # for that thread before the outbox store can close.
+        task = asyncio.create_task(super()._io(fn, *args, **kw))
+        self._io_tasks.add(task)
+        task.add_done_callback(self._io_tasks.discard)
+        return await asyncio.shield(task)
+
+    def bind(self, temporal_runner: Any) -> None:
+        """Attach before the Temporal worker starts and before recovery can run."""
+        if self._temporal_runner is not None:
+            raise ConfigError("Temporal outbox runner is already bound")
+        OutboxActivity(self).attach(temporal_runner)
+        self._temporal_runner = temporal_runner
+
+    def request(
+        self, scope: OwnerScope, stage: str, *, max_items: int = _DEFAULT_MAX_ITEMS
+    ) -> dict[str, Any]:
+        """The fenced Activity identity for this deployment and configured backend."""
+        return {
+            **drain_request(scope, stage, max_items=max_items),
+            "deployment_id": self.deployment_id,
+            "config_fingerprint": self.config_fingerprint,
+        }
+
+    def _validate_request(self, request: Mapping[str, Any]) -> None:
+        if not isinstance(request, Mapping):
+            raise InvalidDrainRequest("outbox drain request must be an object")
+        if (
+            request.get("deployment_id") != self.deployment_id
+            or request.get("config_fingerprint") != self.config_fingerprint
+        ):
+            raise InvalidDrainRequest("outbox drain deployment or backend identity mismatch")
+
+    async def start(self) -> DrainReport:
+        self._stopping = False
+        return await self.drain()
+
+    async def stop(self, deadline_s: float = 5.0) -> DrainReport:
+        self._stopping = True
+        active = tuple(self._activity_tasks)
+        if active:
+            _, pending = await asyncio.wait(active, timeout=max(deadline_s, 0.0))
+            for task in pending:
+                task.cancel()
+            if pending:
+                await asyncio.gather(*pending, return_exceptions=True)
+        while self._io_tasks:
+            await asyncio.gather(*tuple(self._io_tasks), return_exceptions=True)
+        return await super().stop(0)
+
+    def close(self) -> None:
+        if self._activity_tasks or self._io_tasks:
+            raise RuntimeError("cannot close outbox store while an Activity uses it")
+        super().close()
+
+    async def drain(self, scope: OwnerScope | None = None) -> DrainReport:
+        temporal_runner = self._temporal_runner
+        if temporal_runner is None or temporal_runner.client is None:
+            raise RuntimeError("Temporal outbox drain requires a started worker")
+        report = DrainReport()
+        # A discovery Activity can append window items. Recompute the latter's scopes
+        # after all discovery workflows finish, including namespaces unseen this run.
+        for stage in self.stages:
+            if self._stopping:
+                report.stopped = True
+                break
+            candidates = (
+                [scope]
+                if scope is not None
+                else [
+                    *self.store.item_scopes(stage),
+                    *self.store.hole_scopes(stage),
+                    *(candidate for candidate, kind in self.store.live_scopes() if kind == stage),
+                ]
+            )
+            seen: set[tuple[str, str, str]] = set()
+            for candidate in candidates:
+                key = (candidate.tenant, candidate.owner, candidate.owner_kind)
+                if key in seen:
+                    continue
+                seen.add(key)
+                # A duplicate kick may join a workflow just as its last Activity
+                # completes. Recheck the durable watermark and start a new run if
+                # additional items arrived in that gap.
+                while not self._stopping:
+                    top = self.store.last_offset(candidate, stage)
+                    progress = self.book.progress(candidate, stage)
+                    holes = any(not hole.waived for hole in progress.holes)
+                    if top <= progress.watermark and not holes:
+                        break
+                    handle = await kick_outbox_drain(
+                        temporal_runner.client,
+                        deployment_id=self.deployment_id,
+                        config_fingerprint=self.config_fingerprint,
+                        task_queue=temporal_runner.task_queue,
+                        scope=candidate,
+                        stage=stage,
+                        activity_timeout_s=self.activity_timeout_s,
+                        heartbeat_timeout_s=min(60.0, self.activity_timeout_s / 2),
+                        retry_max_attempts=self.retry_max_attempts,
+                    )
+                    result = await handle.result()
+                    report.jobs += int(result.get("steps", 0))
+                    report.items += int(result.get("items", 0))
+                    report.holes += int(result.get("holes", 0))
+                    # Holes are retried by the Activity within their budget. If
+                    # the workflow returned idle with an open hole, a fresh kick
+                    # would only repeat that same retry immediately.
+                    if (
+                        self.store.last_offset(candidate, stage)
+                        <= self.book.progress(candidate, stage).watermark
+                    ):
+                        break
+        return report
+
+
 async def kick_outbox_drain(
     client: Any,
     *,
     deployment_id: str,
+    config_fingerprint: str,
     task_queue: str,
     scope: OwnerScope,
     stage: str,
@@ -347,21 +539,28 @@ async def kick_outbox_drain(
     a no-op). Like a taskiq message, a kick only wakes a drainer: losing one loses nothing, the
     rows are durable and the next kick (or an inline drain) finds them."""
     try:
-        from temporalio.common import WorkflowIDConflictPolicy
+        from temporalio.common import WorkflowIDConflictPolicy, WorkflowIDReusePolicy
     except ImportError as exc:
         raise MissingServiceError("Temporal outbox drain", "temporal") from exc
     request = {
         **drain_request(scope, stage, max_items=max_items),
+        "deployment_id": deployment_id,
+        "config_fingerprint": config_fingerprint,
         "activity_timeout_s": float(activity_timeout_s),
         "heartbeat_timeout_s": float(heartbeat_timeout_s),
         "retry_max_attempts": int(retry_max_attempts),
         "max_steps": int(max_steps),
     }
     _parse(request)
+    if len(config_fingerprint) != 64 or any(
+        char not in "0123456789abcdef" for char in config_fingerprint
+    ):
+        raise InvalidDrainRequest("config_fingerprint must be a SHA-256 digest")
     return await client.start_workflow(
         OUTBOX_DRAIN_WORKFLOW,
         request,
-        id=outbox_workflow_id(deployment_id, scope, stage),
+        id=outbox_workflow_id(deployment_id, scope, stage, config_fingerprint),
         task_queue=task_queue,
         id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+        id_reuse_policy=WorkflowIDReusePolicy.ALLOW_DUPLICATE,
     )

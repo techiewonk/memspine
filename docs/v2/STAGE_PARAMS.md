@@ -196,13 +196,12 @@ Models:
 | `write.batch_max_age_s` | `30.0` | float ge 0.0 | Longest a closed window waits for company before its batch goes out (seconds). | ingest | - |
 | `write.batch_max_tokens` | `3000` | int ge 64 | Token budget of one batched extraction call. | ingest | - |
 | `write.batch_max_windows` | `8` | int ge 1, le 64 | Most windows in one call; 1 turns batching off. | ingest | - |
-| `write.role_policy` | `false` | bool | `true`: raw storage keeps every role, and derivation reads only what the role allows. | ingest | S62 |
 | `write.segment_calendar_day_cut` | `false` | bool | Also cut when the source date changes. | ingest | - |
 | `write.segment_gap_s` | `1800.0` | float ge 0.0 | Seconds of source-time silence that cut a window (0: no gap cut). | ingest | - |
 | `write.segment_grow_tokens` | `400` | int ge 1 | A window past `write.window_max_turns` keeps growing until it holds this many (estimated) tokens. | ingest | - |
 | `write.segment_max_turns` | `24` | int ge 1, le 256 | Hard turn cap of a growing window (never below `write.window_max_turns`). | ingest | - |
 | `write.window_async` | `true` | bool | `true` runs window calls in a background task after the write returns (idle debounced); | ingest | - |
-| `write.window_idle_s` | `120.0` | float ge 0.0 | Seconds without a write in a namespace before its open window is cut. 0: never. | ingest | - |
+| `write.window_idle_s` | `30.0` | float ge 0.0 | Seconds without a write in a namespace before its open window is cut. 0: never. | ingest | - |
 | `write.window_max_tokens` | `1500` | int ge 64 | A window closes before the turn that would pass this many prompt tokens (4 characters each). | ingest | - |
 | `write.window_max_turns` | `6` | int ge 1, le 64 | A window closes at this many turns. | ingest | - |
 | `write.window_topic_k` | `2.0` | float ge 0.0 | A window closes at a topic shift: the similarity of two consecutive turns falls below the store's own running mean minus k standard deviations of that similarity (per namespace, learned from at least  | ingest | - |
@@ -211,9 +210,7 @@ Models:
 
 `windows._live_turns`
 
-| Key | Default | Type / range | Effect | Rebuild | Screens |
-|---|---|---|---|---|---|
-| `write.role_policy` | `false` | bool | `true`: raw storage keeps every role, and derivation reads only what the role allows. | ingest | S62 |
+No tunable keys.
 
 ## A17 Pre-pass (`write.prepass`)
 

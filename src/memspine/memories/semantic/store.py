@@ -33,8 +33,21 @@ from memspine.schemas.durable.lineage import LineageEdge
 from memspine.schemas.durable.semantic import SemanticEnvelope
 from memspine.services.embedding.base import EmbeddingService
 from memspine.services.storage.base import StorageService
+from memspine.store.claim_cardinality import (
+    group_key,
+    record_group_of,
+    same_scoped_claim_or_untyped,
+    transition_group_of,
+    value_token,
+)
 from memspine.store.events import EventKind, MemoryEvent
-from memspine.store.records import MemoryRecord, RecordStatus, chrono_key
+from memspine.store.records import (
+    MemoryRecord,
+    RecordStatus,
+    RestatementSupportProof,
+    chrono_key,
+)
+from memspine.trust.restatement import claim_digest, independent_source, valid_proof
 
 __all__ = ["SemanticMemory", "SemanticWriteResult"]
 
@@ -45,6 +58,15 @@ AppendEvent = Callable[[MemoryEvent], Awaitable[None]]
 #: Channels of derived edge facts (C3 write-time, C2 extract_graph): such a record
 #: never re-triggers the write pipeline (bounded, depth-1 recursion).
 _DERIVED_EDGE_CHANNELS = frozenset({EDGE_CHANNEL, "extract_graph"})
+
+
+def _explicit_claim_transition(record: MemoryRecord) -> bool:
+    """A cited change/correction keeps the existing M4 transition behavior."""
+    raw = record.fingerprint.envelope
+    if raw is None:
+        return False
+    env = SemanticEnvelope.model_validate(raw)
+    return bool(env.change_hint or "retract" in record.tags)
 
 
 @dataclass(frozen=True)
@@ -182,10 +204,26 @@ class SemanticMemory(BaseMemory):
         return await self._write_locked(fact)
 
     async def _write_primary(self, record: MemoryRecord) -> SemanticWriteResult:
+        # Proof metadata is system-authored at the dedup boundary, never accepted from a caller or
+        # model-produced envelope.
+        if record.fingerprint.restatement_support is not None:
+            record = record.model_copy(
+                update={
+                    "fingerprint": record.fingerprint.model_copy(
+                        update={"restatement_support": None}
+                    )
+                }
+            )
         # GLiNER yields unasserted source annotations, not fact keys. Run it
         # before dedup so a dropped duplicate carries its spans in the existing
         # MERGE dropped_record snapshot. Spans remain bound to the input source.
         record = await self._annotate_entity_mentions(record)
+        # A fully accepted pinned one/contextual interpretation must be checked
+        # before dedup or any canonical WRITE; an unavailable digest fails closed.
+        scoped_group = record_group_of(record)
+        transition_group = (
+            transition_group_of(record) if _explicit_claim_transition(record) else None
+        )
         # Sketch computation (minhash over tokens) is CPU-bound — off the loop.
         record = await asyncio.to_thread(self._dedup.annotate, record)
         index = await self._index_for(record.namespace)
@@ -237,11 +275,48 @@ class SemanticMemory(BaseMemory):
                 record = record.model_copy(update=updates)
 
         # M4: conflict ladder over the active fact with the same key.
-        if record.entity is not None and record.attribute is not None:
-            existing = await self._storage.find_active_fact(
-                record.namespace, record.entity, record.attribute
-            )
-            if existing is not None and getattr(self._conflict, "perspective_key", False):
+        if (
+            record.entity is not None
+            and record.attribute is not None
+            and not (scoped_group is not None and not _explicit_claim_transition(record))
+        ):
+            if transition_group is not None:
+                peers = await self._storage.claim_group_snapshot(
+                    record.namespace, group_key(transition_group)
+                )
+                comparable = [peer for peer in peers if record_group_of(peer) == transition_group]
+                raw = record.fingerprint.envelope
+                incoming_env = SemanticEnvelope.model_validate(raw) if raw is not None else None
+                if "retract" in record.tags or (
+                    incoming_env is not None
+                    and (
+                        incoming_env.assessment.modality == "negated"
+                        or incoming_env.assessment.negated
+                    )
+                ):
+                    retracted_value = (
+                        value_token(incoming_env) if incoming_env is not None else None
+                    )
+                    comparable = [
+                        peer
+                        for peer in comparable
+                        if retracted_value is not None
+                        and peer.fingerprint.envelope is not None
+                        and value_token(SemanticEnvelope.model_validate(peer.fingerprint.envelope))
+                        == retracted_value
+                    ]
+                # A generic change hint does not identify one of several live
+                # alternatives. Leave every incumbent current when ambiguous.
+                existing = comparable[0] if len(comparable) == 1 else None
+            else:
+                existing = await self._storage.find_active_untyped_fact(
+                    record.namespace, record.entity, record.attribute
+                )
+            if (
+                existing is not None
+                and transition_group is None
+                and getattr(self._conflict, "perspective_key", False)
+            ):
                 existing = await self._incumbent_for_subject(record, existing)
             if existing is not None:
                 return await self._resolve_conflict(index, record, existing)
@@ -323,6 +398,11 @@ class SemanticMemory(BaseMemory):
                     status=candidate.status.value if candidate else "missing",
                 )
                 continue
+            # A text/vector match cannot collapse distinct accepted typed
+            # values, subjects or declared scopes. Exact same-value claims may
+            # still corroborate through M5; both untyped retain legacy M5.
+            if not same_scoped_claim_or_untyped(record, candidate):
+                continue
             live.append(candidate)
         if not live:
             return None
@@ -394,12 +474,13 @@ class SemanticMemory(BaseMemory):
         if not (await parents_of([kept.record_id])).get(kept.record_id):
             return  # the table is not in use for this record
         found = {p: await self._storage.get_record(p) for p in added}
+        proven = set(valid_proof(merged))
         await add(
             [
                 LineageEdge(
                     child=kept.record_id,
                     parent=p,
-                    role="support",
+                    role="support" if p in proven else "member",
                     parent_version=rec.version if rec is not None else None,
                 )
                 for p, rec in found.items()
@@ -672,14 +753,78 @@ def _restated_support(kept: MemoryRecord, incoming: MemoryRecord) -> dict[str, o
         if isinstance(turn, dict) and turn.get("source_id") in added and key not in held:
             held.add(key)
             evidence.append(item)
-    envelope = {**kept_env, "evidence": evidence}
+
+    # Role evidence is claim evidence too. Match bindings by their complete semantic identity,
+    # excluding only their source-local id and citations, then retain citations from each newly
+    # added source. If the binding sets do not match one-to-one, fail closed and do not union.
+    def binding_key(binding: dict[str, object]) -> bytes:
+        material = {k: v for k, v in binding.items() if k not in {"binding_id", "evidence"}}
+        return orjson.dumps(material, option=orjson.OPT_SORT_KEYS)
+
+    kept_bindings = list(kept_env.get("role_bindings") or [])
+    incoming_bindings = list(new_env.get("role_bindings") or [])
+    keyed: dict[bytes, list[dict[str, object]]] = {}
+    for binding in kept_bindings:
+        if isinstance(binding, dict):
+            keyed.setdefault(binding_key(binding), []).append(binding)
+    incoming_keys = sorted(
+        binding_key(binding) for binding in incoming_bindings if isinstance(binding, dict)
+    )
+    kept_keys = sorted(
+        binding_key(binding) for binding in kept_bindings if isinstance(binding, dict)
+    )
+    if incoming_keys != kept_keys:
+        return {}
+    merged_bindings: list[dict[str, object]] = []
+    for binding in kept_bindings:
+        if not isinstance(binding, dict):
+            return {}
+        matches = keyed.get(binding_key(binding), [])
+        if not matches:
+            return {}
+        # Consume one matching incoming binding, preserving multiplicity.
+        new_binding = next(
+            candidate
+            for candidate in incoming_bindings
+            if isinstance(candidate, dict) and binding_key(candidate) == binding_key(binding)
+        )
+        incoming_bindings.remove(new_binding)
+        held_evidence = list(binding.get("evidence") or [])
+        held_binding = {orjson.dumps(item, option=orjson.OPT_SORT_KEYS) for item in held_evidence}
+        for item in new_binding.get("evidence") or []:
+            turn = item.get("turn") if isinstance(item, dict) else None
+            encoded = orjson.dumps(item, option=orjson.OPT_SORT_KEYS)
+            if (
+                isinstance(turn, dict)
+                and turn.get("source_id") in added
+                and encoded not in held_binding
+            ):
+                held_binding.add(encoded)
+                held_evidence.append(item)
+        merged_bindings.append({**binding, "evidence": held_evidence})
+    envelope = {**kept_env, "evidence": evidence, "role_bindings": merged_bindings}
     try:
         SemanticEnvelope.model_validate(envelope)
     except ValueError:
         return {}
+    proof_sources = list(valid_proof(kept))
+    kept_source = independent_source(kept)
+    if not proof_sources and kept_source is not None:
+        proof_sources = [kept_source]
+    incoming_source = independent_source(incoming)
+    digest = claim_digest(kept_env)
+    incoming_digest = claim_digest(new_env)
+    support_proof: RestatementSupportProof | None = kept.fingerprint.restatement_support
+    if digest is not None and digest == incoming_digest and proof_sources and incoming_source:
+        proof_sources = list(dict.fromkeys([*proof_sources, incoming_source]))
+        support_proof = RestatementSupportProof(claim_digest=digest, source_ids=proof_sources)
+    else:
+        support_proof = kept.fingerprint.restatement_support
     return {
         "source": kept.source.model_copy(update={"parents": [*kept.source.parents, *added]}),
-        "fingerprint": kept.fingerprint.model_copy(update={"envelope": envelope}),
+        "fingerprint": kept.fingerprint.model_copy(
+            update={"envelope": envelope, "restatement_support": support_proof}
+        ),
     }
 
 

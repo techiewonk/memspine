@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import probe
 from memspine.clients.base import ConnectorIdentity, Locality, Scope
 from memspine.exceptions import MissingServiceError, StorageError
@@ -196,15 +197,14 @@ class LadybugClient:
             return False
 
     async def close(self) -> None:
-        conn, db = self._conn, self._db
-        self._conn = self._db = None
-        if conn is None and db is None:
-            return
+        await drain_close(self._close_owned())
 
-        def _close() -> None:
-            if conn is not None:
-                conn.close()
-            if db is not None:
-                db.close()
-
-        await asyncio.to_thread(_close)
+    async def _close_owned(self) -> None:
+        if self._conn is not None:
+            conn = self._conn
+            await asyncio.to_thread(conn.close)
+            self._conn = None
+        if self._db is not None:
+            db = self._db
+            await asyncio.to_thread(db.close)
+            self._db = None

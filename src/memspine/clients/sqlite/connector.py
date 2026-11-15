@@ -7,12 +7,10 @@ and :meth:`SQLiteClient.migration_connection` (``clients/sqlite/sync.py``).
 
 Concurrency model: file-backed databases use SQLAlchemy's default async pool
 (one connection per concurrent transaction, WAL handles multi-reader).
-``:memory:`` databases use a *named shared-cache* in-memory URI so the pool's
-connections all see the same database â€” a plain ``:memory:`` would give every
-pooled connection its own empty database, and a single shared static
-connection races under concurrent asyncio transactions. An anchor connection
-held for the client's lifetime keeps the shared in-memory database alive even
-when the pool is momentarily empty.
+``:memory:`` databases use a *named shared-cache* in-memory URI with one
+operational pooled connection. This serializes transactions without sharing a
+single checked-out connection between tasks. A separate raw aiosqlite anchor
+holds the same database alive across operational pool disposal and churn.
 
 Encryption at rest (#52, ADR-035, opt-in): ``cipher_key_env`` names the
 environment variable that holds a SQLCipher passphrase. Every pooled connection
@@ -37,12 +35,14 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar
 
+import aiosqlite
 from sqlalchemy import event as sa_event
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 from sqlalchemy.pool import AsyncAdaptedQueuePool
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import probe
 from memspine.clients._common.secrets import Secret, auth_digest, env_or_empty
 from memspine.clients.base import ConnectorIdentity, Locality, Scope
@@ -183,7 +183,7 @@ class SQLiteClient:
         self._spec = spec
         self._busy_timeout_ms = max(1, math.ceil(spec.busy_timeout_s * 1000))
         self._engine: AsyncEngine | None = None
-        self._anchor: AsyncConnection | None = None
+        self._anchor: aiosqlite.Connection | None = None
         #: #52: opens one keyed SQLCipher DB-API connection (set by ``open()``).
         self._cipher_connector: Callable[[], Any] | None = None
 
@@ -256,18 +256,25 @@ class SQLiteClient:
     async def open(self) -> None:
         if self._engine is not None:
             return
+        if self._anchor is not None:
+            raise StorageError("SQLiteClient close is incomplete — call close() again")
         spec = self._spec
         if spec.cipher_key_env is not None:
             engine = self._cipher_engine(spec.cipher_key_env)
         elif self.is_memory:
             # Unique per client: two ':memory:' clients must not share state.
-            # poolclass is forced explicitly â€” SQLAlchemy's aiosqlite dialect
-            # sees 'mode=memory' and would silently select StaticPool (one
-            # shared connection), reintroducing the exact concurrent-
-            # transaction interleaving this shared-cache URI exists to fix.
+            # Force one operational connection: shared-cache SQLite returns
+            # SQLITE_LOCKED immediately when independent writers overlap.
+            # The separate anchor below must not occupy this pool slot.
             name = f"memspine_mem_{next(_memory_db_counter)}"
             url = f"sqlite+aiosqlite:///file:{name}?mode=memory&cache=shared&uri=true"
-            engine = create_async_engine(url, echo=spec.echo, poolclass=AsyncAdaptedQueuePool)
+            engine = create_async_engine(
+                url,
+                echo=spec.echo,
+                poolclass=AsyncAdaptedQueuePool,
+                pool_size=1,
+                max_overflow=0,
+            )
         else:
             Path(self.path).parent.mkdir(parents=True, exist_ok=True)
             url = f"sqlite+aiosqlite:///{self.path}"
@@ -295,14 +302,33 @@ class SQLiteClient:
                 await engine.dispose()
                 raise
         else:
-            # Keep the shared in-memory database alive across pool churn. The
-            # engine is only published once the anchor holds, so a failed
-            # anchor cannot leave a half-open client that no-ops retries.
+            # The anchor has its own raw connection to the exact named URI;
+            # keeping a pooled connection checked out would deadlock pool_size=1.
+            # Publish the engine only after both handles have opened.
+            opening = asyncio.ensure_future(
+                aiosqlite.connect(f"file:{name}?mode=memory&cache=shared", uri=True)
+            )
             try:
-                self._anchor = await engine.connect()
+                # Shield the native connect: cancelling its future after the
+                # worker created sqlite3.Connection can orphan that handle.
+                anchor = await asyncio.shield(opening)
+                await _first_connection(engine, self._busy_timeout_ms)
             except BaseException:
-                await engine.dispose()
+
+                async def cleanup() -> None:
+                    try:
+                        try:
+                            opened = await opening
+                        except BaseException:
+                            pass
+                        else:
+                            await opened.close()
+                    finally:
+                        await engine.dispose()
+
+                await drain_close(cleanup())
                 raise
+            self._anchor = anchor
         self._engine = engine
 
     def _cipher_engine(self, key_env: str) -> AsyncEngine:
@@ -370,12 +396,17 @@ class SQLiteClient:
             await conn.exec_driver_sql("PRAGMA wal_checkpoint(TRUNCATE)")
 
     async def close(self) -> None:
-        if self._anchor is not None:
-            anchor, self._anchor = self._anchor, None
-            await anchor.close()
+        await drain_close(self._close_owned())
+
+    async def _close_owned(self) -> None:
         if self._engine is not None:
-            engine, self._engine = self._engine, None
+            engine = self._engine
             await engine.dispose()
+            self._engine = None
+        if self._anchor is not None:
+            anchor = self._anchor
+            await anchor.close()
+            self._anchor = None
 
     # -- lent sync access (clients/sqlite/sync.py) -------------------------------------------
     def sync_engine(self, pool_options: Mapping[str, Any] | None = None) -> Engine:

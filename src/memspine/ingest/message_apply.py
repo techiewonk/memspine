@@ -13,15 +13,14 @@ from memspine.core.reference_edges import REF_PREFIX, antecedent_kind
 from memspine.ingest import role_wiring
 from memspine.ingest.index_view import PENDING_INDEX_PREFIX
 from memspine.ingest.message_helpers import (
-    IDEM_TAG_PREFIX,
     INTAKE_LANDED,
     _index_view_prefixes,
-    _looks_like_recall,
     _participants_mode,
     _reply_target,
     _speaker_of,
     _stamp_turn,
     _turn_content,
+    deterministic_skip_reason,
 )
 from memspine.ingest.stamping import PENDING_STAMP, ConversationStamper, participants_of_call
 from memspine.models.encoders.query.temporal_query import RECOMMENDATION_TAG, is_recommendation
@@ -122,10 +121,16 @@ async def apply_turns(
             if role_policy
             else None
         )  # W2-03: raw keeps every role; derivation reads the tags
-        if role in fw.skip_message_roles and role_dec is None:
+        skip_reason = deterministic_skip_reason(
+            turn,
+            skip_roles=fw.skip_message_roles,
+            skip_injected_recall=fw.skip_injected_recall,
+            role_policy=role_dec is not None,
+        )
+        if skip_reason == "role":
             tap.event("write.turn.skipped", reason="role", role=role, turn=i)
             continue  # H21: system/tool text is not memory
-        if fw.skip_injected_recall and role_dec is None and _looks_like_recall(content):
+        if skip_reason == "injected_recall":
             # H21: recalled memory echoed back is not new evidence. R2-11:
             # never silently: a MARKER event traces what was dropped (by
             # fingerprint, not content) so a genuine turn that merely
@@ -179,7 +184,7 @@ async def apply_turns(
         if correction is not None:
             turn_tags.append(constants.CORRECTION_TAG)  # W17d
         if "_idem" in turn:  # W2-01: the intake write id rides as a tag (restart recovery)
-            turn_tags.append(f"{IDEM_TAG_PREFIX}{turn['_idem']}")
+            turn_tags.append(f"{constants.IDEM_TAG_PREFIX}{turn['_idem']}")
         asset_refs = eng._attachment_refs(turn, i, effective_session)
         for _ref, aid in asset_refs:
             turn_tags.append(f"asset:{aid}")  # E04: ingest.assets

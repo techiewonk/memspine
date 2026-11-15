@@ -9,7 +9,13 @@ from typing import Any
 
 import pytest
 
-from memspine.providers.shared import ResourceKey, ResourceRegistry, resource_key, shared_registry
+from memspine.providers.shared import (
+    ResourceCleanupPendingError,
+    ResourceKey,
+    ResourceRegistry,
+    resource_key,
+    shared_registry,
+)
 
 
 class _Res:
@@ -74,6 +80,81 @@ async def test_last_release_closes_exactly_once_and_close_is_idempotent() -> Non
     third = await reg.acquire(key, _factory(made), close=_close)
     assert third.value is not made[0]  # a closed resource is never handed out again
     await third.aclose()
+
+
+async def test_failed_close_keeps_key_owned_until_explicit_retry() -> None:
+    reg, made = ResourceRegistry(), []
+    key = resource_key("lexical", {"path": "idx"}, scope="thread")
+    attempts = 0
+
+    async def close(res: _Res) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("native lock still held")
+        res.closed += 1
+
+    lease = await reg.acquire(key, _factory(made), close=close)
+    with pytest.raises(RuntimeError, match="native lock"):
+        await lease.aclose()
+    assert len(made) == 1 and reg.stats()[0].refs == 0
+    with pytest.raises(ResourceCleanupPendingError, match="lexical"):
+        await reg.acquire(key, _factory(made), close=close)
+    assert len(made) == 1  # no competing native owner was constructed
+    await reg.retry_failed_close(key)
+    assert made[0].closed == 1 and reg.stats() == ()
+    fresh = await reg.acquire(key, _factory(made), close=close)
+    assert fresh.value is not made[0]
+    await fresh.aclose()
+
+
+async def test_acquire_waits_for_inflight_close_then_builds_fresh() -> None:
+    reg, made = ResourceRegistry(), []
+    key = resource_key("lexical", {"path": "idx"}, scope="thread")
+    closing, release = asyncio.Event(), asyncio.Event()
+
+    async def close(res: _Res) -> None:
+        closing.set()
+        await release.wait()
+        res.closed += 1
+
+    lease = await reg.acquire(key, _factory(made), close=close)
+    close_task = asyncio.create_task(lease.aclose())
+    await closing.wait()
+    acquire_task = asyncio.create_task(reg.acquire(key, _factory(made), close=close))
+    await asyncio.sleep(0)
+    assert not acquire_task.done() and len(made) == 1
+    release.set()
+    await close_task
+    fresh = await acquire_task
+    assert fresh.value is not made[0]
+    await fresh.aclose()
+
+
+async def test_cancelled_generic_close_keeps_key_owned_for_retry() -> None:
+    reg, made = ResourceRegistry(), []
+    key = resource_key("cache", {"path": "shared"}, scope="thread")
+    started = asyncio.Event()
+    attempts = 0
+
+    async def close(res: _Res) -> None:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            started.set()
+            await asyncio.Event().wait()
+        res.closed += 1
+
+    lease = await reg.acquire(key, _factory(made), close=close)
+    closing = asyncio.create_task(lease.aclose())
+    await started.wait()
+    closing.cancel()
+    with pytest.raises(asyncio.CancelledError):
+        await closing
+    with pytest.raises(ResourceCleanupPendingError, match="cache"):
+        await reg.acquire(key, _factory(made), close=close)
+    await reg.retry_failed_close(key)
+    assert made[0].closed == 1 and reg.stats() == ()
 
 
 async def test_failed_build_is_not_cached() -> None:

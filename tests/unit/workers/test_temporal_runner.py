@@ -261,6 +261,36 @@ def test_temporal_identity_and_secret_redaction(tmp_path: Path) -> None:
     assert workflow_id_for_invocation("a", "same") != workflow_id_for_invocation("b", "same")
 
 
+async def test_failed_worker_shutdown_retains_handles_for_retry(tmp_path: Path) -> None:
+    class Worker:
+        fail = True
+
+        async def shutdown(self) -> None:
+            if self.fail:
+                raise RuntimeError("endpoint detail must not leak")
+
+    runner = TemporalRunner(
+        address="localhost:7233",
+        namespace="test",
+        task_queue="queue",
+        deployment_id="deployment",
+        journal_path=tmp_path / "steps.sqlite",
+        context_factory=lambda: _context(),
+    )
+    worker = Worker()
+    client = object()
+    runner._worker = worker
+    runner._client = client
+    runner._started = True
+    with pytest.raises(RuntimeError, match="Temporal worker shutdown failed") as err:
+        await runner.close()
+    assert "endpoint detail" not in str(err.value)
+    assert runner._worker is worker and runner.client is client and runner._started
+    worker.fail = False
+    await runner.close()
+    assert runner._worker is None and runner.client is None and not runner._started
+
+
 def test_fingerprint_is_stable_and_timeout_values_are_strict(tmp_path: Path) -> None:
     assert _configuration_fingerprint(_config()) == _configuration_fingerprint(_config())
     with pytest.raises(ConfigError, match="workflow_timeout_s"):
@@ -290,7 +320,15 @@ def test_temporal_fingerprint_resolves_sqlite_paths_and_rejects_memory_storage(
     assert first != second
 
     in_memory = config.model_copy(
-        update={"storage": config.storage.model_copy(update={"settings": {"path": ":memory:"}})}
+        update={
+            "storage": config.storage.model_copy(
+                update={
+                    "records": config.storage.records.model_copy(
+                        update={"settings": {"path": ":memory:"}}
+                    )
+                }
+            )
+        }
     )
     with pytest.raises(ConfigError, match="filesystem-backed SQLite"):
         _validate_temporal_storage(in_memory)

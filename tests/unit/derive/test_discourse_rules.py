@@ -105,16 +105,100 @@ def test_move_without_two_named_places_is_ambiguous() -> None:
 
 
 def test_visit_is_its_own_event_claim_never_a_residence() -> None:
-    claims, reasons = _compiled(_msg("I visited Lisbon last weekend."))
+    claims, reasons = _compiled(_msg("I visited the city of Lisbon last weekend."))
     assert claims == [("Asha", "visited", "Lisbon")] and reasons == []
+
+
+@pytest.mark.parametrize("place_kind", ["city", "town", "village", "country", "island"])
+def test_explicit_place_visit_is_source_bound(place_kind: str) -> None:
+    record = _msg(f"I visited the {place_kind} of Brindle last weekend.")
+    result = compile_grounded_facts(mine_grounded_facts(record, SCOPE), [record], SCOPE)
+    [env] = result.envelopes
+    assert env.attribute == "visited"
+    assert env.object is not None and env.object.surface == "Brindle"
+    assert env.registry is not None and env.registry.object_entity_type == "place"
+    assert env.evidence[0].span is not None
+    assert env.evidence[0].span.quote == record.content
+    assert not result.unresolved
+
+
+@pytest.mark.parametrize("name", ["Alex", "Lisbon", "Jordan"])
+def test_bare_visit_target_has_unresolved_type(name: str) -> None:
+    claims, reasons = _compiled(_msg(f"I visited {name} last weekend."))
+    assert claims == [] and reasons == ["ambiguous_visit_object"]
+
+
+@pytest.mark.parametrize(
+    ("relation", "name"),
+    [("friend", "Alex"), ("aunt", "Maya"), ("colleague", "Alex")],
+)
+def test_explicit_person_visit_does_not_become_a_place(relation: str, name: str) -> None:
+    claims, reasons = _compiled(_msg(f"I visited my {relation} {name} last weekend."))
+    assert claims == [] and reasons == ["visit_object_not_place"]
+
+
+def test_possessive_visit_does_not_type_its_owner_as_a_place() -> None:
+    claims, reasons = _compiled(_msg("I visited Alex's flat last weekend."))
+    assert claims == [] and reasons == ["ambiguous_visit_object"]
+
+
+def test_untyped_visit_annotation_keeps_exact_source_span() -> None:
+    record = _msg("I visited Jordan last weekend.")
+    result = compile_grounded_facts(mine_grounded_facts(record, SCOPE), [record], SCOPE)
+    assert not result.envelopes
+    [note] = result.unresolved
+    assert note.reason == "ambiguous_visit_object"
+    assert (note.source_id, note.source_version) == (record.record_id, record.version)
+    assert note.span is not None and (note.span.start, note.span.end) == (0, len(record.content))
 
 
 @pytest.mark.parametrize(
     "text",
-    ["Maybe I visited Lisbon.", "If I visited Lisbon, I would know.", "Did I visit Lisbon?"],
+    [
+        "Maybe I visited the city of Lisbon.",
+        "If I visited the city of Lisbon, I would know.",
+        "Did I visit the city of Lisbon?",
+        "I never visited the city of Lisbon.",
+        "I did not visit the city of Lisbon.",
+        "I visited the city of Brindle, hypothetically speaking.",
+        "I visited the city of Brindle in a dream.",
+        "I visited the city of Brindle, but not really.",
+        "I visited the city of Brindle only in my imagination.",
+        "I visited the city of Brindle, hypothetically.",
+        "I visited the city of Brindle, but I did not actually go.",
+        "I visited the city of Brindle, but I never went there.",
+        "I visited the city of Brindle, however I didn't travel there.",
+        "I visited the city of Brindle, but I did not make it.",
+        "I visited the city of Brindle, but I did not go to Brindle.",
+        "I visited the city of Brindle, but I never traveled to the city of Brindle.",
+        "I visited the city of Brindle, but it was only in a dream.",
+        "I visited the city of Brindle, but that was just in my imagination.",
+        "I visited the city of Brindle, but that was hypothetical.",
+        "I visited the city of Brindle, but I only imagined it.",
+    ],
 )
 def test_hedged_visits_yield_nothing(text: str) -> None:
-    assert _compiled(_msg(text))[0] == []
+    assert _compiled(_msg(text)) == ([], [])
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "I visited the city of Brindle, but I did not stay overnight.",
+        "I visited the city of Brindle, but I never saw the museum.",
+        "I visited the city of Brindle and dreamed of going again.",
+        "I visited the city of Brindle, but hypothetically I could live there.",
+        "I visited the city of Brindle, but I did not go to the museum.",
+        "I visited the city of Brindle, but I never went to the castle.",
+        "I visited the city of Brindle, but I did not travel onward to Paris.",
+        "I visited the city of Brindle, but I never visited Paris.",
+        "I visited the city of Brindle, but the castle was only in a dream.",
+        "I visited the city of Brindle, but I only imagined the castle.",
+        "I visited the city of Brindle, but it was raining.",
+    ],
+)
+def test_visit_contrast_about_another_action_stays_asserted(text: str) -> None:
+    assert _compiled(_msg(text)) == ([("Asha", "visited", "Brindle")], [])
 
 
 # ------------------------------------------------------------------ pronouns
@@ -127,6 +211,26 @@ def test_pronoun_binds_the_one_name_of_the_previous_sentence() -> None:
     assert env.subject is not None and env.subject.surface == "Alex"
     assert env.provenance.principal == "Asha"  # the sender asserts it about Alex
     assert env.evidence[0].span is not None and env.evidence[0].span.quote == "He lives in Leeds."
+
+
+def test_pronoun_visit_requires_an_explicit_place_object() -> None:
+    claims, reasons = _compiled(_msg("I met Robin yesterday. He visited Alex."))
+    assert claims == [] and reasons == ["ambiguous_visit_object"]
+    claims, reasons = _compiled(_msg("I met Robin yesterday. He visited the city of Brindle."))
+    assert claims == [("Robin", "visited", "Brindle")] and reasons == []
+    claims, reasons = _compiled(
+        _msg("I met Robin yesterday. He visited the city of Brindle in a dream.")
+    )
+    assert claims == [] and reasons == []
+    claims, reasons = _compiled(
+        _msg("I met Robin yesterday. He visited the city of Brindle, but it was only in a dream.")
+    )
+    assert claims == [] and reasons == []
+
+
+def test_visit_person_cue_cannot_change_a_residence_object() -> None:
+    claims, reasons = _compiled(_msg("I met Robin yesterday. He lives in my friend Alex."))
+    assert claims == [] and reasons == []
 
 
 @pytest.mark.parametrize(

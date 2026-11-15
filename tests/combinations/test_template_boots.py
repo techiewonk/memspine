@@ -97,15 +97,22 @@ SERVER_ONLY = frozenset({"server"})
 
 @pytest.mark.parametrize("template", sorted(TEMPLATES))
 async def test_template_boots_clean(template: str, monkeypatch, make_engine) -> None:
+    from memspine.workers.temporal_runner import _configuration_fingerprint
+
     class FakeTemporalRunner:
         def __init__(self, **kwargs: object) -> None:
             self.pipelines = {}
+            self.activities = {}
 
         def register(self, name, pipeline) -> None:
             self.pipelines[name] = pipeline
 
+        def register_activity(self, name, activity) -> None:
+            self.activities[name] = activity
+
         async def start(self) -> None:
             assert self.pipelines
+            assert self.activities
 
         async def run(self, name, ctx) -> dict[str, object]:
             return {"status": "ok"}
@@ -115,6 +122,7 @@ async def test_template_boots_clean(template: str, monkeypatch, make_engine) -> 
 
     module = ModuleType("memspine.workers.temporal_runner")
     module.TemporalRunner = FakeTemporalRunner  # type: ignore[attr-defined]
+    module._configuration_fingerprint = _configuration_fingerprint  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "memspine.workers.temporal_runner", module)
 
     expected_profile, expected_enabled, expected_runner = TEMPLATES[template]

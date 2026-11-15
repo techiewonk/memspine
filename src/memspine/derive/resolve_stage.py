@@ -53,6 +53,7 @@ from memspine.observability import tap
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.semantic import Mention, SemanticEnvelope
 from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.registry_evidence import scrub_registry_marker, valid_source_refs
 
 __all__ = ["RESOLVE_ORDER", "EntityResolveStage", "ResolveSettings", "build_resolve_stage"]
 
@@ -123,14 +124,21 @@ class EntityResolveStage:
         registry: EntityRegistry | None = None,
         embed: Embed | None = None,
         storage: Callable[[], Any] | None = None,
+        namespace_lock: Callable[[str], asyncio.Lock] | None = None,
+        source_visible: Callable[[str], bool] | None = None,
     ) -> None:
         self.settings = settings or ResolveSettings()
         self.registry = registry or EntityRegistry()
         self._rules = OnlineResolver(self.settings.max_cache)
         self._vec = _VectorCache(embed, self.settings.max_cache) if embed is not None else None
         self._storage = storage
+        self._namespace_lock = namespace_lock
+        self._source_visible = source_visible
         self._loaded = storage is None
         self._lock = asyncio.Lock()
+        self._retry_pending: list[tuple[str | None, dict[str, Any]]] = []
+        self._fence_seq = 0
+        self._fenced_sources: dict[str, set[str]] = {}
 
     def as_stage(self) -> EnvelopeStage:
         return EnvelopeStage("resolve", RESOLVE_ORDER, self.run)
@@ -151,6 +159,74 @@ class EntityResolveStage:
                 await forget_vector(name)
         return len(names)
 
+    async def forget_sources(self, source_ids: Sequence[str]) -> None:
+        """Drop erased contributions from the live registry and pending marker queue."""
+        async with self._lock:
+            storage = self._storage() if self._storage else None
+            if storage is None:
+                self.registry.forget_sources(source_ids)
+            else:
+                # The log was namespace-scoped and sanitized by the caller. Replaying its
+                # authoritative event namespaces preserves unrelated legacy labels.
+                pending = [
+                    (
+                        p.get("_queue_namespace"),
+                        {k: v for k, v in p.items() if k != "_queue_namespace"},
+                    )
+                    for p in self.registry.queued()
+                ]
+                self.registry.drain()
+                fresh = EntityRegistry()
+                after = 0
+                erased = set(source_ids)
+                for _, payload in pending:
+                    scrub_registry_marker(payload, erased)
+                try:
+                    while True:
+                        events = await storage.read_events(after_seq=after, limit=1000)
+                        if not events:
+                            break
+                        for event in events:
+                            if (
+                                event.kind is EventKind.MARKER
+                                and event.payload.get("marker") in ENTITY_MARKERS
+                            ):
+                                fresh.apply(event.payload, namespace=event.namespace)
+                        after = max(event.seq for event in events if event.seq is not None)
+                except BaseException:
+                    self.registry = EntityRegistry()
+                    self._retry_pending = pending
+                    self._loaded = False
+                    self._rules.clear()
+                    if self._vec is not None:
+                        self._vec.drain()
+                    raise
+                for pending_namespace, payload in pending:
+                    fresh._do(payload, namespace=pending_namespace)
+                self.registry = fresh
+                self._fence_seq = 0
+                self._fenced_sources = {}
+                await self._refresh_fences_locked(storage)
+            self._rules.clear()
+
+    async def _refresh_fences_locked(self, storage: Any) -> None:
+        """Apply external erasures to warm labels before any registry use."""
+        try:
+            fences = await storage.registry_erasure_fences(self._fence_seq)
+            for seq, namespace, ids in fences:
+                self.registry.forget_sources(ids, namespace=namespace)
+                self._fenced_sources.setdefault(namespace, set()).update(ids)
+                self._fence_seq = max(self._fence_seq, seq)
+        except BaseException:
+            self.registry = EntityRegistry()
+            self._loaded = False
+            self._fence_seq = 0
+            self._fenced_sources = {}
+            self._rules.clear()
+            if self._vec is not None:
+                self._vec.drain()
+            raise
+
     # --- log -------------------------------------------------------------------------------------
     async def _load(self) -> None:
         """Rebuild the registry from the logged ``entity.*`` markers, once per process."""
@@ -159,27 +235,85 @@ class EntityResolveStage:
                 return
             storage = self._storage() if self._storage else None
             after = 0
+            self._fence_seq = 0
+            self._fenced_sources = {}
             while storage is not None:
                 events = await storage.read_events(after_seq=after, limit=1000)
                 if not events:
                     break
                 for ev in events:
                     if ev.kind is EventKind.MARKER and ev.payload.get("marker") in ENTITY_MARKERS:
-                        self.registry.apply(ev.payload)
+                        self.registry.apply(ev.payload, namespace=ev.namespace)
                 after = max(e.seq for e in events if e.seq is not None)
+            for pending_namespace, payload in self._retry_pending:
+                self.registry._do(payload, namespace=pending_namespace)
+            self._retry_pending = []
+            if storage is not None:
+                await self._refresh_fences_locked(storage)
             self._loaded = True
 
     async def flush(self, namespace: str) -> int:
         """Append the queued registry payloads to the event log; returns how many."""
-        payloads = self.registry.drain()
+        lock = self._namespace_lock(namespace) if self._namespace_lock else asyncio.Lock()
+        async with lock, self._lock:
+            return await self._flush_locked(namespace)
+
+    async def _flush_locked(self, namespace: str) -> int:
+        """Persist under the namespace and registry locks, rechecking pinned sources."""
         storage = self._storage() if self._storage else None
         if storage is not None:
-            for p in payloads:
-                await storage.append_event(
-                    MemoryEvent(
+            await self._refresh_fences_locked(storage)
+            if any(p.get("_queue_namespace") is None for p in self.registry.queued()):
+                raise ValueError("durable registry markers require an event namespace")
+            queued = self.registry.queued(namespace)
+            if any(
+                p.get("marker") in {"entity.create", "entity.alias"} and not valid_source_refs(p)
+                for p in queued
+            ):
+                self.registry.forget_pending_unattributed(namespace)
+            valid_payloads = [p for p in self.registry.queued(namespace) if valid_source_refs(p)]
+            source_ids = {rid for p in valid_payloads for rid in p["source_ids"]}
+            records = await storage.get_records(sorted(source_ids)) if source_ids else {}
+            stale = {
+                rid
+                for p in valid_payloads
+                for rid, version in zip(
+                    p.get("source_ids", ()), p.get("source_versions", ()), strict=True
+                )
+                if (record := records.get(rid)) is None
+                or record.namespace != namespace
+                or record.memory_type not in {"episodic", "resource"}
+                or record.version != version
+                or record.quarantined
+                or record.status.value not in {"activated", "archived"}
+                or (self._source_visible is not None and not self._source_visible(rid))
+            }
+            if stale:
+                self.registry.forget_pending_sources(stale, namespace)
+        payloads = self.registry.drain(namespace if storage is not None else None)
+        if (
+            storage is not None
+            and getattr(getattr(storage, "mode", None), "value", None) != "ephemeral"
+        ):
+            try:
+                for p in payloads:
+                    event = MemoryEvent(
                         kind=EventKind.MARKER, namespace=namespace, actor="resolver", payload=p
                     )
-                )
+                    if p.get("marker") in ENTITY_MARKERS:
+                        await storage.append_registry_marker(event)
+                    else:
+                        await storage.append_event(event)
+            except BaseException:
+                # Some earlier markers may have committed. Reload only canonical
+                # events on the next attempt; no uncommitted name may stay warm.
+                self.registry = EntityRegistry()
+                self._loaded = False
+                self._fence_seq = 0
+                self._rules.clear()
+                if self._vec is not None:
+                    self._vec.drain()
+                raise
         return len(payloads)
 
     # --- stage -----------------------------------------------------------------------------------
@@ -188,10 +322,14 @@ class EntityResolveStage:
     ) -> list[SemanticEnvelope]:
         await self._load()
         out: list[SemanticEnvelope] = []
-        async with self._lock:
+        lock = self._namespace_lock(ctx.namespace) if self._namespace_lock else asyncio.Lock()
+        async with lock, self._lock:
+            storage = self._storage() if self._storage else None
+            if storage is not None:
+                await self._refresh_fences_locked(storage)
             for env in envelopes:
                 out.append(await self._resolve_envelope(env, ctx))
-            events = await self.flush(ctx.namespace)
+            events = await self._flush_locked(ctx.namespace)
         if tap.enabled():
             tap.event(
                 "write.resolve.window",
@@ -209,13 +347,40 @@ class EntityResolveStage:
         self, env: SemanticEnvelope, ctx: EnvelopeStageContext
     ) -> SemanticEnvelope:
         key = self._key(env, ctx)
+        cited = {
+            (item.turn.source_id, item.turn.source_version)
+            for item in env.evidence
+            if item.turn is not None
+        }
+        if any(item.role == "context" and item.turn is None for item in env.evidence):
+            ctx.notes["resolve_uncited_context"] += 1
+            return env
+        available = {
+            (record.record_id, record.version)
+            for record in ctx.records
+            if record.namespace == ctx.namespace
+            and record.memory_type in {"episodic", "resource"}
+            and not record.quarantined
+            and record.status.value in {"activated", "archived"}
+            and (self._source_visible is None or self._source_visible(record.record_id))
+        }
+        if not cited or not cited <= available:
+            ctx.notes["resolve_unavailable_source"] += 1
+            return env
+        source_refs = tuple(sorted(cited))
+        storage = self._storage() if self._storage else None
+        if storage is not None and not await self._pinned_sources_visible_locked(
+            storage, source_refs, ctx.namespace
+        ):
+            ctx.notes["resolve_unavailable_source"] += 1
+            return env
         update: dict[str, Any] = {}
         info: dict[str, Any] = dict(env.extras.get("resolve", {}))
         for which in ("subject", "object"):
             mention: Mention | None = getattr(env, which)
             if mention is None or mention.entity_id is not None:
                 continue
-            res = await self.resolve_surface(
+            res = await self._resolve_surface_locked(
                 mention.surface,
                 scope=env.scope,
                 key=key,
@@ -223,6 +388,9 @@ class EntityResolveStage:
                 speaker=env.speaker,
                 notes=ctx.notes,
                 window=ctx.window_id,
+                source_refs=source_refs,
+                namespace=ctx.namespace,
+                sources_checked=True,
             )
             update[which] = mention.model_copy(update={"entity_id": res["entity"]})
             info[which] = {k: v for k, v in res.items() if k != "entity"}
@@ -240,8 +408,56 @@ class EntityResolveStage:
         speaker: str | None = None,
         notes: Counter[str] | None = None,
         window: str = "",
+        source_refs: Sequence[tuple[str, int]] = (),
+        namespace: str | None = None,
+    ) -> dict[str, Any]:
+        """Resolve one surface after refreshing durable erasure fences."""
+        if self._storage is not None and (not source_refs or not namespace):
+            raise ValueError("durable resolver mentions require raw source citations and namespace")
+        await self._load()
+        lock = (
+            self._namespace_lock(namespace)
+            if self._namespace_lock and namespace
+            else asyncio.Lock()
+        )
+        async with lock, self._lock:
+            storage = self._storage() if self._storage else None
+            if storage is not None:
+                await self._refresh_fences_locked(storage)
+            return await self._resolve_surface_locked(
+                surface,
+                scope=scope,
+                key=key,
+                text=text,
+                speaker=speaker,
+                notes=notes,
+                window=window,
+                source_refs=source_refs,
+                namespace=namespace,
+            )
+
+    async def _resolve_surface_locked(
+        self,
+        surface: str,
+        *,
+        scope: OwnerScope,
+        key: ScopeKey,
+        text: str = "",
+        speaker: str | None = None,
+        notes: Counter[str] | None = None,
+        window: str = "",
+        source_refs: Sequence[tuple[str, int]] = (),
+        namespace: str | None = None,
+        sources_checked: bool = False,
     ) -> dict[str, Any]:
         """Resolve one surface in one scope and update the registry (events are queued, not yet logged)."""
+        if self._storage is not None and (not source_refs or not namespace):
+            raise ValueError("durable resolver mentions require raw source citations and namespace")
+        if self._storage is not None and not sources_checked:
+            storage = self._storage()
+            assert namespace is not None
+            if not await self._pinned_sources_visible_locked(storage, source_refs, namespace):
+                raise ValueError("registry source unavailable or erased")
         notes = notes if notes is not None else Counter()
         text = _FIRST_PERSON.sub("", text)  # a capitalised "I" would count as a shared anchor
         view = MentionView(surface=surface, context=text, speaker=speaker)
@@ -272,12 +488,20 @@ class EntityResolveStage:
             conf = 0.5
 
         if verdict == "existing":
-            self.registry.add_alias(key, entity, surface, context=text)
+            self.registry.add_alias(
+                key, entity, surface, context=text, source_refs=source_refs, namespace=namespace
+            )
             notes["resolve_existing"] += 1
         else:
             eid = self._unique_id(scope, key, entity)
             self.registry.create(
-                key, eid, surface, context=text, pending_with=pending if verdict != "new" else ()
+                key,
+                eid,
+                surface,
+                context=text,
+                pending_with=pending if verdict != "new" else (),
+                source_refs=source_refs,
+                namespace=namespace,
             )
             entity = eid
             notes["resolve_pending" if verdict == "pending_merge" else "resolve_new"] += 1
@@ -298,6 +522,41 @@ class EntityResolveStage:
             "confidence": round(conf, 4),
             "pending_with": pending if verdict == "pending_merge" else [],
         }
+
+    async def _pinned_sources_visible_locked(
+        self, storage: Any, source_refs: Sequence[tuple[str, int]], namespace: str
+    ) -> bool:
+        """Refuse invalid or fenced sources before their text enters warm registry state.
+
+        The native marker transaction repeats this check at commit; another process
+        can erase or update a source after this warm-state preflight.
+        """
+        refs = dict(source_refs)
+        if (
+            not refs
+            or len(refs) != len(source_refs)
+            or any(
+                not isinstance(rid, str)
+                or not rid
+                or not isinstance(version, int)
+                or isinstance(version, bool)
+                or version < 1
+                for rid, version in source_refs
+            )
+            or set(refs) & self._fenced_sources.get(namespace, set())
+        ):
+            return False
+        records = await storage.get_records(sorted(refs))
+        return all(
+            (record := records.get(rid)) is not None
+            and record.namespace == namespace
+            and record.memory_type in {"episodic", "resource"}
+            and record.version == version
+            and not record.quarantined
+            and record.status.value in {"activated", "archived"}
+            and (self._source_visible is None or self._source_visible(rid))
+            for rid, version in refs.items()
+        )
 
     def _unique_id(self, scope: OwnerScope, key: ScopeKey, proposed: str) -> str:
         if self.registry.get(key, proposed) is None:
@@ -373,5 +632,13 @@ def build_resolve_stage(
     *,
     embed: Embed | None = None,
     storage: Callable[[], Any] | None = None,
+    namespace_lock: Callable[[str], asyncio.Lock] | None = None,
+    source_visible: Callable[[str], bool] | None = None,
 ) -> EntityResolveStage:
-    return EntityResolveStage(settings, embed=embed, storage=storage)
+    return EntityResolveStage(
+        settings,
+        embed=embed,
+        storage=storage,
+        namespace_lock=namespace_lock,
+        source_visible=source_visible,
+    )

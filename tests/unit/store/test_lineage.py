@@ -15,6 +15,7 @@ from memspine.derive.write import DerivedWithoutParents, write_derived
 from memspine.read.pipeline.lift import lineage_from_records
 from memspine.schemas.durable.lineage import LineageEdge
 from memspine.store import lineage as lineage_store
+from memspine.store.events import EventKind
 from memspine.store.records import MemoryRecord, SourceInfo
 from memspine.trust.erasure_plan import plan_erasure
 
@@ -98,6 +99,37 @@ async def test_write_door_writes_edges_roles_and_caps_trust(tmp_path: Path) -> N
     finally:
         await eng.stop()
     assert {r[2] for r in _lineage_rows(path)} == {"support", "context"}
+
+
+async def test_derived_postwrite_cap_is_a_canonical_replayable_write(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    eng = _engine(tmp_path / "postcap.db", lineage=True)
+    await eng.start()
+    try:
+        [parent, *_] = await _turns(eng)
+        original = eng._write_locked
+
+        async def inflated(*args: Any, **kwargs: Any) -> MemoryRecord:
+            written = await original(*args, **kwargs)
+            return written.model_copy(update={"trust": 0.9})
+
+        monkeypatch.setattr(eng, "_write_locked", inflated)
+        rec = await _derive(eng, _fact([parent.record_id]), trust_cap=[0.3])
+        assert rec.trust <= 0.3
+        stored = await eng._require_started().get_record(rec.record_id)
+        assert stored is not None and stored.trust == rec.trust
+        writes = [
+            event
+            for event in await eng._require_started().read_events()
+            if event.kind is EventKind.WRITE
+            and isinstance(event.payload.get("record"), dict)
+            and event.payload["record"].get("record_id") == rec.record_id
+        ]
+        assert len(writes) >= 2
+        assert writes[-1].payload["record"]["trust"] == rec.trust
+    finally:
+        await eng.stop()
 
 
 async def test_refused_without_parents_and_tap_events(

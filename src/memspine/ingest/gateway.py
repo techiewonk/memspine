@@ -60,10 +60,9 @@ from memspine.ingest.intake import (
     write_id,
 )
 from memspine.ingest.message_helpers import (
-    IDEM_TAG_PREFIX,
     INTAKE_LANDED,
-    _looks_like_recall,
     _turn_content,
+    deterministic_skip_reason,
 )
 from memspine.ingest.message_schema import ValidatedMessageBatch
 from memspine.memories.procedural.skills import make_skill_record
@@ -533,7 +532,97 @@ class IntakeGateway:
         self, db: IntakeLedger, intent_id: str, payload: dict[str, Any], *, resume: bool
     ) -> tuple[Receipt, dict[str, str]]:
         skey = payload["skey"]
-        landed = await self._apply(payload, resume=resume)
+        try:
+            landed = await self._apply(payload, resume=resume)
+        except Exception as exc:
+            from memspine.ingest.message_parent import ReplyParentUnavailable
+
+            if not isinstance(exc, ReplyParentUnavailable) or payload["adapter"] != "messages":
+                raise
+            # A previous apply attempt may have written a valid prefix before a
+            # crash. Reconcile by immutable write IDs, then settle only this
+            # permanently unavailable suffix; transient failures still replay.
+            fresh_wids = [f["wid"] for f in payload["fresh"]]
+            expected = {
+                f["wid"]: f["turn"]["_message_envelope"]["message_id"] for f in payload["fresh"]
+            }
+            namespace = payload["namespace"]
+            # Forget/quarantine take this same short namespace lock. Do not
+            # reattach a prefix that became unavailable between the prefix
+            # scan and the durable terminal transition.
+            async with self.eng._write_locks.setdefault(namespace, asyncio.Lock()):
+                known = await store.record_ids(db, skey, fresh_wids)
+                scanned = await self._scan_landed(namespace, "episodic", fresh_wids)
+                candidates = {**known, **scanned}
+                storage = self.eng._require_started()
+                real: dict[str, str] = {}
+                for wid, rid in candidates.items():
+                    record = await storage.get_record(rid)
+                    source = record.source.message if record is not None else None
+                    if (
+                        record is not None
+                        and record.namespace == namespace
+                        and record.status is RecordStatus.ACTIVATED
+                        and not record.quarantined
+                        and source is not None
+                        and source.get("message_id") == expected[wid]
+                    ):
+                        real[wid] = rid
+                row = (await store.intents_by_id(db, [intent_id]))[intent_id]
+                receipt = Receipt.model_validate_json(row["receipt"])
+                readiness = Readiness.model_validate_json(row["readiness"])
+                readiness = readiness.model_copy(
+                    update={
+                        name: "failed" if readiness.get(name) != "unavailable" else "unavailable"
+                        for name in CAPABILITIES
+                    }
+                )
+                receipt = receipt.model_copy(
+                    update={
+                        "record_ids": [real[w] for w in payload["order"] if w in real],
+                        "readiness": readiness,
+                    }
+                )
+                manifest = RequiredDerivation.model_validate_json(row["required_derivation"])
+                await store.failed_intent(
+                    db,
+                    intent_id=intent_id,
+                    skey=skey,
+                    source_id=payload["source_id"],
+                    real_ids=real,
+                    receipt=receipt,
+                    readiness=readiness,
+                    required_derivation=manifest.model_copy(
+                        update={
+                            "source_record_ids": tuple(
+                                real[w] for w in manifest.source_write_ids if w in real
+                            )
+                        }
+                    ),
+                )
+            self.last_receipt = receipt
+            # The valid landed prefix remains derivation-eligible. The ledger
+            # discovers only its retained source_record_ids; a failed intent
+            # with no landed records queues nothing. Restart reconciliation
+            # repeats this idempotently if discovery is interrupted here.
+            pipeline = getattr(self.eng, "_windows", None)
+            if pipeline is not None and getattr(pipeline, "_outbox", None) is not None:
+                try:
+                    await discover_committed_derivations(
+                        db,
+                        scope_key=skey,
+                        stage="window.discovery",
+                        discovered_at=datetime.now(UTC),
+                        intent_ids=(intent_id,),
+                    )
+                except Exception as discovery_exc:
+                    _log.warning(
+                        "memory.write",
+                        step="intake.discovery_deferred",
+                        intent_id=intent_id,
+                        error=type(discovery_exc).__name__,
+                    )
+            raise
         self._boundary("pre_mark")
         rows = await store.intents_by_id(db, [intent_id])
         row = rows[intent_id]
@@ -611,7 +700,7 @@ class IntakeGateway:
         storage = self.eng._require_started()
         want = set(wids)
         found: dict[str, str] = {}
-        prefix = IDEM_TAG_PREFIX
+        prefix = constants.IDEM_TAG_PREFIX
         for rec in await storage.list_records(ns, memory_type):
             for tag in rec.tags:
                 if tag.startswith(prefix) and tag[len(prefix) :] in want:
@@ -644,16 +733,28 @@ class IntakeGateway:
             if f["wid"] in landed:
                 continue
             turn = f["turn"]
-            if resume and (
-                turn.get("role") in fw.skip_message_roles
-                or (fw.skip_injected_recall and _looks_like_recall(str(turn.get("content", ""))))
+            if (
+                resume
+                and deterministic_skip_reason(
+                    turn,
+                    skip_roles=fw.skip_message_roles,
+                    skip_injected_recall=fw.skip_injected_recall,
+                    role_policy=bool(eng._config().write.role_policy),
+                )
+                is not None
             ):
                 continue  # the first apply wrote no record for these; do not replay their audit marker
             todo.append(f)
         sink: dict[str, str] = {}
         if todo:
+            from memspine.ingest.message_parent import (
+                ReplyParentUnavailable,
+                require_stored_parent,
+            )
+
             position = {f["i"]: n for n, f in enumerate(todo)}
             by_index = {int(i): w for i, w in p["all_wids"].items()}
+            message_ids = {f["i"]: f["turn"]["_message_envelope"]["message_id"] for f in fresh}
             turns: list[dict[str, Any]] = []
             for f in todo:
                 turn = _with_wid(f["turn"], f["wid"])
@@ -672,7 +773,17 @@ class IntakeGateway:
                         if rid is not None:
                             turn["reply_to"] = rid
                         else:
-                            turn.pop("reply_to")
+                            raise ReplyParentUnavailable("reply parent is unavailable")
+                        await require_stored_parent(
+                            eng._require_started(), ns, message_ids[ref], rid, a["actor"]
+                        )
+                elif isinstance(ref, str):
+                    source_id = turn.get("_message_envelope", {}).get("reply_to")
+                    if not isinstance(source_id, str):
+                        raise ReplyParentUnavailable("reply parent is unavailable")
+                    await require_stored_parent(
+                        eng._require_started(), ns, source_id, ref, a["actor"]
+                    )
                 turns.append(turn)
             token = INTAKE_LANDED.set(sink)
             try:
@@ -755,7 +866,7 @@ class IntakeGateway:
                 tap.event("write.route.skipped", reason="raw_unusable", type=r.typed, wid=wid)
                 continue
             try:
-                tags = [f"{IDEM_TAG_PREFIX}{wid}", constants.ROUTED_TAG]
+                tags = [f"{constants.IDEM_TAG_PREFIX}{wid}", constants.ROUTED_TAG]
                 if r.typed in ("skill", "plan"):  # procedural: kind rides as the attribute
                     name = _name_of(f["turn"], r.text or raw.content)
                     rec = make_skill_record(
@@ -920,7 +1031,7 @@ class IntakeGateway:
         row = (await store.intents_by_id(db, [intent_id]))[intent_id]
         readiness = Readiness.model_validate_json(row["readiness"])
         receipt = Receipt.model_validate_json(row["receipt"])
-        applied = row["status"] == "applied"
+        applied = row["status"] != "accepted"  # terminal failures are settled, never pending
         if applied:
             progress = await self._window_progress(row["namespace"], receipt, readiness, timeout)
             if progress:
@@ -1007,11 +1118,18 @@ async def recover(eng: Any) -> int:
             now = await store.intents_by_id(db, [row["intent_id"]])
             if now[row["intent_id"]]["status"] != "accepted":
                 continue
-            await gw._finish(db, row["intent_id"], json.loads(row["apply"]), resume=True)
+            try:
+                await gw._finish(db, row["intent_id"], json.loads(row["apply"]), resume=True)
+            except Exception as exc:
+                from memspine.ingest.message_parent import ReplyParentUnavailable
+
+                settled = (await store.intents_by_id(db, [row["intent_id"]]))[row["intent_id"]]
+                if not isinstance(exc, ReplyParentUnavailable) or settled["status"] != "failed":
+                    raise
             done += 1
-    # A crash after marking an intent applied but before discovery leaves no
-    # pending intent to resume.  Scan all applied scopes on every start; the
-    # durable cursor and intent mapping make this idempotent.
+    # A crash after settling an applied intent or a failed intent with a landed
+    # prefix, but before discovery, leaves no pending intent to resume. Scan
+    # their scopes on every start; the durable cursor makes this idempotent.
     pipeline = getattr(eng, "_windows", None)
     if pipeline is not None and getattr(pipeline, "_outbox", None) is not None:
         for skey in await store.applied_scope_keys(db):

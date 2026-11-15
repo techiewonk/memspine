@@ -41,6 +41,7 @@ from typing import ClassVar
 from memspine.core.inference import INFERRED_TAG
 from memspine.core.policies.base import BindablePolicy, PolicyOptions
 from memspine.models.encoders.query.shape import content_words
+from memspine.store.claim_cardinality import same_scoped_claim_or_untyped, typed_negation_targets
 from memspine.store.records import MemoryRecord
 
 __all__ = ["ConflictPolicy", "ConflictVerdict"]
@@ -160,7 +161,10 @@ class ConflictPolicy(BindablePolicy):
         assert isinstance(options, ConflictOptions)
 
         # R0 — identical statement: nothing to do.
-        if incoming.content_fingerprint == existing.content_fingerprint:
+        if (
+            incoming.content_fingerprint == existing.content_fingerprint
+            and same_scoped_claim_or_untyped(incoming, existing)
+        ):
             return ConflictVerdict.NOOP, "R0_identical_statement"
 
         # B-1: an attribute-less record has no (entity, attribute) key, so two
@@ -208,13 +212,17 @@ class ConflictPolicy(BindablePolicy):
         # R2' — explicit retraction (FORK-A6): a trust-gated write tagged
         # ``retract`` on the same key ends the fact with NO successor. Tag-based,
         # so the rung is deterministic; no LLM decides what a negation is.
-        if "retract" in incoming.tags:
+        if "retract" in incoming.tags or typed_negation_targets(incoming, existing):
             return ConflictVerdict.INVALIDATE, "R2p_explicit_retraction"
 
         # W6 merge (opt-in): a restatement adds no new value.
         if options.merge_containment:
             mine = content_words(incoming.content)
-            if mine and mine <= content_words(existing.content):
+            if (
+                mine
+                and mine <= content_words(existing.content)
+                and same_scoped_claim_or_untyped(incoming, existing)
+            ):
                 return ConflictVerdict.NOOP, "W6_merge_containment"
 
         # Graphiti overlap rule: an incoming statement whose validity interval is

@@ -18,7 +18,7 @@ from test_window_write import _send
 from memspine.derive.entity_registry import EntityRegistry
 from memspine.derive.known_sources import prepass_known, resolver_known
 from memspine.derive.prepass import Prepass
-from memspine.derive.prompt_context import KnownEntity, PromptContextBuilder
+from memspine.derive.prompt_context import KnownEntity, KnownVisibility, PromptContextBuilder
 
 T0 = datetime(2023, 6, 1, 9, 0, tzinfo=UTC)
 TEXT = (
@@ -73,6 +73,38 @@ async def test_known_merges_both_sources_capped_and_deduplicated() -> None:
     assert set(built.by_source) == {"prepass", "resolver", "store"}
 
 
+async def test_historical_builder_passes_cutoff_and_keeps_proven_store_alias() -> None:
+    seen: list[int | None] = []
+    resolver_calls = 0
+
+    async def store(_ns: str, _text: str, known_seq: int | None) -> Sequence[KnownEntity]:
+        seen.append(known_seq)
+        return [
+            KnownEntity(
+                "Alex",
+                ("Lexi",),
+                source="entity_index",
+                entity_id="ent:a:alex",
+                version=12,
+                known_seq=4,
+                visibility=KnownVisibility(namespace="a"),
+            )
+        ]
+
+    async def resolver(_ns: str, _text: str) -> Sequence[KnownEntity]:
+        nonlocal resolver_calls
+        resolver_calls += 1
+        return [KnownEntity("Future Name", ("Future Alias",), source="resolver")]
+
+    built = await PromptContextBuilder(store, resolver=resolver).build(
+        "a", "[1] Alex called Lexi", [], known_seq=10
+    )
+    assert seen == [10]
+    assert "Alex = Lexi" in built.known
+    assert "Future Name" not in built.known and "Future Alias" not in built.known
+    assert resolver_calls == 0
+
+
 async def test_end_to_end_prompt_carries_prepass_names_and_resolver_aliases(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -100,7 +132,9 @@ async def test_end_to_end_prompt_carries_prepass_names_and_resolver_aliases(
         assert users
         known = users[0].split("KNOWN:", 1)[1]
         assert "Kelmark" in known and "Bram" in known  # pre-pass
-        assert "Ilse Verhoeven = Ilsa V" in known  # resolver canonical name and alias
+        # The window is historical: live resolver entries have no canonical known-time
+        # provenance, so they cannot add names that may have been resolved later.
+        assert "Ilsa V" not in known
     finally:
         await eng.stop()
 

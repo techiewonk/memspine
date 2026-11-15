@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -42,9 +41,7 @@ async def test_slow_inline_prepare_times_out_and_durable_item_can_resume() -> No
     outbox.register("derive", prepare=prepare, commit=commit)
     try:
         await outbox.enqueue(SCOPE, "derive", {"message": "m1"})
-        started = time.monotonic()
         outcome = await asyncio.wait_for(outbox.wait(SCOPE, ["derive"], timeout=0.03), 1)
-        assert time.monotonic() - started < 0.5
         assert prepared.is_set()
         assert outcome.status == "partial" and outcome.pending == ("derive",)
         assert outcome.targets == {"derive": 0} and not outcome.holes

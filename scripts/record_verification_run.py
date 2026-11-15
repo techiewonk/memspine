@@ -37,6 +37,23 @@ _SECRET_PATTERNS = (
     re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"),
     re.compile(r"\bsk-[A-Za-z0-9_-]{20,}\b"),
 )
+_QUARANTINED_LINE = re.compile(
+    r"^QUARANTINED (?P<outcome>[a-z][a-z+_-]*) "
+    r"(?P<nodeid>\S+) \((?P<row>[A-Z]{2,}-\d+)\)$"
+)
+_QUARANTINE_OUTCOMES = {
+    "xfailed",
+    "xpassed",
+    "failed",
+    "passed",
+    "skipped",
+    "teardown-failed",
+    "xfailed+teardown-failed",
+    "xpassed+teardown-failed",
+    "failed+teardown-failed",
+    "passed+teardown-failed",
+    "skipped+teardown-failed",
+}
 
 
 def _check_text(label: str, value: str) -> None:
@@ -54,11 +71,30 @@ def _git(root: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
-def _porcelain_path(line: str) -> str:
-    """The (destination) path of one ``git status --porcelain`` line; tolerant of the
-    leading status column having been stripped from the first line."""
-    path = line.strip().split(None, 1)[-1]
-    return path.split(" -> ")[-1].strip('"')
+def _changed_paths(root: Path) -> list[str]:
+    """Read porcelain paths without Git's quoting or line-based rename ambiguity."""
+    result = subprocess.run(
+        ["git", "-C", str(root), "status", "--porcelain=v1", "-z", "--untracked-files=all"],
+        check=True,
+        capture_output=True,
+    )
+    fields = result.stdout.split(b"\0")
+    if fields[-1:] == [b""]:
+        fields.pop()
+    paths: list[str] = []
+    index = 0
+    while index < len(fields):
+        entry = fields[index]
+        if len(entry) < 4 or entry[2:3] != b" ":
+            raise ValueError("unexpected git status --porcelain output")
+        paths.append(entry[3:].decode("utf-8", errors="surrogateescape"))
+        index += 1
+        if b"R" in entry[:2] or b"C" in entry[:2]:
+            if index >= len(fields):
+                raise ValueError("incomplete git status rename/copy record")
+            paths.append(fields[index].decode("utf-8", errors="surrogateescape"))
+            index += 1
+    return paths
 
 
 def revision_info(root: Path, ledger: Path | None = None) -> dict[str, object]:
@@ -73,11 +109,7 @@ def revision_info(root: Path, ledger: Path | None = None) -> dict[str, object]:
         resolved = (ledger if ledger.is_absolute() else root / ledger).resolve()
         with contextlib.suppress(ValueError):
             ignored = resolved.relative_to(root.resolve()).as_posix()
-    changes = [
-        line
-        for line in _git(root, "status", "--porcelain", "--untracked-files=all").splitlines()
-        if line.strip() and _porcelain_path(line) != ignored
-    ]
+    changes = [path for path in _changed_paths(root) if path != ignored]
     branch: str | None = _git(root, "rev-parse", "--abbrev-ref", "HEAD")
     return {
         "commit": _git(root, "rev-parse", "HEAD"),
@@ -120,6 +152,27 @@ def _artifact_records(root: Path, references: Sequence[str]) -> list[dict[str, s
     return result
 
 
+def _quarantined_records(lines: Sequence[str]) -> list[dict[str, str]]:
+    """Preserve the quarantine plugin's visible per-test outcome and owner row."""
+    records: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for line in lines:
+        _check_text("quarantined test", line)
+        match = _QUARANTINED_LINE.fullmatch(line.strip())
+        if match is None:
+            raise ValueError(
+                "quarantined test must match the plugin summary line: "
+                "QUARANTINED <outcome> <nodeid> (RM-123)"
+            )
+        if match["outcome"] not in _QUARANTINE_OUTCOMES or "::" not in match["nodeid"]:
+            raise ValueError("quarantined test has an invalid outcome or pytest node id")
+        if match["nodeid"] in seen:
+            raise ValueError(f"duplicate quarantined test: {match['nodeid']}")
+        seen.add(match["nodeid"])
+        records.append(match.groupdict())
+    return records
+
+
 def record_run(
     *,
     root: Path,
@@ -132,6 +185,7 @@ def record_run(
     skipped: int,
     artifacts: Sequence[str] = (),
     evidence: Sequence[str] = (),
+    quarantined: Sequence[str] = (),
     extras: Sequence[str] | None = None,
     allow_dirty: bool = False,
 ) -> dict[str, object]:
@@ -139,6 +193,8 @@ def record_run(
 
     Raises :class:`DirtyTreeError` when the tree is dirty and ``allow_dirty`` is false.
     ``extras`` ``None`` records that the installed extras were not stated.
+    ``quarantined`` is copied from the pytest plugin summary by the caller; this
+    recorder cannot attest that the supplied lines are complete.
     """
     if status not in STATUSES:
         raise ValueError(f"status must be one of {', '.join(sorted(STATUSES))}")
@@ -170,6 +226,7 @@ def record_run(
             "the changes, or pass --allow-dirty to write a diagnostic-only record"
         )
     artifacts_list = _artifact_records(root, artifacts)
+    quarantined_list = _quarantined_records(quarantined)
     output_path = output if output.is_absolute() else root / output
     record: dict[str, object] = {
         "schema_version": SCHEMA_VERSION,
@@ -190,6 +247,7 @@ def record_run(
         "counts": {"passed": passed, "failed": failed, "skipped": skipped},
         "artifacts": artifacts_list,
         "evidence": list(evidence),
+        "quarantined_tests": quarantined_list,
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)
     needs_separator = output_path.exists() and output_path.stat().st_size > 0
@@ -224,6 +282,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--evidence", action="append", default=[], help="brief evidence metadata (repeatable)"
     )
     parser.add_argument(
+        "--quarantined",
+        action="append",
+        default=[],
+        help="exact QUARANTINED outcome line from pytest terminal summary (repeatable)",
+    )
+    parser.add_argument(
         "--extras",
         action="append",
         default=None,
@@ -251,6 +315,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             skipped=args.skipped,
             artifacts=args.artifact,
             evidence=args.evidence,
+            quarantined=args.quarantined,
             extras=args.extras,
             allow_dirty=args.allow_dirty,
         )

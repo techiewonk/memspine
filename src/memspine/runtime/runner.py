@@ -363,6 +363,61 @@ class InlineRunner:
         )
         return handle  # type: ignore[no-any-return]  # CI-GREEN: pre-existing typing debt
 
+    async def stage_items(
+        self, scope: OwnerScope, stage: str, payloads: Sequence[dict[str, Any]]
+    ) -> None:
+        """Persist cut work before its open draft is reduced."""
+        await self._io(self.store.stage_items, scope, stage, payloads, self.clock())
+
+    def staged_scopes(self, stage: str) -> list[OwnerScope]:
+        return self.store.item_scopes(f"{stage}.staged")
+
+    def staged_items(self, scope: OwnerScope, stage: str) -> list[tuple[int, dict[str, Any]]]:
+        return [
+            (offset, payload)
+            for offset, payload in self.store.items_after(scope, f"{stage}.staged", -1)
+            if "_promoted_offset" not in payload
+        ]
+
+    def staged_sources(self, scope: OwnerScope, stage: str) -> dict[str, tuple[int, str]]:
+        """Source snapshots held by cuts, including cuts already promoted."""
+        return {
+            str(source["record_id"]): (int(source["source_version"]), str(source["content_hash"]))
+            for _, payload in self.store.items_after(scope, f"{stage}.staged", -1)
+            for source in payload.get("source_snapshots", ())
+            if isinstance(source, dict) and "record_id" in source
+        }
+
+    def _promote_staged(
+        self, scope: OwnerScope, stage: str, offset: int, payload: dict[str, Any], force: bool
+    ) -> bool:
+        underived = False
+        if payload.get("kind") != "empty" and self._backpressure is not None:
+            underived = UNDERIVED_KEY in self._admit(scope, stage, payload, force)
+        canonical = self.store.promote_staged(scope, stage, offset, self.clock(), underived)
+        if canonical is None:
+            return False
+        if canonical >= 0:
+            self.book.enqueue(scope, stage, canonical)
+        return canonical >= 0
+
+    async def promote_staged(
+        self,
+        scope: OwnerScope,
+        stage: str,
+        offset: int,
+        payload: dict[str, Any],
+        *,
+        force: bool = False,
+    ) -> bool:
+        """Apply normal admission to one durable staged item, in stream order."""
+        return bool(await self._io(self._promote_staged, scope, stage, offset, payload, force))
+
+    async def prune_promoted_staged(self, scope: OwnerScope, stage: str) -> int:
+        """Remove settled handoff markers after the canonical watermark passes them."""
+        through = self.book.progress(scope, stage).watermark
+        return int(await self._io(self.store.prune_promoted_staged, scope, stage, through))
+
     # ------------------------------------------------------------------ budget parking (W2-12)
     @staticmethod
     def parked_stage(stage: str) -> str:
@@ -444,6 +499,9 @@ class InlineRunner:
         if self.store.has_source(scope, stage, record_id):
             return True
         for _offset, payload in self.store.items_after(scope, stage, -1):
+            if record_id in payload.get("record_ids", []):
+                return True
+        for _offset, payload in self.staged_items(scope, stage):
             if record_id in payload.get("record_ids", []):
                 return True
         return bool(self.store.draft_has_record(scope, stage, record_id))

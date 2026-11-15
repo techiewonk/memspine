@@ -1791,7 +1791,23 @@ def make_outbox_runner(
     lease = sql.sync_lease(resources, "outbox")
     parts = _engine_outbox(resources, lease.engine)
     runner: OutboxRunner
-    if config.workers.transport == "taskiq":  # RT-01: the same outbox, ids sent over taskiq
+    if config.workers.runner == "temporal":
+        if config.workers.transport != "inline":
+            raise ConfigError("workers.runner='temporal' requires workers.transport='inline'")
+        from memspine.runtime.temporal_outbox import TemporalOutboxRunner
+        from memspine.workers.temporal_runner import _configuration_fingerprint
+
+        settings = config.workers.temporal
+        assert settings is not None  # validated by WorkersConfig
+        runner = TemporalOutboxRunner(
+            parts.store,
+            commit_lock=commit_lock,
+            deployment_id=settings.deployment_id,
+            config_fingerprint=_configuration_fingerprint(config),
+            activity_timeout_s=settings.activity_timeout_s,
+            retry_max_attempts=settings.retry_max_attempts,
+        )
+    elif config.workers.transport == "taskiq":  # RT-01: the same outbox, ids sent over taskiq
         from memspine.runtime.transport import TransportRunner
 
         kind = config.workers.transport_broker

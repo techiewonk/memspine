@@ -223,6 +223,87 @@ def test_records_artifact_path_and_sha256(tmp_path: Path) -> None:
     ]
 
 
+def test_records_each_quarantined_outcome_with_tracker_row(tmp_path: Path) -> None:
+    root = _root(tmp_path / "repo")
+    lines = [
+        "QUARANTINED xfailed test_sample.py::test_flaky (RM-901)",
+        "QUARANTINED xpassed test_sample.py::test_param[1] (RM-902)",
+        "QUARANTINED xpassed+teardown-failed test_sample.py::test_teardown (RM-906)",
+    ]
+
+    record = _record(root, root / "runs.jsonl", quarantined=lines)
+
+    assert record["quarantined_tests"] == [
+        {"outcome": "xfailed", "nodeid": "test_sample.py::test_flaky", "row": "RM-901"},
+        {"outcome": "xpassed", "nodeid": "test_sample.py::test_param[1]", "row": "RM-902"},
+        {
+            "outcome": "xpassed+teardown-failed",
+            "nodeid": "test_sample.py::test_teardown",
+            "row": "RM-906",
+        },
+    ]
+    assert (
+        json.loads((root / "runs.jsonl").read_text(encoding="utf-8"))["quarantined_tests"]
+        == (record["quarantined_tests"])
+    )
+
+
+@pytest.mark.parametrize(
+    "line",
+    [
+        "test_sample.py::test_flaky (RM-901)",
+        "QUARANTINED xfailed test_sample.py::test_flaky (missing)",
+        "QUARANTINED unknown test_sample.py::test_flaky (RM-901)",
+        "QUARANTINED xfailed test_sample.py (RM-901)",
+        "QUARANTINED xfailed test_sample.py::test_flaky (RM-901) password=secret",
+    ],
+)
+def test_refuses_unowned_or_malformed_quarantine_outcomes(tmp_path: Path, line: str) -> None:
+    root = _root(tmp_path / "repo")
+    output = root / "runs.jsonl"
+    with pytest.raises(ValueError, match="quarantined test"):
+        _record(root, output, quarantined=[line])
+    assert not output.exists()
+
+
+def test_refuses_duplicate_quarantined_test_outcome(tmp_path: Path) -> None:
+    root = _root(tmp_path / "repo")
+    line = "QUARANTINED xfailed test_sample.py::test_flaky (RM-901)"
+    with pytest.raises(ValueError, match="duplicate quarantined test"):
+        _record(root, root / "runs.jsonl", quarantined=[line, line])
+
+
+def test_cli_records_quarantined_outcome_line(tmp_path: Path) -> None:
+    root = _root(tmp_path / "repo")
+    output = root / "runs.jsonl"
+    line = "QUARANTINED xfailed tests/unit/test_flaky.py::test_case (RM-901)"
+
+    assert (
+        main(
+            [
+                "--gate=unit",
+                "--status=passed",
+                "--command=pytest tests/unit",
+                "--passed=1",
+                "--failed=0",
+                "--skipped=0",
+                f"--root={root}",
+                f"--output={output}",
+                "--quarantined",
+                line,
+            ]
+        )
+        == 0
+    )
+    assert json.loads(output.read_text(encoding="utf-8"))["quarantined_tests"] == [
+        {
+            "outcome": "xfailed",
+            "nodeid": "tests/unit/test_flaky.py::test_case",
+            "row": "RM-901",
+        }
+    ]
+
+
 def test_records_only_explicit_fields_and_refuses_clear_credentials(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -263,3 +344,29 @@ def test_the_ledger_file_itself_does_not_make_the_tree_dirty(tmp_path: Path) -> 
     assert revision_info(tmp_path)["dirty"] is True
     (tmp_path / "a.txt").write_text("changed", encoding="utf-8")
     assert revision_info(tmp_path, ledger)["dirty"] is True
+
+
+@pytest.mark.parametrize("name", ["runs with spaces.jsonl", "évidence.jsonl", " leading.jsonl"])
+def test_ledger_only_exclusion_handles_git_quoted_paths(tmp_path: Path, name: str) -> None:
+    root = _root(tmp_path / "repo")
+    ledger = root / name
+    ledger.write_text("{}\n", encoding="utf-8")
+
+    assert revision_info(root, ledger)["dirty"] is False
+    assert revision_info(root)["dirty"] is True
+    (root / "other with spaces.txt").write_text("x\n", encoding="utf-8")
+    assert revision_info(root, ledger)["dirty"] is True
+
+
+def test_renaming_ledger_is_not_excluded_as_a_ledger_only_change(tmp_path: Path) -> None:
+    root = _root(tmp_path / "repo")
+    original = root / "prior.jsonl"
+    original.write_text("{}\n", encoding="utf-8")
+    _commit_all(root)
+    ledger = root / "runs.jsonl"
+    original.rename(ledger)
+    _git(root, "add", "-A")
+
+    assert revision_info(root, ledger)["dirty"] is True
+    with pytest.raises(DirtyTreeError):
+        _record(root, ledger)

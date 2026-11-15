@@ -93,7 +93,7 @@ async def scrub_profile_cards(
     redacted = 0
     if hard and (slots or touched):
         seqs = await storage.scrub_marker_payloads(
-            PROFILE_CARD_MARKER, lambda p: _scrub_entries(p, gone, slots)
+            PROFILE_CARD_MARKER, lambda p: _scrub_entries(p, gone, slots), namespace=namespace
         )
         redacted = len(seqs)
     if tap.enabled():

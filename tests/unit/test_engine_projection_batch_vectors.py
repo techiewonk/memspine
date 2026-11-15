@@ -160,7 +160,9 @@ async def test_a_read_inside_the_batch_writes_the_held_rows_first() -> None:
             assert store.held_rows == 1
             assert record.record_id in await _vector_ids(engine, "Pepper chased a heron")
             assert store.held_rows == 0 and await store.exists(record.record_id)
-            assert set((await _offsets(engine)).values()) == {0}  # marks wait for the flush
+            offsets = await _offsets(engine)
+            assert offsets.pop("records") == await _head(engine)  # native fold commits with WRITE
+            assert set(offsets.values()) == {0}  # vector/lexical marks wait for flush
         head = await _head(engine)
         assert set((await _offsets(engine)).values()) == {head}
     finally:
@@ -222,6 +224,7 @@ async def test_a_crash_between_the_batch_write_and_its_checkpoint_replays(
         assert not engine._lexical.connector.uncommitted  # type: ignore[attr-defined]
         behind = await _offsets(engine)
         head = await _head(engine)
+        assert behind.pop("records") == head  # atomic fold owns its checkpoint
         assert all(seq < head for seq in behind.values())
     finally:
         await engine.stop()

@@ -299,7 +299,9 @@ async def test_bi08_bound_mention_occurrences_on_neo4j_projection() -> None:
     await projector.apply(write)
     edges = await graph.edge_list(record.namespace)
     occurrence_ids = {
-        edge.dst for edge in edges if edge.src == record.record_id and edge.rel_type == "has_mention"
+        edge.dst
+        for edge in edges
+        if edge.src == record.record_id and edge.rel_type == "has_mention"
     }
     assert len(occurrence_ids) == 2
     assert all(edge.properties["asserted"] is False for edge in edges)

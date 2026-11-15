@@ -1,4 +1,4 @@
-"""Close tolerates a writer still borrowed by a cancelled call (CI flake: ``Already borrowed``)."""
+"""Close retries a transient writer borrow and retains ownership on failure."""
 
 from __future__ import annotations
 
@@ -24,10 +24,11 @@ def test_join_retries_until_the_writer_is_free(monkeypatch: pytest.MonkeyPatch) 
     assert w.calls == 3
 
 
-def test_join_gives_up_quietly_when_still_busy(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_join_raises_when_still_busy(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(tantivy, "TANTIVY_COMMIT_BACKOFF_S", 0.0)
     w = _Writer(busy=99)
-    tantivy.wait_merging_threads(w)  # no raise: shutdown must not fail on a busy writer
+    with pytest.raises(RuntimeError, match="Already borrowed"):
+        tantivy.wait_merging_threads(w)
     assert w.calls == tantivy.TANTIVY_COMMIT_RETRIES
 
 

@@ -19,7 +19,7 @@ from memspine.services.storage.records_port import RecordsStore
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
 from memspine.store.scope import validate_namespace
-from memspine.trust.erasure import retained_fields
+from memspine.trust.erasure import redact_record, retained_fields
 from memspine.trust.pipeline import erasure_state as erasure
 from memspine.trust.pipeline.state import _as_options_dict
 
@@ -231,7 +231,60 @@ async def _forget_many(
     records: list[MemoryRecord | None] = []
     for rid in ids:
         records.append(await eng._forget_target(storage, ns, rid, hard))
+    if hard:
+        # Scope and legal holds have passed. This canonical ID-only barrier commits
+        # before the first forget/delete/scrub, so another process's guarded
+        # resolver append either precedes this barrier (and is scrubbed below)
+        # or observes it and rejects the whole contribution.
+        await storage.begin_registry_erasure(ns, ids)
+        # Tombstone message identities while their source envelopes and intake
+        # write tags are still available. A raw turn can be erased before the
+        # intake apply maps its record ID; matching its immutable write ID
+        # closes that gap. Both calls are idempotent on a crash/retry after the
+        # barrier, and neither runs before scope/legal-hold validation.
+        from memspine.services.storage.intake_port import intake_ledger_of
+
+        ledger = intake_ledger_of(storage)
+        if ledger is not None:
+            claims: list[tuple[str, str]] = []
+            for record in records:
+                if record is None or not record.source.message:
+                    continue
+                message_id = record.source.message.get("message_id")
+                write_ids = [
+                    tag.removeprefix(constants.IDEM_TAG_PREFIX)
+                    for tag in record.tags
+                    if tag.startswith(constants.IDEM_TAG_PREFIX)
+                ]
+                if isinstance(message_id, str) and message_id and len(write_ids) == 1:
+                    claims.append((message_id, write_ids[0]))
+            await ledger.tombstone_records(ids)
+            await ledger.tombstone_unmapped_messages(ns, claims)
     texts = [t for r in records if r is not None for t in eng._erasable_texts(r)]
+    # Source-addressed evidence copies can live on a different surviving claim. Write a sanitized
+    # snapshot through the event path before forgetting the source, so restart/replay cannot restore
+    # the erased quote. The log redactor below applies the same operation to historical snapshots.
+    for survivor in await storage.list_records(ns):
+        env = survivor.fingerprint.envelope
+        if not isinstance(env, dict):
+            continue
+        clean_env = dict(env)
+        changed = False
+        for rid in ids:
+            changed |= redact_record(clean_env, rid)
+        if not changed:
+            continue
+        clean = survivor.model_copy(
+            update={"fingerprint": survivor.fingerprint.model_copy(update={"envelope": clean_env})}
+        )
+        await eng._append_and_project(
+            MemoryEvent(
+                kind=EventKind.WRITE,
+                namespace=ns,
+                actor="system",
+                payload={"record": clean.model_dump(mode="json")},
+            )
+        )
     for rid in ids:
         await eng._forget_locked(storage, ns, rid, hard, redact=False)
     await eng._scrub_profile_cards(ns, ids, hard)  # FU-CLOSE: card entries leave with their turn
@@ -244,7 +297,11 @@ async def _forget_many(
         if renames
         else await storage.redact_event_payloads(ids)
     )
-    redacted += await _scrub_alias_markers(storage, ids)
+    redacted += await _scrub_alias_markers(storage, ns, ids)
+    redacted += await _scrub_resolver_markers(storage, ns, ids)
+    resolve = eng.__dict__.get("_entity_resolve_stage")
+    if resolve is not None:
+        await resolve.forget_sources(ids)
     # D-18: the hard-delete cascade escalates to alert severity.
     _log.error(
         EVENT_FORGET,
@@ -338,7 +395,9 @@ async def _purge_lexical(eng: Any, storage: RecordsStore) -> bool:
     return False
 
 
-async def _scrub_alias_markers(storage: RecordsStore, record_ids: Sequence[str]) -> list[int]:
+async def _scrub_alias_markers(
+    storage: RecordsStore, namespace: str, record_ids: Sequence[str]
+) -> list[int]:
     """ADR-095 (entity name index copy class): the alias text of every ``entity_index.alias``
     marker citing an erased record leaves the log (the alias was read from that evidence; the
     projector undid the alias on the hard FORGET). Returns the rewritten seqs."""
@@ -346,9 +405,26 @@ async def _scrub_alias_markers(storage: RecordsStore, record_ids: Sequence[str])
 
     erased = set(record_ids)
     seqs: list[int] = await storage.scrub_marker_payloads(
-        ALIAS_MARKER, lambda payload: scrub_alias_marker(payload, erased)
+        ALIAS_MARKER, lambda payload: scrub_alias_marker(payload, erased), namespace=namespace
     )
     return seqs
+
+
+async def _scrub_resolver_markers(
+    storage: RecordsStore, namespace: str, record_ids: Sequence[str]
+) -> list[int]:
+    """Erase source-bound resolver labels from historical marker payloads."""
+    from memspine.store.registry_evidence import ENTITY_MARKERS, scrub_registry_marker
+
+    erased = set(record_ids)
+    rewritten: list[int] = []
+    for marker in ENTITY_MARKERS:
+        rewritten.extend(
+            await storage.scrub_marker_payloads(
+                marker, lambda payload: scrub_registry_marker(payload, erased), namespace=namespace
+            )
+        )
+    return rewritten
 
 
 async def _erased_entity_nodes(
@@ -452,7 +528,11 @@ async def _forget_locked(
         await eng._retract_compiled_edges(ns, [record_id])
     if hard and redact:
         redacted = await storage.redact_event_payloads(record_id)
-        redacted += await _scrub_alias_markers(storage, [record_id])
+        redacted += await _scrub_alias_markers(storage, ns, [record_id])
+        redacted += await _scrub_resolver_markers(storage, ns, [record_id])
+        resolve = eng.__dict__.get("_entity_resolve_stage")
+        if resolve is not None:
+            await resolve.forget_sources([record_id])
         # D-18: the hard-delete cascade escalates to alert severity.
         _log.error(
             EVENT_FORGET, namespace=ns, record_id=record_id, hard=True, redacted=len(redacted)

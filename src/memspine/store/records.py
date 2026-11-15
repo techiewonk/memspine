@@ -184,6 +184,16 @@ class RecordAxes(BaseModel):
     participants: list[str] = Field(default_factory=list)
 
 
+class RestatementSupportProof(BaseModel):
+    """System-authored, quote-free proof material for an RM-22 restatement."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    kind: str = Field(default="independent_restatement", pattern="^independent_restatement$")
+    claim_digest: str = Field(min_length=64, max_length=64, pattern="^[0-9a-f]{64}$")
+    source_ids: list[str] = Field(min_length=2)
+
+
 class RecordFingerprint(BaseModel):
     """Content fingerprint plus derivation fingerprint (P-12): what produced the record.
 
@@ -196,10 +206,16 @@ class RecordFingerprint(BaseModel):
     model_id: str | None = None
     #: The highest source event seq covered by derivation; None means it was not tracked.
     covers_seq: int | None = None
+    #: Canonical WRITE event sequence that last materialized this source snapshot. The
+    #: records projector stamps this from the event envelope; callers cannot author it.
+    source_seq: int | None = Field(default=None, ge=1)
     #: FU-GAPS (``write.envelope``): the compiled ``SemanticEnvelope`` as JSON (time axes, evidence
     #: roles, verdict), kept in this blob like ``covers_seq`` so no column or migration is needed.
     #: ``None`` = the record was not written from an envelope. Read it with ``Engine.get_envelope``.
     envelope: dict[str, Any] | None = None
+    #: System-minted RM-22 proof that listed sources independently support the same complete
+    #: canonical claim. Stored in this existing fingerprint blob for SQL replay; never model text.
+    restatement_support: RestatementSupportProof | None = None
     #: PA-119: all GLiNER entity spans are kept as unasserted, source-bound annotations here. This
     #: stays in the existing fingerprint/event blob; it is not a fact key or a new SQL column.
     entity_mentions: tuple[EntityMention, ...] = ()

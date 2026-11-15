@@ -27,6 +27,7 @@ GOLDEN = Path(__file__).parent / "golden" / "wave3_read_off.json"
 _UPDATE = os.environ.get("MEMSPINE_UPDATE_GOLDENS") == "1"
 
 T0 = datetime(2023, 5, 1, 9, 0, tzinfo=UTC)
+FROZEN_NOW = datetime(2023, 7, 15, 12, 0, tzinfo=UTC)
 
 #: (speaker, text, day offset)
 TURNS = [
@@ -121,12 +122,10 @@ def _fixed_now(monkeypatch: pytest.MonkeyPatch) -> None:
     from memspine.core.policies import scoring
     from memspine.store import records
 
-    frozen = datetime(2023, 7, 15, 12, 0, tzinfo=UTC)
-
     class _Frozen(datetime):
         @classmethod
         def now(cls, tz: Any = None) -> datetime:  # type: ignore[override]
-            return frozen if tz is not None else frozen.replace(tzinfo=None)
+            return FROZEN_NOW if tz is not None else FROZEN_NOW.replace(tzinfo=None)
 
     monkeypatch.setattr(records, "datetime", _Frozen)
     monkeypatch.setattr(scoring, "datetime", _Frozen)
@@ -135,6 +134,7 @@ def _fixed_now(monkeypatch: pytest.MonkeyPatch) -> None:
 
 async def _current(**read: Any) -> dict[str, Any]:
     eng = _engine(**read)
+    eng._clock = lambda: FROZEN_NOW
     await eng.start()
     try:
         return await _snapshot(eng)

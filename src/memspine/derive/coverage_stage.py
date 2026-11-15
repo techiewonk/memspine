@@ -71,7 +71,7 @@ COVERAGE_STAGE_ORDER = 250
 COVERAGE_COST_STAGE = "coverage_reextract"
 
 #: ``(namespace, text) -> [(name, aliases)]``: the store's known entities (W2-06b KNOWN source)
-KnownFn = Callable[[str, str], Any]
+KnownFn = Callable[..., Any]
 ScopeFn = Callable[[str], AbstractContextManager[None]]
 
 
@@ -306,7 +306,16 @@ class CoverageStage:
         entries = _names(envelopes)
         if self.known is not None:
             try:
-                got = await self.known(ctx.namespace, new)
+                source_seqs = [
+                    getattr(getattr(record, "fingerprint", None), "source_seq", None)
+                    for record in ctx.records
+                ]
+                known_seq = (
+                    max(int(value) for value in source_seqs if value is not None)
+                    if source_seqs and all(value is not None for value in source_seqs)
+                    else 0
+                )
+                got = await self.known(ctx.namespace, new, known_seq)
                 known_entries = [(k.name, tuple(k.aliases)) for k in got]
             except Exception:
                 known_entries = []

@@ -49,7 +49,12 @@ async def test_f4_suggestion_refusal_visit_keep_residence(
                     kind="agent",
                 ),
                 msg("f4-2", "Asha", "No, I am not moving.", "2026-10-01T09:01Z"),
-                msg("f4-3", "Asha", "I visited Lisbon last weekend.", "2026-10-01T09:02Z"),
+                msg(
+                    "f4-3",
+                    "Asha",
+                    "I visited the city of Lisbon last weekend.",
+                    "2026-10-01T09:02Z",
+                ),
             ],
         )
         await settle(eng)
@@ -137,7 +142,10 @@ async def test_f4_visit_is_a_separate_event_claim(
 ) -> None:
     eng = await _boot(monkeypatch, tmp_path / "f4v.db")
     try:
-        await send(eng, [msg("v-1", "Asha", "I visited Lisbon last weekend.", "2026-10-01T09:02Z")])
+        await send(
+            eng,
+            [msg("v-1", "Asha", "I visited the city of Lisbon last weekend.", "2026-10-01T09:02Z")],
+        )
         [visit] = by_predicate(await claims(eng), "visited")
         assert (visit.object, visit.modality) == ("Lisbon", "asserted")
         assert visit.subject == visit.principal == "Asha"

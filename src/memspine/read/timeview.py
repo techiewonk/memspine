@@ -610,6 +610,15 @@ def apply(
 ) -> TimeViewResult:
     """Filter and annotate ``assertions`` under ``view``. Deterministic; independent of input order."""
     items = list(assertions)
+    if view.mode in ("known_at", "both"):
+        # A stored current flag may depend on a rival learned after this view's
+        # cutoff. The trusted rederive callback can set the historical flag
+        # from its complete known population; absent that proof, never leak the
+        # present-day flag into a historical answer.
+        items = [
+            e.model_copy(update={"cardinality_conflict": False}) if e.cardinality_conflict else e
+            for e in items
+        ]
     pool = sorted(
         (e for e in items if e.status != "hidden"), key=lambda e: (_order_key(e), _record_id(e))
     )

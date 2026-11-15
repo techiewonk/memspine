@@ -20,18 +20,29 @@ from __future__ import annotations
 
 import asyncio
 import json
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Protocol
 
 import orjson
 import zstandard
-from sqlalchemy import ColumnElement, String, any_, bindparam, delete, func, inspect, select, text
+from sqlalchemy import (
+    ColumnElement,
+    String,
+    any_,
+    bindparam,
+    delete,
+    func,
+    inspect,
+    or_,
+    select,
+    text,
+)
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.exc import OperationalError
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 from memspine.config.constants import (
     READ_RECORD_MEMO_MAX,
@@ -39,8 +50,15 @@ from memspine.config.constants import (
     STORAGE_HEALTH_DEADLINE_S,
     ZSTD_LEVEL,
 )
-from memspine.exceptions import StorageError
+from memspine.exceptions import RebuildUnavailableError, StorageError
 from memspine.services.base import CapabilityManifest, ServiceAdapter
+from memspine.services.storage.entity_index_tables import (
+    EntityIndexRow,
+    SqlEntityIndexStore,
+    entity_index_namespaces,
+    entity_index_state,
+    entity_index_table,
+)
 
 # Imported for its table too: ``provider_deployment_identity`` joins ``metadata`` before any
 # ``create_all`` (``:memory:``) runs.
@@ -48,13 +66,26 @@ from memspine.services.storage.provider_metadata import (
     SqlProjectionBindingStore,
     sql_claim_deployment_id,
 )
-from memspine.services.storage.records_port import shares_listed_records
+from memspine.services.storage.records_port import (
+    EntityIndexAdvance,
+    EntityIndexApplyBatch,
+    EntityIndexApplyPurge,
+    RecordsAdvance,
+    RecordsProjectionView,
+    shares_listed_records,
+)
 from memspine.services.storage.sqlite.schema import (
     memory_events,
     memory_records,
     projector_offsets,
+    record_append_erasure_fence,
+    record_append_identity,
+    record_projection_visibility,
+    records_projection_state,
 )
+from memspine.store.claim_cardinality import group_key, record_group_of
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
+from memspine.store.record_event_ids import affected_record_ids, validate_record_event_shape
 from memspine.store.records import MemoryRecord
 from memspine.trust.erasure import redact_record, scrub_partition_nodes
 
@@ -69,6 +100,263 @@ if TYPE_CHECKING:
     )
 
 __all__ = ["SqlClient", "SqlStorage"]
+
+# PostgreSQL sequences allocate before commit. Every event insert takes this
+# transaction-scoped guard first, so no lower sequence can commit after a reader
+# has certified a higher committed head. Rollback may leave a harmless gap.
+_EVENT_APPEND_LOCK = "memory_events:append:global"
+_ENTITY_RESET_GATE = "entity_index:reset_gate"
+_ENTITY_GLOBAL_GATE = "entity_index:global_offset"
+# Purge has no caller page budget; one fixed global page keeps the transaction
+# bounded while allowing a newly certified pending marker to release retention.
+_ENTITY_PURGE_PREFIX_PAGE = 1024
+_RECORDS_WRITER_LOCK = "records:projection:writer"
+_RECORD_EPHEMERAL_KINDS = frozenset(
+    {
+        EventKind.WRITE,
+        EventKind.FORGET,
+        EventKind.DECAY_TRANSITION,
+        EventKind.RETRIEVE,
+        EventKind.FEEDBACK,
+        EventKind.SESSION,
+    }
+)
+
+
+def _ephemeral_record_event(event: MemoryEvent) -> bool:
+    return event.kind in _RECORD_EPHEMERAL_KINDS or (
+        event.kind is EventKind.MARKER
+        and event.payload.get("marker") in {"erasure_manifest", "erasure_release"}
+    )
+
+
+def _append_erased_ids(event: MemoryEvent) -> tuple[str, ...]:
+    """Canonical ID-only tombstones installed beside an irreversible append."""
+    if event.kind is EventKind.FORGET and bool(event.payload.get("hard")):
+        record_id = event.payload.get("record_id")
+        if not isinstance(record_id, str) or not record_id:
+            raise StorageError("hard FORGET requires a nonempty record_id")
+        return (record_id,)
+    if event.kind is not EventKind.MARKER or event.payload.get("marker") != "erasure_manifest":
+        return ()
+    manifest = event.payload.get("manifest")
+    ids = manifest.get("ids") if isinstance(manifest, Mapping) else None
+    raw = ids.get("record_ids") if isinstance(ids, Mapping) else None
+    if raw is None:
+        return ()
+    if not isinstance(raw, list) or any(not isinstance(item, str) or not item for item in raw):
+        raise StorageError("erasure manifest has invalid record ids")
+    return tuple(dict.fromkeys(raw))
+
+
+_ENTITY_KINDS = (
+    EventKind.WRITE,
+    EventKind.FORGET,
+    EventKind.MARKER,
+    EventKind.DECAY_TRANSITION,
+    EventKind.REGISTRY_ERASURE_FENCE,
+)
+
+
+class _SqlEntityIndexView:
+    """A projection callback's only SQL view, bound to its writer transaction."""
+
+    def __init__(
+        self, storage: SqlStorage, conn: AsyncConnection, namespace: str, index: SqlEntityIndexStore
+    ) -> None:
+        self._storage = storage
+        self._conn = conn
+        self._namespace = namespace
+        self._index = index
+
+    def _check(self, namespace: str) -> None:
+        if namespace != self._namespace:
+            raise StorageError("entity-index callback crossed its namespace")
+
+    async def put(self, rows: Sequence[EntityIndexRow]) -> None:
+        for row in rows:
+            self._check(row.namespace)
+        await self._index.put_on(self._conn, rows)
+
+    async def select(
+        self,
+        namespace: str,
+        kind: str,
+        *,
+        key: str | None = None,
+        entity_id: str | None = None,
+        ref: str | None = None,
+        match: str | None = None,
+    ) -> list[EntityIndexRow]:
+        self._check(namespace)
+        return await self._index.select_on(
+            self._conn, namespace, kind, key=key, entity_id=entity_id, ref=ref, match=match
+        )
+
+    async def delete(
+        self,
+        namespace: str,
+        kind: str,
+        *,
+        key: str | None = None,
+        entity_id: str | None = None,
+        ref: str | None = None,
+    ) -> None:
+        self._check(namespace)
+        await self._index.delete_on(
+            self._conn, namespace, kind, key=key, entity_id=entity_id, ref=ref
+        )
+
+    async def get_record(self, record_id: str) -> MemoryRecord | None:
+        row = (
+            await self._conn.execute(
+                select(memory_records).where(
+                    memory_records.c.record_id == record_id,
+                    memory_records.c.namespace == self._namespace,
+                )
+            )
+        ).first()
+        return self._storage._row_to_record(row._mapping) if row is not None else None
+
+    async def pending_events(self, limit: int) -> list[MemoryEvent]:
+        if limit <= 0:
+            return []
+        pending = (
+            await self._conn.execute(
+                select(entity_index_table.c.seq)
+                .where(
+                    entity_index_table.c.namespace == self._namespace,
+                    entity_index_table.c.kind == "pending_positive",
+                )
+                .order_by(entity_index_table.c.seq, entity_index_table.c.key)
+                .limit(limit)
+            )
+        ).all()
+        if not pending:
+            return []
+        seqs = [int(row.seq) for row in pending]
+        rows = (
+            await self._conn.execute(
+                select(memory_events)
+                .where(
+                    memory_events.c.seq.in_(seqs),
+                    memory_events.c.namespace == self._namespace,
+                    memory_events.c.kind == EventKind.MARKER.value,
+                )
+                .order_by(memory_events.c.seq)
+            )
+        ).all()
+        by_seq = {int(row.seq): self._storage._row_to_event(row._mapping) for row in rows}
+        if any(seq < 1 or seq not in by_seq for seq in seqs):
+            raise StorageError("pending entity-index canonical event is missing")
+        return [by_seq[seq] for seq in seqs]
+
+
+class _SqlRecordsView:
+    """Record reducer operations on the exact cursor/event transaction."""
+
+    def __init__(self, storage: SqlStorage, conn: AsyncConnection) -> None:
+        self._storage = storage
+        self._conn = conn
+        self._active = True
+        self.record_presence: dict[str, bool] = {}
+
+    def close(self) -> None:
+        self._active = False
+
+    def _check(self) -> None:
+        if not self._active:
+            raise StorageError("records projection view outlived its transaction")
+
+    async def get_record(self, record_id: str) -> MemoryRecord | None:
+        self._check()
+        row = (
+            await self._conn.execute(
+                select(memory_records).where(memory_records.c.record_id == record_id)
+            )
+        ).first()
+        return self._storage._row_to_record(row._mapping) if row is not None else None
+
+    async def put_record(self, record: MemoryRecord) -> None:
+        self._check()
+        await self._storage._put_record_on(self._conn, record)
+        self.record_presence[record.record_id] = True
+
+    async def delete_record(self, record_id: str) -> None:
+        self._check()
+        await self._storage._delete_record_on(self._conn, record_id)
+        self.record_presence[record_id] = False
+
+    async def group_page(
+        self, namespace: str, group_key: str, *, after_id: str | None, limit: int
+    ) -> list[MemoryRecord]:
+        self._check()
+        if limit <= 0:
+            return []
+        stmt = select(memory_records).where(
+            memory_records.c.namespace == namespace,
+            memory_records.c.claim_group_key == group_key,
+        )
+        if after_id is not None:
+            stmt = stmt.where(memory_records.c.record_id > after_id)
+        rows = (
+            await self._conn.execute(stmt.order_by(memory_records.c.record_id).limit(limit))
+        ).all()
+        return [self._storage._row_to_record(row._mapping) for row in rows]
+
+    async def erasure_state(self, namespace: str, record_id: str) -> tuple[bool, bool]:
+        self._check()
+        row = (
+            await self._conn.execute(
+                select(
+                    record_projection_visibility.c.erased, record_projection_visibility.c.hidden
+                ).where(
+                    record_projection_visibility.c.namespace == namespace,
+                    record_projection_visibility.c.record_id == record_id,
+                )
+            )
+        ).first()
+        fence = await self._conn.scalar(
+            select(record_append_erasure_fence.c.record_id).where(
+                record_append_erasure_fence.c.record_id == record_id
+            )
+        )
+        erased = fence is not None or (bool(row.erased) if row is not None else False)
+        hidden = bool(row.hidden) if row is not None else False
+        return erased, hidden
+
+    async def mark_erased(self, namespace: str, record_id: str) -> None:
+        self._check()
+        stmt = self._storage._insert(record_projection_visibility).values(
+            namespace=namespace, record_id=record_id, erased=True, hidden=False
+        )
+        await self._conn.execute(
+            stmt.on_conflict_do_update(
+                index_elements=["namespace", "record_id"], set_={"erased": True}
+            )
+        )
+
+    async def mark_hidden(self, namespace: str, record_id: str) -> None:
+        self._check()
+        stmt = self._storage._insert(record_projection_visibility).values(
+            namespace=namespace, record_id=record_id, erased=False, hidden=True
+        )
+        await self._conn.execute(
+            stmt.on_conflict_do_update(
+                index_elements=["namespace", "record_id"], set_={"hidden": True}
+            )
+        )
+
+    async def release_hidden(self, namespace: str, record_id: str) -> None:
+        self._check()
+        await self._conn.execute(
+            record_projection_visibility.update()
+            .where(
+                record_projection_visibility.c.namespace == namespace,
+                record_projection_visibility.c.record_id == record_id,
+            )
+            .values(hidden=False)
+        )
 
 
 def _iso(ts: datetime) -> str:
@@ -105,6 +393,7 @@ class SqlStorage(ServiceAdapter):
         # in memory — persisting either would poison a later full/rolling run
         # on the same database with high-water marks no event backs.
         self._ephemeral_seq = 0
+        self._ephemeral_records_lock = asyncio.Lock()
         self._ephemeral_offsets: dict[str, int] = {}
         self._cctx = zstandard.ZstdCompressor(level=ZSTD_LEVEL)
         self._dctx = zstandard.ZstdDecompressor()
@@ -180,22 +469,277 @@ class SqlStorage(ServiceAdapter):
             fingerprint=event.fingerprint,
         )
 
+    async def _guard_event_append(self, conn: AsyncConnection) -> None:
+        """Serialize PostgreSQL sequence allocation through transaction completion."""
+        if self._is_postgres:
+            await conn.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                {"key": _EVENT_APPEND_LOCK},
+            )
+
+    async def _record_append_fence_on(
+        self, conn: AsyncConnection, event: MemoryEvent, *, trusted_replay: bool = False
+    ) -> None:
+        try:
+            validate_record_event_shape(event)
+        except ValueError as exc:
+            raise StorageError(str(exc)) from exc
+        erased = _append_erased_ids(event)
+        snapshot = event.payload.get("record") if event.kind is EventKind.WRITE else None
+        if event.kind is EventKind.WRITE:
+            if not isinstance(snapshot, Mapping):
+                raise StorageError("WRITE requires a canonical record snapshot")
+            record_id = snapshot.get("record_id")
+            if (
+                not isinstance(record_id, str)
+                or not record_id
+                or snapshot.get("namespace") != event.namespace
+            ):
+                raise StorageError("WRITE record identity or namespace mismatches its event")
+        else:
+            record_id = None
+        ids = list(dict.fromkeys((*affected_record_ids(event), *erased)))
+        if not ids:
+            return
+        await self._records_writer_lock(conn)
+        owned = (
+            await conn.execute(
+                select(
+                    record_append_identity.c.record_id, record_append_identity.c.namespace
+                ).where(record_append_identity.c.record_id.in_(ids))
+            )
+        ).all()
+        if any(row.namespace != event.namespace for row in owned):
+            raise StorageError("record id belongs to another namespace")
+        owners = (
+            await conn.execute(
+                select(memory_records.c.record_id, memory_records.c.namespace).where(
+                    memory_records.c.record_id.in_(ids)
+                )
+            )
+        ).all()
+        if any(row.namespace != event.namespace for row in owners):
+            raise StorageError("record id belongs to another namespace")
+        if record_id is not None and not trusted_replay:
+            fenced = await conn.scalar(
+                select(record_append_erasure_fence.c.record_id).where(
+                    record_append_erasure_fence.c.record_id == record_id
+                )
+            )
+            if fenced is not None:
+                raise StorageError("record id is permanently erased")
+        identity_ids = [*erased]
+        if record_id is not None:
+            identity_ids.insert(0, record_id)
+        for owned_id in dict.fromkeys(identity_ids):
+            stmt = self._insert(record_append_identity).values(
+                record_id=owned_id, namespace=event.namespace
+            )
+            await conn.execute(stmt.on_conflict_do_nothing(index_elements=["record_id"]))
+        for erased_id in erased:
+            stmt = self._insert(record_append_erasure_fence).values(record_id=erased_id)
+            await conn.execute(stmt.on_conflict_do_nothing(index_elements=["record_id"]))
+
     async def append_event(self, event: MemoryEvent) -> MemoryEvent:
+        from memspine.store.registry_evidence import registry_control_marker
+
+        if event.kind is EventKind.REGISTRY_ERASURE_FENCE or registry_control_marker(
+            event.kind, event.payload
+        ):
+            raise StorageError("registry control events require their guarded append door")
         if event.seq is not None:
             raise StorageError("event already has a seq — events pass the write door once")
 
         if self._mode is EventLogMode.EPHEMERAL:
-            self._ephemeral_seq += 1
-            return event.model_copy(update={"seq": self._ephemeral_seq})
+            if _ephemeral_record_event(event):
+                raise StorageError(
+                    "record-affecting ephemeral events require append_ephemeral_records"
+                )
+            async with self._ephemeral_records_lock:
+                self._ephemeral_seq += 1
+                return event.model_copy(update={"seq": self._ephemeral_seq})
 
         stmt = self._event_insert(event)
         # Both dialects return the generated identity via RETURNING (Postgres
         # natively; SQLite via SQLAlchemy's rowid fetch) in inserted_primary_key.
         async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, None)
+            await self._guard_event_append(conn)
+            await self._record_append_fence_on(conn, event)
             result = await conn.execute(stmt)
         pk = result.inserted_primary_key
         if pk is None:
             raise StorageError("insert into memory_events returned no primary key")
+        return event.model_copy(update={"seq": int(pk[0])})
+
+    async def begin_registry_erasure(self, namespace: str, source_ids: Sequence[str]) -> None:
+        """Commit an ID-only erasure barrier before deleting or scrubbing source copies.
+
+        A completed barrier is retained even in rolling mode. A failed later erase is
+        safely retryable; its cited source can no longer authorize fresh registry text.
+        """
+        if self._mode is EventLogMode.EPHEMERAL:
+            return  # no durable registry marker or cross-process event log exists
+        ids = sorted(set(source_ids))
+        if not ids:
+            return
+        barrier = MemoryEvent(
+            kind=EventKind.REGISTRY_ERASURE_FENCE,
+            namespace=namespace,
+            actor="registry_erasure",
+            payload={"source_ids": ids},
+        )
+        async with self._client.engine.begin() as conn:
+            await self._guard_event_append(conn)
+            if self._is_postgres:
+                # PostgreSQL sequences allocate before commit. Fence polling uses
+                # an increasing seq cursor across *all* namespaces, so fence
+                # transactions must commit in allocation order globally.
+                await conn.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                    {"key": "registry:erasure-fence:global"},
+                )
+                await conn.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                    {"key": f"registry:{namespace}"},
+                )
+            await conn.execute(self._event_insert(barrier))
+
+    async def registry_erasure_fences(self, after_seq: int = 0) -> list[tuple[int, str, list[str]]]:
+        if self._mode is EventLogMode.EPHEMERAL:
+            return []
+        stmt = (
+            select(
+                memory_events.c.seq,
+                memory_events.c.namespace,
+                memory_events.c.payload,
+                memory_events.c.compressed,
+            )
+            .where(
+                memory_events.c.kind == EventKind.REGISTRY_ERASURE_FENCE.value,
+                memory_events.c.seq > after_seq,
+            )
+            .order_by(memory_events.c.seq)
+        )
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        fences: list[tuple[int, str, list[str]]] = []
+        for seq, namespace, raw, compressed in rows:
+            payload = orjson.loads(self._dctx.decompress(raw) if compressed else raw)
+            ids = payload.get("source_ids") if isinstance(payload, dict) else None
+            if not isinstance(ids, list) or not all(isinstance(rid, str) and rid for rid in ids):
+                raise StorageError("malformed registry erasure fence")
+            fences.append((int(seq), str(namespace), ids))
+        return fences
+
+    async def append_registry_marker(self, event: MemoryEvent) -> MemoryEvent:
+        """Append a name-bearing resolver contribution under a native source fence."""
+        from memspine.store.registry_evidence import (
+            ENTITY_MARKERS,
+            registry_marker_has_text,
+            registry_marker_has_unattributed_text,
+            valid_source_refs,
+        )
+
+        if event.seq is not None or event.kind is not EventKind.MARKER:
+            raise StorageError("registry append requires a fresh marker")
+        marker = event.payload.get("marker")
+        if marker not in ENTITY_MARKERS:
+            raise StorageError("registry append requires an entity marker")
+        if registry_marker_has_unattributed_text(event.payload):
+            raise StorageError("registry marker cannot carry unpinned text")
+        if (
+            marker in {"entity.create", "entity.alias"}
+            and registry_marker_has_text(event.payload)
+            and not valid_source_refs(event.payload)
+        ):
+            raise StorageError("registry append requires pinned raw source citations")
+        if self._mode is EventLogMode.EPHEMERAL:
+            raise StorageError("durable registry markers require a persisted event log")
+        refs = (
+            dict(zip(event.payload["source_ids"], event.payload["source_versions"], strict=True))
+            if marker in {"entity.create", "entity.alias"}
+            and registry_marker_has_text(event.payload)
+            else {}
+        )
+        async with self._client.engine.begin() as conn:
+            await self._guard_event_append(conn)
+            if self._is_postgres:
+                await conn.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                    {"key": f"registry:{event.namespace}"},
+                )
+            # SQLite's first write takes its single-writer lock. In Postgres the
+            # advisory lock orders this insert against begin_registry_erasure.
+            result = await conn.execute(self._event_insert(event))
+            rows = (
+                (
+                    await conn.execute(
+                        select(memory_records)
+                        .where(memory_records.c.record_id.in_(sorted(refs)))
+                        .with_for_update()
+                    )
+                ).all()
+                if refs
+                else []
+            )
+            if len(rows) != len(refs) or any(
+                row._mapping["namespace"] != event.namespace
+                or row._mapping["memory_type"] not in {"episodic", "resource"}
+                or row._mapping["version"] != refs[row._mapping["record_id"]]
+                or row._mapping["status"] not in {"activated", "archived"}
+                or row._mapping["quarantined"]
+                for row in rows
+            ):
+                raise StorageError("registry source changed before marker append")
+            fences = (
+                await conn.execute(
+                    select(memory_events.c.payload, memory_events.c.compressed).where(
+                        memory_events.c.namespace == event.namespace,
+                        memory_events.c.kind == EventKind.REGISTRY_ERASURE_FENCE.value,
+                    )
+                )
+            ).all()
+            for raw, compressed in fences:
+                payload = orjson.loads(self._dctx.decompress(raw) if compressed else raw)
+                fence_ids = payload.get("source_ids") if isinstance(payload, dict) else None
+                if (
+                    not isinstance(fence_ids, list)
+                    or not all(isinstance(rid, str) and rid for rid in fence_ids)
+                    or set(refs) & set(fence_ids)
+                ):
+                    raise StorageError("registry source is being erased")
+        pk = result.inserted_primary_key
+        if pk is None:
+            raise StorageError("insert into memory_events returned no primary key")
+        return event.model_copy(update={"seq": int(pk[0])})
+
+    async def _append_replayed_event(self, event: MemoryEvent) -> MemoryEvent:
+        """Private fresh-target door for ordered canonical log transfer by ReplayBuilder.
+
+        Replay copies validated historical events before projecting any source rows,
+        so a new-contribution source check cannot run here. Generic append remains
+        closed to name-bearing markers and erasure fences.
+        """
+        if event.seq is not None or self._mode is EventLogMode.EPHEMERAL:
+            raise StorageError("replay requires a fresh event and persisted target log")
+        async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, None)
+            await self._guard_event_append(conn)
+            await self._record_append_fence_on(conn, event, trusted_replay=True)
+            if self._is_postgres and event.kind is EventKind.REGISTRY_ERASURE_FENCE:
+                await conn.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                    {"key": "registry:erasure-fence:global"},
+                )
+                await conn.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                    {"key": f"registry:{event.namespace}"},
+                )
+            result = await conn.execute(self._event_insert(event))
+        pk = result.inserted_primary_key
+        if pk is None:
+            raise StorageError("replay insert returned no primary key")
         return event.model_copy(update={"seq": int(pk[0])})
 
     # ── records port (ADR-081): atomic append-plus-outbox ────────────────────
@@ -214,11 +758,20 @@ class SqlStorage(ServiceAdapter):
 
         if event.seq is not None:
             raise StorageError("event already has a seq — events pass the write door once")
+        from memspine.store.registry_evidence import registry_control_marker
+
+        if event.kind is EventKind.REGISTRY_ERASURE_FENCE or registry_control_marker(
+            event.kind, event.payload
+        ):
+            raise StorageError("registry control events require their guarded append door")
         if self._mode is EventLogMode.EPHEMERAL:
             raise StorageError("append-plus-outbox needs a persisted event log (not ephemeral)")
         stmt = self._event_insert(event)
         offsets: list[int] = []
         async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, None)
+            await self._guard_event_append(conn)
+            await self._record_append_fence_on(conn, event)
             result = await conn.execute(stmt)
             pk = result.inserted_primary_key
             if pk is None:
@@ -309,6 +862,454 @@ class SqlStorage(ServiceAdapter):
             store = self.__dict__["_entity_index_store"] = SqlEntityIndexStore(self._client.engine)
         return store
 
+    async def _entity_lock(
+        self, conn: AsyncConnection, namespace: str | None, *, exclusive: bool = False
+    ) -> None:
+        """Lock order: reset gate, namespace gate, then global-prefix gate."""
+        if self._is_postgres:
+            await conn.execute(
+                text(
+                    "SELECT pg_advisory_xact_lock(hashtext(:key))"
+                    if exclusive
+                    else "SELECT pg_advisory_xact_lock_shared(hashtext(:key))"
+                ),
+                {"key": _ENTITY_RESET_GATE},
+            )
+            if namespace is not None:
+                await conn.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                    {"key": f"entity_index:namespace:{namespace}"},
+                )
+        else:
+            await conn.exec_driver_sql("BEGIN IMMEDIATE")
+
+    async def _records_writer_lock(self, conn: AsyncConnection) -> None:
+        """Called after the reset gate (and append guard for ordered folds)."""
+        if self._is_postgres:
+            await conn.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                {"key": _RECORDS_WRITER_LOCK},
+            )
+
+    async def _entity_state(self, conn: AsyncConnection) -> int:
+        stmt = self._insert(entity_index_state).values(id=1, epoch=0, pruned_seq=0)
+        await conn.execute(stmt.on_conflict_do_nothing(index_elements=["id"]))
+        epoch = await conn.scalar(
+            select(entity_index_state.c.epoch).where(entity_index_state.c.id == 1)
+        )
+        assert epoch is not None
+        return int(epoch)
+
+    async def _entity_register(self, conn: AsyncConnection) -> int:
+        epoch = await self._entity_state(conn)
+        existing = await conn.scalar(
+            select(projector_offsets.c.last_seq).where(
+                projector_offsets.c.projector_name == "entity_index"
+            )
+        )
+        if existing is None:
+            pruned = await conn.scalar(
+                select(entity_index_state.c.pruned_seq).where(entity_index_state.c.id == 1)
+            )
+            if int(pruned or 0) > 0:
+                raise RebuildUnavailableError(
+                    "entity index cannot initialize after event history was pruned (D-45)"
+                )
+            stmt = self._insert(projector_offsets).values(
+                projector_name="entity_index", last_seq=0, updated_at=_iso(datetime.now(UTC))
+            )
+            await conn.execute(stmt.on_conflict_do_nothing(index_elements=["projector_name"]))
+        return epoch
+
+    async def initialize_entity_index(self) -> None:
+        """Register an enabled entity projector before writes or rolling retention run."""
+        if self._mode is EventLogMode.EPHEMERAL:
+            return
+        async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, None, exclusive=True)
+            await self._entity_register(conn)
+
+    async def assert_full_event_history(self) -> None:
+        """Refuse replay when an actual retention delete removed canonical history."""
+        if self._mode is EventLogMode.EPHEMERAL:
+            raise RebuildUnavailableError("ephemeral event log has no replayable history")
+        async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, None)
+            pruned = await conn.scalar(
+                select(entity_index_state.c.pruned_seq).where(entity_index_state.c.id == 1)
+            )
+            if int(pruned or 0) > 0:
+                raise RebuildUnavailableError(
+                    "event history was pruned (D-45); full replay is unavailable"
+                )
+
+    async def _entity_namespace(
+        self, conn: AsyncConnection, namespace: str
+    ) -> tuple[int, int, int]:
+        row = (
+            await conn.execute(
+                select(
+                    entity_index_namespaces.c.scan_cursor,
+                    entity_index_namespaces.c.cursor,
+                    entity_index_namespaces.c.revision,
+                ).where(entity_index_namespaces.c.namespace == namespace)
+            )
+        ).first()
+        return (
+            (int(row.scan_cursor), int(row.cursor), int(row.revision))
+            if row is not None
+            else (0, 0, 0)
+        )
+
+    async def _entity_global_prefix(self, conn: AsyncConnection, limit: int) -> int:
+        if self._is_postgres:
+            await conn.execute(
+                text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                {"key": _ENTITY_GLOBAL_GATE},
+            )
+        offset = await conn.scalar(
+            select(projector_offsets.c.last_seq).where(
+                projector_offsets.c.projector_name == "entity_index"
+            )
+        )
+        prefix = int(offset or 0)
+        head = await conn.scalar(select(func.max(memory_events.c.seq)))
+        if head is None or int(head) <= prefix:
+            return prefix
+        relevant = {kind.value for kind in _ENTITY_KINDS}
+        rows = (
+            await conn.execute(
+                select(memory_events.c.seq, memory_events.c.namespace, memory_events.c.kind)
+                .where(memory_events.c.seq > prefix, memory_events.c.seq <= int(head))
+                .order_by(memory_events.c.seq)
+                .limit(max(limit, 1))
+            )
+        ).all()
+        cursors: dict[str, int] = {}
+        for row in rows:
+            if row.kind in relevant:
+                if row.namespace not in cursors:
+                    _, cursor, _ = await self._entity_namespace(conn, row.namespace)
+                    cursors[row.namespace] = cursor
+                if row.seq > cursors[row.namespace]:
+                    break
+            prefix = int(row.seq)
+        if rows and len(rows) < max(limit, 1) and prefix == int(rows[-1].seq):
+            prefix = int(head)  # committed sequence gaps have no events to project
+        if prefix > int(offset or 0):
+            await conn.execute(
+                projector_offsets.update()
+                .where(projector_offsets.c.projector_name == "entity_index")
+                .values(last_seq=prefix, updated_at=_iso(datetime.now(UTC)))
+            )
+        return prefix
+
+    async def advance_entity_index(
+        self,
+        namespace: str,
+        target_seq: int,
+        limit: int,
+        apply_batch: EntityIndexApplyBatch,
+    ) -> EntityIndexAdvance:
+        if limit <= 0 or target_seq < 0:
+            raise ValueError("entity-index limit must be positive and target nonnegative")
+        async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, namespace)
+            epoch = await self._entity_register(conn)
+            scan_cursor, cursor, revision = await self._entity_namespace(conn, namespace)
+            head = await conn.scalar(select(func.max(memory_events.c.seq)))
+            captured = max(scan_cursor, min(target_seq, int(head or 0)))
+            rows = (
+                await conn.execute(
+                    select(memory_events)
+                    .where(
+                        memory_events.c.namespace == namespace,
+                        memory_events.c.kind.in_([kind.value for kind in _ENTITY_KINDS]),
+                        memory_events.c.seq > scan_cursor,
+                        memory_events.c.seq <= captured,
+                    )
+                    .order_by(memory_events.c.seq)
+                    .limit(limit + 1)
+                )
+            ).all()
+            page_complete = len(rows) <= limit
+            batch = [self._row_to_event(row._mapping) for row in rows[:limit]]
+            view = _SqlEntityIndexView(self, conn, namespace, self.entity_index_store())
+            # The callback retries at most `limit` old pending markers through
+            # view.pending_events(), then folds this at-most-limit new page.
+            effects = await apply_batch(view, batch)
+            new_scan = captured if page_complete else int(batch[-1].seq or scan_cursor)
+            earliest_pending = await conn.scalar(
+                select(func.min(entity_index_table.c.seq)).where(
+                    entity_index_table.c.namespace == namespace,
+                    entity_index_table.c.kind == "pending_positive",
+                )
+            )
+            new_cursor = (
+                min(new_scan, int(earliest_pending) - 1)
+                if earliest_pending is not None
+                else new_scan
+            )
+            if new_cursor < cursor:
+                raise StorageError("entity-index pending marker regressed its certified cursor")
+            complete = new_scan >= captured and new_cursor >= captured
+            if effects.changed:
+                revision += 1
+            if new_scan != scan_cursor or new_cursor != cursor or effects.changed:
+                stmt = self._insert(entity_index_namespaces).values(
+                    namespace=namespace,
+                    scan_cursor=new_scan,
+                    cursor=new_cursor,
+                    revision=revision,
+                )
+                await conn.execute(
+                    stmt.on_conflict_do_update(
+                        index_elements=["namespace"],
+                        set_={
+                            "scan_cursor": new_scan,
+                            "cursor": new_cursor,
+                            "revision": revision,
+                        },
+                    )
+                )
+            global_offset = await self._entity_global_prefix(conn, limit + 1)
+            receipt = EntityIndexAdvance(
+                epoch, new_cursor, revision, global_offset, complete, len(batch), effects
+            )
+        return receipt
+
+    async def purge_entity_index(
+        self,
+        namespace: str,
+        record_ids: Sequence[str],
+        apply_purge: EntityIndexApplyPurge,
+    ) -> EntityIndexAdvance:
+        async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, namespace)
+            epoch = await self._entity_register(conn)
+            scan_cursor, cursor, revision = await self._entity_namespace(conn, namespace)
+            effects = await apply_purge(
+                _SqlEntityIndexView(self, conn, namespace, self.entity_index_store()), record_ids
+            )
+            earliest_pending = await conn.scalar(
+                select(func.min(entity_index_table.c.seq)).where(
+                    entity_index_table.c.namespace == namespace,
+                    entity_index_table.c.kind == "pending_positive",
+                )
+            )
+            new_cursor = (
+                min(scan_cursor, int(earliest_pending) - 1)
+                if earliest_pending is not None
+                else scan_cursor
+            )
+            if new_cursor < cursor:
+                raise StorageError("entity-index purge regressed its certified cursor")
+            if effects.changed:
+                revision += 1
+            if effects.changed or new_cursor != cursor:
+                stmt = self._insert(entity_index_namespaces).values(
+                    namespace=namespace,
+                    scan_cursor=scan_cursor,
+                    cursor=new_cursor,
+                    revision=revision,
+                )
+                await conn.execute(
+                    stmt.on_conflict_do_update(
+                        index_elements=["namespace"],
+                        set_={"cursor": new_cursor, "revision": revision},
+                    )
+                )
+            offset = await self._entity_global_prefix(conn, _ENTITY_PURGE_PREFIX_PAGE)
+            receipt = EntityIndexAdvance(
+                epoch, new_cursor, revision, offset, new_cursor >= scan_cursor, 0, effects
+            )
+        return receipt
+
+    async def reset_entity_index(self) -> EntityIndexAdvance:
+        if self._mode is EventLogMode.EPHEMERAL:
+            raise RebuildUnavailableError("ephemeral event log has no replayable history")
+        async with self._client.engine.begin() as conn:
+            if self._is_postgres:
+                await conn.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                    {"key": _ENTITY_RESET_GATE},
+                )
+                await conn.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                    {"key": _ENTITY_GLOBAL_GATE},
+                )
+            else:
+                await conn.exec_driver_sql("BEGIN IMMEDIATE")
+            epoch = await self._entity_register(conn) + 1
+            pruned = await conn.scalar(
+                select(entity_index_state.c.pruned_seq).where(entity_index_state.c.id == 1)
+            )
+            if int(pruned or 0) > 0:
+                raise RebuildUnavailableError(
+                    "entity index cannot reset after event history was pruned (D-45)"
+                )
+            await conn.execute(delete(entity_index_table))
+            await conn.execute(delete(entity_index_namespaces))
+            await conn.execute(
+                entity_index_state.update().where(entity_index_state.c.id == 1).values(epoch=epoch)
+            )
+            await conn.execute(
+                projector_offsets.update()
+                .where(projector_offsets.c.projector_name == "entity_index")
+                .values(last_seq=0, updated_at=_iso(datetime.now(UTC)))
+            )
+            receipt = EntityIndexAdvance(epoch, 0, 0, 0, True, 0)
+        return receipt
+
+    async def entity_index_revision(self, namespace: str) -> tuple[int, int]:
+        async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, namespace)
+            epoch = await self._entity_register(conn)
+            _, _, revision = await self._entity_namespace(conn, namespace)
+        return epoch, revision
+
+    async def _records_register(self, conn: AsyncConnection) -> int:
+        stmt = self._insert(records_projection_state).values(id=1, cursor=0)
+        await conn.execute(stmt.on_conflict_do_nothing(index_elements=["id"]))
+        cursor = await conn.scalar(
+            select(records_projection_state.c.cursor).where(records_projection_state.c.id == 1)
+        )
+        assert cursor is not None
+        offset = await conn.scalar(
+            select(projector_offsets.c.last_seq).where(
+                projector_offsets.c.projector_name == "records"
+            )
+        )
+        if offset is None:
+            pruned = await conn.scalar(
+                select(entity_index_state.c.pruned_seq).where(entity_index_state.c.id == 1)
+            )
+            if int(pruned or 0) > 0 or int(cursor) > 0:
+                raise RebuildUnavailableError(
+                    "records projection cannot initialize after event history was pruned (D-45)"
+                )
+            offset_stmt = self._insert(projector_offsets).values(
+                projector_name="records", last_seq=0, updated_at=_iso(datetime.now(UTC))
+            )
+            await conn.execute(
+                offset_stmt.on_conflict_do_nothing(index_elements=["projector_name"])
+            )
+        elif int(offset) != int(cursor):
+            raise StorageError("records checkpoint differs from its certified cursor")
+        return int(cursor)
+
+    async def initialize_records_projection(self) -> None:
+        if self._mode is EventLogMode.EPHEMERAL:
+            return
+        async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, None, exclusive=True)
+            await self._records_writer_lock(conn)
+            await self._records_register(conn)
+
+    def _records_committed(self, view: _SqlRecordsView) -> None:
+        for record_id, present in view.record_presence.items():
+            self._forget_listed(record_id)
+            if present:
+                self._deleted_ids.discard(record_id)
+            else:
+                self._deleted_ids.add(record_id)
+
+    async def advance_records(
+        self,
+        target_seq: int,
+        limit: int,
+        apply_batch: Callable[[RecordsProjectionView, Sequence[MemoryEvent]], Awaitable[None]],
+    ) -> RecordsAdvance:
+        if self._mode is EventLogMode.EPHEMERAL:
+            raise StorageError("ephemeral records use append_ephemeral_records")
+        if target_seq < 0 or limit <= 0:
+            raise ValueError("records projection target must be nonnegative and limit positive")
+        async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, None)
+            await self._records_writer_lock(conn)
+            cursor = await self._records_register(conn)
+            rows = (
+                await conn.execute(
+                    select(memory_events)
+                    .where(memory_events.c.seq > cursor, memory_events.c.seq <= target_seq)
+                    .order_by(memory_events.c.seq)
+                    .limit(limit + 1)
+                )
+            ).all()
+            batch = [self._row_to_event(row._mapping) for row in rows[:limit]]
+            view = _SqlRecordsView(self, conn)
+            try:
+                await apply_batch(view, batch)
+            finally:
+                view.close()
+            next_cursor = int(batch[-1].seq or cursor) if batch else cursor
+            if next_cursor > cursor:
+                await conn.execute(
+                    records_projection_state.update()
+                    .where(records_projection_state.c.id == 1)
+                    .values(cursor=next_cursor)
+                )
+                await conn.execute(
+                    projector_offsets.update()
+                    .where(projector_offsets.c.projector_name == "records")
+                    .values(last_seq=next_cursor, updated_at=_iso(datetime.now(UTC)))
+                )
+            receipt = RecordsAdvance(next_cursor, len(batch), next_cursor >= target_seq)
+        self._records_committed(view)
+        return receipt
+
+    async def append_ephemeral_records(
+        self,
+        event: MemoryEvent,
+        apply_batch: Callable[[RecordsProjectionView, Sequence[MemoryEvent]], Awaitable[None]],
+    ) -> MemoryEvent:
+        if self._mode is not EventLogMode.EPHEMERAL or event.seq is not None:
+            raise StorageError("ephemeral records door requires a fresh event in ephemeral mode")
+        async with self._ephemeral_records_lock:
+            projected = event.model_copy(update={"seq": self._ephemeral_seq + 1})
+            async with self._client.engine.begin() as conn:
+                await self._entity_lock(conn, None)
+                await self._guard_event_append(conn)
+                await self._record_append_fence_on(conn, projected)
+                await self._records_writer_lock(conn)
+                view = _SqlRecordsView(self, conn)
+                try:
+                    await apply_batch(view, [projected])
+                finally:
+                    view.close()
+            self._ephemeral_seq += 1
+            self._records_committed(view)
+            return projected
+
+    async def reset_records_projection(self) -> None:
+        if self._mode is EventLogMode.EPHEMERAL:
+            raise RebuildUnavailableError("ephemeral event log has no replayable history")
+        async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, None, exclusive=True)
+            await self._records_writer_lock(conn)
+            pruned = await conn.scalar(
+                select(entity_index_state.c.pruned_seq).where(entity_index_state.c.id == 1)
+            )
+            if int(pruned or 0) > 0:
+                raise RebuildUnavailableError(
+                    "records projection cannot reset after event history was pruned (D-45)"
+                )
+            await self._records_register(conn)
+            await conn.execute(delete(memory_records))
+            await conn.execute(delete(record_projection_visibility))
+            await conn.execute(
+                records_projection_state.update()
+                .where(records_projection_state.c.id == 1)
+                .values(cursor=0)
+            )
+            await conn.execute(
+                projector_offsets.update()
+                .where(projector_offsets.c.projector_name == "records")
+                .values(last_seq=0, updated_at=_iso(datetime.now(UTC)))
+            )
+        self._listed.clear()
+        self._deleted_ids.clear()
+
     def intake_ledger(self) -> IntakeLedger:
         """RM-137: the intake ledger, message identity index and derivation discovery
         (:class:`~memspine.services.storage.intake_port.IntakeLedger`) of this database."""
@@ -359,6 +1360,31 @@ class SqlStorage(ServiceAdapter):
             rows = (await conn.execute(stmt)).all()
         return [self._row_to_event(row._mapping) for row in rows]
 
+    async def read_scoped_events(
+        self, namespace: str, kinds: Sequence[EventKind], *, after_seq: int, limit: int
+    ) -> tuple[list[MemoryEvent], int]:
+        """Bounded namespace/kind catch-up with the global head captured first."""
+        if self._mode is EventLogMode.EPHEMERAL:
+            return [], after_seq
+        async with self._client.engine.connect() as conn:
+            latest = await conn.scalar(select(func.max(memory_events.c.seq)))
+            head = max(after_seq, int(latest or 0))
+            if not kinds or limit <= 0 or head == after_seq:
+                return [], head
+            stmt = (
+                select(memory_events)
+                .where(
+                    memory_events.c.namespace == namespace,
+                    memory_events.c.kind.in_([kind.value for kind in kinds]),
+                    memory_events.c.seq > after_seq,
+                    memory_events.c.seq <= head,
+                )
+                .order_by(memory_events.c.seq)
+                .limit(limit)
+            )
+            rows = (await conn.execute(stmt)).all()
+        return [self._row_to_event(row._mapping) for row in rows], head
+
     def _row_to_event(self, row: Any) -> MemoryEvent:
         raw: bytes = row["payload"]
         if row["compressed"]:
@@ -390,6 +1416,8 @@ class SqlStorage(ServiceAdapter):
     async def set_offset(self, projector_name: str, seq: int) -> None:
         """Advance-only, atomic upsert: concurrent checkpoints can neither race
         the insert nor move a high-water mark backwards."""
+        if projector_name in {"entity_index", "records"}:
+            raise StorageError(f"{projector_name} owns its ordered checkpoint")
         if self._mode is EventLogMode.EPHEMERAL:
             current = self._ephemeral_offsets.get(projector_name, 0)
             self._ephemeral_offsets[projector_name] = max(current, seq)
@@ -410,6 +1438,12 @@ class SqlStorage(ServiceAdapter):
 
     async def reset_offset(self, projector_name: str) -> None:
         """Rebuild support: the one sanctioned way to move a high-water mark back."""
+        if projector_name == "entity_index":
+            await self.reset_entity_index()
+            return
+        if projector_name == "records":
+            await self.reset_records_projection()
+            return
         if self._mode is EventLogMode.EPHEMERAL:
             self._ephemeral_offsets.pop(projector_name, None)
             return
@@ -432,25 +1466,43 @@ class SqlStorage(ServiceAdapter):
         if self._mode is not EventLogMode.ROLLING:
             return 0
         async with self._client.engine.begin() as conn:
+            # A reset moves the entity-index offset back to zero.  Retention must
+            # observe that reset under the same gate before it chooses a cutoff.
+            await self._entity_lock(conn, None, exclusive=True)
+            # Sequence allocation and retention's deletion set must be ordered;
+            # the durable watermark records rows actually removed, not gaps from
+            # PostgreSQL transactions that rolled back after allocating a seq.
+            await self._guard_event_append(conn)
             min_applied = (
                 await conn.execute(select(func.min(projector_offsets.c.last_seq)))
             ).scalar()
             if min_applied is None:
                 return 0  # no projector has checkpointed yet — keep everything
-            result = await conn.execute(
-                delete(memory_events).where(
-                    memory_events.c.seq <= int(min_applied),
-                    memory_events.c.ts < _iso(older_than),
-                )
+            eligible = (
+                memory_events.c.seq <= int(min_applied),
+                memory_events.c.ts < _iso(older_than),
+                memory_events.c.kind != EventKind.REGISTRY_ERASURE_FENCE.value,
             )
+            highest = await conn.scalar(select(func.max(memory_events.c.seq)).where(*eligible))
+            result = await conn.execute(delete(memory_events).where(*eligible))
+            if result.rowcount and highest is not None:
+                await self._entity_state(conn)
+                await conn.execute(
+                    entity_index_state.update()
+                    .where(entity_index_state.c.id == 1)
+                    .values(
+                        pruned_seq=self._greatest(entity_index_state.c.pruned_seq, int(highest))
+                    )
+                )
         return int(result.rowcount or 0)
 
     # ── relational read model ────────────────────────────────────────────────
 
-    async def upsert_record(self, record: MemoryRecord) -> None:
-        self._forget_listed(record.record_id, record.namespace)
+    async def _put_record_on(self, conn: AsyncConnection, record: MemoryRecord) -> None:
+        group = record_group_of(record)
         values = {
             "namespace": record.namespace,
+            "claim_group_key": group_key(group) if group is not None else None,
             "memory_type": record.memory_type,
             "content": record.content,
             "content_fingerprint": record.content_fingerprint,
@@ -504,14 +1556,129 @@ class SqlStorage(ServiceAdapter):
         }
         stmt = self._insert(memory_records).values(record_id=record.record_id, **values)
         stmt = stmt.on_conflict_do_update(index_elements=["record_id"], set_=values)
+        await conn.execute(stmt)
+
+    async def upsert_record(self, record: MemoryRecord) -> None:
+        self._forget_listed(record.record_id, record.namespace)
         async with self._client.engine.begin() as conn:
-            await conn.execute(stmt)
+            await self._entity_lock(conn, None)
+            await self._records_writer_lock(conn)
+            fenced = await conn.scalar(
+                select(record_append_erasure_fence.c.record_id).where(
+                    record_append_erasure_fence.c.record_id == record.record_id
+                )
+            )
+            if fenced is not None:
+                raise StorageError("record id is permanently erased")
+            owner = await conn.scalar(
+                select(memory_records.c.namespace).where(
+                    memory_records.c.record_id == record.record_id
+                )
+            )
+            if owner is not None and owner != record.namespace:
+                raise StorageError("record id belongs to another namespace")
+            append_owner = await conn.scalar(
+                select(record_append_identity.c.namespace).where(
+                    record_append_identity.c.record_id == record.record_id
+                )
+            )
+            if append_owner is not None and append_owner != record.namespace:
+                raise StorageError("record id belongs to another namespace")
+            await self._put_record_on(conn, record)
 
     async def get_record(self, record_id: str) -> MemoryRecord | None:
         stmt = select(memory_records).where(memory_records.c.record_id == record_id)
         async with self._client.engine.connect() as conn:
             row = (await conn.execute(stmt)).first()
         return self._row_to_record(row._mapping) if row is not None else None
+
+    async def claim_group_page(
+        self, namespace: str, group_key: str, *, after_id: str | None, limit: int
+    ) -> list[MemoryRecord]:
+        """Peer read of one physical claim-group page; callers apply policy."""
+        if limit <= 0:
+            return []
+        stmt = select(memory_records).where(
+            memory_records.c.namespace == namespace,
+            memory_records.c.claim_group_key == group_key,
+        )
+        if after_id is not None:
+            stmt = stmt.where(memory_records.c.record_id > after_id)
+        async with self._client.engine.connect() as conn:
+            rows = (
+                await conn.execute(stmt.order_by(memory_records.c.record_id).limit(limit))
+            ).all()
+        return [self._row_to_record(row._mapping) for row in rows]
+
+    async def claim_group_snapshot(self, namespace: str, group_key: str) -> list[MemoryRecord]:
+        """Read all currently visible group peers from one statement snapshot."""
+        hidden = (
+            select(record_projection_visibility.c.record_id)
+            .where(
+                record_projection_visibility.c.namespace == namespace,
+                record_projection_visibility.c.record_id == memory_records.c.record_id,
+                or_(
+                    record_projection_visibility.c.erased.is_(True),
+                    record_projection_visibility.c.hidden.is_(True),
+                ),
+            )
+            .exists()
+        )
+        fenced = (
+            select(record_append_erasure_fence.c.record_id)
+            .where(record_append_erasure_fence.c.record_id == memory_records.c.record_id)
+            .exists()
+        )
+        stmt = (
+            select(memory_records)
+            .where(
+                memory_records.c.namespace == namespace,
+                memory_records.c.claim_group_key == group_key,
+                ~hidden,
+                ~fenced,
+            )
+            .order_by(memory_records.c.record_id)
+        )
+        async with self._client.engine.connect() as conn:
+            rows = (await conn.execute(stmt)).all()
+        return [self._row_to_record(row._mapping) for row in rows]
+
+    async def hidden_or_erased_record_ids(
+        self, namespace: str, record_ids: Sequence[str]
+    ) -> set[str]:
+        """Read current negative visibility for historical candidates in one snapshot."""
+        if not namespace:
+            raise StorageError("record visibility requires a namespace")
+        if any(not isinstance(record_id, str) or not record_id for record_id in record_ids):
+            raise StorageError("record visibility requires nonempty record IDs")
+        ids = list(dict.fromkeys(record_ids))
+        if not ids:
+            return set()
+        chunks = [ids[i : i + RECORD_BATCH_CHUNK] for i in range(0, len(ids), RECORD_BATCH_CHUNK)]
+        excluded: set[str] = set()
+        async with self._client.engine.connect() as conn:
+            if self._is_postgres:
+                await conn.execution_options(isolation_level="REPEATABLE READ")
+            async with conn.begin():
+                for chunk in chunks:
+                    hidden = await conn.execute(
+                        select(record_projection_visibility.c.record_id).where(
+                            record_projection_visibility.c.namespace == namespace,
+                            record_projection_visibility.c.record_id.in_(chunk),
+                            or_(
+                                record_projection_visibility.c.erased.is_(True),
+                                record_projection_visibility.c.hidden.is_(True),
+                            ),
+                        )
+                    )
+                    fenced = await conn.execute(
+                        select(record_append_erasure_fence.c.record_id).where(
+                            record_append_erasure_fence.c.record_id.in_(chunk)
+                        )
+                    )
+                    excluded.update(str(row.record_id) for row in hidden)
+                    excluded.update(str(row.record_id) for row in fenced)
+        return excluded
 
     async def get_records(self, record_ids: Sequence[str]) -> dict[str, MemoryRecord]:
         """The records among ``record_ids`` that exist, keyed by id (missing ids are
@@ -745,12 +1912,40 @@ class SqlStorage(ServiceAdapter):
             row = (await conn.execute(stmt)).first()
         return self._row_to_record(row._mapping) if row is not None else None
 
+    async def find_active_untyped_fact(
+        self, namespace: str, entity: str, attribute: str
+    ) -> MemoryRecord | None:
+        """Latest eligible M4 incumbent without a typed claim-group key."""
+        stmt = (
+            select(memory_records)
+            .where(
+                memory_records.c.namespace == namespace,
+                memory_records.c.memory_type == "semantic",
+                memory_records.c.entity == entity,
+                memory_records.c.attribute == attribute,
+                memory_records.c.valid_to.is_(None),
+                memory_records.c.status != "deleted",
+                memory_records.c.quarantined.is_(False),
+                memory_records.c.claim_group_key.is_(None),
+            )
+            .order_by(memory_records.c.recorded_at.desc())
+            .limit(1)
+        )
+        async with self._client.engine.connect() as conn:
+            row = (await conn.execute(stmt)).first()
+        return self._row_to_record(row._mapping) if row is not None else None
+
     async def delete_all_records(self) -> None:
         """Projector rebuild support: drop the read model, keep the log."""
         self._listed.clear()
         self._deleted_ids.clear()  # the rebuild re-derives the read model from the redacted log
         async with self._client.engine.begin() as conn:
+            await self._entity_lock(conn, None)
+            await self._records_writer_lock(conn)
             await conn.execute(delete(memory_records))
+
+    async def _delete_record_on(self, conn: AsyncConnection, record_id: str) -> None:
+        await conn.execute(delete(memory_records).where(memory_records.c.record_id == record_id))
 
     async def delete_record(self, record_id: str) -> None:
         """M7 hard-delete: remove one row from the read model (projector-driven
@@ -758,9 +1953,9 @@ class SqlStorage(ServiceAdapter):
         self._forget_listed(record_id)
         self._deleted_ids.add(record_id)
         async with self._client.engine.begin() as conn:
-            await conn.execute(
-                delete(memory_records).where(memory_records.c.record_id == record_id)
-            )
+            await self._entity_lock(conn, None)
+            await self._records_writer_lock(conn)
+            await self._delete_record_on(conn, record_id)
 
     async def list_children(self, namespace: str, parent_ids: Sequence[str]) -> list[MemoryRecord]:
         """#43: records of ``namespace`` whose ``source.parents`` name any of
@@ -837,7 +2032,7 @@ class SqlStorage(ServiceAdapter):
         return redacted
 
     async def scrub_marker_payloads(
-        self, marker: str, scrub: Callable[[dict[str, Any]], bool]
+        self, marker: str, scrub: Callable[[dict[str, Any]], bool], *, namespace: str
     ) -> list[int]:
         """FU-CLOSE: the same log-redaction pass as :meth:`redact_event_payloads`, for MARKER events
         named ``marker`` (e.g. the ``profile_card`` card, which carries entry text).
@@ -849,7 +2044,11 @@ class SqlStorage(ServiceAdapter):
             return []
         rewritten: list[int] = []
         async with self._client.engine.begin() as conn:
-            rows = (await conn.execute(select(memory_events))).all()
+            statement = select(memory_events).where(
+                memory_events.c.namespace == namespace,
+                memory_events.c.kind == EventKind.MARKER.value,
+            )
+            rows = (await conn.execute(statement)).all()
             for row in rows:
                 mapping = row._mapping
                 raw: bytes = mapping["payload"]

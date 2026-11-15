@@ -19,6 +19,7 @@ from memspine.memories.associative.entity_index import (
     with_entity_links,
 )
 from memspine.services.storage.entity_index_tables import entity_index_store_of
+from memspine.services.storage.entity_projection_memory import MemoryEntityIndexProjection
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
 
@@ -28,14 +29,13 @@ NS = "default"
 
 class _Log:
     def __init__(self) -> None:
-        self.storage = object()
+        self.storage = MemoryEntityIndexProjection()
         self.index = EntityIndexProjector(self.storage)
-        self.events: list[MemoryEvent] = []
+        self.events = self.storage.events
 
     async def append(self, event: MemoryEvent) -> MemoryEvent:
         event = await with_entity_links(self.storage, event, ON, projector=self.index)
-        event = event.model_copy(update={"seq": len(self.events) + 1})
-        self.events.append(event)
+        event = self.storage.append(event)
         await self.index.apply(event)
         return event
 
@@ -138,6 +138,14 @@ async def test_deferred_index_never_auto_links(make_record: Callable[..., Memory
 
         async def read_events(self, after_seq: int = 0, limit: int = 1000) -> list[MemoryEvent]:
             return [MemoryEvent(kind=EventKind.WRITE, namespace=NS, seq=after_seq + 1)]
+
+        async def read_scoped_events(
+            self, namespace: str, kinds: tuple[EventKind, ...], *, after_seq: int, limit: int
+        ) -> tuple[list[MemoryEvent], int]:
+            del namespace, kinds, limit
+            return [
+                MemoryEvent(kind=EventKind.WRITE, namespace=NS, seq=after_seq + 1)
+            ], after_seq + 1
 
     from memspine.memories.associative import entity_index as module
 

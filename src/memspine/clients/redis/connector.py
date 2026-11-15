@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 from urllib.parse import urlsplit
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.secrets import auth_digest
 from memspine.clients.base import ConnectorIdentity, Locality, Scope
 from memspine.exceptions import StorageError
@@ -82,7 +83,11 @@ class RedisConnector:
             return False
 
     async def close(self) -> None:
-        client, self._client = self._client, None
+        await drain_close(self._close_owned())
+
+    async def _close_owned(self) -> None:
+        client = self._client
         aclose = getattr(client, "aclose", None)
         if callable(aclose):
             await aclose()
+        self._client = None

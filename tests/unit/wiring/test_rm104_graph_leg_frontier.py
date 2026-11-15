@@ -112,10 +112,11 @@ async def test_search_results_identical_with_and_without_frontier(
     runs: list[list[Any]] = []
     try:
         await _build(eng)
+        eng._clock = lambda: LATER
         for frontier in (False, True, False):
             monkeypatch.setattr(pipeline_legs, "_frontier_capable", lambda g, f=frontier: f)
             hits = await eng.search(QUERY, namespace=NS, top_k=8, graph_filter=flt)
-            runs.append([(rec.record_id, round(score, 6)) for rec, score in hits])
+            runs.append([(rec.record_id, score) for rec, score in hits])
     finally:
         await eng.stop()
     assert runs[0] and runs[0] == runs[1] == runs[2]
@@ -124,6 +125,51 @@ async def test_search_results_identical_with_and_without_frontier(
     hops = spy.of("read.graph_hop")
     assert len(hops) == 3 and hops[0]["convergent"] == hops[1]["convergent"] != []
     assert hops[0]["records"] == hops[1]["records"]
+
+
+async def test_search_scores_share_a_clock_snapshot_and_age_when_it_advances(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    eng = await _engine()
+    try:
+        await _build(eng)
+        moment = [datetime.now(UTC) + timedelta(days=1)]
+        clock_calls: list[datetime] = []
+
+        def clock() -> datetime:
+            clock_calls.append(moment[0])
+            return moment[0]
+
+        eng._clock = clock
+        assert eng._scoring is not None
+        score = eng._scoring.composite_score
+        seen: list[datetime | None] = []
+
+        def observe(record: Any, relevance: float = 0.0, now: datetime | None = None) -> float:
+            seen.append(now)
+            return score(record, relevance=relevance, now=now)
+
+        monkeypatch.setattr(eng._scoring, "composite_score", observe)
+        first = await eng.search(QUERY, namespace=NS, top_k=8)
+        assert clock_calls == [moment[0]]
+        assert seen and set(seen) == {moment[0]}
+        seen.clear()
+        again = await eng.search(QUERY, namespace=NS, top_k=8)
+        assert [(r.record_id, s) for r, s in first] == [(r.record_id, s) for r, s in again]
+        assert clock_calls == [moment[0], moment[0]]
+        assert seen and set(seen) == {moment[0]}
+
+        moment[0] += timedelta(days=7)
+        seen.clear()
+        aged = await eng.search(QUERY, namespace=NS, top_k=8)
+        assert clock_calls == [moment[0] - timedelta(days=7)] * 2 + [moment[0]]
+        assert seen and set(seen) == {moment[0]}
+        old_scores = {r.record_id: s for r, s in first}
+        aged_scores = {r.record_id: s for r, s in aged}
+        assert old_scores.keys() == aged_scores.keys()
+        assert all(aged_scores[rid] < old_scores[rid] for rid in old_scores)
+    finally:
+        await eng.stop()
 
 
 async def test_filtered_leg_uses_frontier_and_reports_seed_scope(

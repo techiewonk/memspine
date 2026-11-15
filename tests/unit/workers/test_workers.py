@@ -9,8 +9,10 @@ from memspine.clients.sqlite import SQLiteClient, SQLiteSpec
 from memspine.config.loader import load_config
 from memspine.derive.pipeline.stages.context import PipelineContext
 from memspine.derive.pipeline.stages.table import PIPELINES
+from memspine.services.storage.projector import fold_records
 from memspine.services.storage.sqlite.engine import SQLiteStorage
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
+from memspine.store.records import MemoryRecord
 from memspine.workers.inline import InlineRunner
 from memspine.workers.schedule import SLEEP_CYCLE_ORDER, run_sleep_cycle
 
@@ -69,7 +71,10 @@ async def test_sleep_cycle_runs_all_steps_idempotently() -> None:
 
 async def test_prune_pipeline_respects_mode_and_offsets() -> None:
     ctx, storage = await make_ctx(mode="rolling", retention_days=1)
-    event = MemoryEvent(kind=EventKind.WRITE, namespace="n", payload={})
+    record = MemoryRecord(namespace="n", memory_type="semantic", content="old fact")
+    event = MemoryEvent(
+        kind=EventKind.WRITE, namespace="n", payload={"record": record.model_dump(mode="json")}
+    )
     appended = await storage.append_event(event)
     assert appended.seq == 1
 
@@ -85,7 +90,10 @@ async def test_prune_pipeline_respects_mode_and_offsets() -> None:
     stats = await runner.run("event_log_prune", ctx)
     assert stats == {"status": "ok", "pruned": 0, "rebuild": "limited"}
 
-    await storage.set_offset("records", 1)
+    advanced = await storage.advance_records(appended.seq, 1, fold_records)
+    assert (advanced.cursor, advanced.applied_count, advanced.complete) == (1, 1, True)
+    assert await storage.get_offset("records") == 1
+    assert await storage.get_record(record.record_id) is not None
     stats = await runner.run("event_log_prune", ctx)
     assert stats == {"status": "ok", "pruned": 1, "rebuild": "limited"}
 

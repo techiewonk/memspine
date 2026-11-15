@@ -48,10 +48,11 @@ from __future__ import annotations
 
 import weakref
 from collections.abc import Collection, Iterable, Mapping, Sequence
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import fastuuid
 
+from memspine.exceptions import StorageError
 from memspine.memories.associative import entity_cache
 from memspine.memories.associative.entities import (
     ENTITY_REF_TAG,
@@ -69,6 +70,11 @@ from memspine.services.storage.entity_index_tables import (
     EntityIndexRow,
     EntityIndexStore,
     entity_index_store_of,
+)
+from memspine.services.storage.records_port import (
+    EntityIndexAdvance,
+    EntityIndexEffects,
+    EntityIndexProjectionView,
 )
 from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
 from memspine.store.projections.projector import Projector
@@ -113,8 +119,26 @@ _CATCH_UP_PAGE = 256
 _CATCH_UP_PAGES = 8
 #: Entity bases a resolution pass may re-link (minted without a complete-index uniqueness check).
 _RELINKABLE = frozenset({"new", "deferred"})
+_SOURCE_KIND = "source_state"
+_BARRIER_KIND = "merge_barrier"
+_BARRIER_CITE_KIND = "barrier_cite"
+_PENDING_KIND = "pending_positive"
+_PENDING_CITE_KIND = "pending_cite"
+_PURGE_KIND = "purge_guard"
+
+
+class EntityIndexProjectionIncomplete(StorageError):
+    """A bounded ordered page committed, but has not reached the requested event."""
+
+
 #: The event kinds the name index projects.
-_INDEX_KINDS = (EventKind.WRITE, EventKind.MARKER, EventKind.FORGET)
+_INDEX_KINDS = (
+    EventKind.WRITE,
+    EventKind.MARKER,
+    EventKind.FORGET,
+    EventKind.DECAY_TRANSITION,
+    EventKind.REGISTRY_ERASURE_FENCE,
+)
 #: Merge chains followed to a group representative (a cycle or deeper chain stops there).
 _MAX_CHAIN = 16
 #: RM-154: the row kind of the name-removal signal. One row per (namespace, projector
@@ -178,10 +202,16 @@ async def _namespace_mark(
     (None: it is behind; ``_NO_LOG`` without an event log).
 
     Freshness is per namespace: events of other namespaces past the mark never make it stale.
-    The namespace's own pending events (another process's writes, not yet in the shared index)
-    are caught up by applying them to ``projector`` (applies are idempotent), at most
-    ``_CATCH_UP_PAGES`` pages of the log; a longer backlog counts as behind. Without a
-    projector any pending event of the namespace is behind."""
+    The namespace's pending index events are fetched by the records port under a captured
+    global head. At most ``_CATCH_UP_PAGE * _CATCH_UP_PAGES`` relevant events are applied
+    per check; a longer backlog counts as behind. Without a projector any pending event
+    of the namespace is behind."""
+    if projector is not None and callable(getattr(storage, "advance_entity_index", None)):
+        try:
+            receipt = await projector.advance_to(namespace, 2**63 - 1)
+        except Exception:
+            return None
+        return receipt.namespace_cursor if receipt.complete else None
     # The scan starts where this process last scanned the namespace to the head (its own
     # in-order mark is no start: another process's event may sit below it), else at the
     # durable mark (startup catch-up brought the index there).
@@ -191,27 +221,43 @@ async def _namespace_mark(
             after = int(await storage.get_offset(INDEX_PROJECTOR))
         except Exception:
             after = 0
-    reader = getattr(storage, "read_events", None)
+    reader = getattr(storage, "read_scoped_events", None)
     if not callable(reader):
-        return _NO_LOG
-    for _ in range(_CATCH_UP_PAGES):
-        try:
-            pending = await reader(after_seq=after, limit=_CATCH_UP_PAGE)
-        except Exception:
+        # A reference store without an event log has only its in-memory name index.
+        # A real log without the required scoped capability fails closed.
+        return _NO_LOG if not callable(getattr(storage, "read_events", None)) else None
+    budget = _CATCH_UP_PAGE * _CATCH_UP_PAGES
+    if budget <= 0:
+        return None
+    try:
+        pending, head = await reader(namespace, _INDEX_KINDS, after_seq=after, limit=budget + 1)
+    except Exception:
+        return None
+    if not isinstance(head, int) or head < after or len(pending) > budget + 1:
+        return None
+    last = after
+    for event in pending:
+        if (
+            event.seq is None
+            or event.seq <= last
+            or event.seq > head
+            or event.namespace != namespace
+            or event.kind not in _INDEX_KINDS
+        ):
             return None
-        relevant = [e for e in pending if e.namespace == namespace and e.kind in _INDEX_KINDS]
-        if relevant and projector is None:
-            return None
-        for event in relevant:
-            assert projector is not None
-            await projector.catch_up(event)
-        if pending and pending[-1].seq is not None:
-            after = int(pending[-1].seq)
+        last = event.seq
+    if pending and projector is None:
+        return None
+    for event in pending[:budget]:
+        assert projector is not None
+        await projector.catch_up(event)
+    if len(pending) > budget:
         if projector is not None:
-            projector.mark_scanned(namespace, after)
-        if len(pending) < _CATCH_UP_PAGE:
-            return after
-    return None
+            projector.mark_scanned(namespace, int(pending[budget - 1].seq or after))
+        return None
+    if projector is not None:
+        projector.mark_scanned(namespace, head)
+    return head
 
 
 async def _index_complete(
@@ -237,10 +283,14 @@ async def index_watermark(
     return None if mark is None or mark == _NO_LOG else mark
 
 
-async def _representative(store: EntityIndexStore, namespace: str, entity_id: str) -> str:
+async def _representative(
+    store: EntityIndexStore, namespace: str, entity_id: str, *, through_seq: int | None = None
+) -> str:
     current = entity_id
     for _ in range(_MAX_CHAIN):
         kept = await store.select(namespace, "merge", ref=current)
+        if through_seq is not None:
+            kept = [row for row in kept if row.seq <= through_seq]
         if not kept:
             return current
         current = kept[0].entity_id
@@ -353,7 +403,9 @@ async def _match(
         rows = [r for r in rows if r.seq < before_seq]
     groups: dict[str, EntityIndexRow] = {}
     for entity in dict.fromkeys(r.entity_id for r in rows):
-        rep = await _representative(store, namespace, entity)
+        rep = await _representative(
+            store, namespace, entity, through_seq=before_seq - 1 if before_seq is not None else None
+        )
         if exclude is not None and rep == exclude:
             continue
         row = await _entity_row(store, namespace, rep)
@@ -682,13 +734,45 @@ class EntityIndexProjector(Projector):
     def store(self) -> EntityIndexStore:
         return _store(self._storage)
 
+    def _changed(self, namespace: str) -> None:
+        entity_cache.invalidate(self._storage, namespace)
+
     async def apply(self, event: MemoryEvent) -> None:
-        await self._project(event)
-        if event.seq is not None:
-            self.applied = max(self.applied, int(event.seq))
-            if event.namespace in self.caught_up and event.kind in _INDEX_KINDS:
-                self._own.setdefault(event.namespace, set()).add(int(event.seq))
-        entity_cache.note_applied(self._storage, event.seq)  # RM-110: own-process events
+        if event.seq is None:
+            raise StorageError("ordered entity index requires a committed event sequence")
+        receipt = await self.advance_to(event.namespace, int(event.seq))
+        if not receipt.complete or receipt.namespace_cursor < event.seq:
+            raise EntityIndexProjectionIncomplete(
+                "entity index projection is behind its committed event"
+            )
+
+    async def advance_to(self, namespace: str, target_seq: int) -> EntityIndexAdvance:
+        advance = getattr(self._storage, "advance_entity_index", None)
+        if not callable(advance):
+            raise StorageError("records store lacks ordered entity-index projection")
+
+        async def apply_batch(
+            view: EntityIndexProjectionView, events: Sequence[MemoryEvent]
+        ) -> EntityIndexEffects:
+            reducer = _EntityIndexReducer(view, self.instance)
+            for pending in await view.pending_events(_CATCH_UP_PAGE * _CATCH_UP_PAGES):
+                await reducer.retry_positive(pending)
+            for event in events:
+                await reducer._project(event)
+            return reducer.effects()
+
+        receipt: EntityIndexAdvance = await advance(
+            namespace, target_seq, _CATCH_UP_PAGE * _CATCH_UP_PAGES, apply_batch
+        )
+        self.applied = max(self.applied, receipt.namespace_cursor)
+        self.mark_scanned(namespace, receipt.namespace_cursor)
+        if receipt.effects.changed:
+            entity_cache.invalidate(self._storage, namespace)
+        if receipt.effects.removed_entity_ids:
+            gone = frozenset(receipt.effects.removed_entity_ids)
+            for listener in list(self._listeners):
+                listener.evict(namespace, gone)
+        return receipt
 
     def mark_scanned(self, namespace: str, seq: int) -> None:
         """The freshness check scanned ``namespace`` up to ``seq``: own seqs at or below it
@@ -699,14 +783,8 @@ class EntityIndexProjector(Projector):
             own.difference_update({s for s in own if s <= seq})
 
     async def catch_up(self, event: MemoryEvent) -> None:
-        """Apply an event of a namespace's backlog (the freshness check's bounded catch-up):
-        another process's write the shared index may not hold yet. An event this process
-        already applied is skipped; applies are idempotent either way."""
-        own = self._own.get(event.namespace)
-        if own is not None and event.seq is not None and int(event.seq) in own:
-            own.discard(int(event.seq))
-            return
-        await self._project(event)
+        """Route catch-up through the same canonical ordered storage door as direct apply."""
+        await self.apply(event)
 
     async def _project(self, event: MemoryEvent) -> None:
         if event.kind is EventKind.WRITE:
@@ -796,7 +874,7 @@ class EntityIndexProjector(Projector):
             linked.add(entity_id)
         await store.put(rows)
         await self._names_removed(ns, await self._drop_orphans(ns, previous - linked), seq)
-        entity_cache.invalidate(self._storage, ns)
+        self._changed(ns)
 
     async def _drop_orphans(self, ns: str, entity_ids: Iterable[str]) -> list[str]:
         """Remove each entity no record links to any more (with its names and merges); returns
@@ -849,7 +927,7 @@ class EntityIndexProjector(Projector):
                 await store.delete(ns, "cite", entity_id=cite.entity_id, ref="alias")
         removed.update(await self._drop_orphans(ns, previous))
         await self._names_removed(ns, removed, seq)
-        entity_cache.invalidate(self._storage, ns)
+        self._changed(ns)
 
     async def _alias_rows(self, ns: str, alias_id: str) -> list[EntityIndexRow]:
         return await self.store.select(ns, "name", ref=f"alias:{alias_id}")
@@ -932,7 +1010,7 @@ class EntityIndexProjector(Projector):
             for rid in evidence
         ]
         await store.put(rows)
-        entity_cache.invalidate(self._storage, ns)
+        self._changed(ns)
 
     async def _alias(self, event: MemoryEvent) -> None:
         p, ns = event.payload, event.namespace
@@ -957,7 +1035,7 @@ class EntityIndexProjector(Projector):
         ]
         rows += [EntityIndexRow(ns, "cite", rid, alias_id, "alias", seq=seq) for rid in evidence]
         await store.put(rows)
-        entity_cache.invalidate(self._storage, ns)
+        self._changed(ns)
 
     async def _link(self, event: MemoryEvent) -> None:
         """The resolution pass's link: fold a deferred / raced entity into its unique match.
@@ -970,39 +1048,396 @@ class EntityIndexProjector(Projector):
         if not link_id or not entity_id or not target or entity_id == target:
             return
         entity = await _entity_row(store, ns, entity_id)
+        keeper = await _entity_row(store, ns, target)
+        seq = int(event.seq or 0)
         if (
             entity is None
             or entity.data.get("basis") not in _RELINKABLE
-            or await _entity_row(store, ns, target) is None
-            or await store.select(ns, "merge", ref=entity_id)
-            or await _representative(store, ns, target) == entity_id
+            or keeper is None
+            or entity.seq > seq
+            or keeper.seq > seq
         ):
             return
-        await store.put(
-            [
-                EntityIndexRow(
-                    ns,
-                    "merge",
-                    link_id,
-                    target,
-                    entity_id,
-                    data={"link": True, "basis": "unique_name"},
-                    seq=int(event.seq or 0),
-                )
-            ]
+        row = EntityIndexRow(
+            ns,
+            "merge",
+            link_id,
+            target,
+            entity_id,
+            data={"link": True, "basis": "unique_name"},
+            seq=seq,
         )
-        entity_cache.invalidate(self._storage, ns)
+        existing = await store.select(ns, "merge", ref=entity_id)
+        if any(r.seq <= seq for r in existing):
+            return  # an earlier link or cited merge already settled this entity
+        if any(r.pk == row.pk and r.data.get("link") for r in existing):
+            # An identical later link raced ahead of this one. The store keeps
+            # the first eligible event's seq atomically across peer Engines.
+            await store.put([row])
+            self._changed(ns)
+            return
+        if await _representative(store, ns, target, through_seq=seq) == entity_id:
+            return
+        await store.put([row])
+        self._changed(ns)
 
     async def purge_records(self, ns: str, record_ids: Iterable[str]) -> None:
         """Erasure's direct purge (records removed outside the projector)."""
-        for record_id in record_ids:
-            await self._forget(ns, record_id)
+        ids = tuple(dict.fromkeys(rid for rid in record_ids if rid))
+        if not ids:
+            return
+        purge = getattr(self._storage, "purge_entity_index", None)
+        if not callable(purge):
+            raise StorageError("records store lacks ordered entity-index purge")
+
+        async def apply_purge(
+            view: EntityIndexProjectionView, batch: Sequence[str]
+        ) -> EntityIndexEffects:
+            reducer = _EntityIndexReducer(view, self.instance)
+            await view.put([EntityIndexRow(ns, _PURGE_KIND, rid, "", seq=0) for rid in batch])
+            reducer._did_change = True
+            for record_id in batch:
+                await reducer._forget(ns, record_id, hard=True)
+            return reducer.effects()
+
+        receipt: EntityIndexAdvance = await purge(ns, ids, apply_purge)
+        if receipt.effects.changed:
+            entity_cache.invalidate(self._storage, ns)
+        if receipt.effects.removed_entity_ids:
+            gone = frozenset(receipt.effects.removed_entity_ids)
+            for listener in list(self._listeners):
+                listener.evict(ns, gone)
 
     async def reset(self) -> None:
-        await self.store.clear()
+        reset = getattr(self._storage, "reset_entity_index", None)
+        if not callable(reset):
+            raise StorageError("records store lacks ordered entity-index reset")
+        await reset()
         self.applied = 0
         self.caught_up.clear()
         self._own.clear()
         entity_cache.invalidate(self._storage)
         for listener in list(self._listeners):
             listener.evict(None, None)
+
+
+class _EntityIndexReducer(EntityIndexProjector):
+    """One retry-pure fold, explicitly bound to the storage transaction's view."""
+
+    def __init__(self, view: EntityIndexProjectionView, instance: str) -> None:
+        super().__init__(view)
+        self._view = view
+        self.instance = instance
+        self._did_change = False
+        self._removed: set[str] = set()
+
+    @property
+    def store(self) -> EntityIndexStore:
+        return cast(EntityIndexStore, self._view)
+
+    def _changed(self, namespace: str) -> None:
+        self._did_change = True
+
+    async def _names_removed(self, ns: str, entity_ids: Iterable[str], seq: int | None) -> None:
+        gone = frozenset(entity_ids)
+        if not gone:
+            return
+        self._removed.update(gone)
+        previous = await self._view.select(ns, GONE_KIND, key=self.instance)
+        count = int(previous[0].data.get("count", 0)) + 1 if previous else 1
+        await self._view.put(
+            [
+                EntityIndexRow(
+                    ns, GONE_KIND, self.instance, "", "", data={"count": count}, seq=seq or 0
+                )
+            ]
+        )
+        self._did_change = True
+
+    def effects(self) -> EntityIndexEffects:
+        return EntityIndexEffects(self._did_change, tuple(sorted(self._removed)))
+
+    async def _contest(self, ns: str, entity_ids: Iterable[str]) -> None:
+        await super()._contest(ns, entity_ids)
+        self._did_change = True
+
+    async def _source_live(self, namespace: str, record_id: str) -> bool:
+        rows = await self._view.select(namespace, _SOURCE_KIND, key=record_id)
+        return bool(rows and rows[0].data.get("live"))
+
+    async def _set_source(
+        self,
+        namespace: str,
+        record_id: str,
+        live: bool,
+        seq: int,
+        *,
+        status: str = "",
+        quarantined: bool = False,
+        gone: bool = False,
+    ) -> None:
+        if not record_id:
+            return
+        await self._view.put(
+            [
+                EntityIndexRow(
+                    namespace,
+                    _SOURCE_KIND,
+                    record_id,
+                    "",
+                    data={
+                        "live": live,
+                        "status": status,
+                        "quarantined": quarantined,
+                        "gone": gone,
+                    },
+                    seq=seq,
+                )
+            ]
+        )
+        self._did_change = True
+
+    async def _project(self, event: MemoryEvent) -> None:
+        if event.kind is EventKind.DECAY_TRANSITION:
+            record_id = event.payload.get("record_id")
+            delta = event.payload.get("set")
+            if (
+                isinstance(record_id, str)
+                and isinstance(delta, dict)
+                and ("status" in delta or "quarantined" in delta)
+            ):
+                rows = await self._view.select(event.namespace, _SOURCE_KIND, key=record_id)
+                if rows and not rows[0].data.get("gone"):
+                    status = str(delta.get("status", rows[0].data.get("status", "")))
+                    quarantined = bool(
+                        delta.get("quarantined", rows[0].data.get("quarantined", False))
+                    )
+                    live = (
+                        status
+                        in {
+                            RecordStatus.ACTIVATED.value,
+                            RecordStatus.ARCHIVED.value,
+                        }
+                        and not quarantined
+                    )
+                    await self._set_source(
+                        event.namespace,
+                        record_id,
+                        live,
+                        int(event.seq or 0),
+                        status=status,
+                        quarantined=quarantined,
+                    )
+            return
+        if event.kind is EventKind.REGISTRY_ERASURE_FENCE:
+            raw = event.payload.get("source_ids")
+            if isinstance(raw, list):
+                for record_id in raw:
+                    if isinstance(record_id, str) and record_id:
+                        await self._forget(event.namespace, record_id, hard=True, seq=event.seq)
+            return
+        await super()._project(event)
+
+    async def _write(self, event: MemoryEvent) -> None:
+        raw = event.payload.get("record")
+        if not isinstance(raw, dict):
+            return
+        record_id = raw.get("record_id")
+        if not isinstance(record_id, str) or not record_id:
+            return
+        if raw.get("namespace") != event.namespace:
+            return
+        if await self._view.select(event.namespace, _PURGE_KIND, key=record_id):
+            await self._set_source(
+                event.namespace, record_id, False, int(event.seq or 0), gone=True
+            )
+            return
+        live = raw.get("status") in {
+            RecordStatus.ACTIVATED.value,
+            RecordStatus.ARCHIVED.value,
+        } and not bool(raw.get("quarantined", False))
+        await self._set_source(
+            event.namespace,
+            record_id,
+            live,
+            int(event.seq or 0),
+            status=str(raw.get("status", "")),
+            quarantined=bool(raw.get("quarantined", False)),
+        )
+        await super()._write(event)
+
+    async def _forget(
+        self, ns: str, record_id: str, *, hard: bool = False, seq: int | None = None
+    ) -> None:
+        await self._set_source(ns, record_id, False, int(seq or 0), gone=True)
+        for cite in await self._view.select(ns, _PENDING_CITE_KIND, key=record_id):
+            pending = await self._view.select(ns, _PENDING_KIND, key=cite.entity_id)
+            if pending and hard and pending[0].ref == "alias":
+                # Hard erasure scrubs the alias marker's text even if another
+                # citation survives. A pending retry must not materialize the
+                # old text in the gap before the historical marker is scrubbed.
+                await self._contest_pending(ns, pending[0])
+                await self._clear_pending_seq(ns, cite.entity_id)
+                continue
+            remaining = False
+            for rid in pending[0].data.get("evidence", []) if pending else []:
+                if await self._source_live(ns, rid):
+                    remaining = True
+                    break
+            if pending and not remaining:
+                await self._contest_pending(ns, pending[0])
+                await self._clear_pending_seq(ns, cite.entity_id)
+        citations = await self._view.select(ns, _BARRIER_CITE_KIND, key=record_id)
+        await self._view.delete(ns, _BARRIER_CITE_KIND, key=record_id)
+        for cite in citations:
+            if not await self._view.select(ns, _BARRIER_CITE_KIND, entity_id=cite.entity_id):
+                await self._view.delete(ns, _BARRIER_KIND, key=cite.entity_id)
+        await super()._forget(ns, record_id, hard=hard, seq=seq)
+
+    async def _clear_pending_seq(self, namespace: str, key: str) -> None:
+        if await self._view.select(namespace, _PENDING_KIND, key=key):
+            await self._view.delete(namespace, _PENDING_KIND, key=key)
+            cites = await self._view.select(namespace, _PENDING_CITE_KIND, entity_id=key)
+            for cite in cites:
+                await self._view.delete(namespace, _PENDING_CITE_KIND, key=cite.key, entity_id=key)
+            self._did_change = True
+
+    async def _clear_pending(self, event: MemoryEvent) -> None:
+        await self._clear_pending_seq(event.namespace, str(event.seq or 0))
+
+    async def _contest_pending(self, namespace: str, row: EntityIndexRow) -> None:
+        if row.ref == "merge":
+            await self._contest(
+                namespace, [str(row.data.get("keep", "")), str(row.data.get("absorb", ""))]
+            )
+        elif row.ref == "alias":
+            await self._contest(namespace, [str(row.data.get("entity_id", ""))])
+
+    async def _contest_positive(self, event: MemoryEvent) -> None:
+        payload = event.payload
+        if payload.get("marker") == MERGE_MARKER:
+            await self._contest(
+                event.namespace, [str(payload.get("keep", "")), str(payload.get("absorb", ""))]
+            )
+        elif payload.get("marker") == ALIAS_MARKER:
+            await self._contest(event.namespace, [str(payload.get("entity_id", ""))])
+
+    async def _positive_ready(self, event: MemoryEvent) -> bool | None:
+        """True if every prefix-live citation has a lawful current read-model row.
+
+        None means the marker needs a later bounded retry. False means canonical
+        prefix state already rules out a positive identity effect.
+        """
+        evidence = self._evidence(event.payload)
+        if not evidence:
+            return False
+        live = [rid for rid in evidence if await self._source_live(event.namespace, rid)]
+        if not live:
+            return False
+        for record_id in live:
+            record = await self._view.get_record(record_id)
+            if record is None:
+                return None
+            if (
+                record.namespace != event.namespace
+                or record.status not in {RecordStatus.ACTIVATED, RecordStatus.ARCHIVED}
+                or bool(getattr(record, "quarantined", False))
+            ):
+                return None
+        return True
+
+    async def _materialize_positive(self, event: MemoryEvent, *, retry: bool) -> None:
+        marker = event.payload.get("marker")
+        if marker not in {MERGE_MARKER, ALIAS_MARKER}:
+            await self._clear_pending(event)
+            return
+        if marker == ALIAS_MARKER and not canonical_entity(str(event.payload.get("alias", ""))):
+            await self._clear_pending(event)
+            if event.payload.get("redacted"):
+                await self._contest_positive(event)
+            return
+        ready = await self._positive_ready(event)
+        if ready is None:
+            if not retry:
+                seq = int(event.seq or 0)
+                marker_id = str(
+                    event.payload.get("merge_id" if marker == MERGE_MARKER else "alias_id", "")
+                )
+                await self._view.put(
+                    [
+                        EntityIndexRow(
+                            event.namespace,
+                            _PENDING_KIND,
+                            str(seq),
+                            marker_id,
+                            "merge" if marker == MERGE_MARKER else "alias",
+                            data={
+                                "evidence": self._evidence(event.payload),
+                                "keep": str(event.payload.get("keep", "")),
+                                "absorb": str(event.payload.get("absorb", "")),
+                                "entity_id": str(event.payload.get("entity_id", "")),
+                            },
+                            seq=seq,
+                        ),
+                        *[
+                            EntityIndexRow(
+                                event.namespace, _PENDING_CITE_KIND, rid, str(seq), seq=seq
+                            )
+                            for rid in self._evidence(event.payload)
+                        ],
+                    ]
+                )
+                self._did_change = True
+            return
+        await self._clear_pending(event)
+        if not ready:
+            await self._contest_positive(event)
+            return
+        if marker == MERGE_MARKER:
+            await super()._merge(event)
+        else:
+            await super()._alias(event)
+
+    async def retry_positive(self, event: MemoryEvent) -> None:
+        await self._materialize_positive(event, retry=True)
+
+    async def _merge(self, event: MemoryEvent) -> None:
+        payload, ns = event.payload, event.namespace
+        keep, absorb = payload.get("keep"), payload.get("absorb")
+        merge_id = payload.get("merge_id")
+        evidence = self._evidence(payload)
+        if (
+            isinstance(keep, str)
+            and keep
+            and isinstance(absorb, str)
+            and absorb
+            and keep != absorb
+            and isinstance(merge_id, str)
+            and merge_id
+            and evidence
+        ):
+            live = [rid for rid in evidence if await self._source_live(ns, rid)]
+            if live:
+                seq = int(event.seq or 0)
+                await self._view.put(
+                    [
+                        EntityIndexRow(ns, _BARRIER_KIND, merge_id, absorb, keep, seq=seq),
+                        *[
+                            EntityIndexRow(ns, _BARRIER_CITE_KIND, rid, merge_id, absorb, seq=seq)
+                            for rid in live
+                        ],
+                    ]
+                )
+                self._did_change = True
+        await self._materialize_positive(event, retry=False)
+
+    async def _alias(self, event: MemoryEvent) -> None:
+        await self._materialize_positive(event, retry=False)
+
+    async def _link(self, event: MemoryEvent) -> None:
+        absorb = event.payload.get("entity_id")
+        if isinstance(absorb, str) and await self._view.select(
+            event.namespace, _BARRIER_KIND, entity_id=absorb
+        ):
+            return
+        await super()._link(event)

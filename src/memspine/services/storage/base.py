@@ -64,6 +64,16 @@ class StorageService(Protocol):
         that must never become the M4 incumbent."""
         ...
 
+    async def find_active_untyped_fact(
+        self, namespace: str, entity: str, attribute: str
+    ) -> MemoryRecord | None:
+        """M4 incumbent excluding RM-45 typed groups, with the legacy key/order."""
+        ...
+
+    async def claim_group_snapshot(self, namespace: str, group_key: str) -> list[MemoryRecord]:
+        """Complete, native visibility-filtered indexed scoped claim group (RM-45)."""
+        ...
+
     async def list_records(
         self,
         namespace: str,

@@ -27,11 +27,6 @@ async def lookup_conversations(
     return await ledger.lookup_conversations(namespace, conversation_ids)
 
 
-async def tombstone_records(ledger: IntakeLedger, record_ids: Sequence[str]) -> int:
-    """Redact metadata for hard-forgotten records while retaining non-reusable IDs."""
-    return await ledger.tombstone_records(record_ids)
-
-
 async def backfill_from_storage(storage: Any) -> int:
     """Index existing source envelopes without reading/copying record content.
 

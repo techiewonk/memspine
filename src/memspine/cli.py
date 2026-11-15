@@ -25,9 +25,58 @@ audit_app = typer.Typer(help="Audit the event log (E1: blast-radius taint tracin
 app.add_typer(audit_app, name="audit")
 tap_app = typer.Typer(help="Wiretap traces (WT-01): per-request pipeline gaps, debugging only.")
 app.add_typer(tap_app, name="tap")
+outbox_app = typer.Typer(help="Drain durable ingestion work with the configured runner.")
+app.add_typer(outbox_app, name="outbox")
 
 TemplateOpt = Annotated[str | None, typer.Option("--template", "-t", help="Shipped template name")]
 FileOpt = Annotated[Path | None, typer.Option("--config", "-c", help="User config YAML path")]
+
+
+@outbox_app.command("drain")
+def outbox_drain_cmd(
+    config_file: Annotated[Path, typer.Option("--config", "-c", help="Engine config YAML path")],
+    template: TemplateOpt = None,
+    namespace: Annotated[
+        str | None,
+        typer.Option("--namespace", "-n", help="One namespace; default: all durable scopes"),
+    ] = None,
+) -> None:
+    """Drain the configured outbox, including work from namespaces unseen by this process."""
+    import asyncio
+
+    from memspine import Engine
+    from memspine.store.scope import validate_namespace
+
+    async def _inner() -> dict[str, object]:
+        engine = Engine(
+            template=default_template(template, config_file),
+            user_config=config_file,
+            dotenv_path=None,
+        )
+        await engine.start()
+        try:
+            pipeline = engine._windows
+            outbox = None if pipeline is None else pipeline._outbox
+            if outbox is None:
+                raise ConfigError("outbox drain requires workers.outbox and write.window_extract")
+            assert pipeline is not None
+            selected = None if namespace is None else validate_namespace(namespace)
+            scope = None if selected is None else pipeline._scope(selected)
+            report = await pipeline.drain_durable(selected)
+            remaining, _ = outbox.store.backlog(scope)
+            return {
+                **report,
+                "remaining": remaining,
+            }
+        finally:
+            await engine.stop()
+
+    try:
+        result = asyncio.run(_inner())
+    except ConfigError as exc:
+        typer.secho(f"cannot drain outbox: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    typer.echo(yaml.safe_dump(result, sort_keys=False).strip())
 
 
 def _load(template: str | None, config_file: Path | None) -> ResolvedConfig:

@@ -147,9 +147,7 @@ async def test_extractive_only_never_calls_an_available_summarizer() -> None:
         memories={
             "episodic": {
                 "enabled": True,
-                "policies": {
-                    "consolidation": {"session_summary": {"extractive_only": True}}
-                },
+                "policies": {"consolidation": {"session_summary": {"extractive_only": True}}},
             }
         }
     )

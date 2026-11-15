@@ -13,6 +13,7 @@ from hashlib import sha256
 from typing import Any, ClassVar, Protocol
 from urllib.parse import urlsplit
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import probe
 from memspine.clients._common.endpoints import is_loopback
 from memspine.clients._common.secrets import auth_digest
@@ -163,6 +164,10 @@ class Neo4jClient:
         return await probe(deadline_s, check)
 
     async def close(self) -> None:
-        driver, self._driver = self._driver, None
+        await drain_close(self._close_owned())
+
+    async def _close_owned(self) -> None:
+        driver = self._driver
         if driver is not None:
             await driver.close()
+            self._driver = None

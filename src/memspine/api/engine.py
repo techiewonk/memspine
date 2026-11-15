@@ -71,6 +71,7 @@ from memspine.core.read_filters import (
 from memspine.core.vetting import VetFlag
 from memspine.derive import write as derive_write
 from memspine.derive.feedback import LatencyStats
+from memspine.derive.non_generative_facts import UnresolvedAnnotation
 from memspine.derive.pipeline import builders as derive_builders
 from memspine.derive.pipeline import graph as derive_graph
 from memspine.derive.pipeline import integrate as derive_integrate
@@ -112,6 +113,7 @@ from memspine.memories.associative.entities import (
 )
 from memspine.memories.associative.entity_index import (
     LINKS_KEY,
+    EntityIndexProjectionIncomplete,
     EntityIndexProjector,
     relink_events,
     with_entity_links,
@@ -261,10 +263,11 @@ from memspine.services.graph.base import GraphStore
 from memspine.services.graph.qualifiers import QualifierFilter
 from memspine.services.lexical.base import LexicalHit, LexicalStore
 from memspine.services.lexical.projector import LexicalProjector
-from memspine.services.storage.projector import RecordProjector
+from memspine.services.storage.projector import RecordProjector, fold_records
 from memspine.services.storage.records_port import RecordsStore
 from memspine.services.vector.base import VectorHit, VectorStore
 from memspine.services.vector.projector import VectorProjector
+from memspine.store.claim_cardinality import record_group_of
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.projections.projector import Projector
 from memspine.store.records import (
@@ -889,6 +892,13 @@ class Engine:
                 )
             )
 
+        # Pin an empty records cursor before any rolling prune or new projection.
+        await self._storage.initialize_records_projection()
+        if self._entity_index is not None:
+            # Keep a zero checkpoint even for an empty enabled index: rolling
+            # pruning must not discard history before its first ordered fold.
+            await self._storage.initialize_entity_index()
+
         # A durable high-water mark is valid only for the provider target that
         # produced it. Fail closed before catch-up can serve data under a changed
         # graph/vector/lexical target.
@@ -911,6 +921,14 @@ class Engine:
         assert runner is not None
         for name, pipeline in PIPELINES.items():
             runner.register(name, pipeline)
+        # The window pipeline already registered its durable stage handlers. Bind its
+        # plain fenced Activity before the remote worker starts and can replay work.
+        if config.workers.runner == "temporal" and self._windows is not None:
+            from memspine.runtime.temporal_outbox import TemporalOutboxRunner
+
+            outbox = self._windows._outbox
+            if isinstance(outbox, TemporalOutboxRunner):
+                outbox.bind(runner)
         await runner.start()
 
         # 5.(minimal)/6. catch-up from high-water marks; rolling mode prunes on
@@ -1299,6 +1317,41 @@ class Engine:
         # drain it before any scheduler, client, or SQL dependency is stopped.
         await attempt("provider cleanup worker", stop_provider_cleanup_worker)
 
+        async def stop_scheduler() -> None:
+            if self._scheduler is not None:
+                scheduler, self._scheduler = self._scheduler, None
+                await scheduler.stop()
+
+        await attempt("sleep scheduler", stop_scheduler)
+
+        async def stop_derive_scheduler() -> None:
+            if self._derive_sched is not None:
+                derive_sched, self._derive_sched = self._derive_sched, None
+                await derive_sched.stop()
+
+        await attempt("derive scheduler", stop_derive_scheduler)
+
+        async def close_runner() -> None:
+            if self._runner is not None:
+                runner = self._runner
+                await runner.close()
+                self._runner = None
+
+        # A Temporal Activity uses the window pipeline's handlers, SQL store and
+        # model services. Stop its worker before any of those dependencies close.
+        temporal_worker = (
+            self._resolved is not None and self._resolved.config.workers.runner == "temporal"
+        )
+        if temporal_worker:
+            try:
+                await close_runner()
+            except BaseException as exc:
+                raise _EngineTeardownError(
+                    "engine teardown blocked before outbox dependencies close: "
+                    f"Temporal worker shutdown failed ({self._cleanup_error_detail(exc)})",
+                    retryable=True,
+                ) from None
+
         seams = self._binding
         # RM-75: the ops / cost ledger and model scheduler leases belong to the lifecycle
         # manager (``_own_lease``), which releases them in its ordered close below; here this
@@ -1316,19 +1369,6 @@ class Engine:
 
         await attempt("model scheduler", detach_model_scheduler)
 
-        async def stop_scheduler() -> None:
-            if self._scheduler is not None:
-                scheduler, self._scheduler = self._scheduler, None
-                await scheduler.stop()
-
-        await attempt("sleep scheduler", stop_scheduler)
-
-        async def stop_derive_scheduler() -> None:
-            if self._derive_sched is not None:
-                derive_sched, self._derive_sched = self._derive_sched, None
-                await derive_sched.stop()
-
-        await attempt("derive scheduler", stop_derive_scheduler)
         await attempt("asset describer", lambda: asset_describer.shutdown(self))
 
         async def close_http() -> None:
@@ -1344,12 +1384,8 @@ class Engine:
 
         await attempt("window workers", stop_windows)
 
-        async def close_runner() -> None:
-            if self._runner is not None:
-                runner, self._runner = self._runner, None
-                await runner.close()
-
-        await attempt("task runner", close_runner)
+        if not temporal_worker:
+            await attempt("task runner", close_runner)
 
         async def stop_storage() -> None:
             if self._storage is not None:
@@ -2244,9 +2280,14 @@ class Engine:
         Preserve supplied ``message_id``, ``session_id``, ``conversation_id`` and
         ``created_at``; generate missing identities and creation times. One missing
         session is generated per call. Each root without an explicit conversation
-        starts its own conversation; replies inherit their parent's conversation.
-        ``reply_to`` names a source message ID in this namespace, stored already
-        or earlier in the batch, with matching session/conversation ownership.
+        starts its own conversation; replies inherit their parent's session and
+        conversation when neither is supplied. An explicit different session
+        starts a new conversation while retaining the cross-session reply link.
+        ``reply_to`` names a live, visible source message ID in this namespace,
+        stored already or earlier in the batch. For a stored parent, ``actor`` is
+        the caller principal used by the record visibility policy; the caller is
+        responsible for supplying that principal. Message ``sender`` is source
+        data and cannot authorize access to a parent.
 
         Nested ``sender`` records identity independently of conversational ``role``.
         Returned records expose resolved source metadata in ``record.source.message``.
@@ -3916,13 +3957,6 @@ class Engine:
         await trust_erasure._forget_many(
             self, storage, ns, record_ids, hard, subject_names=subject_names
         )
-        if hard:
-            from memspine.ingest.message_store import tombstone_records
-            from memspine.services.storage.intake_port import intake_ledger_of
-
-            ledger = intake_ledger_of(storage)
-            if ledger is not None:
-                await tombstone_records(ledger, record_ids)
 
     async def _erased_entity_nodes(
         self, ns: str, names: Sequence[str], *, forced: Sequence[str] = ()
@@ -5209,6 +5243,69 @@ class Engine:
 
     # ── associative verbs (P6: M13.6 / D-40 / ADR-015) ───────────────────────
 
+    async def _authorize_identity_change(self, namespace: str, verb: str) -> None:
+        """Check the current viewer while the identity marker's namespace lock is held."""
+        if current_principal() is None and scope_guard.viewer_required(self):
+            scope_guard.invalidate_multi_party_cache(self, namespace)
+        if (
+            current_principal() is None
+            and scope_guard.viewer_required(self)
+            and await scope_guard.is_multi_party(self, namespace)
+        ):
+            raise scope_guard.refuse(verb, namespace, "viewer_required")
+
+    async def merge_entities(
+        self,
+        keep: str,
+        absorb: str,
+        evidence: Sequence[str],
+        namespace: str = "default",
+        *,
+        actor: str = "user",
+    ) -> None:
+        """Merge two namespace-owned entities with live cited evidence (ADR-089)."""
+        self._require_started()
+        ns = validate_namespace(namespace)
+        if self._associative is None or self._entity_index is None:
+            raise MissingServiceError(
+                "associative entity identity",
+                hint="enable memories.associative with policies.entity_nodes: true",
+            )
+        await self._associative.merge_entities(
+            ns,
+            keep,
+            absorb,
+            evidence,
+            actor=actor,
+            authorize=lambda: self._authorize_identity_change(ns, "merge_entities"),
+        )
+
+    async def add_entity_alias(
+        self,
+        entity: str,
+        alias: str,
+        evidence: Sequence[str],
+        namespace: str = "default",
+        *,
+        actor: str = "user",
+    ) -> None:
+        """Add an evidence-bound alias to a namespace-owned entity (ADR-089)."""
+        self._require_started()
+        ns = validate_namespace(namespace)
+        if self._associative is None or self._entity_index is None:
+            raise MissingServiceError(
+                "associative entity identity",
+                hint="enable memories.associative with policies.entity_nodes: true",
+            )
+        await self._associative.add_entity_alias(
+            ns,
+            entity,
+            alias,
+            evidence,
+            actor=actor,
+            authorize=lambda: self._authorize_identity_change(ns, "add_entity_alias"),
+        )
+
     async def associate(
         self,
         src_id: str,
@@ -5789,7 +5886,16 @@ class Engine:
                 self._storage, event, self._entity_policy, projector=self._entity_index
             )
             relink = any(link.get("new") for link in event.payload.get(LINKS_KEY, ()))
-        appended = await self._storage.append_event(event)
+        if event.kind is EventKind.WRITE:
+            # Fail closed on an otherwise eligible claim pinned to an unavailable
+            # registry before its canonical event can enter the ordered log.
+            record_group_of(MemoryRecord.model_validate(event.payload["record"]))
+        ephemeral = self._storage.mode is EventLogMode.EPHEMERAL
+        appended = (
+            await self._storage.append_ephemeral_records(event, fold_records)
+            if ephemeral
+            else await self._storage.append_event(event)
+        )
         if self._freshness_tracker is not None:  # O4-01b: the raw-turn seq the derived layers cover
             read_freshness.note_event(self._freshness_tracker, appended)
         if self._derive_sched is not None and event.kind is EventKind.WRITE:
@@ -5803,7 +5909,16 @@ class Engine:
                 neighbour_batch.observe(appended)  # #63: rows the vector store gains or loses
         batch = self._batch_offsets
         for projector in self._projectors:
-            await projector.apply(appended)
+            if projector.name == "records" and ephemeral:
+                continue  # already folded atomically with the volatile seq
+            try:
+                await projector.apply(appended)
+            except EntityIndexProjectionIncomplete:
+                if projector is not self._entity_index:
+                    raise
+                continue  # no entity-index acknowledgement past the bounded page
+            if projector is self._entity_index or projector.name == "records":
+                continue  # ordered index door owns its durable cursor and global prefix
             if batch is not None:
                 batch[projector.name] = appended.seq  # checkpointed at the flush
             else:
@@ -5877,7 +5992,7 @@ class Engine:
                 failure = failure or exc
                 continue
             seq = offsets.get(projector.name)
-            if seq is None:
+            if seq is None or projector is self._entity_index or projector.name == "records":
                 continue
             try:
                 await self._storage.set_offset(projector.name, seq)
@@ -6051,6 +6166,42 @@ class Engine:
         eval harness calls it before reads and before the sleep cycle). A no-op returning
         ``{}`` when ``write.window_extract`` is off."""
         return await ingest_windows.flush_windows(self, namespace, final=final)
+
+    @scope_guard.viewer_guarded("unresolved_annotations", native=True)
+    async def unresolved_annotations(
+        self, namespace: str = "default", *, viewer: str | None = None
+    ) -> list[UnresolvedAnnotation]:
+        """Inspect current source-bound unresolved candidates in one namespace.
+
+        These durable annotations are unasserted, never facts or search hits. The read
+        validates their artifact schema and pinned source and does not run extraction.
+        An engine without the window pipeline returns an empty list.
+        """
+        if viewer is not None:
+            viewer = viewer.strip() or None
+        return await ingest_windows.inspect_unresolved_annotations(self, namespace, viewer=viewer)
+
+    async def activate_derivation_policy(
+        self,
+        namespace: str = "default",
+        *,
+        policy_revision: str,
+        registry_digest: str | None = None,
+        runner_quiesced: bool,
+    ) -> int:
+        """Activate an effective derivation revision and durably retry eligible work.
+
+        ``runner_quiesced`` is the administrator's declaration that old-policy workers
+        have stopped. It is not a distributed quiescence proof. A repeated activation of
+        the same revision and registry digest is inert.
+        """
+        return await ingest_windows.activate_derivation_policy(
+            self,
+            namespace,
+            policy_revision=policy_revision,
+            registry_digest=registry_digest,
+            runner_quiesced=runner_quiesced,
+        )
 
     async def close_session(
         self, namespace: str = "default", session_id: str | None = None

@@ -15,9 +15,9 @@ from memspine.derive.prompt_context import (
     PromptContextBuilder,
 )
 from memspine.memories.associative import entity_index as entity_index_module
+from memspine.memories.associative import known_entities as known_entities_module
 from memspine.memories.associative.entities import EntityPolicy
 from memspine.memories.associative.entity_index import (
-    INDEX_PROJECTOR,
     LINKS_KEY,
     EntityIndexProjector,
     alias_event,
@@ -28,20 +28,34 @@ from memspine.memories.associative.known_entities import (
     KnownEntityCursor,
     index_known_entities,
 )
+from memspine.services.storage.entity_projection_memory import MemoryEntityIndexProjection
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord
+from memspine.workers.windows import _known_batch_horizon
 
 ON = EntityPolicy.from_policy(True)
 
 
-class _Events:
+class _Events(MemoryEntityIndexProjection):
     """The event log a cursor's watermark is proven against (one process, in-order applies)."""
 
     def __init__(self, log: _Log) -> None:
+        super().__init__()
         self._log = log
+        self.events = log.events
 
     async def read_events(self, after_seq: int = 0, limit: int = 1000) -> list[MemoryEvent]:
         return [e for e in self._log.events if (e.seq or 0) > after_seq][:limit]
+
+    async def read_scoped_events(
+        self, namespace: str, kinds: Sequence[EventKind], *, after_seq: int, limit: int
+    ) -> tuple[list[MemoryEvent], int]:
+        head = len(self._log.events)
+        return [
+            e
+            for e in self._log.events
+            if after_seq < (e.seq or 0) <= head and e.namespace == namespace and e.kind in kinds
+        ][:limit], head
 
     async def get_offset(self, name: str) -> int:
         return 0
@@ -49,17 +63,16 @@ class _Events:
 
 class _Log:
     def __init__(self) -> None:
+        self.events: list[MemoryEvent] = []
         self.storage = _Events(self)
         self.index = EntityIndexProjector(self.storage)
-        self.events: list[MemoryEvent] = []
 
     def cursor(self, **bounds: int) -> KnownEntityCursor:
         return KnownEntityCursor(lambda: self.storage, projector=lambda: self.index, **bounds)
 
     async def append(self, event: MemoryEvent) -> MemoryEvent:
         event = await with_entity_links(self.storage, event, ON, projector=self.index)
-        event = event.model_copy(update={"seq": len(self.events) + 1})
-        self.events.append(event)
+        event = self.storage.append(event)
         await self.index.apply(event)
         return event
 
@@ -110,6 +123,109 @@ async def test_known_entities_carry_source_version_known_time_and_visibility(
     assert known.known_seq == first_seq  # when the index came to know the name
     assert known.version == alias_seq  # its latest name or alias row
     assert known.visibility == KnownVisibility(namespace="a")
+
+
+async def test_increasing_horizons_continue_bounded_cursor_to_completeness(
+    make_record: Callable[..., MemoryRecord],
+) -> None:
+    log = _Log()
+    cursor = log.cursor(page=2, max_pages=1, max_entities=20, limit=20)
+    for i in range(7):
+        _, source_seq = await log.write(_rec(make_record, f"Person{i}"))
+        await cursor("a", "", source_seq)
+        assert cursor.rows_read <= 2
+
+    # A monotonically later source window advances the same proven scan prefix. Restarting on
+    # each horizon would keep returning deferred here because the index has more than one page.
+    latest = log.events[-1].seq
+    assert latest is not None
+    for _ in range(10):
+        known = await cursor("a", "", latest)
+        assert cursor.rows_read <= 2
+        if not known.deferred:
+            break
+    else:
+        raise AssertionError("increasing known-time horizon never reached completeness")
+    assert {entry.name for entry in known} == {f"Person{i}" for i in range(7)}
+
+
+async def test_historical_horizon_filters_future_names_aliases_before_cap_and_cache(
+    make_record: Callable[..., MemoryRecord],
+) -> None:
+    log = _Log()
+    alex_id, alex_seq = await log.write(_rec(make_record, "Alex"))
+    evidence = _rec(make_record, "Alex")
+    await log.write(evidence)
+    alias_seq = await log.alias("a", alex_id, "Lexi", evidence.record_id)
+    _, future_seq = await log.write(_rec(make_record, "Zed"))
+    cursor = log.cursor(limit=10, max_entities=1)
+
+    historical = await cursor("a", "", alex_seq)
+    assert [entry.name for entry in historical] == ["Alex"]
+    assert historical[0].aliases == ()
+    assert not historical.deferred
+
+    alias_known = await cursor("a", "", alias_seq)
+    assert [entry.name for entry in alias_known] == ["Alex"]
+    assert alias_known[0].aliases == ("Lexi",)  # supported before the cutoff remains visible
+
+    later = await cursor("a", "", future_seq)
+    assert alias_seq <= future_seq
+    assert later[0].name == "Zed"  # capped current view keeps the latest eligible entity
+    assert later.reason == "capped"
+
+    # Querying an earlier horizon after the later cache cannot leak the future entity or alias.
+    earlier_again = await cursor("a", "", alex_seq)
+    assert [entry.name for entry in earlier_again] == ["Alex"]
+    assert earlier_again[0].aliases == ()
+
+
+@pytest.mark.parametrize("initial_watermark", [None, 1])
+async def test_unproven_cursor_prefix_is_not_advanced_past_late_low_seq_row(
+    make_record: Callable[..., MemoryRecord],
+    monkeypatch: pytest.MonkeyPatch,
+    initial_watermark: int | None,
+) -> None:
+    from memspine.services.storage.entity_index_tables import EntityIndexRow
+
+    log = _Log()
+    await log.write(_rec(make_record, "Alex"))  # seq 1 is the only proven row initially
+    watermark = initial_watermark
+
+    async def proven_watermark(*_args: object, **_kwargs: object) -> int | None:
+        return watermark
+
+    monkeypatch.setattr(known_entities_module, "index_watermark", proven_watermark)
+    store = log.index.store
+    # A seq-9 row is already visible while the watermark is absent/below the horizon; a later
+    # catch-up can still insert seq 5 behind it. The cursor must retain only a proven mark.
+    await store.put(
+        [
+            EntityIndexRow("a", "name", "latevisible", "ent-latevisible", "name", seq=9),
+            EntityIndexRow("a", "name", "boundary", "ent-boundary", "name", seq=12),
+        ]
+    )
+    cursor = log.cursor(page=20, max_pages=1, limit=20)
+    incomplete = await cursor("a", "", 10)
+    assert incomplete.deferred
+    assert "Latevisible" not in {entry.name for entry in incomplete}
+
+    await store.put([EntityIndexRow("a", "name", "latecatchup", "ent-latecatchup", "name", seq=5)])
+    watermark = 10
+    recovered = await cursor("a", "", 10)
+    assert "Latecatchup" in {entry.name for entry in recovered}
+
+
+def test_batch_horizon_uses_oldest_window_end_and_fails_closed_for_unknown_source() -> None:
+    def with_seq(seq: int | None) -> MemoryRecord:
+        record = MemoryRecord(namespace="a", memory_type="episodic", content="x")
+        return record.model_copy(
+            update={"fingerprint": record.fingerprint.model_copy(update={"source_seq": seq})}
+        )
+
+    older, newer = [with_seq(4), with_seq(6)], [with_seq(9), with_seq(12)]
+    assert _known_batch_horizon([older, newer]) == (6, True)
+    assert _known_batch_horizon([older, [with_seq(9), with_seq(None)]]) == (0, True)
 
 
 async def test_only_the_callers_namespace_is_known(
@@ -287,15 +403,24 @@ async def test_sql_store_pages_in_keyset_order() -> None:
 _OLD_LOOKBACK = 64
 
 
-class _SharedLog:
+class _SharedLog(MemoryEntityIndexProjection):
     """One event log + one shared name index (keyed by this object), for several processes."""
 
     def __init__(self) -> None:
-        self.events: list[MemoryEvent] = []
-        self.marks: dict[str, int] = {}
+        super().__init__()
 
     async def read_events(self, after_seq: int = 0, limit: int = 1000) -> list[MemoryEvent]:
         return [e for e in self.events if (e.seq or 0) > after_seq][:limit]
+
+    async def read_scoped_events(
+        self, namespace: str, kinds: Sequence[EventKind], *, after_seq: int, limit: int
+    ) -> tuple[list[MemoryEvent], int]:
+        head = len(self.events)
+        return [
+            e
+            for e in self.events
+            if after_seq < (e.seq or 0) <= head and e.namespace == namespace and e.kind in kinds
+        ][:limit], head
 
     async def get_offset(self, name: str) -> int:
         return self.marks.get(name, 0)
@@ -304,9 +429,7 @@ class _SharedLog:
         self.marks[name] = max(self.marks.get(name, 0), seq)
 
     def append(self, event: MemoryEvent) -> MemoryEvent:
-        appended = event.model_copy(update={"seq": len(self.events) + 1})
-        self.events.append(appended)
-        return appended
+        return super().append(event)
 
 
 class _Process:
@@ -334,7 +457,6 @@ class _Process:
     async def commit(self, event: MemoryEvent) -> MemoryEvent:
         appended = self.log.append(event)
         await self.index.apply(appended)
-        await self.log.set_offset(INDEX_PROJECTOR, int(appended.seq or 0))
         return appended
 
     async def forget(self, ns: str, record_id: str) -> None:
@@ -488,7 +610,7 @@ async def test_a_fresh_process_replay_renders_the_same_known_block(
 
     fresh = _Log()  # a new process: the index rebuilt by replaying the same log
     for event in live.events:
-        fresh.events.append(event)
-        await fresh.index.apply(event)
+        copied = fresh.storage.append(event.model_copy(update={"seq": None}))
+        await fresh.index.apply(copied)
     assert await _known_block(fresh.cursor(max_entities=3, limit=3)) == block
     assert block[1] == (ids["Alex"], ids["Emil"], ids["Cato"])  # rank order, from index state

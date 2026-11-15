@@ -850,8 +850,11 @@ async def _search(
         fx["query_contract"] = {"mode": "off", "status": "absent"}
     if rerank_on and candidates:
         candidates, reranked = await rerank_stage(eng, ns, rerank_query, candidates, rr_cfg)
+    # One search compares every candidate at the same instant. A fresh clock read
+    # per record also changes the reported scores across equivalent graph fetches.
+    score_now = eng._clock()
     scored = [
-        (record, eng._scoring.composite_score(record, relevance=relevance))
+        (record, eng._scoring.composite_score(record, relevance=relevance, now=score_now))
         for record, relevance in candidates
     ]
     rel_of = (
@@ -885,7 +888,7 @@ async def _search(
                     **{
                         k: round(v, 6)
                         for k, v in eng._scoring.components(
-                            record, relevance=rel_of.get(record.record_id, 0.0)
+                            record, relevance=rel_of.get(record.record_id, 0.0), now=score_now
                         ).items()
                     },
                     "trust": round(float(record.trust), 6),

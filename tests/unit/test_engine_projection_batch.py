@@ -79,8 +79,10 @@ async def test_reads_inside_the_batch_see_every_applied_turn() -> None:
             hits = await lexical.search("chat", "heron", top_k=5)
             assert len(hits) == 1
             assert await lexical.exists(hits[0].record_id)
-            # Checkpoints wait for the flush.
-            assert set((await _offsets(engine)).values()) == {0}
+            # Records fold commits with the write; lexical/vector marks wait for flush.
+            offsets = await _offsets(engine)
+            assert offsets.pop("records") == await _head(engine)
+            assert set(offsets.values()) == {0}
         head = await _head(engine)
         assert set((await _offsets(engine)).values()) == {head}
     finally:

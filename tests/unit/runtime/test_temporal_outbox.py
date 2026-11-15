@@ -467,10 +467,12 @@ def test_fence_mapping_table() -> None:
 
 
 def test_workflow_id_is_stable_bounded_and_opaque() -> None:
-    one = outbox_workflow_id("dep", SCOPE, STAGE)
-    assert one == outbox_workflow_id("dep", SCOPE, STAGE)
-    assert one != outbox_workflow_id("dep", SCOPE, "other")
-    assert one != outbox_workflow_id("dep2", SCOPE, STAGE)
+    fingerprint = "a" * 64
+    one = outbox_workflow_id("dep", SCOPE, STAGE, fingerprint)
+    assert one == outbox_workflow_id("dep", SCOPE, STAGE, fingerprint)
+    assert one != outbox_workflow_id("dep", SCOPE, "other", fingerprint)
+    assert one != outbox_workflow_id("dep2", SCOPE, STAGE, fingerprint)
+    assert one != outbox_workflow_id("dep", SCOPE, STAGE, "b" * 64)
     digest = one.removeprefix("memspine-outbox-")
     assert len(digest) == 32 and set(digest) <= set("0123456789abcdef")  # no scope text
 
@@ -560,7 +562,12 @@ async def test_without_temporalio_the_adapters_name_the_extra(db: Path) -> None:
         await activity.temporal_activity(drain_request(SCOPE, STAGE))
     with pytest.raises(MissingServiceError, match=r"memspine\[temporal\]"):
         await kick_outbox_drain(
-            object(), deployment_id="dep", task_queue="q", scope=SCOPE, stage=STAGE
+            object(),
+            deployment_id="dep",
+            config_fingerprint="a" * 64,
+            task_queue="q",
+            scope=SCOPE,
+            stage=STAGE,
         )
 
 
@@ -628,10 +635,12 @@ async def test_drain_workflow_runs_steps_until_done(db: Path) -> None:
             handle = await kick_outbox_drain(
                 env.client,
                 deployment_id="dep",
+                config_fingerprint="a" * 64,
                 task_queue="outbox-test",
                 scope=SCOPE,
                 stage=STAGE,
                 max_items=2,
+                max_steps=1,  # force two real continue-as-new generations
             )
             totals = await handle.result()
     assert totals["items"] == 5 and totals["steps"] == 3 and totals["watermark"] == 4

@@ -18,7 +18,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from datetime import datetime
 
-from memspine.services.storage.intake_port import IntakeLedger
+from memspine.services.storage.intake_port import IntakeLedger, UnresolvedReplay
 
 __all__ = ["activate_derivation_policy", "discover_committed_derivations"]
 
@@ -57,6 +57,8 @@ async def activate_derivation_policy(
     registry_digest: str | None,
     activated_at: datetime,
     runner_quiesced: bool,
+    unresolved_namespace: str | None = None,
+    unresolved_replays: Sequence[UnresolvedReplay] = (),
 ) -> int:
     """Activate a revision and requeue only unfinished, retry-eligible work.
 
@@ -72,4 +74,6 @@ async def activate_derivation_policy(
         policy_revision=policy_revision,
         registry_digest=registry_digest,
         activated_at=activated_at,
+        unresolved_namespace=unresolved_namespace,
+        unresolved_replays=unresolved_replays,
     )

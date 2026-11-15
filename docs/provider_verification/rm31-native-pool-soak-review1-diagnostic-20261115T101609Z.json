@@ -1,0 +1,465 @@
+{
+  "diagnostic_only": true,
+  "full_gate_evidence": false,
+  "run_id": "ebb1efbe0ec6",
+  "created_at_utc": "2026-11-15T10:16:09.371177+00:00",
+  "scope": "two Engine cycles per each of seven rows and one Weaviate two-Engine overlap",
+  "source_before": {
+    "revision": "88ae38ed916b2869deeed8f17c72249568e1bf3d",
+    "dirty": true,
+    "runtime_tree_sha256": "e5733684ba705e36725d6f4d8a79a89277bff3b452d18d055e01cb82cb0ac81c",
+    "runtime_tree_file_count": 693,
+    "harness_sha256": "20f27ee150634254ff69a0aca34b65dba77dde8e8b1dc45f7772f3132ce8909a",
+    "source_file_sha256": {
+      "scripts/local_services.py": "fe499efc08edfeb8aa63973d454b951250500e9f49f4904487986ef68c4f7059",
+      "scripts/rm31_owned_services.py": "3b467b75d200bd0f9b429d91cba34a087c7b1efb3d3103880b188ac02daf5b62",
+      "src/memspine/clients/postgres/connector.py": "3965d4b7839a153bd518cda1ac71bdc7809f7f88c7e99c1dbd2de10fdf35d3c5",
+      "src/memspine/clients/cashews.py": "6563967726693346e9de3b88184f6bfa62bd1a8b0c612a8075fa2b2ff5d45471",
+      "src/memspine/clients/mongodb/connector.py": "141f6bcff546403a953191ef3aed8e428d70d0d2790e51186adc345ab9c017b4",
+      "src/memspine/clients/neo4j.py": "d52a7ac331df8438a0599e08877f43696f9868f3e0e45b255ef3666790115bdb",
+      "src/memspine/clients/opensearch.py": "402d47fcf57613fc01ea517735d69773fe8fb5e3659e17e368e424b5de8148a1",
+      "src/memspine/clients/weaviate.py": "1834dd2be1194be16633e7431c30ac7007c7794ad76774b803422cfa28f2acc0",
+      "src/memspine/api/engine.py": "643218fafe13d30489bfdbb69b5c579a25a6762506ad57e3166b369d3ee7aaf7",
+      "src/memspine/runtime/container.py": "b5a2cd7067b160df517a13d9a2d363c020ffc7a4702ba4b3ee87b74b6bfaed12",
+      "src/memspine/providers/builtin/cache.py": "489d95aa79f4fe307356a6eeb641447eeb02ba93935efa2988af7c060ad01aa2",
+      "src/memspine/providers/builtin/graph.py": "f5066ba19bbe60ccf7183dadd9e7f442f5149ff1bfeea150551d7436dc250241",
+      "src/memspine/providers/builtin/mongodb.py": "216675c121fb1545eb55669c2f7da63a44224b571e5cbdb3a9ecd5d2779a0b7a",
+      "src/memspine/providers/builtin/opensearch.py": "88150e096662853d1fd385abf05bd1496d9420ab8bbbe2973608ac893ae65f92",
+      "src/memspine/providers/builtin/weaviate.py": "4cab395e88a321877047400a480d5622780e937c898b627303846601d5959845",
+      "src/memspine/providers/connectors.py": "19642360ab8669c97daca0be8e1e335c890b38ec535c9b028939fd3e49c4a7d6",
+      "src/memspine/providers/lifecycle.py": "a16433454b0339eba3c1657817a39244ced60a0a7657f2056b4a4ecea60791dd",
+      "src/memspine/providers/shared.py": "1217b8c223a0870481db31934967eeb42a244470b42d713cd78a4fc49dcd84eb",
+      "src/memspine/config/schema/providers.py": "00cb668bce5f46e6c5a5faf272c55fda73407b67889b7c310d0b2cc15291e068",
+      "src/memspine/config/schema/remote_providers.py": "7fd087b6dc1700e44b3d8bbd2c45d55bed5a62e7a5ad5104b148418e1401f9b2",
+      "src/memspine/services/cache/cashews.py": "9213429f0b32dcf50cd132bd93637ba5546547861e67d4acc10e798b21730a9f",
+      "src/memspine/services/graph/neo4j.py": "86d271d51cec8cb14d078d0f7c4f8c44dd1f7a8467d99564daff9663f9a6769c",
+      "src/memspine/services/lexical/opensearch.py": "ea114a4b7ba8591304babbf91378bd6d305e49c467458d7ed0086bbc0157d2d3",
+      "src/memspine/services/lexical/weaviate_store.py": "bb3cbb4bf570219113c132695d3a3f2a3e1f4c0317291f99b0701eafd925bcfe",
+      "src/memspine/services/vector/weaviate_store.py": "1b29a2c56bd552fad8ee50b78bcc4b2e90af686be3b925ce807cb877452d4873",
+      "src/memspine/services/storage/mongodb.py": "0542782299c952e67a9ae687d0c6f9827a585aea36e4ec67cc54f12103609ff9",
+      "src/memspine/services/storage/postgres/engine.py": "4584a1848d0f4556b923f7fd516e58640db4fb34269f39ff0ff733b5c4cde3e8"
+    }
+  },
+  "rows": {
+    "postgres_records": [
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "checked_out": 0,
+          "checked_in": 1
+        },
+        "telemetry_after_close": {
+          "checked_out": 0,
+          "checked_in": 0
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      },
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "checked_out": 0,
+          "checked_in": 1
+        },
+        "telemetry_after_close": {
+          "checked_out": 0,
+          "checked_in": 0
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      }
+    ],
+    "redis_cache": [
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "in_use": 0,
+          "connected_sockets": 1
+        },
+        "telemetry_after_close": {
+          "in_use": 0,
+          "connected_sockets": 0
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "cache": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      },
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "in_use": 0,
+          "connected_sockets": 1
+        },
+        "telemetry_after_close": {
+          "in_use": 0,
+          "connected_sockets": 0
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "cache": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      }
+    ],
+    "valkey_cache": [
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "in_use": 0,
+          "connected_sockets": 1
+        },
+        "telemetry_after_close": {
+          "in_use": 0,
+          "connected_sockets": 0
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "cache": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      },
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "in_use": 0,
+          "connected_sockets": 1
+        },
+        "telemetry_after_close": {
+          "in_use": 0,
+          "connected_sockets": 0
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "cache": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      }
+    ],
+    "mongo_records": [
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "async_pool": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0
+          },
+          "sync_pool": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0
+          }
+        },
+        "telemetry_after_close": {
+          "async_pool": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0
+          },
+          "sync_pool": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0
+          }
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "records": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      },
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "async_pool": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0
+          },
+          "sync_pool": {
+            "idle": 1,
+            "active_sockets": 0,
+            "requests": 0
+          }
+        },
+        "telemetry_after_close": {
+          "async_pool": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0
+          },
+          "sync_pool": {
+            "idle": 0,
+            "active_sockets": 0,
+            "requests": 0
+          }
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "records": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      }
+    ],
+    "neo4j_graph": [
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "pooled_sockets": 1
+        },
+        "telemetry_after_close": {
+          "pooled_sockets": 0
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped",
+          "graph": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {
+          "neo4j_schema": "dropped"
+        }
+      },
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "pooled_sockets": 1
+        },
+        "telemetry_after_close": {
+          "pooled_sockets": 0
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped",
+          "graph": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {
+          "neo4j_schema": "dropped"
+        }
+      }
+    ],
+    "opensearch_lexical": [
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "session_closed": false,
+          "pool_closed": false,
+          "acquired": 0,
+          "idle": 1
+        },
+        "telemetry_after_close": {
+          "session_closed": true,
+          "pool_closed": true,
+          "acquired": 0,
+          "idle": 0
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      },
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "session_closed": false,
+          "pool_closed": false,
+          "acquired": 0,
+          "idle": 1
+        },
+        "telemetry_after_close": {
+          "session_closed": true,
+          "pool_closed": true,
+          "acquired": 0,
+          "idle": 0
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      }
+    ],
+    "weaviate_vector_lexical": [
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "http_closed": false,
+          "http_connections": 1,
+          "grpc_state": "READY"
+        },
+        "telemetry_after_close": {
+          "http_closed": true,
+          "http_connections": 0,
+          "grpc_state": "SHUTDOWN"
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      },
+      {
+        "error_type": null,
+        "telemetry_available": true,
+        "telemetry_before_close": {
+          "http_closed": false,
+          "http_connections": 1,
+          "grpc_state": "READY"
+        },
+        "telemetry_after_close": {
+          "http_closed": true,
+          "http_connections": 0,
+          "grpc_state": "SHUTDOWN"
+        },
+        "owned_outstanding_after_settle": 0,
+        "resource_states": {
+          "sql": "stopped",
+          "sql:sync": "stopped",
+          "vector": "stopped",
+          "lexical": "stopped"
+        },
+        "all_resources_stopped": true,
+        "scratch_cleanup": {}
+      }
+    ]
+  },
+  "overlap": {
+    "passed": true,
+    "error_type": null,
+    "shared_connector": true,
+    "after_first_stop": {
+      "http_closed": false,
+      "http_connections": 1,
+      "grpc_state": "READY"
+    },
+    "after_second_stop": {
+      "http_closed": true,
+      "http_connections": 0,
+      "grpc_state": "SHUTDOWN"
+    }
+  },
+  "cleanup": {
+    "postgres_database": "done",
+    "mongo_database": "done",
+    "isolated_services": {
+      "weaviate": "removed",
+      "opensearch": "removed"
+    }
+  },
+  "error_type": null,
+  "credentials_recorded": false,
+  "source_after": {
+    "revision": "88ae38ed916b2869deeed8f17c72249568e1bf3d",
+    "dirty": true,
+    "runtime_tree_sha256": "e5733684ba705e36725d6f4d8a79a89277bff3b452d18d055e01cb82cb0ac81c",
+    "runtime_tree_file_count": 693,
+    "harness_sha256": "20f27ee150634254ff69a0aca34b65dba77dde8e8b1dc45f7772f3132ce8909a",
+    "source_file_sha256": {
+      "scripts/local_services.py": "fe499efc08edfeb8aa63973d454b951250500e9f49f4904487986ef68c4f7059",
+      "scripts/rm31_owned_services.py": "3b467b75d200bd0f9b429d91cba34a087c7b1efb3d3103880b188ac02daf5b62",
+      "src/memspine/clients/postgres/connector.py": "3965d4b7839a153bd518cda1ac71bdc7809f7f88c7e99c1dbd2de10fdf35d3c5",
+      "src/memspine/clients/cashews.py": "6563967726693346e9de3b88184f6bfa62bd1a8b0c612a8075fa2b2ff5d45471",
+      "src/memspine/clients/mongodb/connector.py": "141f6bcff546403a953191ef3aed8e428d70d0d2790e51186adc345ab9c017b4",
+      "src/memspine/clients/neo4j.py": "d52a7ac331df8438a0599e08877f43696f9868f3e0e45b255ef3666790115bdb",
+      "src/memspine/clients/opensearch.py": "402d47fcf57613fc01ea517735d69773fe8fb5e3659e17e368e424b5de8148a1",
+      "src/memspine/clients/weaviate.py": "1834dd2be1194be16633e7431c30ac7007c7794ad76774b803422cfa28f2acc0",
+      "src/memspine/api/engine.py": "643218fafe13d30489bfdbb69b5c579a25a6762506ad57e3166b369d3ee7aaf7",
+      "src/memspine/runtime/container.py": "b5a2cd7067b160df517a13d9a2d363c020ffc7a4702ba4b3ee87b74b6bfaed12",
+      "src/memspine/providers/builtin/cache.py": "489d95aa79f4fe307356a6eeb641447eeb02ba93935efa2988af7c060ad01aa2",
+      "src/memspine/providers/builtin/graph.py": "f5066ba19bbe60ccf7183dadd9e7f442f5149ff1bfeea150551d7436dc250241",
+      "src/memspine/providers/builtin/mongodb.py": "216675c121fb1545eb55669c2f7da63a44224b571e5cbdb3a9ecd5d2779a0b7a",
+      "src/memspine/providers/builtin/opensearch.py": "88150e096662853d1fd385abf05bd1496d9420ab8bbbe2973608ac893ae65f92",
+      "src/memspine/providers/builtin/weaviate.py": "4cab395e88a321877047400a480d5622780e937c898b627303846601d5959845",
+      "src/memspine/providers/connectors.py": "19642360ab8669c97daca0be8e1e335c890b38ec535c9b028939fd3e49c4a7d6",
+      "src/memspine/providers/lifecycle.py": "a16433454b0339eba3c1657817a39244ced60a0a7657f2056b4a4ecea60791dd",
+      "src/memspine/providers/shared.py": "1217b8c223a0870481db31934967eeb42a244470b42d713cd78a4fc49dcd84eb",
+      "src/memspine/config/schema/providers.py": "00cb668bce5f46e6c5a5faf272c55fda73407b67889b7c310d0b2cc15291e068",
+      "src/memspine/config/schema/remote_providers.py": "7fd087b6dc1700e44b3d8bbd2c45d55bed5a62e7a5ad5104b148418e1401f9b2",
+      "src/memspine/services/cache/cashews.py": "9213429f0b32dcf50cd132bd93637ba5546547861e67d4acc10e798b21730a9f",
+      "src/memspine/services/graph/neo4j.py": "86d271d51cec8cb14d078d0f7c4f8c44dd1f7a8467d99564daff9663f9a6769c",
+      "src/memspine/services/lexical/opensearch.py": "ea114a4b7ba8591304babbf91378bd6d305e49c467458d7ed0086bbc0157d2d3",
+      "src/memspine/services/lexical/weaviate_store.py": "bb3cbb4bf570219113c132695d3a3f2a3e1f4c0317291f99b0701eafd925bcfe",
+      "src/memspine/services/vector/weaviate_store.py": "1b29a2c56bd552fad8ee50b78bcc4b2e90af686be3b925ce807cb877452d4873",
+      "src/memspine/services/storage/mongodb.py": "0542782299c952e67a9ae687d0c6f9827a585aea36e4ec67cc54f12103609ff9",
+      "src/memspine/services/storage/postgres/engine.py": "4584a1848d0f4556b923f7fd516e58640db4fb34269f39ff0ff733b5c4cde3e8"
+    }
+  },
+  "wall_s": 30.958,
+  "source_unchanged_during_run": true,
+  "passed_diagnostic": true
+}

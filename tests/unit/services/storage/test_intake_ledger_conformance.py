@@ -196,6 +196,176 @@ async def test_intent_lifecycle_round_trips(ledger: IntakeLedger) -> None:
     assert json.loads(stored["readiness"])["raw_search"] == "ready"
 
 
+async def test_failed_intent_keeps_only_landed_prefix_and_refuses_applied_transition(
+    ledger: IntakeLedger,
+) -> None:
+    change = _accept("failed-source", ["landed", "not written"])
+    await _commit(ledger, change, conversation="failed-conversation")
+    first, second = change.new_write_ids
+    real = {first: "record-first"}
+    readiness = change.readiness.model_copy(
+        update={
+            name: "failed" if change.readiness.get(name) != "unavailable" else "unavailable"
+            for name in ("raw_search", "facts", "graph", "summaries", "profile")
+        }
+    )
+    receipt = change.receipt.model_copy(
+        update={"record_ids": ["record-first"], "readiness": readiness}
+    )
+    manifest = _manifest(change, records=("record-first",))
+    await intake_store.failed_intent(
+        ledger,
+        intent_id=change.receipt.intent_id,
+        skey=change.scope_key,
+        source_id=change.source_id,
+        real_ids=real,
+        receipt=receipt,
+        readiness=readiness,
+        required_derivation=manifest,
+    )
+    row = (await ledger.intents_by_id([change.receipt.intent_id]))[change.receipt.intent_id]
+    assert row["status"] == "failed" and row["apply"] is None
+    assert await ledger.pending_intents() == []
+    assert await ledger.applied_scope_keys() == [change.scope_key]
+    assert (
+        await ledger.discover_committed(
+            scope_key=change.scope_key,
+            stage="window.discovery",
+            discovered_at=NOW,
+            intent_ids=[change.receipt.intent_id],
+        )
+        == 1
+    )
+    assert (
+        await ledger.discover_committed(
+            scope_key=change.scope_key,
+            stage="window.discovery",
+            discovered_at=NOW,
+            intent_ids=[change.receipt.intent_id],
+        )
+        == 0
+    )
+    assert (
+        await ledger.activate_policy(
+            scope_key=change.scope_key,
+            stage="window.discovery",
+            policy_revision="policy:two",
+            registry_digest="registry:two",
+            activated_at=NOW,
+        )
+        == 1
+    )
+    assert (
+        await ledger.activate_policy(
+            scope_key=change.scope_key,
+            stage="window.discovery",
+            policy_revision="policy:two",
+            registry_digest="registry:two",
+            activated_at=NOW,
+        )
+        == 0
+    )
+    assert await ledger.record_ids(change.scope_key, [first, second]) == real
+    overlay = await intake_store.load_overlay(ledger, change.scope_key, change.source_id, [])
+    state = overlay.get_source(change.scope_key, change.source_id)
+    assert state is not None and [s.record_id for s in state.live] == ["record-first"]
+    ids = await ledger.lookup_messages(NS, [f"m-1-{first[:6]}", f"m-1-{second[:6]}"])
+    assert [ids[mid]["intent_status"] for mid in ids] == ["failed", "failed"]
+    assert ids[f"m-1-{first[:6]}"]["record_id"] == "record-first"
+    assert ids[f"m-1-{second[:6]}"]["record_id"] is None
+    await intake_store.failed_intent(
+        ledger,
+        intent_id=change.receipt.intent_id,
+        skey=change.scope_key,
+        source_id=change.source_id,
+        real_ids=real,
+        receipt=receipt,
+        readiness=readiness,
+        required_derivation=manifest,
+    )
+    with pytest.raises(ValueError, match="only an accepted"):
+        await ledger.apply_intent(
+            intent_id=change.receipt.intent_id,
+            scope_key=change.scope_key,
+            source_id=change.source_id,
+            real_ids={},
+            relink_state=lambda x: x,
+            receipt=receipt,
+            readiness=readiness,
+            required_derivation=manifest,
+        )
+
+
+async def test_failed_intent_without_landed_records_queues_no_discovery(
+    ledger: IntakeLedger,
+) -> None:
+    change = _accept("failed-empty-source", ["not written"])
+    await _commit(ledger, change, conversation="failed-empty-conversation")
+    readiness = change.readiness.model_copy(update={"raw_search": "failed"})
+    receipt = change.receipt.model_copy(update={"readiness": readiness})
+    await intake_store.failed_intent(
+        ledger,
+        intent_id=change.receipt.intent_id,
+        skey=change.scope_key,
+        source_id=change.source_id,
+        real_ids={},
+        receipt=receipt,
+        readiness=readiness,
+        required_derivation=_manifest(change),
+    )
+    assert await ledger.pending_intents() == []
+    assert (
+        await ledger.discover_committed(
+            scope_key=change.scope_key,
+            stage="window.discovery",
+            discovered_at=NOW,
+            intent_ids=[change.receipt.intent_id],
+        )
+        == 0
+    )
+    assert (
+        await ledger.activate_policy(
+            scope_key=change.scope_key,
+            stage="window.discovery",
+            policy_revision="policy:two",
+            registry_digest="registry:two",
+            activated_at=NOW,
+        )
+        == 0
+    )
+
+
+async def test_unmapped_message_tombstone_requires_exact_namespace_message_and_write_id(
+    ledger: IntakeLedger,
+) -> None:
+    change = _accept("inflight-erasure", ["private turn"])
+    await _commit(ledger, change, conversation="inflight-conversation")
+    wid = change.new_write_ids[0]
+    mid = f"m-1-{wid[:6]}"
+    assert await ledger.tombstone_unmapped_messages("other", [(mid, wid)]) == 0
+    assert await ledger.tombstone_unmapped_messages(NS, [("wrong-message", wid)]) == 0
+    assert await ledger.tombstone_unmapped_messages(NS, [(mid, "wrong-write")]) == 0
+    before = (await ledger.lookup_messages(NS, [mid]))[mid]
+    assert before["record_id"] is None and not before.get("erased")
+    assert await ledger.tombstone_unmapped_messages(NS, [(mid, wid)]) == 1
+    erased = (await ledger.lookup_messages(NS, [mid]))[mid]
+    assert erased["erased"] is True
+    assert erased["record_id"] is None and erased["intent_id"] is None
+    assert await ledger.tombstone_unmapped_messages(NS, [(mid, wid)]) == 0
+
+    mapped = _accept("mapped-erasure", ["mapped turn"])
+    await _commit(ledger, mapped, conversation="mapped-conversation")
+    mapped_wid = mapped.new_write_ids[0]
+    mapped_mid = f"m-1-{mapped_wid[:6]}"
+    real = await _apply(ledger, mapped)
+    assert await ledger.tombstone_unmapped_messages(NS, [(mapped_mid, mapped_wid)]) == 0
+    assert (await ledger.lookup_messages(NS, [mapped_mid]))[mapped_mid]["record_id"] == real[
+        mapped_wid
+    ]
+    assert await ledger.tombstone_records([real[mapped_wid]]) == 1
+    assert (await ledger.lookup_messages(NS, [mapped_mid]))[mapped_mid]["erased"] is True
+
+
 async def test_pending_intents_are_oldest_first(ledger: IntakeLedger) -> None:
     late, early = _accept("late", ["b"]), _accept("early", ["a"])
     await _commit(ledger, late, at=NOW + timedelta(seconds=5))
@@ -364,8 +534,10 @@ async def test_policy_activation_requeues_unfinished_once(ledger: IntakeLedger) 
             ledger, **{**kwargs, "runner_quiesced": False}, policy_revision="policy:two"
         )
     assert await activate_derivation_policy(ledger, **kwargs, policy_revision="policy:two") == 1
-    # the intent's stored manifest keeps its accepted revision: activating that one is a no-op
-    assert await activate_derivation_policy(ledger, **kwargs, policy_revision="policy:one") == 0
+    assert await activate_derivation_policy(ledger, **kwargs, policy_revision="policy:two") == 0
+    # Returning to an earlier revision is a new effective activation. The accepted
+    # manifest's revision is historical and does not suppress this replacement.
+    assert await activate_derivation_policy(ledger, **kwargs, policy_revision="policy:one") == 1
 
 
 # ------------------------------------------------------------------------------------ MongoDB

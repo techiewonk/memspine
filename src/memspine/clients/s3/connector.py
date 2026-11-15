@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from typing import Any, ClassVar, Literal
 from urllib.parse import urlsplit
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import check_deadline, probe
 from memspine.clients._common.endpoints import is_loopback, parse_endpoint
 from memspine.clients._common.secrets import Secret, auth_digest
@@ -315,9 +316,13 @@ class S3Connector:
         return await probe(deadline_s, check)
 
     async def close(self) -> None:
-        client, self._client = self._client, None
+        await drain_close(self._close_owned())
+
+    async def _close_owned(self) -> None:
+        client = self._client
         if client is not None:
             await asyncio.to_thread(client.close)
+            self._client = None
 
     # -- keys and errors -------------------------------------------------------------------
     def _key(self, rel: str) -> str:

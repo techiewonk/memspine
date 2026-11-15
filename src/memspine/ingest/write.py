@@ -43,7 +43,6 @@ from memspine.exceptions import (
 from memspine.ingest import role_wiring
 from memspine.ingest.index_view import PENDING_INDEX_PREFIX, compose_index_text
 from memspine.ingest.message_helpers import (
-    IDEM_TAG_PREFIX,  # noqa: F401  gateway reads this shared constant
     INTAKE_LANDED,
     _index_view_prefixes,
     _looks_like_recall,
@@ -79,12 +78,12 @@ from memspine.store.records import (
 )
 from memspine.store.scope import validate_namespace
 from memspine.store.tri_temporal import derived_times, turn_times
+from memspine.store.visibility_policy import VISIBILITY_PREFIX
 from memspine.trust.firewall import FirewallVerdict
 from memspine.trust.pipeline import consent as trust_consent
 from memspine.trust.pipeline.gates import GATE_HOLD
 from memspine.trust.redaction import find_pii, redact
 from memspine.trust.visibility import (
-    VISIBILITY_PREFIX,
     restrict_to_parents,
     visibility_tag,
 )
@@ -358,6 +357,10 @@ async def write(
     if reply_to is not None:
         target = await storage.get_record(reply_to)
         if target is None or target.namespace != ns or target.status is RecordStatus.DELETED:
+            if source is not None and source.message and source.message.get("reply_to"):
+                from memspine.ingest.message_parent import ReplyParentUnavailable
+
+                raise ReplyParentUnavailable("reply parent is unavailable")
             raise ConflictError(f"no such record {reply_to!r} in namespace {ns!r}")
         tags = [*(tags or []), f"{constants.REPLY_TO_PREFIX}{reply_to}"]
     # SEC-H1/ADR-018: the "shared" type is engine-internal bookkeeping
@@ -447,6 +450,12 @@ async def write(
     # One writer per namespace: the firewall's context reads, the write,
     # and corroboration form one unit racing writers must not interleave.
     async with eng._write_locks.setdefault(ns, asyncio.Lock()):
+        if reply_to is not None and source.message and source.message.get("reply_to"):
+            from memspine.ingest.message_parent import require_stored_parent
+
+            await require_stored_parent(
+                storage, ns, str(source.message["reply_to"]), reply_to, actor
+            )
         written, action = await eng._write_locked_ex(
             storage, ns, record, memory_type, actor, trust_cap=trust_cap
         )

@@ -164,6 +164,32 @@ async def test_one_call_per_batch_with_episodes(monkeypatch: pytest.MonkeyPatch)
         batch_max_windows=3,
     )
     try:
+        observed_horizons: list[int | None] = []
+        window_horizons: list[int] = []
+
+        async def known_at(
+            _namespace: str, _text: str, known_seq: int | None
+        ) -> Sequence[KnownEntity]:
+            observed_horizons.append(known_seq)
+            return []
+
+        eng._windows._ctx = PromptContextBuilder(known_at)
+        original_prepare_batch = eng._windows._prepare_batch
+
+        async def capture_batch_horizons(namespace: str, jobs: Sequence[Any], **kwargs: Any) -> Any:
+            member_horizons: list[int] = []
+            for job in jobs:
+                records = [
+                    await eng._windows._get(record_id) for record_id in job.window.record_ids
+                ]
+                assert records and all(record is not None for record in records)
+                seqs = [record.fingerprint.source_seq for record in records if record is not None]
+                assert seqs and all(seq is not None for seq in seqs)
+                member_horizons.append(max(int(seq) for seq in seqs if seq is not None))
+            window_horizons.extend(member_horizons)
+            return await original_prepare_batch(namespace, jobs, **kwargs)
+
+        eng._windows._prepare_batch = capture_batch_horizons
         await _send(eng, "a", "s1", _turns("trip", 12))
         stats = await eng.flush_windows()
         windows = stats["windows"]
@@ -175,6 +201,10 @@ async def test_one_call_per_batch_with_episodes(monkeypatch: pytest.MonkeyPatch)
         user = llm.requests[0][0][-1]["content"]
         assert user.count("=== window") == windows
         assert "episode: a LIST" in llm.requests[0][0][0]["content"]
+        expected_cutoff = min(window_horizons)
+        assert observed_horizons == [expected_cutoff]
+        assert expected_cutoff < max(window_horizons)
+        assert eng._windows._counts["known_deferred"] >= 1  # conservative shared cutoff
     finally:
         await eng.stop()
 

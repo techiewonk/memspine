@@ -11,9 +11,11 @@ injected :class:`~memspine.clients.sqlite.SQLiteClient` (D-24).
 from __future__ import annotations
 
 import asyncio
+import threading
 from typing import TYPE_CHECKING
 
 from memspine.clients.sqlite import SQLiteClient
+from memspine.clients.sqlite.sync import memory_sync_engine
 from memspine.services.base import CapabilityManifest
 from memspine.services.storage.sql_base import SqlStorage
 from memspine.services.storage.sqlite.migrations import ensure_schema
@@ -42,6 +44,7 @@ class SQLiteStorage(SqlStorage):
         self._sqlite = client  # typed handle for is_memory/path in start()
         self._leases: LeaseStore | None = None
         self._lease_engine: Engine | None = None
+        self._lease_init_lock = threading.Lock()
 
     @property
     def manifest(self) -> CapabilityManifest:
@@ -82,15 +85,27 @@ class SQLiteStorage(SqlStorage):
         table for ``:memory:``). Opened on first use, closed by :meth:`stop`."""
         from memspine.store.leases import LeaseStore
 
-        if self._leases is None:
-            if self._sqlite.is_memory:
-                self._leases = LeaseStore(":memory:")
-            else:
-                # The WP5 side tables of this database, over a sync engine (keyed under
-                # SQLCipher, like the outbox's).
-                self._lease_engine = self._sqlite.sync_engine()
-                self._leases = LeaseStore(self._lease_engine)
-        return self._leases
+        with self._lease_init_lock:
+            if self._leases is None:
+                if self._sqlite.is_memory:
+                    # The async in-memory database has no sync connection. Keep the lease
+                    # tables private to this storage instance with an explicitly owned
+                    # sync engine; never depend on composition-root global factories.
+                    self._lease_engine = memory_sync_engine()
+                else:
+                    # The WP5 side tables of this database, over a sync engine (keyed under
+                    # SQLCipher, like the outbox's).
+                    self._lease_engine = self._sqlite.sync_engine()
+                try:
+                    self._leases = LeaseStore(
+                        self._lease_engine,
+                        serialize_engine_access=self._sqlite.is_memory,
+                    )
+                except BaseException:
+                    self._lease_engine.dispose()
+                    self._lease_engine = None
+                    raise
+            return self._leases
 
     async def stop(self) -> None:
         if self._leases is not None:

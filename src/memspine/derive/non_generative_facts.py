@@ -20,6 +20,7 @@ from memspine.core.rule_miner import mine_rules
 from memspine.derive.compile import WindowLine
 from memspine.derive.envelope_compiler import EnvelopeCompiler
 from memspine.derive.gliner_mentions import MentionSpan
+from memspine.derive.rule_source_snapshot import rule_input_snapshot
 from memspine.schemas.durable.common import OwnerScope
 from memspine.schemas.durable.evidence import Evidence, Span, TurnRef
 from memspine.schemas.durable.ingestion import IngestionSourceSnapshot
@@ -91,6 +92,8 @@ UnresolvedReason = Literal[
     "cancellation_target_ambiguous",
     "ambiguous_antecedent",
     "ambiguous_move",
+    "ambiguous_visit_object",
+    "visit_object_not_place",
     "ambiguous_measurement",
     "approximate_value",
     "missing_unit",
@@ -269,11 +272,9 @@ def document_owner(record: MemoryRecord) -> str | None:
 
 
 def _owner(record: MemoryRecord) -> str | None:
-    message = record.source.message or {}
-    sender = message.get("sender") if isinstance(message, dict) else None
-    value = sender.get("id") if isinstance(sender, dict) else None
-    if isinstance(value, str) and value.strip():
-        return value.strip()
+    sender_id = source_binding(record).sender_id
+    if sender_id and sender_id.strip():
+        return sender_id.strip()
     return document_owner(record)
 
 
@@ -494,6 +495,25 @@ def compile_grounded_facts(
             unresolved.append(_unresolved(candidate, "compiler_rejected"))
             continue
         envelope = compiled.envelopes[0]
+        # The pure compiler cites context lines without quote spans. The deterministic
+        # two-turn rule has already pinned and validated its binding span; retain that
+        # exact earlier quote on the canonical claim for provenance and erasure.
+        if candidate.context_evidence:
+            replacements = {
+                (item.turn.source_id, item.turn.source_version): item
+                for item in candidate.context_evidence
+                if item.turn is not None
+            }
+            envelope = envelope.model_copy(
+                update={
+                    "evidence": [
+                        replacements.get((item.turn.source_id, item.turn.source_version), item)
+                        if item.turn is not None and item.role == "binding"
+                        else item
+                        for item in envelope.evidence
+                    ]
+                }
+            )
         typing = PredicateTyping(
             predicate=candidate.predicate,
             predicate_version=spec.version,
@@ -508,6 +528,37 @@ def compile_grounded_facts(
             currency=candidate.currency,
             amount=candidate.amount,
         )
+        rule_extras = {
+            **envelope.extras,
+            "rule_input_snapshots": {
+                source_id: rule_input_snapshot(records[source_id])
+                for source_id, _version in aliases
+            },
+        }
+        if candidate.predicate == "move_origin" and len(candidate.context_evidence) == 1:
+            parent_turn = candidate.context_evidence[0].turn
+            parent = records.get(parent_turn.source_id) if parent_turn is not None else None
+            reply_message = source.source.message
+            parent_message = parent.source.message if parent is not None else None
+            reply_to = reply_message.get("reply_to") if isinstance(reply_message, dict) else None
+            parent_message_id = (
+                parent_message.get("message_id") if isinstance(parent_message, dict) else None
+            )
+            if (
+                parent is None
+                or parent.record_id == source.record_id
+                or candidate.context_evidence[0].role != "binding"
+                or not isinstance(reply_to, str)
+                or not isinstance(parent_message_id, str)
+                or reply_to != parent_message_id
+            ):
+                unresolved.append(_unresolved(candidate, "invalid_evidence"))
+                continue
+            rule_extras["rule_reply_link"] = {
+                "reply_record": source.record_id,
+                "parent_record": parent.record_id,
+                "parent_message": parent_message_id,
+            }
         update: dict[str, object] = {
             "registry": typing,
             "role_bindings": [
@@ -519,6 +570,10 @@ def compile_grounded_facts(
             # RM-157: qualifiers and the statement kind pass through to the claim
             "qualifiers": dict(candidate.qualifiers),
             "statement_kind": spec.statement_kind,
+            # System-authored snapshot pins for every cited rules source. The primary
+            # source_binding_hash covers only this candidate's support turn; a reply
+            # binding also needs the earlier turn's full source/message snapshot.
+            "extras": rule_extras,
         }
         assessment_update: dict[str, object] = {}
         if candidate.modality == "reported":

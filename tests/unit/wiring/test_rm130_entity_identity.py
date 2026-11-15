@@ -10,6 +10,7 @@ import pytest
 
 from memspine import Engine
 from memspine.exceptions import ConflictError
+from memspine.memories.associative import entity_index as entity_index_module
 from memspine.memories.associative.entities import MENTIONS_REL, parse_entity_node
 from memspine.memories.associative.entity_index import (
     LINKS_KEY,
@@ -18,7 +19,7 @@ from memspine.memories.associative.entity_index import (
     merge_event,
 )
 from memspine.services.storage.entity_index_tables import entity_index_store_of
-from memspine.store.events import EventKind
+from memspine.store.events import EventKind, MemoryEvent
 
 NS = "a"
 
@@ -119,6 +120,54 @@ async def test_same_named_people_stay_distinct_and_search_still_works() -> None:
         await eng.stop()
 
 
+async def test_public_write_ignores_large_other_namespace_backlog(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(entity_index_module, "_CATCH_UP_PAGE", 2)
+    monkeypatch.setattr(entity_index_module, "_CATCH_UP_PAGES", 1)
+    eng = await _engine()
+    try:
+        await eng.write("Alice paints", namespace=NS, entity="Alice")
+        assert eng._storage is not None
+        first = (await _links(eng))[0]["entity_id"]
+        for i in range(5):
+            await eng._storage.append_event(
+                MemoryEvent(
+                    kind=EventKind.FORGET,
+                    namespace="other",
+                    payload={"record_id": f"unrelated-{i}"},
+                )
+            )
+        await eng.write("Alice sings", namespace=NS, entity="Alice")
+        second = (await _links(eng))[-1]
+        assert second["basis"] == "unique_name" and second["entity_id"] == first
+    finally:
+        await eng.stop()
+
+
+async def test_public_write_defers_when_own_namespace_backlog_exceeds_budget(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(entity_index_module, "_CATCH_UP_PAGE", 2)
+    monkeypatch.setattr(entity_index_module, "_CATCH_UP_PAGES", 1)
+    eng = await _engine()
+    try:
+        await eng.write("Alice paints", namespace=NS, entity="Alice")
+        assert eng._storage is not None
+        for i in range(20):
+            await eng._storage.append_event(
+                MemoryEvent(
+                    kind=EventKind.FORGET,
+                    namespace=NS,
+                    payload={"record_id": f"pending-{i}"},
+                )
+            )
+        await eng.write("Alice sings", namespace=NS, entity="Alice")
+        assert (await _links(eng))[-1]["basis"] == "deferred"
+    finally:
+        await eng.stop()
+
+
 async def test_merge_needs_evidence_and_erasure_of_the_evidence_undoes_it() -> None:
     eng = await _engine()
     try:
@@ -160,7 +209,7 @@ async def test_a_merge_checks_and_appends_under_the_namespace_lock_forget_holds(
             checked.set()
             await release.wait()  # a forget racing the merge would run here
 
-        eng._associative._identity_checks = slow_checks  # type: ignore[method-assign]
+        eng._associative._identity_checks = slow_checks  # type: ignore[assignment]
         merge = asyncio.create_task(
             eng._associative.merge_entities(NS, melanie, mel, [evidence.record_id])
         )

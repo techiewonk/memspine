@@ -13,7 +13,8 @@ from memspine.observability import tap
 from memspine.observability.logging import EVENT_REBUILD, get_logger
 from memspine.services.storage.projector import RecordProjector
 from memspine.services.storage.sql_base import SqlStorage
-from memspine.store.events import MemoryEvent
+from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.registry_evidence import ENTITY_MARKERS, scrub_registry_marker
 from memspine.store.replay import catch_up
 
 _log = get_logger(__name__)
@@ -25,6 +26,16 @@ NOT_REBUILT_LAYERS = {
     "model-derived records": "only logged writes are restored; workers regenerate unlogged derivations",
     "caches": "recreated on demand rather than copied from the source store",
 }
+
+
+async def _scrub_target_registry(target: SqlStorage, namespace: str, erased: set[str]) -> None:
+    """Remove committed names copied before a concurrent source fence appeared."""
+
+    def scrub(payload: dict[str, Any]) -> bool:
+        return scrub_registry_marker(payload, erased)
+
+    for marker in sorted(ENTITY_MARKERS):
+        await target.scrub_marker_payloads(marker, scrub, namespace=namespace)
 
 
 @dataclass
@@ -73,8 +84,14 @@ class ReplayBuilder:
         await self._check_source()
         if await self._target.read_events(after_seq=0, limit=1):
             raise RebuildUnavailableError("target store is not fresh: it already holds events")
+        # An interrupted erasure may have committed its fence before the source's
+        # historical marker scrub. Never copy that stale name into the target.
+        erased_by_namespace: dict[str, set[str]] = {}
+        for _, namespace, ids in await self._source.registry_erasure_fences():
+            erased_by_namespace.setdefault(namespace, set()).update(ids)
         report = ReplayReport()
         counts: Counter[str] = Counter()
+        copied_fence_seqs: set[int] = set()
         tap.event("replay.start", source_mode=getattr(self._source.mode, "value", ""))
         after = 0
         while True:
@@ -87,10 +104,47 @@ class ReplayBuilder:
                 report.events_read += 1
                 if event.schema_version != 1:
                     raise ValueError("replay requires the current event schema version 1")
-                lifted = event.model_copy(update={"seq": None})
-                await self._target.append_event(lifted)
+                if event.kind is EventKind.REGISTRY_ERASURE_FENCE:
+                    fence_ids = event.payload.get("source_ids")
+                    if not isinstance(fence_ids, list) or not all(
+                        isinstance(rid, str) and rid for rid in fence_ids
+                    ):
+                        raise RebuildUnavailableError("malformed registry erasure fence in replay")
+                    erased = set(fence_ids)
+                    # A fence can commit while source batches are streaming.
+                    # Sanitize already-copied target markers before the fence
+                    # event itself is persisted, then sanitize later markers
+                    # as each is copied.
+                    await _scrub_target_registry(self._target, event.namespace, erased)
+                    erased_by_namespace.setdefault(event.namespace, set()).update(erased)
+                payload = dict(event.payload)
+                current_erased = erased_by_namespace.get(event.namespace)
+                if event.kind is EventKind.MARKER and current_erased:
+                    scrub_registry_marker(payload, current_erased)
+                lifted = event.model_copy(update={"seq": None, "payload": payload})
+                await self._target._append_replayed_event(lifted)
+                if event.kind is EventKind.REGISTRY_ERASURE_FENCE:
+                    copied_fence_seqs.add(event.seq)
                 report.events_written += 1
                 counts[event.kind.value] += 1
+        # PostgreSQL can expose a later ordinary sequence before an earlier
+        # fence transaction commits. Catch every fence committed by this final
+        # read, even if the ordered streaming cursor passed its source seq.
+        for seq, namespace, ids in await self._source.registry_erasure_fences():
+            if seq in copied_fence_seqs:
+                continue
+            erased = set(ids)
+            await _scrub_target_registry(self._target, namespace, erased)
+            source_event = await self._source.read_events(after_seq=seq - 1, limit=1)
+            if not source_event or source_event[0].seq != seq:
+                raise RebuildUnavailableError("registry erasure fence changed during replay")
+            await self._target._append_replayed_event(
+                source_event[0].model_copy(update={"seq": None})
+            )
+            copied_fence_seqs.add(seq)
+            report.events_read += 1
+            report.events_written += 1
+            counts[EventKind.REGISTRY_ERASURE_FENCE.value] += 1
         report.by_kind = dict(counts)
         report.projected = await catch_up(self._target, [RecordProjector(self._target)])
         tap.event(

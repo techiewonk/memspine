@@ -7,6 +7,7 @@ record-viewer worlds; a storage without the batch method still works one id at a
 
 from __future__ import annotations
 
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
@@ -16,6 +17,7 @@ import test_rm88_rm91_graph_caller as caller_tests
 from test_rm93_graph_filter import NS, QUERY, _build, _engine
 
 from memspine.derive.pipeline.stages.edge_compiler import compile_graph_edges
+from memspine.read.legs.graph import HopEdge, one_hop
 from memspine.read.pipeline import legs as pipeline_legs
 from memspine.services.graph.qualifiers import (
     AssertionModality,
@@ -40,9 +42,11 @@ class _PerIdStorage:
     def __init__(self, inner: Any) -> None:
         self._inner = inner
         self.calls = 0
+        self.requested: list[str] = []
 
     async def get_record(self, record_id: str) -> MemoryRecord | None:
         self.calls += 1
+        self.requested.append(record_id)
         result: MemoryRecord | None = await self._inner.get_record(record_id)
         return result
 
@@ -62,13 +66,46 @@ def _key(edges: list[Any]) -> list[tuple[str, str, str, str]]:
     return [(e.src, e.dst, e.rel_type, str(e.properties.get("record_id"))) for e in edges]
 
 
+def _hop(edges: list[Any]) -> list[HopEdge]:
+    return [
+        HopEdge(
+            e.src,
+            e.dst,
+            str(e.properties.get("record_id") or ""),
+            bool(e.properties.get("tentative")),
+            bool(e.properties.get("closed")),
+        )
+        for e in edges
+    ]
+
+
 @pytest.mark.parametrize("flt", FILTERS, ids=[f"f{i}" for i in range(len(FILTERS))])
 @pytest.mark.parametrize("frontier", [True, False], ids=["seeds", "namespace"])
-async def test_batch_lookup_matches_per_id_lookup(flt: QualifierFilter, frontier: bool) -> None:
+@pytest.mark.parametrize("reverse_second_read", [False, True], ids=["native", "reordered"])
+async def test_batch_lookup_matches_per_id_lookup(
+    flt: QualifierFilter,
+    frontier: bool,
+    reverse_second_read: bool,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     eng = await _engine()
     try:
         await _build(eng)
         seeds = list(await eng._graph_seeds(NS, QUERY))
+        if reverse_second_read:
+            # The graph port promises an unordered frontier. Both reads use one
+            # frozen graph snapshot, presented in opposite enumeration orders.
+            method = "frontier_edges" if frontier else "edge_list"
+            graph_read = getattr(eng._graph, method)
+            raw = await graph_read(seeds, namespace=NS) if frontier else await graph_read(NS)
+            reads = 0
+
+            async def enumerate_snapshot(*args: Any, **kwargs: Any) -> list[Any]:
+                nonlocal reads
+                reads += 1
+                return list(reversed(raw)) if reads % 2 == 0 else list(raw)
+
+            monkeypatch.setattr(eng._graph, method, enumerate_snapshot)
         batch = _CountingStorage(eng._storage)
         per_id = _PerIdStorage(eng._storage)
         results = {}
@@ -81,13 +118,33 @@ async def test_batch_lookup_matches_per_id_lookup(flt: QualifierFilter, frontier
     finally:
         await eng.stop()
     a, b = results["batch"], results["per_id"]
-    assert _key(a.edges) == _key(b.edges)
+    if reverse_second_read:
+        assert reads == 2 and len(set(_key(a.edges))) > 1
+        assert _key(b.edges) == list(reversed(_key(a.edges)))
+    assert Counter(_key(a.edges)) == Counter(_key(b.edges))
     assert (a.compiled, a.hidden, a.scope) == (b.compiled, b.hidden, b.scope)
+    admitted = {rid for _, _, _, rid in _key(a.edges)}
+    ah, bh = (
+        one_hop(seeds, _hop(a.edges), admit_record=admitted),
+        one_hop(seeds, _hop(b.edges), admit_record=admitted),
+    )
+    assert (ah.scores, ah.convergent, ah.dropped_tentative) == (
+        bh.scores,
+        bh.convergent,
+        bh.dropped_tentative,
+    )
+    assert sorted(ah.scores.items(), key=lambda hit: (-hit[1], hit[0])) == sorted(
+        bh.scores.items(), key=lambda hit: (-hit[1], hit[0])
+    )
     assert batch.calls == 0  # no per-edge read
     distinct = {str(e.properties.get("record_id")) for e in a.edges}
     if per_id.calls:  # something was admitted by the filter
         assert len(batch.batches) == 1 and len(batch.batches[0]) == per_id.calls
+        assert set(batch.batches[0]) == set(per_id.requested)
+        assert len(set(per_id.requested)) == per_id.calls
         assert distinct <= set(batch.batches[0])
+    else:
+        assert batch.batches == []
 
 
 async def test_records_in_the_read_are_not_fetched() -> None:
@@ -122,10 +179,11 @@ async def test_search_identical_with_batch_and_per_id_reads(
     runs: list[list[Any]] = []
     try:
         await _build(eng)
+        eng._clock = lambda: LATER
         for fetch in (real, per_id, real):
             monkeypatch.setattr(pipeline_legs, "_fetch_records", fetch)
             hits = await eng.search(QUERY, namespace=NS, top_k=8, graph_filter=flt)
-            runs.append([(rec.record_id, round(score, 6)) for rec, score in hits])
+            runs.append([(rec.record_id, score) for rec, score in hits])
     finally:
         await eng.stop()
     assert runs[0] and runs[0] == runs[1] == runs[2]

@@ -98,6 +98,21 @@ health/readiness signals. It excludes settings, credentials and memory content.
 Unbuilt entries have no runtime state. LLM roles remain separate
 rows. Inspection does not generate model requests; health checks are opt-in.
 
+Inspect unresolved rule candidates after a window has completed:
+
+```python
+annotations = await engine.unresolved_annotations(namespace="default", viewer="Mira")
+for item in annotations:
+    print(item.reason, item.producer_revision, item.source.record_id, item.span)
+```
+
+This returns `UnresolvedAnnotation` values with `asserted=False`, a pinned source
+snapshot, and an optional character span. It reads durable window effects without
+running extraction or requiring an observability sink. Each source's latest completed
+effect replaces its prior set, including when the new set is empty. Erased, stale,
+invalid, or invisible sources are omitted. The result is empty when the window pipeline
+is disabled; these annotations never enter fact or search results.
+
 ### Templates
 
 | Template | Enables |
@@ -445,6 +460,19 @@ neighbours = await engine.related(a.record_id, namespace="dev", k=10)   # person
 With `memories.associative.policies.entity_nodes: true`, records also link to the entities
 they name, and `read.graph_leg` / `read.cards_include_edges` read the graph from the
 entities a query names (see the config-key reference). `related()` ignores entity edges.
+Entity ids are opaque and namespace-owned. To join two known entities or add a name,
+cite at least one live, activated, visible record from the same namespace:
+
+```python
+await engine.merge_entities(keep_id, absorb_id, [evidence.record_id], namespace="dev")
+await engine.add_entity_alias(keep_id, "new name", [evidence.record_id], namespace="dev")
+```
+
+Both methods append evidence-backed markers; forgetting the cited evidence undoes the
+identity effect, and hard erasure scrubs alias text from its marker. The REST equivalents
+are `POST /entities/merge` with `keep`, `absorb`, `evidence` and `POST /entities/alias`
+with `entity`, `alias`, `evidence`. Both use `X-Memspine-Namespace`; authenticated
+requests record the bound principal as actor even if the body supplies another actor.
 `policies.entity_summaries` adds a per-entity summary (sleep stage `summarize_entities`),
 shown as `About <Name>: …` with `read.entity_summaries`; `read.graph_communities` lets a
 community summary into a read only when an entity the query names belongs to it; and
@@ -638,10 +666,54 @@ memspine export -n user/ana --subject ana --events --no-history --out ana.jsonl
 # Agent tools over MCP (I66; see docs/AGENT_TOOLS.md)
 memspine mcp -n user/ana -c ./memspine.yaml        # stdio MCP server, namespace fixed here
 memspine mcp -n user/ana --profile read_only       # search only
+
+# Durable ingestion outbox (ADR-091)
+memspine outbox drain --template base --config ./memspine.yaml
+memspine outbox drain --template base --config ./memspine.yaml --namespace user/ana
 ```
 
 `config`/`prompts` commands accept `-t/--template` and `-c/--config`.
 `forget`/`audit` boot a throwaway engine on `--db` (hash embedder, deterministic).
+
+`outbox drain` opens an Engine from the supplied `--config` file and optional
+`--template`, drains through that Engine's configured runner and storage backend,
+then closes it. It requires `workers.outbox: true` and an enabled
+`write.window_extract` pipeline. With `workers.runner: temporal`, install
+`memspine[temporal]` and configure a reachable Temporal server,
+`workers.temporal.deployment_id`, and a persistent
+`workers.resonate.journal_path`. Use `workers.transport: inline` with the
+Temporal runner. For example, with the `base` template's durable rules-only
+window pipeline:
+
+```yaml
+storage:
+  records:
+    provider: sqlite
+    settings: {path: ./memspine.db}
+workers:
+  runner: temporal
+  outbox: true
+  transport: inline
+  temporal:
+    deployment_id: local-memory-worker
+    address: localhost:7233
+  resonate:
+    journal_path: ./memspine-resonate.sqlite
+```
+
+The default drain scans durable outbox scopes, including namespaces this Engine
+has not seen in memory, and runs discovery before window work. `--namespace`
+filters the explicit drain after Engine startup. `Engine.start()` starts the
+worker and catches up event-log projectors; it does not start an ingestion
+outbox drain. Other running workers may process the same backend independently.
+
+The output contains only aggregate counters: `steps` is Temporal Activity steps
+for the Temporal runner (job claims for the inline runner), `items` is offsets
+processed, `holes` is holes reported by this drain, and `remaining` is a
+snapshot count of outbox items above their stage watermarks in the selected
+scope. These counters do not list affected namespaces or include outstanding
+hole details; a zero `remaining` does not prove that every staged, parked, or
+previously holed item was resolved.
 
 ---
 
@@ -674,6 +746,7 @@ Engine instead (started and warmed in each worker's lifespan, plus `GET /ready`)
 | `POST /write` · `POST /search` · `POST /assemble` · `POST /retrieve` | core read/write (`/search` takes the #37 date-filter fields) |
 | `DELETE /records/{id}?hard=&reason=` · `GET /describe` | forget · introspect |
 | `POST /correct` | #47 correction by `record_id` or `entity` + `attribute` (never contested) |
+| `POST /entities/merge` · `POST /entities/alias` | Evidence-backed entity merge and alias in the checked namespace; authenticated principal owns the actor |
 | `GET /export?subject=&include_history=&include_events=` | #46 subject-access export, `application/x-ndjson` (admin under auth) |
 | `DELETE /records/{id}?hard=` · `GET /describe` | forget · introspect |
 | `POST /feedback` | like / dislike / note on a record (#54) |
@@ -1753,7 +1826,7 @@ in the schema — or if the schema gains a key not documented here.
 | `write.window_async` | `true` | W1: `true` runs window calls in a background task after the write returns (idle debounced); `false` runs them only at `flush_windows()`, `close_session()` or `sleep()`. Same result either way. Ignored (batch) on `:memory:` SQLite. |
 | `write.window_cache` | `true` | W1: cache each call by (model, prompt version, sections, window text), so a re-run on the same history makes no call. A forget deletes the cached replies of windows that held the erased turn. |
 | `write.window_extract` | `"off"` | W1 / BI-12 adaptive-window derivation. `facts` derives atomic, dated, grounded facts with cited source parents. With `write.online_extractor: true` and no `model.llm.window_extract`, the supported rules-only path makes zero generative calls; otherwise a configured `window_extract` model supplies structured candidates. `facts_graph` adds entity edges and `all` adds episode fragments, and therefore are not rules-only modes. Requires episodic and semantic memory. The schema and `core` default are `off`; the `base` application profile and templates extending it select `facts`. |
-| `write.window_idle_s` | `120.0` | W1 (async mode): seconds without a write in a namespace before its open window is cut. 0: never. |
+| `write.window_idle_s` | `30.0` | W1 (async mode): seconds without a write in a namespace before its open window is cut. 0: never. |
 | `write.window_max_tokens` | `1500` | W1: a window closes before the turn that would pass this many prompt tokens (4 characters each). |
 | `write.window_max_turns` | `6` | W1: a window closes at this many turns. |
 | `write.window_topic_k` | `2.0` | W1: a window closes at a topic shift: the similarity of two consecutive turns falls below the store's own running mean minus k standard deviations of that similarity (per namespace, learned from at least 20 pairs, no LLM). 0 turns the topic boundary off. |

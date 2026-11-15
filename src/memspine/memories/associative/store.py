@@ -34,6 +34,8 @@ from memspine.services.storage.entity_index_tables import entity_index_store_of
 from memspine.services.vector.base import VectorStore
 from memspine.store.events import EventKind, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordStatus
+from memspine.trust.privacy import current_principal
+from memspine.trust.visibility import visible_to
 
 __all__ = ["AssociativeMemory", "match_key"]
 
@@ -299,6 +301,7 @@ class AssociativeMemory(BaseMemory):
         evidence: Sequence[str],
         *,
         actor: str = "user",
+        authorize: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         """ADR-089: merge entity ``absorb`` into ``keep``, citing ``evidence`` record ids (live
         records of ``namespace``). Forgetting or erasing the cited evidence undoes it.
@@ -307,6 +310,8 @@ class AssociativeMemory(BaseMemory):
         so a forget cannot land between them in this process (the projector also ignores a
         merge whose evidence is gone by the time it projects: another process's forget)."""
         async with self._namespace_lock(namespace):
+            if authorize is not None:
+                await authorize()
             await self._identity_checks(namespace, [keep, absorb], evidence)
             if keep == absorb:
                 raise ConflictError("cannot merge an entity with itself")
@@ -322,10 +327,13 @@ class AssociativeMemory(BaseMemory):
         evidence: Sequence[str],
         *,
         actor: str = "user",
+        authorize: Callable[[], Awaitable[None]] | None = None,
     ) -> None:
         """ADR-089: an evidence-cited alias name for ``entity`` (undone with its evidence;
         checked and appended under the namespace write lock, as :meth:`merge_entities`)."""
         async with self._namespace_lock(namespace):
+            if authorize is not None:
+                await authorize()
             await self._identity_checks(namespace, [entity], evidence)
             if not alias.strip():
                 raise ConflictError("an alias needs a name")
@@ -338,13 +346,33 @@ class AssociativeMemory(BaseMemory):
     ) -> None:
         if not evidence:
             raise ConflictError("an identity change needs cited evidence (ADR-089)")
+        viewer = current_principal()
         for record_id in evidence:
             record = await self._require_record(record_id, namespace)
+            if viewer is not None and not visible_to(record, viewer):
+                # Keep the same missing/foreign shape for an invisible citation.
+                raise ConflictError(f"no such record {record_id!r} in namespace {namespace!r}")
             if record.quarantined or record.status is not RecordStatus.ACTIVATED:
                 raise ConflictError(f"evidence {record_id} is not a live record")
         known = await names_index.entity_names(self._storage, namespace, entities)
+        index = entity_index_store_of(self._storage)
         for entity in entities:
             if entity not in known:
+                raise ConflictError(f"no such entity {entity!r} in namespace {namespace!r}")
+            # A name-index row alone cannot authorize a mutation: every target
+            # needs a current live mention the caller is allowed to see.
+            links = await index.select(namespace, "link", entity_id=entity)
+            for link in links:
+                target_record = await self._storage.get_record(link.key)
+                if (
+                    target_record is not None
+                    and target_record.namespace == namespace
+                    and target_record.status is RecordStatus.ACTIVATED
+                    and not target_record.quarantined
+                    and (viewer is None or visible_to(target_record, viewer))
+                ):
+                    break
+            else:
                 raise ConflictError(f"no such entity {entity!r} in namespace {namespace!r}")
 
     async def mentions_of(self, namespace: str, entities: Sequence[str]) -> dict[str, list[str]]:

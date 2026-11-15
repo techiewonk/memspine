@@ -24,7 +24,7 @@ from memspine.exceptions import MemspineError
 from memspine.observability import tap
 from memspine.schemas.durable.evidence import Span
 from memspine.schemas.durable.lineage import LINEAGE_ROLES, LineageEdge
-from memspine.store.events import fingerprint_payload
+from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
 from memspine.store.layers import LAYERS, derive_layer
 from memspine.store.records import MemoryRecord
 from memspine.trust.horizon import deposit_trust
@@ -159,13 +159,21 @@ async def _write_derived(
     record = stamp_derived(record, route=route, site=site, layer=layer)
     layer_label = record.layer
 
-    written = await eng._write_locked(storage, ns, record, route, actor, cap or None)
-
     # POL-2 safety net: the firewall path caps through ``cap``; never leave a record above it.
     cap_value = deposit_trust(1.0, [min(cap)]) if cap else 1.0
+    if record.trust > cap_value:
+        record = record.model_copy(update={"trust": cap_value})
+    written = await eng._write_locked(storage, ns, record, route, actor, cap or None)
     if written.record_id == record.record_id and written.trust > cap_value:
         written = written.model_copy(update={"trust": cap_value})
-        await storage.upsert_record(written)
+        await eng._append_and_project(
+            MemoryEvent(
+                kind=EventKind.WRITE,
+                namespace=ns,
+                actor="system",
+                payload={"record": written.model_dump(mode="json")},
+            )
+        )
 
     return await add_lineage(
         storage, ns, written, pids, role_of, spans, site, parent_records, cap_value, layer_label

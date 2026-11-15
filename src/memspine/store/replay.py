@@ -9,7 +9,7 @@ from __future__ import annotations
 from typing import Protocol
 
 from memspine.config.constants import REPLAY_BATCH_SIZE
-from memspine.exceptions import RebuildUnavailableError
+from memspine.memories.associative.entity_index import EntityIndexProjectionIncomplete
 from memspine.store.events import MemoryEvent
 from memspine.store.projections.projector import Projector
 
@@ -21,6 +21,8 @@ class ReplayableStorage(Protocol):
 
     @property
     def can_rebuild(self) -> bool: ...
+
+    async def assert_full_event_history(self) -> None: ...
 
     async def read_events(self, after_seq: int = 0, limit: int = 1000) -> list[MemoryEvent]: ...
 
@@ -37,6 +39,26 @@ async def catch_up(storage: ReplayableStorage, projectors: list[Projector]) -> d
     for projector in projectors:
         offset = await storage.get_offset(projector.name)
         count = 0
+        if projector.name == "entity_index":
+            # The durable global offset is a conservative certified prefix. A
+            # pending positive marker can keep it behind while a later FORGET
+            # must still be delivered to resolve that pending marker. This
+            # local scan position never becomes a durable acknowledgement.
+            scan_after = offset
+            while True:
+                events = await storage.read_events(after_seq=scan_after, limit=REPLAY_BATCH_SIZE)
+                if not events:
+                    break
+                for event in events:
+                    try:
+                        await projector.apply(event)
+                        count += 1
+                    except EntityIndexProjectionIncomplete:
+                        pass
+                    assert event.seq is not None
+                    scan_after = event.seq
+            applied[projector.name] = count
+            continue
         while True:
             events = await storage.read_events(after_seq=offset, limit=REPLAY_BATCH_SIZE)
             if not events:
@@ -46,29 +68,16 @@ async def catch_up(storage: ReplayableStorage, projectors: list[Projector]) -> d
                 assert event.seq is not None  # events out of the log always carry seq
                 offset = event.seq
                 count += 1
-            await storage.set_offset(projector.name, offset)
+            if projector.name != "records":
+                # The native record fold commits its own cursor with the rows.
+                await storage.set_offset(projector.name, offset)
         applied[projector.name] = count
     return applied
 
 
 async def _assert_rebuildable(storage: ReplayableStorage, projector: Projector) -> None:
     """Full-history check (D-45): ephemeral never; rolling only while unpruned."""
-    if not storage.can_rebuild:
-        raise RebuildUnavailableError(
-            "event log is ephemeral (D-45): events are not persisted, rebuild impossible"
-        )
-    first = await storage.read_events(after_seq=0, limit=1)
-    if first:
-        if first[0].seq != 1:
-            raise RebuildUnavailableError(
-                f"event log starts at seq {first[0].seq}, not 1 — the rolling window "
-                "has pruned history (D-45); a full rebuild is no longer possible"
-            )
-    elif await storage.get_offset(projector.name) > 0:
-        raise RebuildUnavailableError(
-            "event log is empty but the projector high-water mark is advanced — "
-            "history was pruned (D-45); a full rebuild is no longer possible"
-        )
+    await storage.assert_full_event_history()
 
 
 async def rebuild(storage: ReplayableStorage, projector: Projector) -> int:
@@ -80,6 +89,7 @@ async def rebuild(storage: ReplayableStorage, projector: Projector) -> int:
     """
     await _assert_rebuildable(storage, projector)
     await projector.reset()
-    await storage.reset_offset(projector.name)
+    if projector.name not in {"entity_index", "records"}:
+        await storage.reset_offset(projector.name)
     counts = await catch_up(storage, [projector])
     return counts[projector.name]

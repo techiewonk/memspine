@@ -26,6 +26,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, ClassVar
 from urllib.parse import parse_qsl, urlsplit
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import probe
 from memspine.clients._common.secrets import auth_digest
 from memspine.clients.base import ConnectorIdentity, Locality, Scope
@@ -184,13 +185,20 @@ class MongoConnector:
         return await probe(deadline_s, check)
 
     async def close(self) -> None:
-        client, self._client = self._client, None
+        await drain_close(self._close_owned())
+
+    async def _close_owned(self) -> None:
+        client = self._client
         if client is not None:
             await client.close()
+            self._client = None
         with self._sync_lock:
-            sync, self._sync = self._sync, None
+            sync = self._sync
         if sync is not None:
             await asyncio.to_thread(sync.close)
+            with self._sync_lock:
+                if self._sync is sync:
+                    self._sync = None
 
     # ---------------------------------------------------------------- handles
     @property

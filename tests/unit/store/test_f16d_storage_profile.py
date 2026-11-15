@@ -143,7 +143,7 @@ def test_postgres_tree_downgrades_to_empty(tmp_path: Path) -> None:
 
 
 def _ev(namespace: str, content: str) -> MemoryEvent:
-    return MemoryEvent(kind=EventKind.WRITE, namespace=namespace, payload={"content": content})
+    return MemoryEvent(kind=EventKind.MARKER, namespace=namespace, payload={"content": content})
 
 
 def _rec(record_id: str, namespace: str, content: str, **extra: Any) -> MemoryRecord:

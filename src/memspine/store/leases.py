@@ -8,6 +8,7 @@ layer, below the pipelines (target-layers contract).
 from __future__ import annotations
 
 import contextlib
+import threading
 import time
 from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass
@@ -218,9 +219,17 @@ class LeaseStore:
     SQLAlchemy engine, SQLite or Postgres; RM-111 WP5), or ``:memory:`` / a plain file path."""
 
     def __init__(
-        self, path: str | SqlAlchemyEngine = ":memory:", *, clock: Clock | None = None
+        self,
+        path: str | SqlAlchemyEngine = ":memory:",
+        *,
+        clock: Clock | None = None,
+        serialize_engine_access: bool = False,
     ) -> None:
         self._engine = path if isinstance(path, SqlAlchemyEngine) else None
+        # A StaticPool-backed in-memory engine lends the same DB-API connection
+        # to every thread. Hold this lock for the entire connection scope so a
+        # second worker cannot begin a transaction before the first commits.
+        self._engine_lock = threading.RLock() if serialize_engine_access else None
         self.path: str
         if self._engine is not None:
             self.path = self._engine.url.render_as_string(hide_password=True)
@@ -248,11 +257,12 @@ class LeaseStore:
     @contextlib.contextmanager
     def _conn(self) -> Iterator[Any]:
         if self._engine is not None:
-            connection = self._engine.connect()
-            try:
-                yield _SqlAlchemyConn(connection, postgres=self._pg)
-            finally:
-                connection.close()
+            with self._engine_lock or contextlib.nullcontext():
+                connection = self._engine.connect()
+                try:
+                    yield _SqlAlchemyConn(connection, postgres=self._pg)
+                finally:
+                    connection.close()
             return
         if self._shared is not None:
             yield self._shared

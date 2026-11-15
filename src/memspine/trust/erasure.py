@@ -175,6 +175,19 @@ def redact_record(node: Any, record_id: str) -> bool:
     ``record_id`` is erased with it."""
     changed = False
     if isinstance(node, dict):
+        # ADR-095 source-addressed evidence: evidence is copied into canonical envelopes and role
+        # bindings on survivor snapshots. Remove only the quote from the erased turn; a caller may
+        # still retain independently lawful evidence and claim content from other turns.
+        turn = node.get("turn")
+        span = node.get("span")
+        if (
+            isinstance(turn, dict)
+            and turn.get("source_id") == record_id
+            and isinstance(span, dict)
+            and span.get("quote")
+        ):
+            span["quote"] = None
+            changed = True
         for carrier, scrub in [*_carriers(node, record_id), *_merge_carriers(node, record_id)]:
             changed |= _scrub(carrier, scrub)
         for value in node.values():
@@ -222,6 +235,15 @@ def retained_fields(node: Any, record_id: str) -> set[str]:
     spot with the erasure; empty means erased."""
     found: set[str] = set()
     if isinstance(node, dict):
+        turn = node.get("turn")
+        span = node.get("span")
+        if (
+            isinstance(turn, dict)
+            and turn.get("source_id") == record_id
+            and isinstance(span, dict)
+            and span.get("quote")
+        ):
+            found.add("evidence.quote")
         for carrier, scrub in [*_carriers(node, record_id), *_merge_carriers(node, record_id)]:
             found.update(_identifying(carrier, scrub))
         for value in node.values():

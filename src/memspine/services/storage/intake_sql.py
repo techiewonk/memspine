@@ -18,6 +18,7 @@ bounded number of times (``INTAKE_DISCOVERY_ATTEMPTS``).
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping, Sequence
 from contextlib import asynccontextmanager
@@ -25,7 +26,7 @@ from datetime import datetime
 from typing import Any
 
 import orjson
-from sqlalchemy import and_, delete, func, insert, select, text, update
+from sqlalchemy import and_, delete, func, insert, or_, select, text, update
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
@@ -41,6 +42,7 @@ from memspine.schemas.public.receipt import Readiness, Receipt
 from memspine.services.storage.intake_port import (
     IntakeSlice,
     MessageClaim,
+    UnresolvedReplay,
     derivation_payload,
     derivation_queue_scope,
 )
@@ -54,7 +56,13 @@ from memspine.services.storage.intake_tables import (
     intake_write,
     message_identity,
 )
-from memspine.services.storage.outbox_tables import outbox_item, outbox_metadata, outbox_progress
+from memspine.services.storage.outbox_tables import (
+    outbox,
+    outbox_item,
+    outbox_metadata,
+    outbox_progress,
+    outbox_source_membership,
+)
 
 __all__ = ["SqlIntakeLedger"]
 
@@ -212,7 +220,7 @@ class SqlIntakeLedger:
             rows = (
                 await conn.execute(
                     select(intake_intent.c.scope_key)
-                    .where(intake_intent.c.status == "applied")
+                    .where(intake_intent.c.status.in_(("applied", "failed")))
                     .distinct()
                     .order_by(intake_intent.c.scope_key)
                 )
@@ -401,9 +409,9 @@ class SqlIntakeLedger:
                     )
                     .values(state=relink_state(row.state))
                 )
-            await conn.execute(
+            result = await conn.execute(
                 update(intake_intent)
-                .where(intake_intent.c.intent_id == intent_id)
+                .where(intake_intent.c.intent_id == intent_id, intake_intent.c.status == "accepted")
                 .values(
                     status="applied",
                     apply=None,
@@ -412,6 +420,8 @@ class SqlIntakeLedger:
                     required_derivation=required_derivation.model_dump_json(),
                 )
             )
+            if result.rowcount != 1:
+                raise ValueError("only an accepted intake intent can be applied")
 
     async def set_readiness(self, intent_id: str, readiness: Readiness) -> None:
         async with self._engine.begin() as conn:
@@ -420,6 +430,76 @@ class SqlIntakeLedger:
                 .where(intake_intent.c.intent_id == intent_id)
                 .values(readiness=readiness.model_dump_json())
             )
+
+    async def fail_intent(
+        self,
+        *,
+        intent_id: str,
+        scope_key: str,
+        source_id: str,
+        real_ids: Mapping[str, str],
+        relink_state: Callable[[str], str],
+        receipt: Receipt,
+        readiness: Readiness,
+        required_derivation: RequiredDerivation,
+    ) -> None:
+        """Settle a permanent reply failure in one accepted -> failed transaction."""
+        async with self._engine.begin() as conn:
+            row = (
+                await conn.execute(
+                    select(intake_intent.c.status).where(intake_intent.c.intent_id == intent_id)
+                )
+            ).first()
+            if row is None:
+                raise ValueError("unknown intake intent")
+            if row.status == "failed":
+                return
+            if row.status != "accepted":
+                raise ValueError("only an accepted intake intent can fail")
+            for wid, rid in real_ids.items():
+                await conn.execute(
+                    update(intake_write)
+                    .where(intake_write.c.scope_key == scope_key, intake_write.c.write_id == wid)
+                    .values(record_id=rid)
+                )
+                await conn.execute(
+                    update(message_identity)
+                    .where(
+                        message_identity.c.intent_id == intent_id,
+                        message_identity.c.write_id == wid,
+                    )
+                    .values(record_id=rid)
+                )
+            source_row = (
+                await conn.execute(
+                    select(intake_source.c.state).where(
+                        intake_source.c.scope_key == scope_key,
+                        intake_source.c.source_id == source_id,
+                    )
+                )
+            ).first()
+            if source_row is not None:
+                await conn.execute(
+                    update(intake_source)
+                    .where(
+                        intake_source.c.scope_key == scope_key,
+                        intake_source.c.source_id == source_id,
+                    )
+                    .values(state=relink_state(source_row.state))
+                )
+            result = await conn.execute(
+                update(intake_intent)
+                .where(intake_intent.c.intent_id == intent_id, intake_intent.c.status == "accepted")
+                .values(
+                    status="failed",
+                    apply=None,
+                    receipt=receipt.model_dump_json(),
+                    readiness=readiness.model_dump_json(),
+                    required_derivation=required_derivation.model_dump_json(),
+                )
+            )
+            if result.rowcount != 1:
+                raise ValueError("intake intent changed before failure settlement")
 
     async def forget_intent(self, intent_id: str) -> None:
         async with self._engine.begin() as conn:
@@ -468,7 +548,7 @@ class SqlIntakeLedger:
                     )
                     .where(
                         intake_intent.c.scope_key == scope_key,
-                        intake_intent.c.status == "applied",
+                        intake_intent.c.status.in_(("applied", "failed")),
                         known.c.intent_id.is_(None),
                         *scoped,
                     )
@@ -478,6 +558,8 @@ class SqlIntakeLedger:
             inserted = 0
             for row in rows:
                 manifest = RequiredDerivation.model_validate_json(row.required_derivation)
+                if row.status == "failed" and not manifest.source_record_ids:
+                    continue  # no landed prefix: no discovery or derivation work
                 offset = DISCOVERY_NO_WORK_OFFSET
                 if manifest.source_record_ids:
                     queue_scope = derivation_queue_scope(manifest, stage)
@@ -527,10 +609,18 @@ class SqlIntakeLedger:
         policy_revision: str,
         registry_digest: str | None,
         activated_at: datetime,
+        unresolved_namespace: str | None = None,
+        unresolved_replays: Sequence[UnresolvedReplay] = (),
     ) -> int:
         async def body() -> int:
             return await self._activate_once(
-                scope_key, stage, policy_revision, registry_digest, activated_at
+                scope_key,
+                stage,
+                policy_revision,
+                registry_digest,
+                activated_at,
+                unresolved_namespace,
+                unresolved_replays,
             )
 
         return await self._retrying(body)
@@ -542,9 +632,28 @@ class SqlIntakeLedger:
         policy_revision: str,
         registry_digest: str | None,
         activated_at: datetime,
+        unresolved_namespace: str | None,
+        unresolved_replays: Sequence[UnresolvedReplay],
     ) -> int:
         async with self._write_tx() as conn:
             await self._advisory_lock(conn, f"intake_discovery:{scope_key}:{stage}")
+            active = (
+                await conn.execute(
+                    select(
+                        intake_derivation_policy.c.policy_revision,
+                        intake_derivation_policy.c.registry_digest,
+                    ).where(
+                        intake_derivation_policy.c.scope_key == scope_key,
+                        intake_derivation_policy.c.stage == stage,
+                    )
+                )
+            ).first()
+            if (
+                active is not None
+                and active.policy_revision == policy_revision
+                and active.registry_digest == registry_digest
+            ):
+                return 0
             policy_values = {
                 "policy_revision": policy_revision,
                 "registry_digest": registry_digest,
@@ -586,7 +695,10 @@ class SqlIntakeLedger:
             for row in rows:
                 manifest = RequiredDerivation.model_validate_json(row.required_derivation)
                 queue_scope = derivation_queue_scope(manifest, stage)
-                if manifest.policy_revision == policy_revision:
+                if (
+                    manifest.policy_revision == policy_revision
+                    and manifest.registry_digest == registry_digest
+                ):
                     continue
                 progress = (
                     await conn.execute(
@@ -689,7 +801,212 @@ class SqlIntakeLedger:
                     .values(item_offset=int(top) + 1)
                 )
                 requeued += 1
+            if unresolved_namespace is not None:
+                requeued += await self._queue_unresolved_replays(
+                    conn,
+                    stage,
+                    policy_revision,
+                    registry_digest,
+                    activated_at,
+                    unresolved_namespace,
+                    unresolved_replays,
+                )
             return requeued
+
+    async def _queue_unresolved_replays(
+        self,
+        conn: AsyncConnection,
+        stage: str,
+        policy_revision: str,
+        registry_digest: str | None,
+        activated_at: datetime,
+        namespace: str,
+        candidates: Sequence[UnresolvedReplay],
+    ) -> int:
+        """Insert replay obligations in the activation transaction, preserving each effect's context."""
+        if stage != "window.discovery":
+            raise ValueError("unresolved replay requires window.discovery activation")
+        by_namespace: dict[str, list[UnresolvedReplay]] = {namespace: []}
+        for candidate in candidates:
+            if candidate.namespace != namespace:
+                raise ValueError("unresolved candidate namespace differs from activation namespace")
+            by_namespace[namespace].append(candidate)
+        queued = 0
+        for namespace, selected in sorted(by_namespace.items()):
+            scope = OwnerScope(tenant="default", owner=namespace)
+            record_ids = sorted({candidate.record_id for candidate in selected})
+            if self._engine.dialect.name == "postgresql":
+                # Match OutboxBook's window-source locks. This serializes an absent-row
+                # erasure or revocation with our membership read and item insertion.
+                for record_id in ("", *record_ids):
+                    identity = "\x1f".join(
+                        (scope.tenant, scope.owner, scope.owner_kind, "window", record_id)
+                    )
+                    key = int.from_bytes(
+                        hashlib.sha256(identity.encode()).digest()[:8], "big", signed=True
+                    )
+                    await conn.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": key})
+            await self._outbox_lock(conn, scope, "window")
+            memberships = (
+                await conn.execute(
+                    select(outbox_source_membership)
+                    .where(
+                        outbox_source_membership.c.tenant == scope.tenant,
+                        outbox_source_membership.c.owner == scope.owner,
+                        outbox_source_membership.c.owner_kind == scope.owner_kind,
+                        outbox_source_membership.c.stage == "window",
+                        outbox_source_membership.c.record_id.in_(record_ids),
+                        outbox_source_membership.c.active.is_(True),
+                    )
+                    .with_for_update()
+                )
+            ).all()
+            live = {row.record_id: row for row in memberships}
+            groups: dict[int, list[tuple[UnresolvedReplay, Any]]] = {}
+            for candidate in selected:
+                member = live.get(candidate.record_id)
+                if (
+                    member is None
+                    or member.source_id != candidate.record_id
+                    or int(member.source_version) != candidate.source_version
+                    or member.content_hash != candidate.content_hash
+                ):
+                    continue
+                groups.setdefault(candidate.effect_offset, []).append((candidate, member))
+            top = (
+                await conn.execute(
+                    select(func.max(outbox_item.c.item_offset)).where(
+                        outbox_item.c.tenant == scope.tenant,
+                        outbox_item.c.owner == scope.owner,
+                        outbox_item.c.owner_kind == scope.owner_kind,
+                        outbox_item.c.stage == "window",
+                    )
+                )
+            ).scalar()
+            progress = (
+                await conn.execute(
+                    select(
+                        outbox_progress.c.watermark,
+                        outbox_progress.c.target_offset,
+                        outbox_progress.c.holes,
+                    ).where(
+                        outbox_progress.c.tenant == scope.tenant,
+                        outbox_progress.c.owner == scope.owner,
+                        outbox_progress.c.owner_kind == scope.owner_kind,
+                        outbox_progress.c.job_kind == "window",
+                    )
+                )
+            ).first()
+            # The contiguous watermark can include a retryable hole. An old activation
+            # replay in such a hole is still runnable by the runner's hole pass, so a new
+            # effective activation must cancel it as well as items above the watermark.
+            # Waived holes and ordinary offsets at/below the watermark are historical.
+            open_holes = {
+                int(hole["offset"])
+                for hole in (json.loads(progress.holes) if progress is not None else ())
+                if isinstance(hole, dict)
+                and isinstance(hole.get("offset"), int)
+                and not hole.get("waived", False)
+            }
+            pending = (
+                await conn.execute(
+                    select(outbox_item.c.item_offset, outbox_item.c.payload).where(
+                        outbox_item.c.tenant == scope.tenant,
+                        outbox_item.c.owner == scope.owner,
+                        outbox_item.c.owner_kind == scope.owner_kind,
+                        outbox_item.c.stage == "window",
+                        or_(
+                            outbox_item.c.item_offset
+                            > (-1 if progress is None else int(progress.watermark)),
+                            outbox_item.c.item_offset.in_(open_holes),
+                        ),
+                    )
+                )
+            ).all()
+            for old in pending:
+                payload = json.loads(old.payload)
+                identity = payload.get("activation")
+                if not isinstance(identity, dict) or (
+                    identity.get("policy_revision") == policy_revision
+                    and identity.get("registry_digest") == registry_digest
+                ):
+                    continue
+                payload[OUTBOX_CANCELLED_KEY] = policy_revision
+                await conn.execute(
+                    update(outbox_item)
+                    .where(
+                        outbox_item.c.tenant == scope.tenant,
+                        outbox_item.c.owner == scope.owner,
+                        outbox_item.c.owner_kind == scope.owner_kind,
+                        outbox_item.c.stage == "window",
+                        outbox_item.c.item_offset == old.item_offset,
+                    )
+                    .values(payload=json.dumps(payload, sort_keys=True))
+                )
+            if not groups:
+                continue
+            job_target = (
+                await conn.execute(
+                    select(func.max(outbox.c.target_offset)).where(
+                        outbox.c.tenant == scope.tenant,
+                        outbox.c.owner == scope.owner,
+                        outbox.c.owner_kind == scope.owner_kind,
+                        outbox.c.stage == "window",
+                    )
+                )
+            ).scalar()
+            offset = (
+                max(
+                    -1 if top is None else int(top),
+                    -1 if progress is None else int(progress.watermark),
+                    -1
+                    if progress is None or progress.target_offset is None
+                    else int(progress.target_offset),
+                    -1 if job_target is None else int(job_target),
+                )
+                + 1
+            )
+            for effect_offset, group in sorted(groups.items()):
+                first = group[0][0]
+                snapshots = [
+                    {
+                        "record_id": candidate.record_id,
+                        "source_id": member.source_id,
+                        "source_version": int(member.source_version),
+                        "content_hash": member.content_hash,
+                        "erasure_generation": int(member.erasure_generation),
+                    }
+                    for candidate, member in group
+                ]
+                payload = {
+                    "kind": "window",
+                    "reason": "reresolve",
+                    "window_key": first.window_key,
+                    "session": first.session,
+                    "conversation_id": first.conversation_id,
+                    "record_ids": [source["record_id"] for source in snapshots],
+                    "source_snapshots": snapshots,
+                    "survivor_sources": snapshots,
+                    "activation": {
+                        "policy_revision": policy_revision,
+                        "registry_digest": registry_digest,
+                        "effect_offset": effect_offset,
+                    },
+                }
+                await conn.execute(
+                    insert(outbox_item).values(
+                        tenant=scope.tenant,
+                        owner=scope.owner,
+                        owner_kind=scope.owner_kind,
+                        stage="window",
+                        item_offset=offset,
+                        payload=json.dumps(payload, sort_keys=True),
+                        created_at=activated_at.isoformat(),
+                    )
+                )
+                offset += 1
+                queued += len(snapshots)
+        return queued
 
     # ------------------------------------------------------------------- message identity index
     async def lookup_messages(
@@ -765,6 +1082,38 @@ class SqlIntakeLedger:
                 )
             )
             return int(result.rowcount or 0)
+
+    async def tombstone_unmapped_messages(
+        self, namespace: str, claims: Sequence[tuple[str, str]]
+    ) -> int:
+        """Tombstone a hard-erased raw turn before apply maps its record ID.
+
+        The immutable intake write ID is required alongside the namespace and
+        public message ID. A stale source record cannot erase another claim
+        with the same public ID, and a mapped identity uses tombstone_records.
+        """
+        if not claims:
+            return 0
+        count = 0
+        async with self._engine.begin() as conn:
+            for message_id, write_id in set(claims):
+                result = await conn.execute(
+                    update(message_identity)
+                    .where(
+                        message_identity.c.namespace == namespace,
+                        message_identity.c.message_id == message_id,
+                        message_identity.c.write_id == write_id,
+                        message_identity.c.record_id.is_(None),
+                    )
+                    .values(
+                        intent_id=None,
+                        write_id=None,
+                        record_id=None,
+                        data=json.dumps({"erased": True}, sort_keys=True),
+                    )
+                )
+                count += int(result.rowcount or 0)
+        return count
 
     async def backfill_message_identities(self) -> int:
         """IDs already present (including erased tombstones) are never replaced."""

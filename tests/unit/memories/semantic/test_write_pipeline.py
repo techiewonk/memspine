@@ -37,7 +37,6 @@ async def _memory(edges: list[ExtractedEdge] | None):
         appended = await storage.append_event(event)
         assert appended.seq is not None
         await projector.apply(appended)
-        await storage.set_offset(projector.name, appended.seq)
 
     calls: list[str] = []
 

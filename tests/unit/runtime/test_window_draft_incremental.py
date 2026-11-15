@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
 import sys
@@ -22,6 +23,7 @@ from test_outbox_windows import _engine
 from test_window_write import FakeWindowLLM, _facts
 
 from memspine import Engine
+from memspine.derive.segmenter import StreamSegmenter
 from memspine.workers.windows import WindowPipeline
 
 T0 = datetime(2024, 3, 2, 10, tzinfo=UTC)
@@ -91,6 +93,7 @@ async def test_per_write_draft_work_is_constant_as_open_windows_grow(
         draft = _draft(db)
         assert len(draft) == OPEN_WINDOWS
         assert all("vector" not in row for row in draft)
+        assert sorted(int(row["seq"]) for row in draft) == list(range(1, OPEN_WINDOWS + 1))
         await eng.flush_windows("a")  # every window closes; every row goes
         assert _draft(db) == []
         assert eng.window_stats()["windows"] == OPEN_WINDOWS
@@ -159,3 +162,281 @@ async def test_the_default_window_survives_a_restart(
         assert _draft(db) == []
     finally:
         await second.stop()
+
+
+async def test_persist_visits_only_touched_turns_even_with_many_open_turns(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    db = tmp_path / "visits.db"
+    eng = await _engine(
+        monkeypatch, FakeWindowLLM(), db, outbox=True, window_max_turns=50, segment_max_turns=50
+    )
+    try:
+        for i in range(24):
+            await _root(eng, i, session_id=f"s{i}", conversation_id=f"c{i}")
+        for i in range(24, 48):
+            await _root(eng, i, session_id="s0", conversation_id="c0")
+        pipeline = _pipeline(eng)
+        store = pipeline._store("a")
+        win = store.windows["conversation:c0"]
+        turn = win.segmenter.open_turns[-1]
+        turn.tokens += 1
+        pipeline._draft_upsert("a", win, turn)
+        before = _counters(eng)
+
+        def forbidden(_self: object) -> list[object]:
+            raise AssertionError("draft persistence visited unrelated open turns")
+
+        with monkeypatch.context() as patch:
+            patch.setattr(StreamSegmenter, "open_turns", property(forbidden))
+            await pipeline._persist_draft("a", store)
+        after = _counters(eng)
+        assert (after[0] - before[0], after[1] - before[1]) == (1, 0)
+        assert len(_draft(db)) == 48
+    finally:
+        await eng.stop()
+
+
+async def test_observe_visits_only_its_own_open_window(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A real ingest must not inspect other windows to compute its draft delta."""
+    eng = await _engine(
+        monkeypatch,
+        FakeWindowLLM(),
+        tmp_path / "observe-visits.db",
+        outbox=True,
+        window_max_turns=50,
+        segment_max_turns=50,
+    )
+    try:
+        for i in range(24):
+            await _root(eng, i, session_id=f"s{i}", conversation_id=f"c{i}")
+        store = _pipeline(eng)._store("a")
+        target = store.windows["conversation:c0"].segmenter
+        original = StreamSegmenter.open_turns
+        visited: list[StreamSegmenter] = []
+
+        def counted(self: StreamSegmenter) -> list[object]:
+            visited.append(self)
+            return original.fget(self)  # type: ignore[misc]
+
+        with monkeypatch.context() as patch:
+            patch.setattr(StreamSegmenter, "open_turns", property(counted))
+            await _root(eng, 24, session_id="s0", conversation_id="c0")
+        assert visited
+        assert all(segmenter is target for segmenter in visited)
+    finally:
+        await eng.stop()
+
+
+async def test_failed_draft_delta_is_retried_without_losing_later_mutations(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    db = tmp_path / "retry.db"
+    eng = await _engine(
+        monkeypatch, FakeWindowLLM(), db, outbox=True, window_max_turns=50, segment_max_turns=50
+    )
+    try:
+        await _root(eng, 0, session_id="s", conversation_id="c")
+        pipeline = _pipeline(eng)
+        store = pipeline._store("a")
+        win = store.windows["conversation:c"]
+        turn = win.segmenter.open_turns[0]
+        original = int(_draft(db)[0]["tokens"])
+        turn.tokens = original + 1
+        pipeline._draft_upsert("a", win, turn)
+        assert pipeline._outbox is not None
+        update = pipeline._outbox.update_draft
+
+        async def fail_once(*args: object, **kwargs: object) -> int:
+            monkeypatch.setattr(pipeline._outbox, "update_draft", update)
+            raise OSError("injected draft transaction failure")
+
+        monkeypatch.setattr(pipeline._outbox, "update_draft", fail_once)
+        with pytest.raises(OSError, match="injected"):
+            await pipeline._persist_draft("a", store)
+        assert int(_draft(db)[0]["tokens"]) == original
+        assert len(pipeline._draft_pending["a"]) == 1
+        await pipeline._persist_draft("a", store)
+        assert int(_draft(db)[0]["tokens"]) == original + 1
+        assert not pipeline._draft_pending["a"]
+
+        # A delete made while an upsert is awaiting SQL must survive its completion.
+        turn.tokens += 1
+        pipeline._draft_upsert("a", win, turn)
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def paused(*args: object, **kwargs: object) -> int:
+            entered.set()
+            await release.wait()
+            return int(await update(*args, **kwargs))
+
+        monkeypatch.setattr(pipeline._outbox, "update_draft", paused)
+        writing = asyncio.create_task(pipeline._persist_draft("a", store))
+        await entered.wait()
+        key = (win.key, turn.record_id)
+        pipeline._draft_delete("a", key)
+        release.set()
+        await writing
+        assert pipeline._draft_pending["a"][key].row is None
+        monkeypatch.setattr(pipeline._outbox, "update_draft", fail_once)
+        with pytest.raises(OSError, match="injected"):
+            await pipeline._persist_draft("a", store)
+        assert len(_draft(db)) == 1
+        assert pipeline._draft_pending["a"][key].row is None
+        await pipeline._persist_draft("a", store)
+        assert _draft(db) == []
+        pipeline._draft_upsert("a", win, turn)
+        await pipeline._persist_draft("a", store)
+        assert len(_draft(db)) == 1
+        assert not pipeline._draft_pending["a"]
+    finally:
+        await eng.stop()
+
+
+@pytest.mark.parametrize("cancel_count", [1, 2])
+async def test_cancelled_draft_write_cannot_resurrect_a_later_deleted_turn(
+    cancel_count: int, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    db = tmp_path / "cancelled-draft.db"
+    eng = await _engine(
+        monkeypatch, FakeWindowLLM(), db, outbox=True, window_max_turns=50, segment_max_turns=50
+    )
+    try:
+        await _root(eng, 0, session_id="s", conversation_id="c")
+        pipeline = _pipeline(eng)
+        store = pipeline._store("a")
+        win = store.windows["conversation:c"]
+        turn = win.segmenter.open_turns[0]
+        turn.tokens += 1
+        pipeline._draft_upsert("a", win, turn)
+        assert pipeline._outbox is not None
+        update = pipeline._outbox.update_draft
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        delayed: list[asyncio.Task[int]] = []
+
+        async def late_write(*args: object, **kwargs: object) -> int:
+            async def finish() -> int:
+                entered.set()
+                await release.wait()
+                return int(await update(*args, **kwargs))
+
+            task = asyncio.create_task(finish())
+            delayed.append(task)
+            return await asyncio.shield(task)
+
+        monkeypatch.setattr(pipeline._outbox, "update_draft", late_write)
+        writing = asyncio.create_task(pipeline._persist_draft("a", store))
+        await entered.wait()
+        writing.cancel()
+        await asyncio.sleep(0)
+        pipeline._draft_delete("a", (win.key, turn.record_id))
+        monkeypatch.setattr(pipeline._outbox, "update_draft", update)
+        deleting = asyncio.create_task(pipeline._persist_draft("a", store))
+        await asyncio.sleep(0)
+        assert not deleting.done()  # the later delete waits behind the same SQL operation
+        if cancel_count == 2:
+            writing.cancel()
+            await asyncio.sleep(0)
+            assert not deleting.done()
+        release.set()
+        with pytest.raises(asyncio.CancelledError):
+            await writing
+        await deleting
+        await delayed[0]
+        assert _draft(db) == []
+    finally:
+        await eng.stop()
+
+
+async def test_cancelled_failed_draft_write_keeps_delta_for_retry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    db = tmp_path / "cancelled-failure.db"
+    eng = await _engine(
+        monkeypatch, FakeWindowLLM(), db, outbox=True, window_max_turns=50, segment_max_turns=50
+    )
+    try:
+        await _root(eng, 0, session_id="s", conversation_id="c")
+        pipeline = _pipeline(eng)
+        store = pipeline._store("a")
+        win = store.windows["conversation:c"]
+        turn = win.segmenter.open_turns[0]
+        original = int(_draft(db)[0]["tokens"])
+        turn.tokens = original + 1
+        pipeline._draft_upsert("a", win, turn)
+        assert pipeline._outbox is not None
+        update = pipeline._outbox.update_draft
+        entered = asyncio.Event()
+        release = asyncio.Event()
+        attempts = 0
+
+        async def failed(*_args: object, **_kwargs: object) -> int:
+            nonlocal attempts
+            attempts += 1
+            entered.set()
+            await release.wait()
+            raise OSError("injected SQL failure")
+
+        monkeypatch.setattr(pipeline._outbox, "update_draft", failed)
+        writing = asyncio.create_task(pipeline._persist_draft("a", store))
+        await entered.wait()
+        writing.cancel()
+        release.set()
+        with pytest.raises(OSError, match="injected SQL failure"):
+            await writing
+        assert attempts == 1  # cancellation did not start a replacement SQL operation
+        assert int(_draft(db)[0]["tokens"]) == original
+        assert len(pipeline._draft_pending["a"]) == 1
+        monkeypatch.setattr(pipeline._outbox, "update_draft", update)
+        await pipeline._persist_draft("a", store)
+        assert int(_draft(db)[0]["tokens"]) == original + 1
+    finally:
+        await eng.stop()
+
+
+async def test_delete_then_reinsert_during_inflight_upsert_keeps_latest_snapshot(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    db = tmp_path / "reinsert-during-write.db"
+    eng = await _engine(
+        monkeypatch, FakeWindowLLM(), db, outbox=True, window_max_turns=50, segment_max_turns=50
+    )
+    try:
+        await _root(eng, 0, session_id="s", conversation_id="c")
+        pipeline = _pipeline(eng)
+        store = pipeline._store("a")
+        win = store.windows["conversation:c"]
+        turn = win.segmenter.open_turns[0]
+        baseline = int(_draft(db)[0]["tokens"])
+        turn.tokens = baseline + 1
+        pipeline._draft_upsert("a", win, turn)
+        assert pipeline._outbox is not None
+        original_update = pipeline._outbox.update_draft
+        entered = asyncio.Event()
+        release = asyncio.Event()
+
+        async def paused(*args: object, **kwargs: object) -> int:
+            entered.set()
+            await release.wait()
+            return int(await original_update(*args, **kwargs))
+
+        with monkeypatch.context() as patch:
+            patch.setattr(pipeline._outbox, "update_draft", paused)
+            writing = asyncio.create_task(pipeline._persist_draft("a", store))
+            await entered.wait()
+            key = (win.key, turn.record_id)
+            pipeline._draft_delete("a", key)
+            turn.tokens = baseline + 2
+            pipeline._draft_upsert("a", win, turn)
+            release.set()
+            await writing
+        assert int(_draft(db)[0]["tokens"]) == baseline + 1
+        await pipeline._persist_draft("a", store)
+        assert int(_draft(db)[0]["tokens"]) == baseline + 2
+        assert not pipeline._draft_pending["a"]
+    finally:
+        await eng.stop()

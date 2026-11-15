@@ -64,7 +64,7 @@ flowchart TD
 | E7 | Markdown export edit (M-01) | A user edit of the one-way export re-enters as a `document`-class write | 1 | none |
 | T1 | Outbox row committed | Step 8 commits a `derivation` row; the runner schedules a drain task in the host loop | 9, 11 | `WindowPipeline.observe` after the write, `workers/windows.py:397` |
 | T2 | Window boundary | A turn closes a window: topic shift, 6 turns, 1,500 tokens, source-time gap, calendar-day change (step 11) | 12 | `core/window.py:155-179` (no time-gap cut) |
-| T3 | Idle timer | No new turn in the namespace for `idle_s` (120 s) while the runner is alive | 11 | `workers/windows.py:450-467` |
+| T3 | Idle timer | No new turn in the namespace for `idle_s` (30 s) while the runner is alive | 11 | `workers/windows.py:450-467` |
 | T4 | Session end | A new session id arrives, or `close_session()` is called | 11 | `workers/windows.py:423-427`, `:515` |
 | T5 | Explicit drain | `drain()`, `flush_windows()`, `memspine drain` CLI, `sleep()` (catch-up stage) | 11 | `engine.py:13757` (`flush_windows`) |
 | T6 | Recovery on open | `Engine.open()` reclaims expired leases and resumes pending rows; first v2 start enqueues every source after the last derived watermark (W-13 migration) | 12 | none (queue is in memory, lost on stop, `workers/windows.py:568`) |
@@ -378,7 +378,7 @@ Output: Window{window_id, turns[], reason: topic|turns|tokens|time_gap|calendar_
   windows.
 - **Ordering and locking:** windows of one namespace are cut in commit order; segments carrying `derive_use =
   excluded`, an `echo`, a quarantine or an instruction flag never enter a window.
-- **Config:** `write.window_max_turns` 6, `window_max_tokens` 1500, `window_topic_k` 2.0, `window_idle_s` 120
+- **Config:** `write.window_max_turns` 6, `window_max_tokens` 1500, `window_topic_k` 2.0, `window_idle_s` 30
   (`config/schema.py:1760-1767`) -> *(proposed)* `derive.window.*` with the same defaults; new
   `derive.window.time_gap: learned` and `derive.window.calendar_day_cut: true` (W-11); `write.window_extract`
   (`:1757`, `off`) -> layer switch L1 plus `derive.window.mode: adaptive | per_turn`.

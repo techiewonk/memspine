@@ -39,3 +39,12 @@ re-measured with the reranker on.
   revision, `onnx/model.onnx`) gains its digest.
 - "simple" is a profile and not a template; the default applies to `base`, so every
   template that extends it inherits the default. `core` stays bare.
+
+## Implementation status (owner decision 2026-11-02)
+
+The owner selected the MiniLM default in `base` after the model fetch, cache and CPU
+measurements landed (revision `88ae38ed`, 2026-11-03). This later decision put the default
+into use before PA-053 budgets were recorded, replacing the sequencing condition above.
+`simple` inherits `base`; `core` has no reranker. PA-053 remains open: the current-default
+concurrent ingest/read latency and acceptance budgets have not been established by that
+earlier CPU measurement.

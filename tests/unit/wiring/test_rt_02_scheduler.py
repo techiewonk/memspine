@@ -142,21 +142,31 @@ async def test_background_reserve_keeps_a_slot_for_the_foreground() -> None:
     gate = ModelGate(3, background_reserve=1)
     assert gate.background_max == 2
     bg = peak_bg = 0
+    background_saturated = asyncio.Event()
+    release_background = asyncio.Event()
 
     async def derive() -> None:
         nonlocal bg, peak_bg
         async with gate.slot(Priority.DERIVE):
             bg += 1
             peak_bg = max(peak_bg, bg)
-            await asyncio.sleep(0.01)
+            if bg == 2:
+                background_saturated.set()
+            await release_background.wait()
             bg -= 1
 
     tasks = [asyncio.create_task(derive()) for _ in range(8)]
-    await asyncio.sleep(0.003)
-    t0 = time.perf_counter()
-    async with gate.slot(Priority.READ):  # a free slot exists although derive is saturated
-        assert time.perf_counter() - t0 < 0.005
-    await asyncio.gather(*tasks)
+    try:
+        await asyncio.wait_for(background_saturated.wait(), 1)
+        # Background holders stay active until after READ acquires its reserved slot.
+        await asyncio.wait_for(gate.acquire(Priority.READ), 1)
+        try:
+            assert bg == 2 and gate.active == 3
+        finally:
+            gate._release(Priority.READ)
+    finally:
+        release_background.set()
+        await asyncio.gather(*tasks)
     assert peak_bg == 2
 
 

@@ -21,6 +21,7 @@ from __future__ import annotations
 import functools
 import inspect
 from collections.abc import Callable, Coroutine
+from datetime import date, datetime
 from typing import Any
 
 from memspine.observability import tap
@@ -32,10 +33,12 @@ from memspine.scope import (
     cross_scope_reason,
     system_scope,
 )
-from memspine.trust.visibility import VISIBILITY_PREFIX, participants_of, visible_to
+from memspine.store.visibility_policy import VISIBILITY_PREFIX
+from memspine.trust.visibility import participants_of, visible_to
 
 __all__ = [
     "declare_multi_party",
+    "invalidate_multi_party_cache",
     "is_multi_party",
     "record_in_scope",
     "refuse",
@@ -67,6 +70,15 @@ def _state(eng: Any) -> dict[str, Any]:
 def declare_multi_party(eng: Any, namespace: str) -> None:
     """Mark ``namespace`` multi-party (a handle built with ``multi_party=True`` calls this)."""
     _state(eng)["declared"].add(namespace)
+
+
+def invalidate_multi_party_cache(eng: Any, namespace: str) -> None:
+    """Force the next scope check to rescan a namespace after a peer write.
+
+    A different Engine on the same store does not advance this Engine's local
+    generation, so a prior clean result cannot authorize a new mutation.
+    """
+    _state(eng)["clean"].pop(namespace, None)
 
 
 def _is_multi_party_record(record: Any) -> bool:
@@ -148,6 +160,9 @@ def viewer_guarded[**P, R](
             if CHECKED.get():
                 return await fn(*args, **kwargs)
             bound = signature.bind_partial(*args, **kwargs).arguments
+            if native and viewer is None:
+                positional_viewer = bound.get("viewer")
+                viewer = positional_viewer if isinstance(positional_viewer, str) else None
             namespace = str(bound.get("namespace", "default"))
             if viewer_required(eng):
                 multi = await is_multi_party(eng, namespace)
@@ -161,6 +176,41 @@ def viewer_guarded[**P, R](
                 CHECKED.reset(token)
             if viewer is not None and not native:
                 result = _filter(verb, namespace, result, viewer)  # type: ignore[arg-type]  # CI-GREEN: pre-existing typing debt
+            # A persisted conflict flag is only a projection of its declared
+            # audience. The current viewer and consent purpose can further
+            # hide a rival, so every public record result gets an indexed,
+            # request-local overlay before serialization or read hooks.
+            from memspine.core.read_filters import to_utc
+            from memspine.read.pipeline.cardinality_overlay import historical_flags, overlay_result
+            from memspine.trust.pipeline import consent as trust_consent
+            from memspine.trust.privacy import read_scope
+
+            if eng._config().consent.enabled:
+                await trust_consent.ensure_registry(eng)
+            with read_scope(bound.get("purpose")):
+                overlay_viewer = viewer if isinstance(viewer, str) else None
+                raw_known = bound.get("recorded_before")
+                historical: dict[str, bool] | None = None
+                if isinstance(raw_known, (datetime, date, str)):
+                    if bound.get("date_filter_mode") == "or":
+                        historical = {}  # no complete historical window under an OR filter
+                    else:
+                        raw_valid = bound.get("as_of")
+                        valid = (
+                            to_utc(raw_valid)
+                            if isinstance(raw_valid, (datetime, date, str))
+                            else None
+                        )
+                        historical = await historical_flags(
+                            eng,
+                            namespace,
+                            to_utc(raw_known),
+                            viewer=overlay_viewer,
+                            valid=valid,
+                        )
+                result = await overlay_result(
+                    eng, result, viewer=overlay_viewer, cache={}, historical=historical
+                )
             # FU-ASSET: the one post-read point. Only the outermost verb gets here (nested verbs
             # and system scopes returned above) and only after the viewer filter, so a hook sees
             # exactly what the caller will see.

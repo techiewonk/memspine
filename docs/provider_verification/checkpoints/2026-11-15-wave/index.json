@@ -1,0 +1,52 @@
+{
+  "kind": "reviewed_intermediate_worktree_checkpoint_evidence",
+  "base_head": "88ae38ed916b2869deeed8f17c72249568e1bf3d",
+  "base_tree": "ca69da43e77c3959451a79abebec0e4490118cac",
+  "subject_path_count": 211,
+  "scope": "Exact working-tree subjects in subject-manifest.json. This is an intermediate reviewed wave, not formal Phase C, a clean-revision test gate, production acceptance, or overall program completion.",
+  "objects": [
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/subject-manifest.json",
+      "sha256": "65be292af2b787d5a4b4006ee889a126e766c3501c80975d8ef63c91892164aa",
+      "copied_byte_for_byte": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/round-1.json",
+      "sha256": "e8212559105200a1dcdbd20b88a58a72f421aaded73529d6accdb3e82404a316",
+      "copied_byte_for_byte": false,
+      "original_input_sha256": "6cf4fe111510c96fe49ebca72a2e61ac1ec1daa59df6b8d5c316cc2179c05f21",
+      "input_normalization": "uniform CRLF to LF; reversible; parsed JSON value identical"
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/round-2.json",
+      "sha256": "39dcf4b7f226fbed528b7ee2c50e36a1a8868533de6f8ec0ddef3a1d741327f3",
+      "copied_byte_for_byte": false,
+      "original_input_sha256": "a842135f8abeb121139cbe10973c38d0b3149bc5e09872ae6adee4118ad3207a",
+      "input_normalization": "uniform CRLF to LF; reversible; parsed JSON value identical"
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/subject-git-blobs.json",
+      "sha256": "7189c0c1b079bc90707ccdd8ff367ac4f207629a350a1f3c757a187ca6069abc",
+      "generated_from_reviewed_subjects": true
+    }
+  ],
+  "subject_inventory": {
+    "path": "docs/provider_verification/reviewed-wave-inventory-2026-11-15.json",
+    "sha256": "cd1f8bf631ec9114f223237bafd80527c70daa8f658164964b896aee7f317991",
+    "note": "Pending review flags describe the historical capture; final review verdicts are in the separate coverage ledgers."
+  },
+  "proof_output_paths_excluded_from_subject_manifest": [
+    "docs/provider_verification/checkpoints/2026-11-15-wave/subject-manifest.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-1.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-2.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/index.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-1-metadata.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-2-metadata.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/subject-git-blobs.json"
+  ],
+  "hash_dependency_rule": "The index hashes the three immutable input copies and subject-to-Git-blob map. It does not hash itself or future metadata receipts. Receipts hash the fixed index and its objects, never themselves or each other.",
+  "historical_temp_references": "Temp archive references inside captured artifacts are historical, nonessential references. This package does not claim those external archives are durably preserved. Current approval is verifiable from the frozen subject manifest, coverage ledgers and existing subject bytes.",
+  "checkpoint_state": "not_committed_at_index_creation",
+  "git_normalization": "The subject manifest records reviewed working bytes. subject-git-blobs.json binds those bytes to the Git clean-filter blob IDs and SHA-256s; staging must match every mapped blob. Only identical bytes or existing-policy CRLF-to-LF normalization are accepted.",
+  "proof_output_encoding": "All durable JSON proof outputs, including this index and future metadata receipts, use LF bytes. The two coverage ledger copies retain original input hashes and explicit reversible CRLF-to-LF mapping in objects. Git staging must leave every proof output byte-identical."
+}

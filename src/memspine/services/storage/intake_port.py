@@ -51,6 +51,7 @@ __all__ = [
     "IntakeLedger",
     "IntakeSlice",
     "MessageClaim",
+    "UnresolvedReplay",
     "derivation_payload",
     "derivation_queue_scope",
     "intake_ledger_of",
@@ -84,6 +85,20 @@ class MessageClaim:
     session_id: str
     write_id: str
     data: str
+
+
+@dataclass(frozen=True, slots=True)
+class UnresolvedReplay:
+    """One validated, source-bound unresolved effect selected for explicit activation."""
+
+    namespace: str
+    record_id: str
+    source_version: int
+    content_hash: str
+    effect_offset: int
+    window_key: str | None
+    session: str | None
+    conversation_id: str | None
 
 
 def derivation_payload(manifest: RequiredDerivation) -> dict[str, object]:
@@ -135,7 +150,8 @@ class IntakeLedger(Protocol):
         ...
 
     async def applied_scope_keys(self) -> list[str]:
-        """Distinct scope keys with an applied intent, sorted."""
+        """Distinct scopes with applied intents or failed intents whose landed prefix may
+        still need discovery, sorted. The discoverer skips failed intents without records."""
         ...
 
     async def record_ids(self, scope_key: str, write_ids: Sequence[str]) -> dict[str, str]:
@@ -181,6 +197,27 @@ class IntakeLedger(Protocol):
         not empty."""
         ...
 
+    async def fail_intent(
+        self,
+        *,
+        intent_id: str,
+        scope_key: str,
+        source_id: str,
+        real_ids: Mapping[str, str],
+        relink_state: Callable[[str], str],
+        receipt: Receipt,
+        readiness: Readiness,
+        required_derivation: RequiredDerivation,
+    ) -> None:
+        """Atomically settle an accepted intent whose reply parent became unavailable.
+
+        Keep landed-prefix mappings and immutable identity reservations, remove the
+        unlanded suffix from live source state, and discard the apply payload.
+        A failed intent is not replayable. Discovery may process its live landed
+        prefix, but never its unlanded suffix.
+        """
+        ...
+
     async def set_readiness(self, intent_id: str, readiness: Readiness) -> None: ...
 
     async def forget_intent(self, intent_id: str) -> None: ...
@@ -211,6 +248,8 @@ class IntakeLedger(Protocol):
         policy_revision: str,
         registry_digest: str | None,
         activated_at: datetime,
+        unresolved_namespace: str | None = None,
+        unresolved_replays: Sequence[UnresolvedReplay] = (),
     ) -> int:
         """Record the active policy revision and requeue only unfinished, retry-eligible items
         under it; returns how many were requeued. The caller guarantees a quiesced runner."""
@@ -227,6 +266,17 @@ class IntakeLedger(Protocol):
 
     async def tombstone_records(self, record_ids: Sequence[str]) -> int:
         """Redact the identity rows of hard-forgotten records, keeping the ids non-reusable."""
+        ...
+
+    async def tombstone_unmapped_messages(
+        self, namespace: str, claims: Sequence[tuple[str, str]]
+    ) -> int:
+        """Erase identities whose record IDs were not yet mapped at hard-forget time.
+
+        Each claim is the canonical ``(message_id, immutable write_id)`` from
+        the erased raw record. Both must match in the namespace; mapped or
+        unrelated identities are never touched.
+        """
         ...
 
     async def backfill_message_identities(self) -> int:

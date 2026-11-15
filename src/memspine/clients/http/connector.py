@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 from urllib.parse import urlsplit
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import check_deadline, probe
 from memspine.clients._common.endpoints import is_loopback
 from memspine.clients.base import ConnectorIdentity, Locality, Scope
@@ -194,6 +195,10 @@ class HttpConnector:
         return await probe(deadline_s, check)
 
     async def close(self) -> None:
-        client, self._client = self._client, None
+        await drain_close(self._close_owned())
+
+    async def _close_owned(self) -> None:
+        client = self._client
         if client is not None:
             await client.aclose()
+            self._client = None

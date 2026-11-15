@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from memspine.clients._common.secrets import Secret
 from memspine.clients.temporal import TemporalConnector, TemporalSpec
+from memspine.config.schema.providers import SqliteSettings
 from memspine.derive.pipeline.stages.context import Pipeline, PipelineContext
 from memspine.exceptions import ConfigError, MissingServiceError
 from memspine.workers.step_journal import (
@@ -99,10 +100,13 @@ def _configuration_fingerprint(config: object) -> str:
         snapshot = dump(mode="json")
         if isinstance(snapshot, dict):
             storage = snapshot.get("storage")
-            if isinstance(storage, dict) and storage.get("provider") == "sqlite":
-                settings = storage.get("settings")
-                if isinstance(settings, dict) and isinstance(settings.get("path"), str):
-                    path = settings["path"]
+            records = storage.get("records") if isinstance(storage, dict) else None
+            if isinstance(records, dict) and records.get("provider") == "sqlite":
+                settings = records.get("settings")
+                if isinstance(settings, dict):
+                    path = settings.get("path", SqliteSettings.model_fields["path"].default)
+                    if not isinstance(path, str):
+                        raise ConfigError("storage.records.settings.path must be a string")
                     if path not in {":memory:", "file::memory:"} and not path.startswith("file:"):
                         settings["path"] = str(Path(path).expanduser().resolve())
         encoded = json.dumps(snapshot, sort_keys=True, separators=(",", ":"), allow_nan=False)
@@ -113,8 +117,9 @@ def _configuration_fingerprint(config: object) -> str:
 
 def _validate_temporal_storage(config: object) -> None:
     storage = getattr(config, "storage", None)
-    settings = getattr(storage, "settings", None)
-    provider = getattr(storage, "provider", None)
+    records = getattr(storage, "records", None)
+    settings = getattr(records, "settings", None)
+    provider = getattr(records, "provider", None)
     path = settings.get("path") if isinstance(settings, Mapping) else None
     if (
         provider == "sqlite"
@@ -561,13 +566,19 @@ class TemporalRunner:
         worker = cast(_TemporalWorker | None, self._worker)
         worker_task = self._worker_task
         shutdown_task: asyncio.Task[None] | None = None
+        worker_stopped = worker is None
         try:
             if worker is not None:
                 shutdown_task = asyncio.create_task(
                     worker.shutdown(), name="memspine-temporal-shutdown"
                 )
-                with suppress(Exception):
+                try:
                     await asyncio.shield(shutdown_task)
+                except Exception:
+                    # A failed shutdown may leave Activities using the outbox and
+                    # provider handles. Keep ownership intact for a later retry.
+                    raise RuntimeError("Temporal worker shutdown failed") from None
+                worker_stopped = True
             if worker_task is not None:
                 with suppress(Exception):
                     await asyncio.shield(worker_task)
@@ -575,23 +586,27 @@ class TemporalRunner:
                     # expose SDK exception text that may contain endpoint data.
         except asyncio.CancelledError:
             if shutdown_task is not None:
-                with suppress(Exception):
+                try:
                     await asyncio.shield(shutdown_task)
+                except Exception:
+                    raise RuntimeError("Temporal worker shutdown failed") from None
+                worker_stopped = True
             if worker_task is not None:
                 with suppress(Exception):
                     await asyncio.shield(worker_task)
             raise
         finally:
-            runtime, self._resonate = self._resonate, None
-            self._resonate_calls.clear()
-            if runtime is not None:
-                # After the worker drained: no activity still uses the runtime.
-                stop_task = asyncio.create_task(runtime.stop())
-                with suppress(Exception):
-                    await asyncio.shield(stop_task)
-            self._worker = None
-            self._worker_task = None
-            self._client = None
-            self._journal = None
-            self._started = False
+            if worker_stopped:
+                runtime, self._resonate = self._resonate, None
+                self._resonate_calls.clear()
+                if runtime is not None:
+                    # After the worker drained: no activity still uses the runtime.
+                    stop_task = asyncio.create_task(runtime.stop())
+                    with suppress(Exception):
+                        await asyncio.shield(stop_task)
+                self._worker = None
+                self._worker_task = None
+                self._client = None
+                self._journal = None
+                self._started = False
             self._closing = False

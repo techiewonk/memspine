@@ -41,9 +41,10 @@ from sqlalchemy import (
     delete,
     or_,
     select,
+    text,
     tuple_,
 )
-from sqlalchemy.ext.asyncio import AsyncEngine
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 #: A ``select_after`` keyset cursor: ``(seq, key, entity_id, ref)`` of the last row read.
 RowCursor = tuple[int, str, str, str]
@@ -75,6 +76,26 @@ entity_index_table = Table(
     Index("ix_entity_index_entity", "namespace", "kind", "entity_id"),
     # DS-12: the incremental (keyset) read of the KNOWN refresh
     Index("ix_entity_index_seq", "namespace", "kind", "seq"),
+)
+
+# One reset generation and one private cursor/revision per event namespace.  These live
+# beside the rows so the fresh SQLite and PostgreSQL baselines create them together.
+entity_index_state = Table(
+    "entity_index_state",
+    entity_index_metadata,
+    Column("id", Integer, primary_key=True),
+    Column("epoch", Integer, nullable=False),
+    # Set only by the actual retention DELETE, including when the log becomes empty.
+    # PostgreSQL sequence gaps from rolled-back appends do not touch this field.
+    Column("pruned_seq", Integer, nullable=False),
+)
+entity_index_namespaces = Table(
+    "entity_index_namespaces",
+    entity_index_metadata,
+    Column("namespace", String, primary_key=True),
+    Column("cursor", Integer, nullable=False),
+    Column("scan_cursor", Integer, nullable=False),
+    Column("revision", Integer, nullable=False),
 )
 
 
@@ -150,7 +171,23 @@ class MemoryEntityIndexStore:
 
     async def put(self, rows: Sequence[EntityIndexRow]) -> None:
         for row in rows:
+            if row.kind == "merge" and row.data.get("link"):
+                previous = self._rows.get(row.pk)
+                if previous is not None and previous.seq <= row.seq:
+                    continue
             self._rows[row.pk] = row
+            if row.kind == "merge":
+                related = [
+                    held
+                    for held in self._rows.values()
+                    if held.namespace == row.namespace
+                    and held.kind == "merge"
+                    and held.ref == row.ref
+                ]
+                earliest = min(related, key=lambda held: (held.seq, held.key))
+                for held in related:
+                    if held.data.get("link") and held.pk != earliest.pk:
+                        del self._rows[held.pk]
 
     async def select(
         self,
@@ -223,28 +260,69 @@ class SqlEntityIndexStore:
     async def put(self, rows: Sequence[EntityIndexRow]) -> None:
         if not rows:
             return
-        t = entity_index_table
         async with self._engine.begin() as conn:
-            for row in rows:
-                stmt = self._insert().values(
-                    namespace=row.namespace,
-                    kind=row.kind,
-                    key=row.key,
-                    entity_id=row.entity_id,
-                    ref=row.ref,
-                    match=row.match,
-                    data=orjson.dumps(row.data, option=orjson.OPT_SORT_KEYS).decode(),
-                    seq=row.seq,
+            if self._engine.dialect.name == "sqlite":
+                await conn.exec_driver_sql("BEGIN IMMEDIATE")
+            await self.put_on(conn, rows, merge_locks=True)
+
+    async def put_on(
+        self, conn: AsyncConnection, rows: Sequence[EntityIndexRow], *, merge_locks: bool = False
+    ) -> None:
+        """Put rows on the caller's transaction; projection calls never open another one."""
+        t = entity_index_table
+        if merge_locks and self._engine.dialect.name == "postgresql":
+            merge_refs = sorted({(row.namespace, row.ref) for row in rows if row.kind == "merge"})
+            for namespace, ref in merge_refs:
+                await conn.execute(
+                    text("SELECT pg_advisory_xact_lock(hashtext(:key))"),
+                    {"key": f"entity_index:merge:{namespace}:{ref}"},
                 )
-                stmt = stmt.on_conflict_do_update(
-                    index_elements=[t.c.namespace, t.c.kind, t.c.key, t.c.entity_id, t.c.ref],
-                    set_={
-                        "match": stmt.excluded.match,
-                        "data": stmt.excluded.data,
-                        "seq": stmt.excluded.seq,
-                    },
-                )
-                await conn.execute(stmt)
+        for row in rows:
+            stmt = self._insert().values(
+                namespace=row.namespace,
+                kind=row.kind,
+                key=row.key,
+                entity_id=row.entity_id,
+                ref=row.ref,
+                match=row.match,
+                data=orjson.dumps(row.data, option=orjson.OPT_SORT_KEYS).decode(),
+                seq=row.seq,
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[t.c.namespace, t.c.kind, t.c.key, t.c.entity_id, t.c.ref],
+                set_={
+                    "match": stmt.excluded.match,
+                    "data": stmt.excluded.data,
+                    "seq": stmt.excluded.seq,
+                },
+                where=(t.c.seq > stmt.excluded.seq)
+                if row.kind == "merge" and row.data.get("link")
+                else None,
+            )
+            await conn.execute(stmt)
+            if row.kind == "merge":
+                related = (
+                    await conn.execute(
+                        select(t).where(
+                            t.c.namespace == row.namespace,
+                            t.c.kind == "merge",
+                            t.c.ref == row.ref,
+                        )
+                    )
+                ).all()
+                earliest = min(related, key=lambda held: (held.seq, held.key))
+                for held in related:
+                    if not orjson.loads(held.data).get("link") or held.key == earliest.key:
+                        continue
+                    await conn.execute(
+                        delete(t).where(
+                            t.c.namespace == held.namespace,
+                            t.c.kind == held.kind,
+                            t.c.key == held.key,
+                            t.c.entity_id == held.entity_id,
+                            t.c.ref == held.ref,
+                        )
+                    )
 
     @staticmethod
     def _where(namespace: str, kind: str, **cols: str | None) -> Any:
@@ -263,27 +341,43 @@ class SqlEntityIndexStore:
         ref: str | None = None,
         match: str | None = None,
     ) -> list[EntityIndexRow]:
+        async with self._engine.connect() as conn:
+            return await self.select_on(
+                conn, namespace, kind, key=key, entity_id=entity_id, ref=ref, match=match
+            )
+
+    async def select_on(
+        self,
+        conn: AsyncConnection,
+        namespace: str,
+        kind: str,
+        *,
+        key: str | None = None,
+        entity_id: str | None = None,
+        ref: str | None = None,
+        match: str | None = None,
+    ) -> list[EntityIndexRow]:
         t = entity_index_table
         stmt = (
             select(t)
             .where(self._where(namespace, kind, key=key, entity_id=entity_id, ref=ref, match=match))
             .order_by(t.c.key, t.c.entity_id, t.c.ref)
         )
-        async with self._engine.connect() as conn:
-            rows = (await conn.execute(stmt)).all()
-        return [
-            EntityIndexRow(
-                namespace=r.namespace,
-                kind=r.kind,
-                key=r.key,
-                entity_id=r.entity_id,
-                ref=r.ref,
-                match=r.match,
-                data=dict(orjson.loads(r.data)),
-                seq=int(r.seq),
-            )
-            for r in rows
-        ]
+        rows = (await conn.execute(stmt)).all()
+        return [self._row(r) for r in rows]
+
+    @staticmethod
+    def _row(r: Any) -> EntityIndexRow:
+        return EntityIndexRow(
+            namespace=r.namespace,
+            kind=r.kind,
+            key=r.key,
+            entity_id=r.entity_id,
+            ref=r.ref,
+            match=r.match,
+            data=dict(orjson.loads(r.data)),
+            seq=int(r.seq),
+        )
 
     async def delete(
         self,
@@ -299,6 +393,22 @@ class SqlEntityIndexStore:
         )
         async with self._engine.begin() as conn:
             await conn.execute(stmt)
+
+    async def delete_on(
+        self,
+        conn: AsyncConnection,
+        namespace: str,
+        kind: str,
+        *,
+        key: str | None = None,
+        entity_id: str | None = None,
+        ref: str | None = None,
+    ) -> None:
+        await conn.execute(
+            delete(entity_index_table).where(
+                self._where(namespace, kind, key=key, entity_id=entity_id, ref=ref)
+            )
+        )
 
     async def clear(self) -> None:
         async with self._engine.begin() as conn:

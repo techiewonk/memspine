@@ -16,6 +16,10 @@ from memspine.clients.weights.onnx_catalogue import CATALOGUE, PinnedFile, spec_
 runner = CliRunner()
 EMBED = "BAAI/bge-small-en-v1.5"
 RERANK = "Xenova/ms-marco-MiniLM-L-6-v2"
+EXPECTED_TEMPLATE_MODELS = {
+    "base": (EMBED, RERANK),
+    "core": (EMBED,),
+}
 
 
 def _content(repo: str, name: str) -> bytes:
@@ -54,18 +58,24 @@ def hub(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, Any]:
     return state
 
 
-def test_fetch_template_base_prints_one_line_per_file(hub: dict[str, Any]) -> None:
-    result = runner.invoke(app, ["models", "fetch", "--template", "base"])
+@pytest.mark.parametrize("template", ["base", "core"])
+def test_fetch_template_prints_one_line_per_file(hub: dict[str, Any], template: str) -> None:
+    # `simple` is a profile: base carries its embedding and MiniLM defaults; core is bare.
+    result = runner.invoke(app, ["models", "fetch", "--template", template])
     assert result.exit_code == 0, result.output
     lines = result.output.strip().splitlines()
-    spec = CATALOGUE[EMBED]
-    assert len(lines) == len(spec_files(spec))
-    assert lines[0] == (
-        f"{EMBED} model_optimized.onnx sha256 ok "
-        f"{len(_content(spec.repo, 'model_optimized.onnx'))} bytes"
-    )
-    assert {call[0] for call in hub["calls"]} == {spec.repo}
-    assert all(call[2]["revision"] == spec.revision for call in hub["calls"])
+    expected = [(model, CATALOGUE[model]) for model in EXPECTED_TEMPLATE_MODELS[template]]
+    expected_lines = [
+        f"{model} {name} sha256 ok {len(_content(spec.repo, name))} bytes"
+        for model, spec in expected
+        for name in spec_files(spec)
+    ]
+    assert sorted(lines) == sorted(expected_lines)
+    expected_downloads = [
+        (spec.repo, name, spec.revision) for _, spec in expected for name in spec_files(spec)
+    ]
+    actual_downloads = [(repo, name, options["revision"]) for repo, name, options in hub["calls"]]
+    assert sorted(actual_downloads) == sorted(expected_downloads)
 
 
 def test_fetch_models_and_cache_dir(hub: dict[str, Any], tmp_path: Path) -> None:
@@ -124,3 +134,4 @@ def test_core_hash_template_has_nothing_to_fetch(hub: dict[str, Any], tmp_path: 
     result = runner.invoke(app, ["models", "fetch", "--template", "core", "--config", str(cfg)])
     assert result.exit_code == 0, result.output
     assert "no onnx model slots" in result.output
+    assert hub["calls"] == []

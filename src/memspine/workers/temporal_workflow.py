@@ -47,6 +47,8 @@ class OutboxDrainRequest(TypedDict):
     """RM-132: identifiers and Temporal budgets only; the outbox holds every payload and state."""
 
     tenant: str
+    deployment_id: str
+    config_fingerprint: str
     owner: str
     owner_kind: str
     stage: str
@@ -57,19 +59,35 @@ class OutboxDrainRequest(TypedDict):
     max_steps: int
 
 
+class OutboxDrainTotals(TypedDict):
+    """Cumulative reporting across workflow generations; the outbox owns drain state."""
+
+    steps: int
+    items: int
+    holes: int
+    watermark: int | None
+
+
 @workflow.defn(name="memspine.outbox.drain")
 class OutboxDrainWorkflow:
     """Drive bounded outbox drain steps for one (scope, stage) until nothing is left.
 
     Each step is ``runtime.temporal_outbox.OutboxActivity.drain`` (Activity
     ``memspine.outbox.drain_step``): Temporal retries, times out and heartbeats it, and never owns
-    state. After ``max_steps`` steps with work left the workflow continues as new, so its history
-    stays bounded. A fence the Activity reports as non-retryable fails the workflow with the job
-    still queued in the outbox (no hole)."""
+    state. After ``max_steps`` steps with work left the workflow continues as new, carrying only
+    cumulative reporting totals alongside the unchanged Activity request, so each generation's
+    history stays bounded. A fence the Activity reports as non-retryable fails the workflow with
+    the job still queued in the outbox (no hole)."""
 
     @workflow.run
-    async def run(self, request: OutboxDrainRequest) -> dict[str, Any]:
-        totals: dict[str, Any] = {"steps": 0, "items": 0, "holes": 0, "watermark": None}
+    async def run(
+        self, request: OutboxDrainRequest, carried_totals: OutboxDrainTotals | None = None
+    ) -> OutboxDrainTotals:
+        totals: OutboxDrainTotals = (
+            {"steps": 0, "items": 0, "holes": 0, "watermark": None}
+            if carried_totals is None
+            else carried_totals.copy()
+        )
         for _ in range(max(1, request["max_steps"])):
             result = await workflow.execute_activity(
                 "memspine.outbox.drain_step",
@@ -83,8 +101,10 @@ class OutboxDrainWorkflow:
             totals["steps"] += 1
             totals["items"] += int(result.get("items", 0))
             totals["holes"] += int(result.get("holes", 0))
-            totals["watermark"] = result.get("watermark")
+            watermark = result.get("watermark")
+            if watermark is not None:
+                totals["watermark"] = int(watermark)
             if not result.get("more"):
                 return totals
-        workflow.continue_as_new(request)
+        workflow.continue_as_new(args=[request, totals])
         raise AssertionError("continue_as_new does not return")

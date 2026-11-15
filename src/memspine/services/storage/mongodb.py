@@ -50,17 +50,23 @@ from memspine.clients.mongodb.driver import (
     WriteConcern,
 )
 from memspine.config.constants import ZSTD_LEVEL
-from memspine.exceptions import ConfigError, StorageError
+from memspine.exceptions import ConfigError, RebuildUnavailableError, StorageError
 from memspine.observability.logging import get_logger
 from memspine.schemas.durable.lineage import LineageEdge
 from memspine.services.base import CapabilityManifest, ServiceAdapter
 from memspine.services.storage.records_port import (
+    EntityIndexAdvance,
+    EntityIndexApplyBatch,
+    EntityIndexApplyPurge,
     ProjectionTargetBinding,
+    RecordsAdvance,
+    RecordsProjectionView,
     binding_source_name,
     require_binding_match,
 )
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent, canonical_payload
 from memspine.store.leases import NamespaceLease
+from memspine.store.record_event_ids import affected_record_ids, validate_record_event_shape
 from memspine.store.records import MemoryRecord
 from memspine.trust.erasure import redact_record, scrub_partition_nodes
 
@@ -74,6 +80,7 @@ if TYPE_CHECKING:
         Database,
     )
     from memspine.schemas.durable.common import OwnerScope
+    from memspine.services.storage.entity_index_tables import EntityIndexRow
     from memspine.services.storage.records_port import OutboxItem
 
 __all__ = [
@@ -88,6 +95,17 @@ _log = get_logger(__name__)
 
 #: Record statuses that count as live in :meth:`MongoRecordsStore.layer_counts` (as in SQL).
 _LIVE_STATUSES = ("activated", "resolving")
+
+_ENTITY_INDEX_KINDS = (
+    EventKind.WRITE.value,
+    EventKind.FORGET.value,
+    EventKind.MARKER.value,
+    EventKind.DECAY_TRANSITION.value,
+    EventKind.REGISTRY_ERASURE_FENCE.value,
+)
+
+# Purge has no caller page size; cap its checkpoint scan independently of backlog size.
+_ENTITY_INDEX_PURGE_PREFIX_PAGE = 2048
 
 #: Collection-setup version (bump with a migration step in :meth:`MongoRecordsStore.start`).
 SCHEMA_VERSION = 1
@@ -114,6 +132,7 @@ _OUTBOX_VALIDATOR: Doc = {
 #: (collection, keys, options) - every index the store uses, created idempotently.
 _INDEXES: tuple[tuple[str, list[tuple[str, int]], Doc], ...] = (
     ("events", [("event_id", ASCENDING)], {"unique": True, "name": "event_id_unique"}),
+    ("events", [("namespace", ASCENDING), ("_id", ASCENDING)], {"name": "namespace_seq"}),
     ("events", [("ts_at", ASCENDING)], {"name": "ts_at"}),
     (
         "outbox",
@@ -127,7 +146,23 @@ _INDEXES: tuple[tuple[str, list[tuple[str, int]], Doc], ...] = (
         [("namespace", 1), ("entity", 1), ("attribute", 1), ("recorded_key", -1)],
         {"name": "ns_fact_key"},
     ),
+    (
+        "records",
+        [
+            ("namespace", 1),
+            ("entity", 1),
+            ("attribute", 1),
+            ("claim_group_key", 1),
+            ("recorded_key", -1),
+        ],
+        {"name": "ns_untyped_fact"},
+    ),
     ("records", [("namespace", 1), ("session_key", 1)], {"name": "ns_session"}),
+    (
+        "records",
+        [("namespace", 1), ("claim_group_key", 1), ("_id", 1)],
+        {"name": "claim_group_page"},
+    ),
     ("records", [("namespace", 1), ("parents", 1)], {"name": "ns_parents"}),
     (
         "lineage",
@@ -259,10 +294,77 @@ class MongoEntityIndexStore:
     async def put(self, rows: Sequence[Any]) -> None:
         for row in rows:
             doc: Doc = {c: getattr(row, c) for c in self._COLS}
+            if row.kind == "merge":
+                await self._put_merge(row, doc)
+                continue
             await self._rows.replace_one(
                 {"_id": dict(doc)},
                 {**doc, "match": row.match, "data": dict(row.data), "seq": int(row.seq)},
                 upsert=True,
+            )
+
+    async def _put_merge(self, row: Any, doc: Doc) -> None:
+        """Normalize all link candidates for one absorbed entity in one transaction."""
+        guard: Doc = {
+            "namespace": row.namespace,
+            "kind": "merge_guard",
+            "key": row.ref,
+            "entity_id": "",
+            "ref": "",
+        }
+        guard_id = dict(guard)
+        with contextlib.suppress(DuplicateKeyError):
+            await self._rows.update_one(
+                {"_id": guard_id},
+                {"$setOnInsert": {**guard, "match": "", "data": {}, "seq": 0, "version": 0}},
+                upsert=True,
+            )
+
+        async def body(session: AsyncClientSession) -> None:
+            await self._rows.update_one(
+                {"_id": guard_id}, {"$inc": {"version": 1}}, session=session
+            )
+            key = {"_id": dict(doc)}
+            if row.data.get("link"):
+                try:
+                    await self._rows.update_one(
+                        key,
+                        {
+                            "$min": {"seq": int(row.seq)},
+                            "$setOnInsert": {**doc, "match": row.match, "data": dict(row.data)},
+                        },
+                        upsert=True,
+                        session=session,
+                    )
+                except DuplicateKeyError:
+                    await self._rows.update_one(
+                        key, {"$min": {"seq": int(row.seq)}}, session=session
+                    )
+            else:
+                await self._rows.replace_one(
+                    key,
+                    {**doc, "match": row.match, "data": dict(row.data), "seq": int(row.seq)},
+                    upsert=True,
+                    session=session,
+                )
+            related = [
+                item
+                async for item in self._rows.find(
+                    {"namespace": row.namespace, "kind": "merge", "ref": row.ref},
+                    session=session,
+                )
+            ]
+            earliest = min(related, key=lambda item: (int(item["seq"]), str(item["key"])))
+            for item in related:
+                if item.get("data", {}).get("link") and item["_id"] != earliest["_id"]:
+                    await self._rows.delete_one({"_id": item["_id"]}, session=session)
+
+        async with self._rows.database.client.start_session() as session:
+            await session.with_transaction(
+                body,
+                read_concern=ReadConcern("snapshot"),
+                write_concern=WriteConcern("majority"),
+                read_preference=ReadPreference.PRIMARY,
             )
 
     @staticmethod
@@ -352,6 +454,116 @@ class MongoEntityIndexStore:
             )
             async for d in found
         ]
+
+
+class _MongoEntityIndexTxView:
+    """Index and record operations on the caller's one snapshot transaction."""
+
+    def __init__(
+        self, store: MongoRecordsStore, session: AsyncClientSession, namespace: str
+    ) -> None:
+        self._store = store
+        self._session = session
+        self._namespace = namespace
+        self._rows = store._c("entity_index")
+
+    def _require_namespace(self, namespace: str) -> None:
+        if namespace != self._namespace:
+            raise StorageError("entity index transaction cannot cross namespaces")
+
+    async def put(self, rows: Sequence[EntityIndexRow]) -> None:
+        for row in rows:
+            self._require_namespace(row.namespace)
+            doc: Doc = {c: getattr(row, c) for c in MongoEntityIndexStore._COLS}
+            await self._rows.replace_one(
+                {"_id": dict(doc)},
+                {**doc, "match": row.match, "data": dict(row.data), "seq": int(row.seq)},
+                upsert=True,
+                session=self._session,
+            )
+
+    async def select(
+        self,
+        namespace: str,
+        kind: str,
+        *,
+        key: str | None = None,
+        entity_id: str | None = None,
+        ref: str | None = None,
+        match: str | None = None,
+    ) -> list[EntityIndexRow]:
+        from memspine.services.storage.entity_index_tables import EntityIndexRow
+
+        self._require_namespace(namespace)
+        query = MongoEntityIndexStore._filter(
+            namespace, kind, key=key, entity_id=entity_id, ref=ref, match=match
+        )
+        found = self._rows.find(query, session=self._session)
+        rows = [
+            EntityIndexRow(
+                namespace=str(d["namespace"]),
+                kind=str(d["kind"]),
+                key=str(d["key"]),
+                entity_id=str(d["entity_id"]),
+                ref=str(d["ref"]),
+                match=str(d.get("match", "")),
+                data=dict(d.get("data") or {}),
+                seq=int(d.get("seq", 0)),
+            )
+            async for d in found
+        ]
+        return sorted(rows, key=lambda row: row.pk)
+
+    async def delete(
+        self,
+        namespace: str,
+        kind: str,
+        *,
+        key: str | None = None,
+        entity_id: str | None = None,
+        ref: str | None = None,
+    ) -> None:
+        self._require_namespace(namespace)
+        await self._rows.delete_many(
+            MongoEntityIndexStore._filter(namespace, kind, key=key, entity_id=entity_id, ref=ref),
+            session=self._session,
+        )
+
+    async def get_record(self, record_id: str) -> MemoryRecord | None:
+        doc = await self._store._c("records").find_one(
+            {"_id": record_id, "namespace": self._namespace},
+            {"doc": 1},
+            session=self._session,
+        )
+        return self._store._doc_to_record(doc) if doc is not None else None
+
+    async def pending_events(self, limit: int) -> list[MemoryEvent]:
+        if limit <= 0:
+            return []
+        rows = self._rows.find(
+            {"namespace": self._namespace, "kind": "pending_positive"},
+            {"seq": 1},
+            sort=[("seq", ASCENDING)],
+            limit=limit,
+            session=self._session,
+        )
+        events: list[MemoryEvent] = []
+        async for row in rows:
+            seq = int(row["seq"])
+            if seq < 1:
+                raise StorageError("entity index pending canonical event is missing")
+            doc = await self._store._c("events").find_one(
+                {
+                    "_id": seq,
+                    "namespace": self._namespace,
+                    "kind": EventKind.MARKER.value,
+                },
+                session=self._session,
+            )
+            if doc is None:
+                raise StorageError("entity index pending canonical event is missing")
+            events.append(self._store._doc_to_event(doc))
+        return events
 
 
 class MongoProjectionBindingStore:
@@ -463,6 +675,98 @@ class MongoProjectionBindingStore:
         return str(saved["generation_id"])
 
 
+class _MongoRecordsTxView:
+    """The records projector's one-session view, invalid after its callback returns."""
+
+    def __init__(self, store: MongoRecordsStore, session: AsyncClientSession) -> None:
+        self._store = store
+        self._session = session
+        self._active = True
+
+    def _check(self) -> None:
+        if not self._active:
+            raise StorageError("records projection transaction view has expired")
+
+    def close(self) -> None:
+        self._active = False
+
+    async def get_record(self, record_id: str) -> MemoryRecord | None:
+        self._check()
+        doc = await self._store._c("records").find_one(
+            {"_id": record_id}, {"doc": 1}, session=self._session
+        )
+        return self._store._doc_to_record(doc) if doc is not None else None
+
+    async def put_record(self, record: MemoryRecord) -> None:
+        self._check()
+        await self._store._c("records").update_one(
+            {"_id": record.record_id},
+            {
+                "$set": self._store._record_fields(record),
+                "$setOnInsert": {"order": ObjectId()},
+            },
+            upsert=True,
+            session=self._session,
+        )
+
+    async def delete_record(self, record_id: str) -> None:
+        self._check()
+        await self._store._c("records").delete_one({"_id": record_id}, session=self._session)
+
+    async def group_page(
+        self, namespace: str, group_key: str, *, after_id: str | None, limit: int
+    ) -> list[MemoryRecord]:
+        self._check()
+        if limit <= 0:
+            return []
+        query: Doc = {"namespace": namespace, "claim_group_key": group_key}
+        if after_id is not None:
+            query["_id"] = {"$gt": after_id}
+        found = self._store._c("records").find(
+            query,
+            {"doc": 1},
+            sort=[("_id", ASCENDING)],
+            limit=limit,
+            session=self._session,
+        )
+        return [self._store._doc_to_record(doc) async for doc in found]
+
+    async def erasure_state(self, namespace: str, record_id: str) -> tuple[bool, bool]:
+        self._check()
+        fenced = await self._store._c("records_append_fence").find_one(
+            {"_id": record_id}, {"_id": 1}, session=self._session
+        )
+        found = self._store._c("records_projection_membership").find(
+            {"namespace": namespace, "record_id": record_id},
+            {"kind": 1},
+            session=self._session,
+        )
+        kinds = {str(doc["kind"]) async for doc in found}
+        return fenced is not None or "erased" in kinds, "hidden" in kinds
+
+    async def _mark(self, namespace: str, record_id: str, kind: str) -> None:
+        self._check()
+        await self._store._c("records_projection_membership").update_one(
+            {"_id": {"namespace": namespace, "record_id": record_id, "kind": kind}},
+            {"$setOnInsert": {"namespace": namespace, "record_id": record_id, "kind": kind}},
+            upsert=True,
+            session=self._session,
+        )
+
+    async def mark_erased(self, namespace: str, record_id: str) -> None:
+        await self._mark(namespace, record_id, "erased")
+
+    async def mark_hidden(self, namespace: str, record_id: str) -> None:
+        await self._mark(namespace, record_id, "hidden")
+
+    async def release_hidden(self, namespace: str, record_id: str) -> None:
+        self._check()
+        await self._store._c("records_projection_membership").delete_one(
+            {"_id": {"namespace": namespace, "record_id": record_id, "kind": "hidden"}},
+            session=self._session,
+        )
+
+
 class MongoRecordsStore(ServiceAdapter):
     """Event log, outbox, offsets, leases, read model and lineage in one MongoDB database."""
 
@@ -558,6 +862,12 @@ class MongoRecordsStore(ServiceAdapter):
             "lineage",
             "counters",
             "projector_bindings",
+            "entity_index",
+            "entity_index_state",
+            "records_projection_state",
+            "records_projection_membership",
+            "records_append_fence",
+            "records_append_identity",
         ):
             full = self._prefix + name
             options: Doc = {"validator": _OUTBOX_VALIDATOR} if name == "outbox" else {}
@@ -573,6 +883,18 @@ class MongoRecordsStore(ServiceAdapter):
                 await self._c("counters").update_one(
                     {"_id": counter}, {"$setOnInsert": {"value": 0}}, upsert=True
                 )
+        with contextlib.suppress(DuplicateKeyError):
+            await self._c("entity_index_state").update_one(
+                {"_id": "reset"},
+                {"$setOnInsert": {"epoch": 0, "guard": 0}},
+                upsert=True,
+            )
+        with contextlib.suppress(DuplicateKeyError):
+            await self._c("records_projection_state").update_one(
+                {"_id": "writer"},
+                {"$setOnInsert": {"cursor": 0, "guard": 0}},
+                upsert=True,
+            )
         await meta.update_one(
             {"_id": "schema"},
             {
@@ -635,6 +957,423 @@ class MongoRecordsStore(ServiceAdapter):
             )
         return store
 
+    async def initialize_entity_index(self) -> None:
+        """Pin rolling history when the entity projector is enabled, before its first read."""
+
+        async def body(session: AsyncClientSession) -> None:
+            reset = await self._c("entity_index_state").find_one_and_update(
+                {"_id": "reset"},
+                {"$inc": {"guard": 1}},
+                return_document=ReturnDocument.AFTER,
+                session=session,
+            )
+            if reset is None:
+                raise StorageError("entity index state is not set up: call start() first")
+            await self._entity_index_register(session, reset)
+
+        await self._transaction(body)
+
+    async def assert_full_event_history(self) -> None:
+        """Refuse full replay once retention has actually removed canonical events."""
+
+        async def body(session: AsyncClientSession) -> None:
+            reset = await self._c("entity_index_state").find_one_and_update(
+                {"_id": "reset"},
+                {"$inc": {"guard": 1}},
+                return_document=ReturnDocument.AFTER,
+                session=session,
+            )
+            if reset is None:
+                raise StorageError("entity index state is not set up: call start() first")
+            if int(reset.get("pruned_through", 0)) > 0:
+                raise RebuildUnavailableError(
+                    "event history was pruned (D-45); full replay is unavailable"
+                )
+
+        await self._transaction(body)
+
+    async def _entity_index_register(self, session: AsyncClientSession, reset: Doc) -> None:
+        """Refuse first use after actual pruning, then retain the zero checkpoint."""
+        existing = await self._c("offsets").find_one(
+            {"_id": "entity_index"}, {"_id": 1}, session=session
+        )
+        if existing is not None:
+            return
+        if int(reset.get("pruned_through", 0)) > 0:
+            raise RebuildUnavailableError(
+                "entity index cannot initialize after event history was pruned (D-45)"
+            )
+        await self._c("offsets").update_one(
+            {"_id": "entity_index"},
+            {"$setOnInsert": {"last_seq": 0}},
+            upsert=True,
+            session=session,
+        )
+
+    async def _entity_index_guard(
+        self, session: AsyncClientSession, namespace: str
+    ) -> tuple[int, int, int, int]:
+        """Write both guards before any snapshot read of projection state or events."""
+        state = self._c("entity_index_state")
+        reset = await state.find_one_and_update(
+            {"_id": "reset"},
+            {"$inc": {"guard": 1}},
+            return_document=ReturnDocument.AFTER,
+            session=session,
+        )
+        if reset is None:
+            raise StorageError("entity index state is not set up: call start() first")
+        await self._entity_index_register(session, reset)
+        ns = await state.find_one_and_update(
+            {"_id": f"ns:{namespace}"},
+            {
+                "$inc": {"guard": 1},
+                "$setOnInsert": {"scan_cursor": 0, "cursor": 0, "revision": 0},
+            },
+            upsert=True,
+            return_document=ReturnDocument.AFTER,
+            session=session,
+        )
+        assert ns is not None
+        return (
+            int(reset["epoch"]),
+            int(ns["scan_cursor"] if "scan_cursor" in ns else ns["cursor"]),
+            int(ns["cursor"]),
+            int(ns["revision"]),
+        )
+
+    async def _entity_index_offset(self, session: AsyncClientSession) -> int:
+        doc = await self._c("offsets").find_one(
+            {"_id": "entity_index"}, {"last_seq": 1}, session=session
+        )
+        return int(doc["last_seq"]) if doc is not None else 0
+
+    async def _entity_index_prefix(
+        self,
+        session: AsyncClientSession,
+        target: int,
+        own_namespace: str,
+        own_cursor: int,
+        limit: int,
+    ) -> int:
+        """Advance a bounded global prefix only through covered relevant events."""
+        prior = await self._entity_index_offset(session)
+        if target <= prior:
+            return prior
+        docs = [
+            doc
+            async for doc in self._c("events").find(
+                {"_id": {"$gt": prior, "$lte": target}},
+                {"_id": 1, "kind": 1, "namespace": 1},
+                sort=[("_id", ASCENDING)],
+                limit=limit + 1,
+                session=session,
+            )
+        ]
+        page = docs[:limit]
+        cursors: dict[str, int] = {own_namespace: own_cursor}
+        prefix = prior
+        for doc in page:
+            seq = int(doc["_id"])
+            if doc["kind"] in _ENTITY_INDEX_KINDS:
+                ns = str(doc["namespace"])
+                if ns not in cursors:
+                    row = await self._c("entity_index_state").find_one(
+                        {"_id": f"ns:{ns}"}, {"cursor": 1}, session=session
+                    )
+                    cursors[ns] = int(row["cursor"]) if row is not None else 0
+                if cursors[ns] < seq:
+                    prefix = seq - 1
+                    break
+            prefix = seq
+        else:
+            if len(docs) <= limit:
+                prefix = target
+        if prefix > prior:
+            await self._c("offsets").update_one(
+                {"_id": "entity_index"},
+                {"$set": {"last_seq": prefix, "updated_at": _iso(datetime.now(UTC))}},
+                upsert=True,
+                session=session,
+            )
+        return prefix
+
+    async def advance_entity_index(
+        self,
+        namespace: str,
+        target_seq: int,
+        limit: int,
+        apply_batch: EntityIndexApplyBatch,
+    ) -> EntityIndexAdvance:
+        if limit <= 0 or target_seq < 0:
+            raise ValueError("entity index limit must be positive and target nonnegative")
+
+        async def body(session: AsyncClientSession) -> EntityIndexAdvance:
+            epoch, scan_cursor, cursor, revision = await self._entity_index_guard(
+                session, namespace
+            )
+            head = await self._c("events").find_one(
+                {}, {"_id": 1}, sort=[("_id", DESCENDING)], session=session
+            )
+            target = max(
+                scan_cursor,
+                min(max(0, int(target_seq)), int(head["_id"]) if head else 0),
+            )
+            events = [
+                self._doc_to_event(doc)
+                async for doc in self._c("events").find(
+                    {
+                        "_id": {"$gt": scan_cursor, "$lte": target},
+                        "namespace": namespace,
+                        "kind": {"$in": _ENTITY_INDEX_KINDS},
+                    },
+                    sort=[("_id", ASCENDING)],
+                    limit=limit + 1,
+                    session=session,
+                )
+            ]
+            batch = events[:limit]
+            effects = await apply_batch(_MongoEntityIndexTxView(self, session, namespace), batch)
+            next_scan = max(
+                scan_cursor, target if len(events) <= limit else int(batch[-1].seq or 0)
+            )
+            earliest = await self._c("entity_index").find_one(
+                {"namespace": namespace, "kind": "pending_positive"},
+                {"seq": 1},
+                sort=[("seq", ASCENDING)],
+                session=session,
+            )
+            next_cursor = min(next_scan, int(earliest["seq"]) - 1) if earliest else next_scan
+            if next_cursor < cursor:
+                raise StorageError("entity index pending marker regressed its certified cursor")
+            complete = next_scan >= target and next_cursor >= target
+            next_revision = revision + int(effects.changed)
+            if next_scan != scan_cursor or next_cursor != cursor or next_revision != revision:
+                await self._c("entity_index_state").update_one(
+                    {"_id": f"ns:{namespace}"},
+                    {
+                        "$set": {
+                            "scan_cursor": next_scan,
+                            "cursor": next_cursor,
+                            "revision": next_revision,
+                        }
+                    },
+                    session=session,
+                )
+            global_offset = await self._entity_index_prefix(
+                session, target, namespace, next_cursor, limit
+            )
+            return EntityIndexAdvance(
+                epoch,
+                next_cursor,
+                next_revision,
+                global_offset,
+                complete,
+                len(batch),
+                effects,
+            )
+
+        return await self._transaction(body)
+
+    async def purge_entity_index(
+        self,
+        namespace: str,
+        record_ids: Sequence[str],
+        apply_purge: EntityIndexApplyPurge,
+    ) -> EntityIndexAdvance:
+        ids = tuple(dict.fromkeys(str(rid) for rid in record_ids if rid))
+
+        async def body(session: AsyncClientSession) -> EntityIndexAdvance:
+            epoch, scan, cursor, revision = await self._entity_index_guard(session, namespace)
+            effects = await apply_purge(_MongoEntityIndexTxView(self, session, namespace), ids)
+            earliest = await self._c("entity_index").find_one(
+                {"namespace": namespace, "kind": "pending_positive"},
+                {"seq": 1},
+                sort=[("seq", ASCENDING)],
+                session=session,
+            )
+            next_cursor = min(scan, int(earliest["seq"]) - 1) if earliest else scan
+            if next_cursor < cursor:
+                raise StorageError("entity index purge regressed its certified cursor")
+            if effects.changed:
+                revision += 1
+            if effects.changed or next_cursor != cursor:
+                await self._c("entity_index_state").update_one(
+                    {"_id": f"ns:{namespace}"},
+                    {"$set": {"cursor": next_cursor, "revision": revision}},
+                    session=session,
+                )
+            head = await self._c("events").find_one(
+                {}, {"_id": 1}, sort=[("_id", DESCENDING)], session=session
+            )
+            global_offset = await self._entity_index_prefix(
+                session,
+                int(head["_id"]) if head is not None else 0,
+                namespace,
+                next_cursor,
+                _ENTITY_INDEX_PURGE_PREFIX_PAGE,
+            )
+            return EntityIndexAdvance(
+                epoch,
+                next_cursor,
+                revision,
+                global_offset,
+                next_cursor >= scan,
+                0,
+                effects,
+            )
+
+        return await self._transaction(body)
+
+    async def reset_entity_index(self) -> EntityIndexAdvance:
+        async def body(session: AsyncClientSession) -> EntityIndexAdvance:
+            state = self._c("entity_index_state")
+            reset = await state.find_one_and_update(
+                {"_id": "reset"},
+                {"$inc": {"epoch": 1, "guard": 1}},
+                return_document=ReturnDocument.AFTER,
+                session=session,
+            )
+            if reset is None:
+                raise StorageError("entity index state is not set up: call start() first")
+            if int(reset.get("pruned_through", 0)) > 0:
+                raise RebuildUnavailableError(
+                    "entity index cannot reset after event history was pruned (D-45)"
+                )
+            await self._c("entity_index").delete_many({}, session=session)
+            await state.delete_many({"_id": {"$ne": "reset"}}, session=session)
+            await self._c("offsets").update_one(
+                {"_id": "entity_index"},
+                {"$set": {"last_seq": 0, "updated_at": _iso(datetime.now(UTC))}},
+                upsert=True,
+                session=session,
+            )
+            return EntityIndexAdvance(int(reset["epoch"]), 0, 0, 0, True, 0)
+
+        return await self._transaction(body)
+
+    async def entity_index_revision(self, namespace: str) -> tuple[int, int]:
+        async def body(session: AsyncClientSession) -> tuple[int, int]:
+            state = self._c("entity_index_state")
+            reset = await state.find_one({"_id": "reset"}, {"epoch": 1}, session=session)
+            ns = await state.find_one({"_id": f"ns:{namespace}"}, {"revision": 1}, session=session)
+            return (int(reset["epoch"]) if reset else 0, int(ns["revision"]) if ns else 0)
+
+        return await self._transaction(body)
+
+    async def _records_guard(self, session: AsyncClientSession) -> tuple[Doc, int]:
+        """Write the prune/reset gate, then the records writer, before reading state."""
+        reset = await self._c("entity_index_state").find_one_and_update(
+            {"_id": "reset"},
+            {"$inc": {"guard": 1}},
+            return_document=ReturnDocument.AFTER,
+            session=session,
+        )
+        if reset is None:
+            raise StorageError("records projection state is not set up: call start() first")
+        writer = await self._c("records_projection_state").find_one_and_update(
+            {"_id": "writer"},
+            {"$inc": {"guard": 1}},
+            return_document=ReturnDocument.AFTER,
+            session=session,
+        )
+        if writer is None:
+            raise StorageError("records projection state is not set up: call start() first")
+        return reset, int(writer["cursor"])
+
+    async def _records_register(self, session: AsyncClientSession, reset: Doc, cursor: int) -> None:
+        offset = await self._c("offsets").find_one(
+            {"_id": "records"}, {"last_seq": 1}, session=session
+        )
+        if offset is not None:
+            if int(offset["last_seq"]) != cursor:
+                raise StorageError("records checkpoint differs from its certified cursor")
+            return
+        if int(reset.get("pruned_through", 0)) > 0 or cursor > 0:
+            raise RebuildUnavailableError(
+                "records projection cannot initialize after event history was pruned (D-45)"
+            )
+        await self._c("offsets").update_one(
+            {"_id": "records"},
+            {"$setOnInsert": {"last_seq": 0}},
+            upsert=True,
+            session=session,
+        )
+
+    async def initialize_records_projection(self) -> None:
+        async def body(session: AsyncClientSession) -> None:
+            reset, cursor = await self._records_guard(session)
+            await self._records_register(session, reset, cursor)
+
+        await self._transaction(body)
+
+    async def advance_records(
+        self,
+        target_seq: int,
+        limit: int,
+        apply_batch: Callable[[RecordsProjectionView, Sequence[MemoryEvent]], Awaitable[None]],
+    ) -> RecordsAdvance:
+        if target_seq < 0 or limit <= 0:
+            raise ValueError("records projection target must be nonnegative and limit positive")
+
+        async def body(session: AsyncClientSession) -> RecordsAdvance:
+            reset, cursor = await self._records_guard(session)
+            await self._records_register(session, reset, cursor)
+            docs = [
+                doc
+                async for doc in self._c("events").find(
+                    {"_id": {"$gt": cursor, "$lte": target_seq}},
+                    sort=[("_id", ASCENDING)],
+                    limit=limit + 1,
+                    session=session,
+                )
+            ]
+            events = [self._doc_to_event(doc) for doc in docs[:limit]]
+            view = _MongoRecordsTxView(self, session)
+            try:
+                await apply_batch(view, events)
+            finally:
+                view.close()
+            next_cursor = int(events[-1].seq or cursor) if events else cursor
+            if next_cursor > cursor:
+                await self._c("records_projection_state").update_one(
+                    {"_id": "writer"}, {"$set": {"cursor": next_cursor}}, session=session
+                )
+                await self._c("offsets").update_one(
+                    {"_id": "records"}, {"$set": {"last_seq": next_cursor}}, session=session
+                )
+            return RecordsAdvance(next_cursor, len(events), next_cursor >= target_seq)
+
+        return await self._transaction(body)
+
+    async def append_ephemeral_records(
+        self,
+        event: MemoryEvent,
+        apply_batch: Callable[[RecordsProjectionView, Sequence[MemoryEvent]], Awaitable[None]],
+    ) -> MemoryEvent:
+        raise StorageError("MongoDB records store does not support ephemeral event logs")
+
+    async def reset_records_projection(self) -> None:
+        async def body(session: AsyncClientSession) -> None:
+            reset, cursor = await self._records_guard(session)
+            if int(reset.get("pruned_through", 0)) > 0:
+                raise RebuildUnavailableError(
+                    "records projection cannot reset after event history was pruned (D-45)"
+                )
+            await self._records_register(session, reset, cursor)
+            await self._c("records").delete_many({}, session=session)
+            await self._c("records_projection_membership").delete_many({}, session=session)
+            await self._c("records_projection_state").update_one(
+                {"_id": "writer"}, {"$set": {"cursor": 0}}, session=session
+            )
+            await self._c("offsets").update_one(
+                {"_id": "records"},
+                {"$set": {"last_seq": 0, "updated_at": _iso(datetime.now(UTC))}},
+                session=session,
+            )
+
+        await self._transaction(body)
+
     # ---------------------------------------------------------------- event log
     def _event_doc(self, event: MemoryEvent, seq: int) -> Doc:
         payload = canonical_payload(event.payload)  # the bytes the fingerprint hashed
@@ -679,12 +1418,199 @@ class MongoRecordsStore(ServiceAdapter):
             raise StorageError("event already has a seq — events pass the write door once")
 
     async def append_event(self, event: MemoryEvent) -> MemoryEvent:
+        self._reject_unfenced_registry_event(event)
         seq, _ = await self._append(event, ())
+        return event.model_copy(update={"seq": seq})
+
+    @staticmethod
+    def _reject_unfenced_registry_event(event: MemoryEvent) -> None:
+        from memspine.store.registry_evidence import registry_control_marker
+
+        if event.kind is EventKind.REGISTRY_ERASURE_FENCE or registry_control_marker(
+            event.kind, event.payload
+        ):
+            raise StorageError("registry control events require their guarded append door")
+
+    async def _records_event_fence(self, event: MemoryEvent, session: AsyncClientSession) -> None:
+        """Validate owners and terminal fences under the shared event-counter write."""
+        try:
+            validate_record_event_shape(event)
+        except ValueError as exc:
+            raise StorageError(str(exc)) from exc
+        fences = self._c("records_append_fence")
+        identities = self._c("records_append_identity")
+        record_id: str | None = None
+        if event.kind is EventKind.WRITE:
+            raw = event.payload.get("record")
+            if not isinstance(raw, Mapping):
+                raise StorageError("WRITE requires a canonical record snapshot")
+            record_id = raw.get("record_id")
+            if (
+                not isinstance(record_id, str)
+                or not record_id
+                or raw.get("namespace") != event.namespace
+            ):
+                raise StorageError("WRITE record identity or namespace mismatches its event")
+        erased: list[str] = []
+        if event.kind is EventKind.FORGET and bool(event.payload.get("hard")):
+            rid = event.payload.get("record_id")
+            if not isinstance(rid, str) or not rid:
+                raise StorageError("hard FORGET requires a nonempty record_id")
+            erased.append(rid)
+        elif event.kind is EventKind.MARKER and event.payload.get("marker") == "erasure_manifest":
+            manifest = event.payload.get("manifest")
+            if manifest is not None and not isinstance(manifest, Mapping):
+                raise StorageError("erasure manifest has invalid record ids")
+            raw_ids = manifest.get("ids") if isinstance(manifest, Mapping) else None
+            if raw_ids is not None and not isinstance(raw_ids, Mapping):
+                raise StorageError("erasure manifest has invalid record ids")
+            record_ids = raw_ids.get("record_ids") if isinstance(raw_ids, Mapping) else None
+            if record_ids is not None:
+                if not isinstance(record_ids, list) or any(
+                    not isinstance(rid, str) or not rid for rid in record_ids
+                ):
+                    raise StorageError("erasure manifest has invalid record ids")
+                erased.extend(record_ids)
+        ids = tuple(dict.fromkeys((*affected_record_ids(event), *erased)))
+        if ids:
+            guard = await self._c("records_projection_state").update_one(
+                {"_id": "writer"}, {"$inc": {"guard": 1}}, session=session
+            )
+            if guard.matched_count != 1:
+                raise StorageError("records projection state is not set up: call start() first")
+        for rid in ids:
+            identity = await identities.find_one({"_id": rid}, {"namespace": 1}, session=session)
+            if identity is not None and identity["namespace"] != event.namespace:
+                raise StorageError("record id belongs to another namespace")
+            existing = await fences.find_one({"_id": rid}, {"namespace": 1}, session=session)
+            if existing is not None and existing["namespace"] != event.namespace:
+                raise StorageError("record id belongs to another namespace")
+            record = await self._c("records").find_one(
+                {"_id": rid}, {"namespace": 1}, session=session
+            )
+            if record is not None and record["namespace"] != event.namespace:
+                raise StorageError("record id belongs to another namespace")
+        if record_id is not None:
+            if await fences.find_one({"_id": record_id}, {"_id": 1}, session=session):
+                raise StorageError("WRITE record identity was permanently erased")
+            await identities.update_one(
+                {"_id": record_id},
+                {"$setOnInsert": {"namespace": event.namespace}},
+                upsert=True,
+                session=session,
+            )
+        for rid in dict.fromkeys(erased):
+            await fences.update_one(
+                {"_id": rid},
+                {"$setOnInsert": {"namespace": event.namespace}},
+                upsert=True,
+                session=session,
+            )
+
+    async def begin_registry_erasure(self, namespace: str, source_ids: Sequence[str]) -> None:
+        """Commit an ID-only canonical barrier before source deletion and log scrub."""
+        ids = sorted(set(source_ids))
+        if ids:
+            await self._append(
+                MemoryEvent(
+                    kind=EventKind.REGISTRY_ERASURE_FENCE,
+                    namespace=namespace,
+                    actor="registry_erasure",
+                    payload={"source_ids": ids},
+                ),
+                (),
+            )
+
+    async def registry_erasure_fences(self, after_seq: int = 0) -> list[tuple[int, str, list[str]]]:
+        cursor = self._c("events").find(
+            {"kind": EventKind.REGISTRY_ERASURE_FENCE.value, "_id": {"$gt": after_seq}},
+            sort=[("_id", ASCENDING)],
+        )
+        fences: list[tuple[int, str, list[str]]] = []
+        async for doc in cursor:
+            payload = self._decode_payload(doc)
+            ids = payload.get("source_ids") if isinstance(payload, dict) else None
+            if not isinstance(ids, list) or not all(isinstance(rid, str) and rid for rid in ids):
+                raise StorageError("malformed registry erasure fence")
+            fences.append((int(doc["_id"]), str(doc["namespace"]), ids))
+        return fences
+
+    async def append_registry_marker(self, event: MemoryEvent) -> MemoryEvent:
+        """Check all sources and append in one MongoDB transaction.
+
+        The event counter write conflicts with an erasure barrier transaction;
+        conditional writes to every source document conflict with concurrent
+        version, status or quarantine updates.
+        """
+        from memspine.store.registry_evidence import (
+            ENTITY_MARKERS,
+            registry_marker_has_text,
+            registry_marker_has_unattributed_text,
+            valid_source_refs,
+        )
+
+        self._fresh(event)
+        marker = event.payload.get("marker")
+        if event.kind is not EventKind.MARKER or marker not in ENTITY_MARKERS:
+            raise StorageError("registry append requires an entity marker")
+        if registry_marker_has_unattributed_text(event.payload):
+            raise StorageError("registry marker cannot carry unpinned text")
+        if (
+            marker in {"entity.create", "entity.alias"}
+            and registry_marker_has_text(event.payload)
+            and not valid_source_refs(event.payload)
+        ):
+            raise StorageError("registry append requires pinned raw source citations")
+        refs = (
+            dict(zip(event.payload["source_ids"], event.payload["source_versions"], strict=True))
+            if marker in {"entity.create", "entity.alias"}
+            and registry_marker_has_text(event.payload)
+            else {}
+        )
+
+        async def body(session: AsyncClientSession) -> int:
+            seq = await self._next("events", session)
+            await self._records_event_fence(event, session)
+            predicates = [
+                {
+                    "_id": rid,
+                    "namespace": event.namespace,
+                    "memory_type": {"$in": ["episodic", "resource"]},
+                    "version": version,
+                    "status": {"$in": ["activated", "archived"]},
+                    "quarantined": False,
+                }
+                for rid, version in refs.items()
+            ]
+            if predicates:
+                result = await self._c("records").update_many(
+                    {"$or": predicates}, {"$inc": {"registry_guard": 1}}, session=session
+                )
+                if result.modified_count != len(refs):
+                    raise StorageError("registry source changed before marker append")
+            cursor = self._c("events").find(
+                {"namespace": event.namespace, "kind": EventKind.REGISTRY_ERASURE_FENCE.value},
+                session=session,
+            )
+            async for doc in cursor:
+                payload = self._decode_payload(doc)
+                fence_ids = payload.get("source_ids") if isinstance(payload, dict) else None
+                if (
+                    not isinstance(fence_ids, list)
+                    or not all(isinstance(rid, str) and rid for rid in fence_ids)
+                    or set(refs) & set(fence_ids)
+                ):
+                    raise StorageError("registry source is being erased")
+            await self._c("events").insert_one(self._event_doc(event, seq), session=session)
+            return seq
+
+        seq = await self._transaction(body)
         return event.model_copy(update={"seq": seq})
 
     async def append_with_outbox(
         self, event: MemoryEvent, items: Sequence[OutboxItem]
     ) -> tuple[MemoryEvent, list[int]]:
+        self._reject_unfenced_registry_event(event)
         seq, offsets = await self._append(event, items)
         return event.model_copy(update={"seq": seq}), offsets
 
@@ -696,6 +1622,7 @@ class MongoRecordsStore(ServiceAdapter):
 
         async def body(session: AsyncClientSession) -> tuple[int, list[int]]:
             seq = await self._next("events", session)
+            await self._records_event_fence(event, session)
             await events.insert_one(self._event_doc(event, seq), session=session)
             offsets: list[int] = []
             for item in items:
@@ -749,18 +1676,62 @@ class MongoRecordsStore(ServiceAdapter):
         )
         return [self._doc_to_event(doc) async for doc in cursor]
 
+    async def read_scoped_events(
+        self, namespace: str, kinds: Sequence[EventKind], *, after_seq: int, limit: int
+    ) -> tuple[list[MemoryEvent], int]:
+        """Bounded namespace/kind catch-up through a captured global event head."""
+        latest = await self._c("events").find_one({}, {"_id": 1}, sort=[("_id", DESCENDING)])
+        head = max(after_seq, int(latest["_id"]) if latest is not None else 0)
+        if not kinds or limit <= 0 or head == after_seq:
+            return [], head
+        cursor = self._c("events").find(
+            {
+                "_id": {"$gt": after_seq, "$lte": head},
+                "namespace": namespace,
+                "kind": {"$in": [kind.value for kind in kinds]},
+            },
+            sort=[("_id", ASCENDING)],
+            limit=limit,
+        )
+        return [self._doc_to_event(doc) async for doc in cursor], head
+
     async def prune_events(self, older_than: datetime) -> int:
         """Rolling mode only: delete events every projector applied and older than the
         cutoff; never past the slowest projector's mark. ``full`` keeps the log forever."""
         if self._mode is not EventLogMode.ROLLING:
             return 0
-        slowest = await self._c("offsets").find_one({}, sort=[("last_seq", ASCENDING)])
-        if slowest is None:
-            return 0  # no projector has checkpointed yet - keep everything
-        result = await self._c("events").delete_many(
-            {"_id": {"$lte": int(slowest["last_seq"])}, "ts_at": {"$lt": older_than}}
-        )
-        return int(result.deleted_count)
+
+        async def body(session: AsyncClientSession) -> int:
+            # Reset and pruning conflict before the checkpoint read. Otherwise a prune
+            # could use an old positive offset after reset has rewound it to zero.
+            guard = await self._c("entity_index_state").update_one(
+                {"_id": "reset"}, {"$inc": {"guard": 1}}, session=session
+            )
+            if guard.matched_count != 1:
+                raise StorageError("entity index state is not set up: call start() first")
+            slowest = await self._c("offsets").find_one(
+                {}, sort=[("last_seq", ASCENDING)], session=session
+            )
+            if slowest is None:
+                return 0
+            query: Doc = {
+                "_id": {"$lte": int(slowest["last_seq"])},
+                "ts_at": {"$lt": older_than},
+                "kind": {"$ne": EventKind.REGISTRY_ERASURE_FENCE.value},
+            }
+            highest = await self._c("events").find_one(
+                query, {"_id": 1}, sort=[("_id", DESCENDING)], session=session
+            )
+            result = await self._c("events").delete_many(query, session=session)
+            if highest is not None and result.deleted_count:
+                await self._c("entity_index_state").update_one(
+                    {"_id": "reset"},
+                    {"$max": {"pruned_through": int(highest["_id"])}},
+                    session=session,
+                )
+            return int(result.deleted_count)
+
+        return await self._transaction(body)
 
     # ---------------------------------------------------------------- offsets
     async def get_offset(self, projector_name: str) -> int:
@@ -769,6 +1740,21 @@ class MongoRecordsStore(ServiceAdapter):
 
     async def set_offset(self, projector_name: str, seq: int) -> None:
         """Advance-only (``$max``): a lower or concurrent lower checkpoint never wins."""
+        if projector_name == "entity_index":
+            raise StorageError("entity index checkpoint requires the ordered projection door")
+        if projector_name == "records":
+
+            async def body(session: AsyncClientSession) -> None:
+                reset, cursor = await self._records_guard(session)
+                await self._records_register(session, reset, cursor)
+                if seq > cursor:
+                    raise StorageError("records checkpoint requires the ordered projection door")
+                await self._c("offsets").update_one(
+                    {"_id": "records"}, {"$max": {"last_seq": int(seq)}}, session=session
+                )
+
+            await self._transaction(body)
+            return
         update = {"$max": {"last_seq": int(seq)}, "$set": {"updated_at": _iso(datetime.now(UTC))}}
         try:
             await self._c("offsets").update_one({"_id": projector_name}, update, upsert=True)
@@ -776,19 +1762,30 @@ class MongoRecordsStore(ServiceAdapter):
             await self._c("offsets").update_one({"_id": projector_name}, update)
 
     async def reset_offset(self, projector_name: str) -> None:
+        if projector_name == "entity_index":
+            await self.reset_entity_index()
+            return
+        if projector_name == "records":
+            await self.reset_records_projection()
+            return
         await self._c("offsets").delete_one({"_id": projector_name})
 
     # ---------------------------------------------------------------- read model
     @staticmethod
     def _record_fields(record: MemoryRecord) -> Doc:
+        from memspine.store.claim_cardinality import group_key, record_group_of
+
+        group = record_group_of(record)
         return {
             "namespace": record.namespace,
+            "claim_group_key": group_key(group) if group is not None else None,
             "memory_type": record.memory_type,
             "group_id": record.group_id,
             "entity": record.entity,
             "attribute": record.attribute,
             "open": record.valid_to is None,
             "status": record.status.value,
+            "version": record.version,
             "quarantined": bool(record.quarantined),
             "layer": record.layer,
             "recorded_key": _sort_key(record.recorded_at),
@@ -804,11 +1801,30 @@ class MongoRecordsStore(ServiceAdapter):
         return MemoryRecord.model_validate_json(doc["doc"])
 
     async def upsert_record(self, record: MemoryRecord) -> None:
-        await self._c("records").update_one(
-            {"_id": record.record_id},
-            {"$set": self._record_fields(record), "$setOnInsert": {"order": ObjectId()}},
-            upsert=True,
-        )
+        async def body(session: AsyncClientSession) -> None:
+            await self._records_guard(session)
+            if await self._c("records_append_fence").find_one(
+                {"_id": record.record_id}, {"_id": 1}, session=session
+            ):
+                raise StorageError("record id is permanently erased")
+            owner = await self._c("records_append_identity").find_one(
+                {"_id": record.record_id}, {"namespace": 1}, session=session
+            )
+            if owner is not None and owner["namespace"] != record.namespace:
+                raise StorageError("record id belongs to another namespace")
+            existing = await self._c("records").find_one(
+                {"_id": record.record_id}, {"namespace": 1}, session=session
+            )
+            if existing is not None and existing["namespace"] != record.namespace:
+                raise StorageError("record id belongs to another namespace")
+            await self._c("records").update_one(
+                {"_id": record.record_id},
+                {"$set": self._record_fields(record), "$setOnInsert": {"order": ObjectId()}},
+                upsert=True,
+                session=session,
+            )
+
+        await self._transaction(body)
 
     async def get_record(self, record_id: str) -> MemoryRecord | None:
         doc = await self._c("records").find_one({"_id": record_id}, {"doc": 1})
@@ -821,6 +1837,74 @@ class MongoRecordsStore(ServiceAdapter):
             return {}
         cursor = self._c("records").find({"_id": {"$in": ids}}, {"doc": 1})
         return {str(doc["_id"]): self._doc_to_record(doc) async for doc in cursor}
+
+    async def claim_group_page(
+        self, namespace: str, group_key: str, *, after_id: str | None, limit: int
+    ) -> list[MemoryRecord]:
+        """One indexed current-claim page for the public visibility overlay."""
+        if limit <= 0:
+            return []
+        query: Doc = {"namespace": namespace, "claim_group_key": group_key}
+        if after_id is not None:
+            query["_id"] = {"$gt": after_id}
+        found = self._c("records").find(query, {"doc": 1}, sort=[("_id", ASCENDING)], limit=limit)
+        return [self._doc_to_record(doc) async for doc in found]
+
+    async def claim_group_snapshot(self, namespace: str, group_key: str) -> list[MemoryRecord]:
+        """Read one complete indexed, currently visible group from one snapshot."""
+
+        async def body(session: AsyncClientSession) -> list[MemoryRecord]:
+            found = self._c("records").find(
+                {"namespace": namespace, "claim_group_key": group_key},
+                {"_id": 1, "doc": 1},
+                sort=[("_id", ASCENDING)],
+                session=session,
+            )
+            rows = [doc async for doc in found]
+            if not rows:
+                return []
+            ids = [str(doc["_id"]) for doc in rows]
+            excluded = await self._hidden_or_erased_ids(session, namespace, ids)
+            return [self._doc_to_record(doc) for doc in rows if str(doc["_id"]) not in excluded]
+
+        return await self._transaction(body)
+
+    async def _hidden_or_erased_ids(
+        self, session: AsyncClientSession, namespace: str, record_ids: Sequence[str]
+    ) -> set[str]:
+        found: set[str] = set()
+        unique = list(dict.fromkeys(str(rid) for rid in record_ids if rid))
+        for start in range(0, len(unique), 512):
+            ids = unique[start : start + 512]
+            membership = self._c("records_projection_membership").find(
+                {
+                    "namespace": namespace,
+                    "record_id": {"$in": ids},
+                    "kind": {"$in": ["erased", "hidden"]},
+                },
+                {"record_id": 1},
+                session=session,
+            )
+            async for doc in membership:
+                found.add(str(doc["record_id"]))
+            fences = self._c("records_append_fence").find(
+                {"_id": {"$in": ids}}, {"_id": 1}, session=session
+            )
+            async for doc in fences:
+                found.add(str(doc["_id"]))
+        return found
+
+    async def hidden_or_erased_record_ids(
+        self, namespace: str, record_ids: Sequence[str]
+    ) -> set[str]:
+        """ID-only negative membership for a historical population in one snapshot."""
+        if not namespace:
+            raise ValueError("record visibility namespace must be nonempty")
+
+        async def body(session: AsyncClientSession) -> set[str]:
+            return await self._hidden_or_erased_ids(session, namespace, record_ids)
+
+        return await self._transaction(body)
 
     async def _find_records(self, query: Doc) -> list[MemoryRecord]:
         cursor = self._c("records").find(query, {"doc": 1}, sort=[("order", ASCENDING)])
@@ -858,6 +1942,26 @@ class MongoRecordsStore(ServiceAdapter):
         )
         return self._doc_to_record(doc) if doc is not None else None
 
+    async def find_active_untyped_fact(
+        self, namespace: str, entity: str, attribute: str
+    ) -> MemoryRecord | None:
+        """The latest keyed semantic incumbent outside a comparable claim group."""
+        doc = await self._c("records").find_one(
+            {
+                "namespace": namespace,
+                "memory_type": "semantic",
+                "entity": entity,
+                "attribute": attribute,
+                "claim_group_key": None,  # Mongo matches both null and missing legacy rows.
+                "open": True,
+                "status": {"$ne": "deleted"},
+                "quarantined": False,
+            },
+            {"doc": 1},
+            sort=[("recorded_key", DESCENDING)],
+        )
+        return self._doc_to_record(doc) if doc is not None else None
+
     async def list_session_records(
         self, namespace: str, session_key: str, roles: Sequence[str] | None = None
     ) -> list[MemoryRecord]:
@@ -867,7 +1971,11 @@ class MongoRecordsStore(ServiceAdapter):
         return await self._find_records(query)
 
     async def delete_all_records(self) -> None:
-        await self._c("records").delete_many({})
+        async def body(session: AsyncClientSession) -> None:
+            await self._records_guard(session)
+            await self._c("records").delete_many({}, session=session)
+
+        await self._transaction(body)
 
     async def quarantined_ids(self, record_ids: Sequence[str]) -> set[str]:
         ids = list(dict.fromkeys(str(r) for r in record_ids if r))
@@ -974,7 +2082,9 @@ class MongoRecordsStore(ServiceAdapter):
         return int(result.deleted_count)
 
     # ---------------------------------------------------------------- erasure
-    async def _rewrite_events(self, change: Callable[[Any], bool]) -> list[int]:
+    async def _rewrite_events(
+        self, change: Callable[[Any], bool], *, namespace: str | None = None
+    ) -> list[int]:
         """Rewrite every event whose decoded payload ``change`` mutates (adding ``redacted``).
 
         Each rewrite is a compare-and-set on the old payload bytes (single-document atomic),
@@ -982,7 +2092,8 @@ class MongoRecordsStore(ServiceAdapter):
         seq, kind and original fingerprint never change."""
         events = self._c("events")
         rewritten: list[int] = []
-        async for doc in events.find({}, sort=[("_id", ASCENDING)]):
+        query = {"namespace": namespace} if namespace is not None else {}
+        async for doc in events.find(query, sort=[("_id", ASCENDING)]):
             payload = self._decode_payload(doc)
             if not change(payload):
                 continue
@@ -1014,17 +2125,37 @@ class MongoRecordsStore(ServiceAdapter):
         return await self._rewrite_events(change)
 
     async def scrub_marker_payloads(
-        self, marker: str, scrub: Callable[[dict[str, Any]], bool]
+        self, marker: str, scrub: Callable[[dict[str, Any]], bool], *, namespace: str
     ) -> list[int]:
         """FU-CLOSE marker scrub, as :meth:`SqlStorage.scrub_marker_payloads`."""
-
-        def change(payload: Any) -> bool:
-            return isinstance(payload, dict) and payload.get("marker") == marker and scrub(payload)
-
-        return await self._rewrite_events(change)
+        events = self._c("events")
+        rewritten: list[int] = []
+        query = {"namespace": namespace, "kind": EventKind.MARKER.value}
+        async for doc in events.find(query, sort=[("_id", ASCENDING)]):
+            payload = self._decode_payload(doc)
+            if (
+                not isinstance(payload, dict)
+                or payload.get("marker") != marker
+                or not scrub(payload)
+            ):
+                continue
+            payload["redacted"] = True
+            encoded = canonical_payload(payload)
+            if doc["compressed"]:
+                encoded = self._cctx.compress(encoded)
+            result = await events.update_one(
+                {"_id": doc["_id"], "payload": doc["payload"]}, {"$set": {"payload": encoded}}
+            )
+            if result.modified_count:
+                rewritten.append(int(doc["_id"]))
+        return rewritten
 
     async def delete_record(self, record_id: str) -> None:
-        await self._c("records").delete_one({"_id": record_id})
+        async def body(session: AsyncClientSession) -> None:
+            await self._records_guard(session)
+            await self._c("records").delete_one({"_id": record_id}, session=session)
+
+        await self._transaction(body)
 
     async def list_children(self, namespace: str, parent_ids: Sequence[str]) -> list[MemoryRecord]:
         if not parent_ids:

@@ -2,19 +2,19 @@
 writer (index-wide writer lock), commit-and-reload and close.
 
 tantivy-py is synchronous. The connector holds one ``threading.Lock`` that serialises
-opening and every writer call (tantivy permits exactly one writer at a time); the adapter
+opening and native reads and writes with close; the adapter
 (``services/lexical/tantivy.py``) takes :attr:`TantivyConnector.lock` on a worker thread
-around its writer calls. The lock is not bound to an event loop, so one on-disk index is
+around its native calls. The lock is not bound to an event loop, so one on-disk index is
 shared by every Engine in the process, whatever loop each runs on (ADR-079: a single-writer
 store is opened once per path). One long-lived writer is reused across commits — allocating
 its heap once — and is finalized in :meth:`TantivyConnector.close`, which commits documents
-still held by a ``defer_commits`` batch (RM-72) before joining the merge threads.
+still held by a ``defer_commits`` batch (RM-72), joins merge threads, and releases the
+connector-owned index reference.
 """
 
 from __future__ import annotations
 
 import asyncio
-import logging
 import os
 import threading
 import time
@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar, Literal
 
+from memspine.clients._common.cleanup import drain_close
 from memspine.clients._common.deadlines import probe
 from memspine.clients.base import ConnectorIdentity, Locality, Scope
 from memspine.exceptions import StorageError
@@ -52,7 +53,6 @@ TANTIVY_COMMIT_BACKOFF_S = 0.05
 ENGLISH_TOKENIZER = "memspine_english"
 
 Analyzer = Literal["default", "english"]
-_log = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,25 +107,22 @@ def commit_with_retry(writer: Any) -> None:
             time.sleep(TANTIVY_COMMIT_BACKOFF_S * (2**attempt))
 
 
-def wait_merging_threads(writer: Any) -> bool:
-    """Join the writer's merge threads at close, tolerating a writer still borrowed.
+def wait_merging_threads(writer: Any) -> None:
+    """Join merge threads, retrying a transient PyO3 writer borrow.
 
-    A writer call whose awaiting task was cancelled keeps running on its worker thread after
-    the lock is released; joining then raises ``RuntimeError: Already borrowed`` (PyO3).
-    Retry a few times while that call finishes; if it is still busy, skip the join and return
-    False (the writer is dropped, so at worst an on-disk index keeps a temp segment until the
-    next open merges it)."""
+    A persistent borrow must fail close so the connector keeps ownership of the writer
+    and a later close can retry. Dropping a busy writer can leave live file handles behind.
+    """
     for attempt in range(TANTIVY_COMMIT_RETRIES):
         try:
             writer.wait_merging_threads()
-            return True
+            return
         except RuntimeError as exc:
             if "already borrowed" not in str(exc).lower():
                 raise
             if attempt == TANTIVY_COMMIT_RETRIES - 1:
-                return False
+                raise
             time.sleep(TANTIVY_COMMIT_BACKOFF_S * (2**attempt))
-    return False  # pragma: no cover - the loop always returns
 
 
 class TantivyConnector:
@@ -162,7 +159,7 @@ class TantivyConnector:
             )
         self._index: Any = None
         self._writer: Any = None
-        #: Serialises opening and every writer call; taken on worker threads only.
+        #: Serialises opening, native reads and writes, and close on worker threads.
         self.lock = threading.Lock()
         #: Documents added but not committed (an adapter's ``defer_commits`` batch). Read and
         #: written under :attr:`lock`; committed by :meth:`close` so nothing held is dropped.
@@ -227,6 +224,8 @@ class TantivyConnector:
         return self._writer
 
     async def open(self) -> None:
+        if self._closed:
+            raise RuntimeError("lexical index is closed")
         if self._index is not None:
             return
         await asyncio.to_thread(self.open_blocking)
@@ -266,31 +265,36 @@ class TantivyConnector:
 
     async def health(self, deadline_s: float) -> bool:
         """Open a searcher on the index (a reader round trip; no write)."""
-        index = self._index
-        if index is None:
+        if not self.is_open:
             return False
 
         async def check() -> bool:
-            searcher = await asyncio.to_thread(index.searcher)
-            return int(searcher.num_docs) >= 0
+            return await asyncio.to_thread(self._health_blocking)
 
         return await probe(deadline_s, check)
 
+    def _health_blocking(self) -> bool:
+        with self.lock:
+            if not self.is_open:
+                return False
+            searcher = self.index.searcher()
+            return int(searcher.num_docs) >= 0
+
     async def close(self) -> None:
-        if self._closed:
+        if self._closed and self._writer is None and self._index is None:
             return
-        await asyncio.to_thread(self._close)
+        await drain_close(asyncio.to_thread(self._close))
 
     def _close(self) -> None:
         with self.lock:
             self._closed = True
-            if self._writer is None:
-                return
             if self.uncommitted:
                 # Documents held by defer_commits are committed, never dropped.
                 self.commit()
-            writer, self._writer = self._writer, None
-            # Join merge threads so an on-disk index leaves no dangling temp segments
-            # (this consumes the writer — the index is done).
-            if not wait_merging_threads(writer):
-                _log.warning("lexical.close.writer_busy")
+            if self._writer is not None:
+                # Keep ownership until the join succeeds. Every adapter native operation
+                # takes this lock, including reads, so cancelled awaiters cannot leave an
+                # active worker using the index while close releases it.
+                wait_merging_threads(self._writer)
+                self._writer = None
+            self._index = None

@@ -7,26 +7,87 @@ throwaway database. The shared contract runs in ``test_records_conformance.py``.
 from __future__ import annotations
 
 import importlib.util
+import json
 import os
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import pytest
 
 from memspine.exceptions import StorageError
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
+from memspine.store.records import MemoryRecord
 
 if TYPE_CHECKING:
     from memspine.clients.mongodb import MongoConnector
     from memspine.services.storage.mongodb import MongoRecordsStore
 
 MONGO_URL = os.environ.get("MEMSPINE_TEST_MONGO_URL")
+OWNED = os.environ.get("MEMSPINE_TEST_MONGO_OWNED") == "1"
 pytestmark = pytest.mark.skipif(
     not MONGO_URL or importlib.util.find_spec("pymongo") is None,
     reason="MongoDB records store: set MEMSPINE_TEST_MONGO_URL (replica set)",
 )
+
+
+def _verify_owned(expected: tuple[str, str, int] | None = None) -> tuple[str, str, int]:
+    path = Path(__file__).resolve().parents[4] / "scripts" / "local_services.py"
+    spec = importlib.util.spec_from_file_location("local_services", path)
+    assert spec is not None and spec.loader is not None
+    launcher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launcher)
+    state = launcher.load_state()
+    if state is None:
+        pytest.skip("owned RM-136 MongoDB stack is absent")
+    port = launcher.ports_for(state)["MONGO"]
+    project, owner = str(state["project"]), str(state["owner"])
+    if expected is not None and expected != (project, owner, port):
+        raise RuntimeError("owned MongoDB target changed during scratch database lifetime")
+    ids = launcher.run(
+        [
+            "docker",
+            "ps",
+            "-a",
+            "--filter",
+            f"label=com.docker.compose.project={project}",
+            "--filter",
+            "label=com.docker.compose.service=mongo",
+            "--format",
+            "{{.ID}}",
+        ]
+    ).stdout.split()
+    if len(ids) != 1:
+        raise RuntimeError("owned MongoDB container is missing or ambiguous")
+    inspected = (
+        launcher.run(
+            [
+                "docker",
+                "inspect",
+                "--format",
+                '{{index .Config.Labels "com.docker.compose.project"}}|'
+                '{{index .Config.Labels "com.docker.compose.service"}}|'
+                '{{index .Config.Labels "memspine.rm136.owner"}}|'
+                "{{.State.Status}}|{{json .NetworkSettings.Ports}}",
+                ids[0],
+            ]
+        )
+        .stdout.strip()
+        .split("|", 4)
+    )
+    if len(inspected) != 5:
+        raise RuntimeError("owned MongoDB container inspection was invalid")
+    bound = json.loads(inspected[4]).get("27017/tcp")
+    if inspected[:4] != [project, "mongo", owner, "running"] or bound != [
+        {"HostIp": "127.0.0.1", "HostPort": str(port)}
+    ]:
+        raise RuntimeError("owned MongoDB container does not match its loopback port")
+    expected_url = f"mongodb://127.0.0.1:{port}/?directConnection=true&replicaSet=rs0"
+    if expected_url != MONGO_URL:
+        raise RuntimeError("MongoDB test URL does not match the owned loopback replica set")
+    return project, owner, port
 
 
 @pytest.fixture
@@ -34,9 +95,12 @@ async def database() -> AsyncIterator[str]:
     from pymongo import AsyncMongoClient
 
     name = f"rm_{uuid.uuid4().hex[:12]}"
+    owned = _verify_owned() if OWNED else None
     try:
         yield name
     finally:
+        if owned is not None:
+            _verify_owned(owned)
         admin: AsyncMongoClient[dict[str, object]] = AsyncMongoClient(MONGO_URL)
         await admin.drop_database(name)
         await admin.close()
@@ -55,13 +119,24 @@ async def _store(database: str, **kw: Any) -> tuple[MongoConnector, MongoRecords
 
 
 def _ev(**payload: object) -> MemoryEvent:
-    return MemoryEvent(kind=EventKind.WRITE, namespace="ns/a", payload=dict(payload))
+    return MemoryEvent(
+        kind=EventKind.MARKER, namespace="ns/a", payload={"marker": "test", **payload}
+    )
 
 
 async def test_compressed_log_round_trips_and_redacts(database: str) -> None:
     connector, store = await _store(database, compress=True)
     try:
-        written = await store.append_event(_ev(record={"record_id": "r1", "content": "hush"}))
+        record = MemoryRecord(
+            record_id="r1", namespace="ns/a", memory_type="episodic", content="hush"
+        )
+        written = await store.append_event(
+            MemoryEvent(
+                kind=EventKind.WRITE,
+                namespace="ns/a",
+                payload={"record": record.model_dump(mode="json")},
+            )
+        )
         (back,) = await store.read_events()
         assert back.payload == written.payload and back.fingerprint == written.fingerprint
         assert await store.redact_event_payloads("r1") == [written.seq]
@@ -72,10 +147,31 @@ async def test_compressed_log_round_trips_and_redacts(database: str) -> None:
         await connector.close()
 
 
+async def test_malformed_write_is_rejected_before_event_commit(database: str) -> None:
+    connector, store = await _store(database)
+    try:
+        with pytest.raises(StorageError, match="WRITE requires a record ID"):
+            await store.append_event(
+                MemoryEvent(kind=EventKind.WRITE, namespace="ns/a", payload={})
+            )
+        with pytest.raises(StorageError, match="WRITE requires a record ID"):
+            await store.append_event(
+                MemoryEvent(
+                    kind=EventKind.WRITE, namespace="ns/a", payload={"record": {"record_id": "r1"}}
+                )
+            )
+        assert await store.read_events() == []
+    finally:
+        await store.stop()
+        await connector.close()
+
+
 async def test_rolling_prune_never_passes_the_slowest_projector(database: str) -> None:
     connector, store = await _store(database, mode=EventLogMode.ROLLING)
     try:
         seqs = [(await store.append_event(_ev(n=n))).seq for n in range(5)]
+        assert all(seq is not None for seq in seqs)
+        assert seqs[3] is not None and seqs[1] is not None
         future = datetime.now(UTC) + timedelta(days=1)
         assert await store.prune_events(future) == 0  # no projector has checkpointed yet
         await store.set_offset("vectors", seqs[3])

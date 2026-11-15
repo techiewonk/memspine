@@ -8,7 +8,7 @@ are part of the current fresh SQL baseline:
 ``intake_source``  one row per (scope, source): latest version, version records, live segments (JSON).
 ``intake_write``   one row per S3-3 write id, with the real record id once the record exists.
 ``intake_intent``  one row per accepted envelope: receipt, readiness, the apply payload while the
-                   records are still being written (``status`` ``accepted`` -> ``applied``).
+                   records are still being written (``accepted`` -> ``applied`` or ``failed``).
 
 A call is *committed* when :func:`commit` returns: the source state, the new write ids, the receipt
 and the apply payload are written in ONE transaction, so a crash leaves either nothing or all of it.
@@ -42,6 +42,7 @@ __all__ = [
     "applied_scope_keys",
     "commit",
     "ensure_schema",
+    "failed_intent",
     "intents_by_id",
     "load_overlay",
     "message_claims",
@@ -138,7 +139,7 @@ async def pending_intents(ledger: IntakeLedger) -> list[dict[str, Any]]:
 
 
 async def applied_scope_keys(ledger: IntakeLedger) -> list[str]:
-    """Scopes with committed raw intents, used by restart reconciliation."""
+    """Scopes with committed raw intents or retained failed-intent prefixes."""
     return await ledger.applied_scope_keys()
 
 
@@ -276,6 +277,50 @@ async def applied_intent(
         )
 
     await ledger.apply_intent(
+        intent_id=intent_id,
+        scope_key=skey,
+        source_id=source_id,
+        real_ids=real_ids,
+        relink_state=relink_state,
+        receipt=receipt,
+        readiness=readiness,
+        required_derivation=required_derivation,
+    )
+
+
+async def failed_intent(
+    ledger: IntakeLedger,
+    *,
+    intent_id: str,
+    skey: str,
+    source_id: str,
+    real_ids: Mapping[str, str],
+    receipt: Receipt,
+    readiness: Readiness,
+    required_derivation: RequiredDerivation,
+) -> None:
+    """Keep landed prefix and reservations; remove failed suffix from live source state."""
+
+    def relink_state(stored: str) -> str:
+        state = _state_from_json(stored)
+        live = tuple(
+            LiveSegment(
+                s.seg_index,
+                s.write_id,
+                s.event_id,
+                real_ids.get(s.write_id, s.record_id),
+                s.content_fp,
+                s.version,
+                s.intent_id,
+            )
+            for s in state.live
+            if s.intent_id != intent_id or s.write_id in real_ids
+        )
+        return _state_to_json(
+            SourceState(state.source_id, state.kind, state.latest_version, state.versions, live)
+        )
+
+    await ledger.fail_intent(
         intent_id=intent_id,
         scope_key=skey,
         source_id=source_id,

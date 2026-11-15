@@ -102,7 +102,7 @@ class KnownSet(tuple[KnownEntity, ...]):
 
 
 #: ``(namespace, new text) -> entities`` (a :class:`KnownSet` to report a deferred set)
-KnownSource = Callable[[str, str], Awaitable[Sequence[KnownEntity]]]
+KnownSource = Callable[..., Awaitable[Sequence[KnownEntity]]]
 
 
 @dataclass(frozen=True)
@@ -164,7 +164,14 @@ class PromptContextBuilder:
         """The CONTEXT lines a window leaves for the next one."""
         return list(line_texts[-self.context_turns :]) if self.context_turns else []
 
-    async def build(self, ns: str, new_text: str, context_lines: Sequence[str]) -> PromptContext:
+    async def build(
+        self,
+        ns: str,
+        new_text: str,
+        context_lines: Sequence[str],
+        *,
+        known_seq: int | None = None,
+    ) -> PromptContext:
         context = "\n".join(context_lines[-self.context_turns :]) if self.context_turns else ""
         if self.cap <= 0:
             return PromptContext(context=context)
@@ -180,10 +187,21 @@ class PromptContextBuilder:
         ):
             if source is None:
                 continue
+            # A live resolver has no sequence provenance; it cannot contribute historical
+            # names. The prepass is explicitly bound to NEW text and remains safe.
+            if label == "resolver" and known_seq is not None:
+                continue
             try:
-                found = await source(ns, new_text)
+                if label == "store" and known_seq is not None:
+                    # Historical contexts require a source that understands the horizon. A
+                    # legacy two-argument source is skipped rather than queried live.
+                    found = await source(ns, new_text, known_seq)
+                else:
+                    found = await source(ns, new_text)
             except Exception as exc:
                 _log.warning("prompt_context.source_failed", source=label, error=str(exc)[:200])
+                if label == "store" and known_seq is not None:
+                    deferred.append(label)
                 continue
             if isinstance(found, KnownSet) and found.deferred:
                 deferred.append(label)

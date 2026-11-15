@@ -91,7 +91,10 @@ closure (C1b) auto-enables prerequisites and logs each one.
   local provider (`ladybug` when installed, otherwise SQLite adjacency for SQLite). An explicit `graph:` block without associative is a config
   error.
 - **Key verbs:** `associate(src_id, dst_id, rel, weight)`,
-  `related(record_id, k)`.
+  `related(record_id, k)`, and, with `policies.entity_nodes: true`,
+  `merge_entities(keep, absorb, evidence)` and
+  `add_entity_alias(entity, alias, evidence)`. Identity changes cite live visible
+  records in the same namespace; forgetting evidence reverses them.
 - **Constants:** `LINK_BUDGET` (12), `PPR_DAMPING`/`PPR_ITERATIONS`,
   `EVOLUTION_LINK_MIN_SIMILARITY`.
 - **Traces to:** M13.6, D-40, ADR-015.

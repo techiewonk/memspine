@@ -327,7 +327,9 @@ async def test_bound_mention_occurrences_project_identically(store: GraphStore) 
     await projector.apply(write)
     edges = await store.edge_list(record.namespace)
     occurrence_ids = {
-        edge.dst for edge in edges if edge.src == record.record_id and edge.rel_type == "has_mention"
+        edge.dst
+        for edge in edges
+        if edge.src == record.record_id and edge.rel_type == "has_mention"
     }
     assert len(occurrence_ids) == 2
     assert all(edge.properties["asserted"] is False for edge in edges)

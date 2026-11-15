@@ -1,0 +1,93 @@
+{
+  "kind": "whole_wave_round_1_metadata_receipt",
+  "reviewed_at_utc": "2026-11-15T15:40:29.058139+00:00",
+  "verdict": "APPROVE",
+  "scope": "Durable proof encoding and index metadata only. The 211 reviewed subject source paths and R1/R2 coverage ledgers are unchanged. This receipt does not assert a C1 commit, Phase C, a clean-revision gate, production acceptance or whole-program completion.",
+  "base_head": "88ae38ed916b2869deeed8f17c72249568e1bf3d",
+  "base_tree": "ca69da43e77c3959451a79abebec0e4490118cac",
+  "subject_path_count": 211,
+  "subject_manifest_sha256": "65be292af2b787d5a4b4006ee889a126e766c3501c80975d8ef63c91892164aa",
+  "reviewed_index": {
+    "path": "docs/provider_verification/checkpoints/2026-11-15-wave/index.json",
+    "sha256": "d8391cce486da2eec4b5673eef4cba9714d12d5a23d43a62a8268573a52f4829",
+    "checkpoint_state": "not_committed_at_index_creation",
+    "git_clean_bytes_identical": true
+  },
+  "durable_objects": [
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/subject-manifest.json",
+      "sha256": "65be292af2b787d5a4b4006ee889a126e766c3501c80975d8ef63c91892164aa",
+      "bytes": 87720,
+      "git_clean_bytes_identical": true,
+      "source_temp_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-full-wave-review-partition-2026-11-15.json",
+      "original_input_sha256": "65be292af2b787d5a4b4006ee889a126e766c3501c80975d8ef63c91892164aa",
+      "parsed_json_identical": true,
+      "encoding_transform": "identical"
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/round-1.json",
+      "sha256": "e8212559105200a1dcdbd20b88a58a72f421aaded73529d6accdb3e82404a316",
+      "bytes": 122220,
+      "git_clean_bytes_identical": true,
+      "source_temp_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-full-wave-R1-review-2026-11-15.json",
+      "original_input_sha256": "6cf4fe111510c96fe49ebca72a2e61ac1ec1daa59df6b8d5c316cc2179c05f21",
+      "parsed_json_identical": true,
+      "encoding_transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/round-2.json",
+      "sha256": "39dcf4b7f226fbed528b7ee2c50e36a1a8868533de6f8ec0ddef3a1d741327f3",
+      "bytes": 524998,
+      "git_clean_bytes_identical": true,
+      "source_temp_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\memspine-full-wave-R2-review-2026-11-15.json",
+      "original_input_sha256": "a842135f8abeb121139cbe10973c38d0b3149bc5e09872ae6adee4118ad3207a",
+      "parsed_json_identical": true,
+      "encoding_transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-wave/subject-git-blobs.json",
+      "sha256": "7189c0c1b079bc90707ccdd8ff367ac4f207629a350a1f3c757a187ca6069abc",
+      "bytes": 84071,
+      "git_clean_bytes_identical": true,
+      "generated_from_reviewed_subjects": true
+    }
+  ],
+  "git_clean_blob_mapping": {
+    "path": "docs/provider_verification/checkpoints/2026-11-15-wave/subject-git-blobs.json",
+    "sha256": "7189c0c1b079bc90707ccdd8ff367ac4f207629a350a1f3c757a187ca6069abc",
+    "subject_count": 211,
+    "identical_bytes": 171,
+    "crlf_to_lf": 40,
+    "previous_review": "All 211 current raw SHA/size, normalized SHA-256, independently calculated Git blob SHA-1 and git hash-object --path --stdin outputs matched the mapping."
+  },
+  "subject_inventory": {
+    "path": "docs/provider_verification/reviewed-wave-inventory-2026-11-15.json",
+    "sha256": "cd1f8bf631ec9114f223237bafd80527c70daa8f658164964b896aee7f317991",
+    "capture_flags_historical_pending": true,
+    "explanation": "Inventory pending flags describe its earlier capture. The reversible LF-normalized R1/R2 ledger copies parse to the same approved JSON values as the original reports."
+  },
+  "proof_output_paths_excluded_from_subject_manifest": [
+    "docs/provider_verification/checkpoints/2026-11-15-wave/subject-manifest.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-1.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-2.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/index.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-1-metadata.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/round-2-metadata.json",
+    "docs/provider_verification/checkpoints/2026-11-15-wave/subject-git-blobs.json"
+  ],
+  "proof_output_encoding": "UTF-8 with LF bytes for every durable proof output, including this future receipt. The R1/R2 ledger copies are explicitly reversible CRLF-to-LF transformations of approved original Temp inputs; all other present proof objects are byte-identical to their originals or generated map. Git clean filter leaves all present durable proof objects and the index unchanged.",
+  "hash_dependency_explanation": "The seven declared proof outputs are outside the 211 reviewed subjects. The index hashes the three immutable logical inputs as LF durable copies plus the subject-to-Git-blob map; it does not hash itself or either future metadata receipt. This receipt records the fixed index and object hashes, never its own or the other receipt hash.",
+  "historical_temp_references": "Temp archive references in captured artifacts are historical and nonessential; no durable retention of external archives is claimed.",
+  "checks": {
+    "three_durable_inputs_json_equal_current_temp": true,
+    "two_durable_ledgers_crlf_to_lf_reversible": true,
+    "four_index_object_hashes_match": true,
+    "all_present_proof_json_lf_only": true,
+    "git_clean_preserves_present_proof_object_and_index_bytes": true,
+    "subject_paths_current_raw_hash_match": 211,
+    "git_clean_blob_map_subjects": 211,
+    "seven_proof_outputs_excluded": true,
+    "git_base_head_tree_unchanged": true
+  },
+  "findings": []
+}

@@ -1,0 +1,2085 @@
+{
+  "kind": "whole_wave_independent_review_round_1",
+  "reviewer": "sol_whole_wave_review1",
+  "manifest_sha256": "65be292af2b787d5a4b4006ee889a126e766c3501c80975d8ef63c91892164aa",
+  "head": "88ae38ed916b2869deeed8f17c72249568e1bf3d",
+  "head_tree": "ca69da43e77c3959451a79abebec0e4490118cac",
+  "created_at_utc": "2026-11-15T14:37:14.608500+00:00",
+  "coverage_complete": true,
+  "verdict": "APPROVE",
+  "findings": [
+    {
+      "id": "R1-1",
+      "severity": "P1",
+      "status": "resolved_rechecked",
+      "path": "src/memspine/trust/pipeline/erasure_state.py",
+      "line": 694,
+      "summary": "Manifest projection removed an unmapped raw reply before failed-settlement cleanup could recover its immutable message/write identity; message ID remained reusable.",
+      "repro": "Original tests/unit/test_reply_links.py::test_erased_landed_prefix_is_not_relinked_by_failed_settlement failed with missing erased identity; author added premanifest exact intake tombstones and file-backed interruption/restart/explicit-retry test.",
+      "review": "Current line 694 tombstones mapped and exact unmapped claims after legal-hold preflight and before manifest append. Independent 3 reply tests pass; exact namespace/message/write-ID ledger controls 2 pass 1 optional skip; root reply/F3/witness 46 pass."
+    },
+    {
+      "id": "R1-2",
+      "severity": "P2",
+      "status": "resolved_rechecked",
+      "path": "tests/unit/wiring/test_w2_09_resolve.py",
+      "line": 1433,
+      "summary": "Rolling-prune fixture manually advanced protected records checkpoint, violating atomic records-fold ownership.",
+      "repro": "Wiring preflight 1 failed, 1449 passed, 12 skipped.",
+      "review": "Author replaced direct offset with actual advance_records fold; independent target 1 passed and prune/reopen erasure fence assertions preserved."
+    },
+    {
+      "id": "R1-3",
+      "severity": "P2",
+      "status": "resolved_rechecked",
+      "path": "tests/unit/workers/test_workers.py",
+      "line": 93,
+      "summary": "Worker fixture used empty WRITE and manual protected records offset.",
+      "repro": "Focused original worker module failed on empty WRITE.",
+      "review": "Canonical record WRITE plus actual fold preserves before/after prune checks; independent whole module 4 passed."
+    },
+    {
+      "id": "R1-4",
+      "severity": "P2",
+      "status": "resolved_rechecked",
+      "path": "tests/unit/test_engine_projection_batch.py",
+      "line": 79,
+      "summary": "Batch fixtures assumed records checkpoint stayed zero although native atomic fold advances it with WRITE.",
+      "repro": "Three top-level failures in batch checkpoint expectations.",
+      "review": "Assertions now distinguish records cursor at head from held vector/lexical marks; independent 3 affected tests pass."
+    },
+    {
+      "id": "R1-5",
+      "severity": "P2",
+      "status": "resolved_rechecked",
+      "path": "tests/unit/test_engine_integrity.py",
+      "line": 122,
+      "summary": "Trust ranking fixture allowed inherited ONNX reranker min-max scaling to mask positive relevance scores; read golden froze scoring time but not Engine clock.",
+      "repro": "Three top-level failures, including two score-only golden drifts.",
+      "review": "Rerank chain off for ranking fixture, explicit unweighted/weighted controls, Engine clock frozen for golden; independent target ranking 1 passed and prior combined three passed. Original golden unchanged."
+    },
+    {
+      "id": "R1-6",
+      "severity": "P2",
+      "status": "resolved_rechecked",
+      "path": "evals/tests/test_batch_turns.py",
+      "line": 21,
+      "summary": "Offline hash fixtures inherited default ONNX reranker, changing batch/parity/N5 expected mechanics.",
+      "repro": "Evals preflight 4 failed, 1969 passed, 16 skipped.",
+      "review": "Three eval fixture/config files explicitly isolate rerank chain; no assertions, golden or production changed; independent affected eval suite 7 passed."
+    },
+    {
+      "id": "R1-7",
+      "severity": "P3",
+      "status": "resolved_rechecked",
+      "path": "docs/PROVIDER_TODO.md",
+      "line": 412,
+      "summary": "RM-162 next-action still said RM-144 quarantine remained although RM-144 entries had been removed.",
+      "repro": "RM-144 DONE row and empty tests/quarantine.txt contradicted current RM-162 wording.",
+      "review": "Root corrected next action, retained historical row text, regenerated two HTML views; refresh_tracker.py --check passed 342 tasks."
+    }
+  ],
+  "paths": [
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/_common/cleanup.py",
+      "sha256": "bede0e5680a2f066ae12976ea2e797d5d69fa25f2336217f0af69fd6a9affd5d",
+      "tracked": false,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/aws/connector.py",
+      "sha256": "c318822e95b45371a1bea7b827f839e2b25b028b90754c8c57c80423ac5d458e",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/cashews.py",
+      "sha256": "6563967726693346e9de3b88184f6bfa62bd1a8b0c612a8075fa2b2ff5d45471",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/http/connector.py",
+      "sha256": "1c20d0e9c8cd743df92836786510a83ae65e5b167329ca501920e9a94853c455",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/ladybug.py",
+      "sha256": "a66564d5a7345e34be1b4f8cadc30cd811c12b959083b1fa0660869687c90433",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/mongodb/connector.py",
+      "sha256": "141f6bcff546403a953191ef3aed8e428d70d0d2790e51186adc345ab9c017b4",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/mongodb/launcher.py",
+      "sha256": "b62b20d9d99bf7013d620976e8e66fc811dcead8db746898671e4f6f9ec90d9e",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/neo4j.py",
+      "sha256": "d52a7ac331df8438a0599e08877f43696f9868f3e0e45b255ef3666790115bdb",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/opensearch.py",
+      "sha256": "402d47fcf57613fc01ea517735d69773fe8fb5e3659e17e368e424b5de8148a1",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/postgres/connector.py",
+      "sha256": "3965d4b7839a153bd518cda1ac71bdc7809f7f88c7e99c1dbd2de10fdf35d3c5",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/redis/connector.py",
+      "sha256": "90b88f591607058e61217608d380c46a3db18eabacc35cd037d6e6dcfd2edf2d",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/s3/connector.py",
+      "sha256": "70cce1052859fda100a6b489e21f3dffd1a9e1fedbf4fa77d7dc30dc3fec126c",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/sqlite/connector.py",
+      "sha256": "a90865e7e017360e4bf9a7495844f3a02bd60027eb2e0f649250c9b231a5ee76",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/tantivy/connector.py",
+      "sha256": "d2b114d50a8635606bf58a8e7b8bc6381bbe4f655113b4ced1cf19ba72a05bdd",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/clients/weaviate.py",
+      "sha256": "1834dd2be1194be16633e7431c30ac7007c7794ad76774b803422cfa28f2acc0",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/providers/shared.py",
+      "sha256": "1217b8c223a0870481db31934967eeb42a244470b42d713cd78a4fc49dcd84eb",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/services/lexical/tantivy.py",
+      "sha256": "2934b7319ce0ba0cab78c5d001fe4eb0991d4e23ed246ad272b3e14bbe8d439e",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "src/memspine/store/leases.py",
+      "sha256": "bcbdb660a2dd14eea9111cfb47c1fc0739391de214ea5b1f6e65399655e0017b",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "tests/unit/clients/test_postgres_client.py",
+      "sha256": "4a83f79b6a7eea4e3efd99b7be66a2d03e55f4f7fd2a92f9cc2ae1f7ff083137",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "tests/unit/clients/test_retryable_close.py",
+      "sha256": "9115d507d48bf1d9d9c3a0d81fe22bd8983ad5084b894339db33f020703ae2a6",
+      "tracked": false,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "tests/unit/clients/test_sqlite_client.py",
+      "sha256": "7004a736caf9e62b3204e412835bd75b41cf1b5c6de21da2252d9f8ad054d256",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "tests/unit/providers/test_shared_multi_engine.py",
+      "sha256": "ae819a02ee984eddd60a5d4a689674b01f26f257f66e4242f57149c54b1575cf",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "tests/unit/providers/test_shared_registry.py",
+      "sha256": "7a78151236d9ee2fe3975f4a9a8a3a0f2e311dee3fde7f5ebe38d4170edee8a2",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "tests/unit/providers/test_shared_retention.py",
+      "sha256": "3601b2e471be2df52df43956db248015abdcc3348a20323c37a39481cf879dd9",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "tests/unit/services/lexical/test_tantivy_close_busy.py",
+      "sha256": "8a9ee464c974514439c25d1031af9e1031095dfcf82c474c8b319409f37e66c9",
+      "tracked": true,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "A_connector_lifetime",
+      "path": "tests/unit/services/lexical/test_tantivy_lifecycle.py",
+      "sha256": "262126246236367cb754b753334029ebd844fd642f11ebc53434b4e98f08bf95",
+      "tracked": false,
+      "method": "tracked full diff with surrounding ownership/call paths and changed tests; untracked complete content",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/services/storage/base.py",
+      "sha256": "816281544fcc1df8c3e4e11edc739e275ffbfc55ba8db469ef9dcffec4c74a47",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/services/storage/entity_index_tables.py",
+      "sha256": "0cf2c3fcb9aa9ee74e1ca804053f67097fb576167f6fbcd8a4b79aae6d29c15e",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/services/storage/entity_projection_memory.py",
+      "sha256": "a1dada806ba2cf715c5e018c7f43ec8c0c3089e2a7ad6d0d1ce5921cd9495d21",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/services/storage/mongodb.py",
+      "sha256": "c30a7b4b1f6f6476743b5126f5689c3c3010e278e5fcb9dbed01c883ac2440b1",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/services/storage/projector.py",
+      "sha256": "40554473221f0cedd2280a5ee76c51f40a7f1c5bb6d63e8c944ab637d20971c0",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/services/storage/records_port.py",
+      "sha256": "ae81077ee7dea1847794c9791d85e128e21e2459f8738bc6854d347aa3166713",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/services/storage/sql_base.py",
+      "sha256": "43d63493cb4b3e3de45d0017fee4046f684ed2c045f997a80bd74727dd8f4920",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/services/storage/sqlite/engine.py",
+      "sha256": "d5c1f2fcbbb6035b17d6b0bab9e0437ebefae90bfafa2bf8b779d0cd6f62adb1",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/services/storage/sqlite/schema.py",
+      "sha256": "95d186967c1b9148e73e5c9705ec1b61ff0d928d23dee9b6d2e2fe0c7c52957f",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/store/claim_cardinality.py",
+      "sha256": "ccca38502f39a11d0c145ad4506234e397dbee3432c95c7e5e226c4da0b3d688",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/store/claim_index.py",
+      "sha256": "27baf6c7ad0c15b3efe06746843191fd477a99c82dc485ffca7b3d01bee21e92",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/store/events.py",
+      "sha256": "b656b9af764d7170d44edec873678d543eeebbb5b286a22a608f2da26936cd63",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/store/rebuild.py",
+      "sha256": "45732bc2f24022c539237287940bc58c6bf3770032c91b4ee265b7486938906f",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/store/record_event_ids.py",
+      "sha256": "7aa6b312e6b7d2c48bedbb10fc550424fbf33b11963d130fa3b3c3926169b3a1",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/store/records.py",
+      "sha256": "dfeb818a833f4b7c1a3242a00276e67b9086556fdddea33c0ee3ea3ad165d943",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/store/registry_evidence.py",
+      "sha256": "147eb6c80813f6f161d0aa9dd7d22f71bae49f7721dfad111e05168abe8d99bb",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/store/replay.py",
+      "sha256": "56121496918b95d94b616496846d007e5ca1ef01a1b0f688d8bf1c88ef11f3ee",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/store/visibility_policy.py",
+      "sha256": "4c8add4fced021387fd9cc22945610b684a1636dbb76883b7c9acbae2171d28b",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/trust/erasure.py",
+      "sha256": "e91948ca10145221c019e56ac0719f69a05f5a6e4b41fea61e908ea08679a637",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/trust/pipeline/erasure.py",
+      "sha256": "82757368102d585dcda77f4cdbe4f36bdbfaa6f583b83e355fbb1568fac7b3ac",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/trust/pipeline/erasure_state.py",
+      "sha256": "48c50b7120c346e976839e504cb7a280d13e58fc0f1d3bbd0699d3c1b26ca823",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/trust/restatement.py",
+      "sha256": "53edd92d8d3480ad08c6aa4ae6dab5aa935b52f8469c9530b9a167399e417d54",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "src/memspine/trust/visibility.py",
+      "sha256": "0443a0140b23f01c7533ad61207b4ae11d0cef690f262514796d4cf22fda2a59",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/integration/test_rm34_mongo_entity_projection.py",
+      "sha256": "7cf129dff8ff5992b2034772830f89b3093c0b5d80a90e3277f60200b3ad635a",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/integration/test_rm34_mongo_scoped_events.py",
+      "sha256": "4d9c6a2d2b11426559aae5d75a911854f028d40ee32e55a5f037981ccae9d12d",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/integration/test_rm34_pg_event_order.py",
+      "sha256": "af9dd6d19dfe0528df8a791e0fbf7b9240bb383342e402add11528925040a463",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/integration/test_rm34_pg_projection_sql.py",
+      "sha256": "47728fa16e5306696eb0d7d19b456bbdefae6f9ee8b08807a8a916920417d3b8",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/integration/test_rm45_mongo_records_projection.py",
+      "sha256": "027d143df991fcb054a0dcca9445197b297347403b33463cdeb9c3204b487868",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/integration/test_rm45_pg_records_projection.py",
+      "sha256": "84544bdc909c95bcf96c2155b779f05fb5897ebea5cdcafe497146bf8862e829",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/core/test_erasure.py",
+      "sha256": "a144426836df7c785fbf6419b0d5af78302ed1c1312e941bbbbac7c57b6e8064",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/services/storage/test_entity_index_projection_sql.py",
+      "sha256": "fd6cd968e30b443e17cd90f9ef9cfd2b95eaae2745b3d8bc158bda581b17c871",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/services/storage/test_mongodb_records.py",
+      "sha256": "8078386309798748cb8d0f2273d242d236e215001b4bd092ecf021e20b46c220",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/services/storage/test_mongodb_registry_guard_shape.py",
+      "sha256": "e7b19e4bd76099f18730b9e60cae9118e4680d333ea792cac544260ed88f9224",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/services/storage/test_projector.py",
+      "sha256": "c5dbcf4166837a4df04fed11b5f554d4aeb760f5013c2484213ce3ab99d322e6",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/services/storage/test_records_conformance.py",
+      "sha256": "27ba614ddd2896992593f42a32afb62e2207e5ea5a87ff55f083b7d2f4191cca",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/services/storage/test_records_projection_sql.py",
+      "sha256": "64ebef949612364692bfc85d4d6b8f2205fce3f4964b48174d28a5b040d93acb",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/services/storage/test_sqlite_engine.py",
+      "sha256": "0397bdfcbd5d60956d1dca7ce841c9aeaa13c3b0221613533de7de1879faaa80",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/services/storage/test_sqlite_lease_isolation.py",
+      "sha256": "10e7b07ac66bea0a20e79ae1fe89f22a6a22decc1b4175ff56b79b1393750587",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/store/test_f16d_storage_profile.py",
+      "sha256": "f51c9e510dfe9edf8b9f6106c5e51ea81c859e26ee42da3e943fd4fc8782e0c9",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/store/test_lineage.py",
+      "sha256": "28fe95e6578d02f284d86743c7ba9b97932f8766c3e4ceb9d359b091802f3fe5",
+      "tracked": true,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/store/test_record_event_ids.py",
+      "sha256": "3f5c9d03b5c08c872f44dc2d5484d147fff1e92b7c1214138f51159388d35657",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/trust/pipeline/test_erasure_recovery_witness.py",
+      "sha256": "a02bbdcdf8289243a712dd971a96a3c0bc13b59fc273c4b08bb1312f066b5aeb",
+      "tracked": false,
+      "method": "tracked diff and surrounding native transaction/erasure call paths; full untracked code and test cases; cross-backend contract comparison",
+      "reviewed": true,
+      "outcome": "no new finding"
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/core/policies/conflict.py",
+      "sha256": "95a15e4c8136efae56c45d4a92c03c37c38926478a3855cb5c2a006a8038cce6",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/derive/coverage_stage.py",
+      "sha256": "2610b6aba12118afa2c4e2ae27e6cc0efa365836eb648af0f173dda5ced21b73",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/derive/discourse_rules.py",
+      "sha256": "71b1a5fb604cc10de3768a4a1eb0e82d425a8479fbaa576ad182808caa939483",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/derive/entity_registry.py",
+      "sha256": "3031f1483627dc38d8e286c55b2a99a7bf9ee73d3f678b44cad76f4367a7fdec",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/derive/non_generative_facts.py",
+      "sha256": "0958510a439cb2786184d5b0161e985c6d332ad5f2560339ca852efe53623909",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/derive/pipeline/integrate.py",
+      "sha256": "2d1d78942bea07e2672d5b12882a4256a13c440aaaf90f9fbc0b6e199a46da1d",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/derive/pipeline/stages/profile_erasure.py",
+      "sha256": "12cd6eb6b762b7f41f838641ca02fcfa28270badcdcb252396af111dfbe32621",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/derive/prompt_context.py",
+      "sha256": "201ffb78d628c7fee13af098650f7f06e1731c19ee9c7e29825b4f8bd98d0280",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/derive/resolve_stage.py",
+      "sha256": "aef6daea17689102c72e65d5eb7e717c641f52bda92834539241b79996064b57",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/derive/rule_source_snapshot.py",
+      "sha256": "ed9595dc73f8b911bcec8af0f5183e163af59ec3ef93c2015873d0f2cec01795",
+      "tracked": false,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/derive/write.py",
+      "sha256": "3e8467fcef7757da7d76403b1d3a4361e93dec3667912af4dc8f8ddb7ec7d94a",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/memories/associative/entity_cache.py",
+      "sha256": "0160b18d0154f5c7f9fb68b0d00228f3a65289a09e654c38d59b65fab4111c9a",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/memories/associative/entity_index.py",
+      "sha256": "862b846d8c2d803ba183c381f1e31c54bd0022a5e0ff1a67cf5a3f050c8123be",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/memories/associative/known_entities.py",
+      "sha256": "f1bc29b9787c5b01190b2aa05751a937bf413523b3f63d2637a61136dd6f3c02",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/memories/associative/store.py",
+      "sha256": "761e848a5ccf4c937b02505c55aee062ee710bf132b883ade7c992b07edd5dee",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/memories/semantic/store.py",
+      "sha256": "55a57a93d97105fa1801c870b880b0b68bb9c481a68b405d4726dc9ed3075f77",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "src/memspine/schemas/durable/semantic.py",
+      "sha256": "8f8e33bb012c876ccf94b32a38eec26f6bcb05d0ff5e6e25af12f3ee991e0347",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/scenarios/test_scenario_f01_residence.py",
+      "sha256": "505cc263cb8483d2eb2f65244e29585d8a2ba1265f934f1fb1ba587716e74f87",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/scenarios/test_scenario_f03_correction.py",
+      "sha256": "04e07a560cdf2c1d9e136f70e3125f717b65d6ca57f6316d784d4b60adb7db8d",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/scenarios/test_scenario_f04_modality.py",
+      "sha256": "67dd0194259ad89a5e2978409e3c71c9683ab61c9a82c394bc7636ffe9562cba",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/scenarios/test_scenario_f05_later_evidence.py",
+      "sha256": "ebe9b6c6f8e742caae39084970d7b2d85a4b72ead274d361a75e9311c4f2ccbc",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/derive/test_discourse_rules.py",
+      "sha256": "79f35fa90453682ab771f403f6d69a611cd33cfadeaed7c3f96f26cb460759c1",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/memories/associative/test_entity_identity.py",
+      "sha256": "b7b0c62a228563e58054ad6cdd7cf62371f9fe6e05e223d46277d1f125f80cd3",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/memories/associative/test_entity_index_freshness.py",
+      "sha256": "120d3332e9c3b9ba62dbdd87fe2cf2750861cb609fa6b52392528aacad04d2cc",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/memories/associative/test_entity_index_sqlite_race.py",
+      "sha256": "0cc82186e6f2c2608b1f996b3756c6d124cbe1c77fb53b7b86a7988f1cc54a32",
+      "tracked": false,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/memories/associative/test_entity_link_replay_order.py",
+      "sha256": "58545a46803e71f10854e86d7055ea5e6a65978ee2776e21e2511f1dd0263859",
+      "tracked": false,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/memories/associative/test_entity_nodes.py",
+      "sha256": "c0b9101608536ce88f906eb9721f2d8ab1580a2f99d6de25ad89abb2de46bd15",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/memories/associative/test_known_entities.py",
+      "sha256": "f000e1e6a1818dada71439d753d0d3a10a2092ee0edcaf227d8859d2f2ace1c6",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/memories/semantic/test_cardinality_runtime.py",
+      "sha256": "892984c009411c38e59ec3ffb717f5b1b46aec5a02b8f40a1b2300913d882695",
+      "tracked": false,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/memories/semantic/test_gliner_annotations.py",
+      "sha256": "c7c2c866a822899f29d37e2c1b6fc78f1d5a12e5562dbaddf65483b4ceafc3c5",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/memories/semantic/test_store.py",
+      "sha256": "a2e4fffb7b61e4e4f8d9a6ea8c703a9c25a4c1f463b6936e4751ed8940bb7992",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/memories/semantic/test_write_pipeline.py",
+      "sha256": "abf1ef65f42d4b69fd1575b7a24167106e0a9382ce8048e7c3b5dfc7bc41c2d0",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "C_canonical_claim_identity",
+      "path": "tests/unit/schemas/fixtures/durable/semantic_envelope.v1.json",
+      "sha256": "5702d1e33e96db015f2f4140faf760e431474766d5346ebc4825b3dabc01bc78",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with surrounding canonical/identity call paths and scenario/unit assertions; read full untracked implementation and tests; checked source-binding, erasure, ordered replay, known-time, cardinality and proof contracts.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect in this path at inspected SHA."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/ingest/discovery.py",
+      "sha256": "3dcaefc0b09f30937ea254607284163a371611aa3338152e58a2039753cbe339",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/ingest/gateway.py",
+      "sha256": "4c90d3fe512eb6dbeb1dde44b395820ce22f317777af4939e8aafec0fd9121a8",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/ingest/intake_store.py",
+      "sha256": "09c8d2090f23c6621388bed3b0bd68fb4aa10cb458ca652b4fa0e74ef8b69412",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/ingest/message_apply.py",
+      "sha256": "2c12bd21c4ab21fe3f636ce480ee152e0732741db7d093e3ac5faf94b3563020",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/ingest/message_helpers.py",
+      "sha256": "51d720aeb4af72e0e89d83cb5681c962ba255d3183cc3e113ab05f7fcd95c7eb",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/ingest/message_ingestion.py",
+      "sha256": "c80c3ff2718f9cfd1866daf6c443fa6abadfc77c2660c71776dc4ca5462470e6",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/ingest/message_parent.py",
+      "sha256": "7380c1b06c236ab5ec9b545dbe4973ba53dce803554527de30ce491a99bc5267",
+      "tracked": false,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/ingest/message_store.py",
+      "sha256": "83fdc95de33e3674cdd78a44f7eb7e0e2f4dc2b65cc119b4726501d8befd23dc",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/ingest/windows.py",
+      "sha256": "db66b68cb98f8c849cd4248abf8890cd26a830ce8b2be3fa743d740265d8028e",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/ingest/write.py",
+      "sha256": "c133b1c4c67b31a3c051a2f3497def095dc31d99e40c724f87077c6d47eb22c8",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/runtime/outbox.py",
+      "sha256": "ba31d2c723fa2c24ef87155b650685350d310e3b8870e80a487ec3c8c10552ae",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/runtime/runner.py",
+      "sha256": "0b8e8ccdf45ed10d98f159723b36f923f75f2785faa8774f13426be6fe429f92",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/runtime/temporal_outbox.py",
+      "sha256": "48775a7408c943e3f69aaaf6aa985dd76f59489686494a6106d31fb983d9bc99",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/schemas/durable/ingestion.py",
+      "sha256": "5bfee834d0343bb838a633feda9f3c8bcf2f0c6410c46bda6aa43d6991b0c788",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/services/storage/intake_port.py",
+      "sha256": "824857ad2ccebbafcf2e0cc7f45d897309b9dfb3fab14d465c9cadf6135b3590",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/services/storage/intake_sql.py",
+      "sha256": "60af685c304aa15ef5ab8b01ed7ccec7af87e4c746bc50f81d2ddffc13c2d65c",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/workers/temporal_runner.py",
+      "sha256": "c3391a2d768bd1e96d1faa1c94c0155c9690ce90e2eb6bfc5a42b320ca35fed6",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/workers/temporal_workflow.py",
+      "sha256": "35b995c15d9c4260fce74f3676fd0ba67edec920a3334de37603607896050849",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "src/memspine/workers/windows.py",
+      "sha256": "c7c819d9e841fef1e0506b3c3e09c7b2a029e9f0c4c6e0a4c1531818daf18349",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff and surrounding intake/outbox/window/Temporal call paths; full untracked source read; checked reply parent gates, failed-intent transaction, activation/replay, staging/promotion, erasure scrub, cancellation and lifecycle.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known reply-erasure regression separately assigned for source repair."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/integration/test_runner_parity.py",
+      "sha256": "433b46abb483c75939077774e87d124083bcaaee5ffadfaa514c358505982681",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/integration/test_temporal_resonate_recovery.py",
+      "sha256": "5a677928a5bc56fd1d58b7903a36f057b7244a0d61ffe843ad23bd6c70cb62cb",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/scenarios/test_f03_window_compensation.py",
+      "sha256": "78473818523e5b631ba30a20e7ba751b2570c32f446acad010cf277764809c00",
+      "tracked": false,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/ingest/test_message_ingestion.py",
+      "sha256": "7ab87484370df6ddef68b93a899c4c09f6f608a25f8079811e301336377f09f5",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/runtime/test_readiness_deadline.py",
+      "sha256": "87da1e77d973b909143a0932195e3ee630e524c32ae4db1bc2053f9ba792348c",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/runtime/test_temporal_outbox.py",
+      "sha256": "091bfdfe8823d3156101b069f81ea26a6130d984d47fe7547f39507d3862a5e8",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/runtime/test_temporal_outbox_transport.py",
+      "sha256": "9f800a2f685d26af161f88e22b10682beb651b444e0ea9788e11bf79e1adc47b",
+      "tracked": false,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/runtime/test_unresolved_annotations.py",
+      "sha256": "b04e9324499c3c4afc56a8d76888103d749e6fac74b7283ef6a54043ab4159b1",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/runtime/test_window_crash_safety.py",
+      "sha256": "ccec04dcfe0452dca9fc9054fd21414a12882ad5f49d20243dd6ddf561b49eb5",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/runtime/test_window_draft_incremental.py",
+      "sha256": "fd85230e6493a0a81fd604283b1bbcaa25148458493857e0bcbfa8959bb2d096",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/runtime/test_window_staging_recovery.py",
+      "sha256": "fabe530cab5cfe148ddb3e247759ec08b40c91b27806cb7236f6f3400e506315",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/services/storage/test_intake_ledger_conformance.py",
+      "sha256": "9f521a0450c41c578d7322bd3fc98f0bed0609349caf9ac250be622f3cfed8d1",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/test_cli_outbox.py",
+      "sha256": "8ba88e5592a28a3b5d7a3855aeeb033fd40de94819d122f165d0c6a295c053a5",
+      "tracked": false,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/workers/test_lifecycle_pipelines.py",
+      "sha256": "3d205cfb7fe239bcc16d9c8b0486fb44a0425e1b40d973b48b6b8a8f69607b93",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/workers/test_temporal_outbox_workflow_totals.py",
+      "sha256": "1e28fcbd7759e6095db4358e38c88bfa5fd794fc594084438f7ebda259cac24b",
+      "tracked": false,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/workers/test_temporal_runner.py",
+      "sha256": "1c760212cd1515112df6e611179a3154b053bec42c399e5a228665eaae38a19a",
+      "tracked": true,
+      "method": "Inspected tracked HEAD test diff or complete untracked test, assertions and fixture reachability; crosschecked against intake, outbox, window, and Temporal implementation.",
+      "reviewed": true,
+      "outcome": "Coverage inspected at pinned SHA; no independent new defect beyond currently assigned top-level preflight repairs."
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "src/memspine/api/engine.py",
+      "sha256": "fb429bd1f734e01085b578da627be40e691e38e30e8e2cc73b597724b75cada6",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with Engine/REST/CLI/read call paths and complete untracked cardinality overlay; checked viewer scope, consent, known-time, grouped snapshot, output copying, lifecycle and ordered projector dispatch.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known erasure-intake failure separately assigned."
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "src/memspine/api/rest/app.py",
+      "sha256": "796e6410aaea938d3979f351bf0a46fa0d38a123246fc9dd156815c27efa57e7",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with Engine/REST/CLI/read call paths and complete untracked cardinality overlay; checked viewer scope, consent, known-time, grouped snapshot, output copying, lifecycle and ordered projector dispatch.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known erasure-intake failure separately assigned."
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "src/memspine/api/rest/models.py",
+      "sha256": "465697b0a07246cdde3bdeee566294b61b1b919a1df9c4b67d60971810d9d03d",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with Engine/REST/CLI/read call paths and complete untracked cardinality overlay; checked viewer scope, consent, known-time, grouped snapshot, output copying, lifecycle and ordered projector dispatch.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known erasure-intake failure separately assigned."
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "src/memspine/cli.py",
+      "sha256": "e7cfe3e9f4afb05406d8ccc30b057f8ea3fd2c574fa082c474c3eb433b4ea2f7",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with Engine/REST/CLI/read call paths and complete untracked cardinality overlay; checked viewer scope, consent, known-time, grouped snapshot, output copying, lifecycle and ordered projector dispatch.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known erasure-intake failure separately assigned."
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "src/memspine/config/constants.py",
+      "sha256": "c87da1324e88f87fcad666112b583f47438ac4de3325ff383be513dc4029791d",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with Engine/REST/CLI/read call paths and complete untracked cardinality overlay; checked viewer scope, consent, known-time, grouped snapshot, output copying, lifecycle and ordered projector dispatch.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known erasure-intake failure separately assigned."
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "src/memspine/read/pipeline/cardinality_overlay.py",
+      "sha256": "d6846d94dbc894abf993d371c59cb765db6de684c4864db3ab40ed31e9f1dfb3",
+      "tracked": false,
+      "method": "Inspected tracked HEAD diff with Engine/REST/CLI/read call paths and complete untracked cardinality overlay; checked viewer scope, consent, known-time, grouped snapshot, output copying, lifecycle and ordered projector dispatch.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known erasure-intake failure separately assigned."
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "src/memspine/read/pipeline/router.py",
+      "sha256": "b520d55f483e4fc3a2ce8fcb1ea2f77e4ac274a6220765275108b729dda7b998",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with Engine/REST/CLI/read call paths and complete untracked cardinality overlay; checked viewer scope, consent, known-time, grouped snapshot, output copying, lifecycle and ordered projector dispatch.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known erasure-intake failure separately assigned."
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "src/memspine/read/pipeline/scope_guard.py",
+      "sha256": "51eb3aa678d55388e1c92633c0caed370ebe22ca6ec6bb91fc6bc799647390bb",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with Engine/REST/CLI/read call paths and complete untracked cardinality overlay; checked viewer scope, consent, known-time, grouped snapshot, output copying, lifecycle and ordered projector dispatch.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known erasure-intake failure separately assigned."
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "src/memspine/read/timeview.py",
+      "sha256": "0b165fa0cb753a03a1a81dfb696825647e79ea026ee3899948edaeb8d76a42ad",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with Engine/REST/CLI/read call paths and complete untracked cardinality overlay; checked viewer scope, consent, known-time, grouped snapshot, output copying, lifecycle and ordered projector dispatch.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known erasure-intake failure separately assigned."
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "src/memspine/runtime/container.py",
+      "sha256": "b5a2cd7067b160df517a13d9a2d363c020ffc7a4702ba4b3ee87b74b6bfaed12",
+      "tracked": true,
+      "method": "Inspected tracked HEAD diff with Engine/REST/CLI/read call paths and complete untracked cardinality overlay; checked viewer scope, consent, known-time, grouped snapshot, output copying, lifecycle and ordered projector dispatch.",
+      "reviewed": true,
+      "outcome": "No independently confirmed new defect at pinned SHA; known erasure-intake failure separately assigned."
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/api/rest/test_rm145_entity_identity_routes.py",
+      "sha256": "b196a4cb1d2f4da3fb7724f1ad2fef7f5c0625e47df316f09f5c4c098b7346b6",
+      "tracked": false,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/golden/simple_profile_defaults.json",
+      "sha256": "8eed17bfe5ff657a5e7012fa8e81763f5fe774344a0bf6119469a780df859e80",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/services/graph/test_parity.py",
+      "sha256": "d008cfc9f5b7a2ab4f3e72d10a122eea320a56a593d00656fa2a67d119d3e67c",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/test_cli_models_fetch.py",
+      "sha256": "2569715c614a5d9f8c6f51e177d3b2f30078ae8a1e3211d7ef109de426a144f5",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/test_reply_links.py",
+      "sha256": "69b42742eb6ebc6cca585d4947cd92ceb6d2229545949dd5fc3624f38c51d202",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_adr095_erasure_gate.py",
+      "sha256": "e078b813bee62455a0f1e5a3433417ad828caa52d3e78d66ed6190686fa95a69",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_f_16e_neo4j_outbox.py",
+      "sha256": "4d881985607fc3d17cbf81ea0882106294a90959e0cd06e434cae114367cca5e",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_rm104_graph_leg_frontier.py",
+      "sha256": "e430ca5eebd8c07fb687faca047b2c9830160e035a6c8503419747ca8ad6f451",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_rm115_batch_records.py",
+      "sha256": "05ce52933e20ac654a002b5361706bf1f3194b2ba4d09dae27c9c77a543a8f90",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_rm130_entity_identity.py",
+      "sha256": "2a91d69aca17584b2a9a5e304a2a0eb623e6b7bfb33fef80b97fae0c05dba11a",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_rm145_public_entity_identity.py",
+      "sha256": "cd6ba6709f334fcd9470be16579e87a2956694ef74aad1ccd2496c80cf6826c4",
+      "tracked": false,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_rm45_scoped_cardinality.py",
+      "sha256": "43e4dee8e33a5bc1eb568b27340623c5b69146096c45c85029ec548ead6fd13e",
+      "tracked": false,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_rt_02_scheduler.py",
+      "sha256": "19311bfc7d71a364e3edffec19721f209250ae7ab1726fefdbeb77d0fb1b9f10",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_w2_06b_prompt.py",
+      "sha256": "d70e9e44198c664a861d373289e209fe82070cbec6b9f138fff21bd5847e5ab9",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_w2_06c_known_sources.py",
+      "sha256": "451828fb1f1650170a59ddd0132819338a6a809491988837afdcbb7ce12267ed",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_w2_09_resolve.py",
+      "sha256": "f6a6cf2544ed85c3fd4f05c8eb53dfa221980e2ce03764091500bf9d379c979c",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck",
+      "prior_hashes": [
+        "207d931c9fcb153343e0425484899a45d4f74dc550a96f271a06c99e63f0ab69"
+      ]
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_w2_10_integration.py",
+      "sha256": "d6630b8c7ac1beb50bbc76582fb4bdc86bdf92f4f61b263b096cfcf405a89885",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/wiring/test_w2_11_asset_describer.py",
+      "sha256": "a32c1109ca89d10bc0c33b0f7f4462fd2a0c723e3cf8f6ad04e71f2fea55d3ea",
+      "tracked": true,
+      "method": "Tracked changed hunks read in full; untracked full source read; compared public API/read contracts and focused failures",
+      "reviewed": true,
+      "outcome": "No additional independent finding; author-fixed regressions require final-byte recheck"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "evals/analysis/dataset_pattern_audit_2026_11_09.json",
+      "sha256": "9c83f70a4e4fd4f6651a9bbf53f3918e45e53e719127254e983e6562491b02f1",
+      "tracked": false,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "infra/local-services.compose.yaml",
+      "sha256": "a9ca16fbf0d7b23dd8255ef720b8262103294ab743d92e41b7981f34efb462f2",
+      "tracked": false,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "scripts/benchmark_engine_read_ingest.py",
+      "sha256": "9af1bd849807788402de8d109183efc59b1b5b373cdba0be2b84ed700bfc94e9",
+      "tracked": true,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "scripts/check_remote_provider_resource_soak.py",
+      "sha256": "20f27ee150634254ff69a0aca34b65dba77dde8e8b1dc45f7772f3132ce8909a",
+      "tracked": false,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "scripts/local_services.py",
+      "sha256": "e6e3e24dff67d5ba2a375c79d6e051c910de9e1a66cdf22ece3c602c511234f1",
+      "tracked": false,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit; final Neo4j stdin shell quote-only formatter amendment inspected, command semantics unchanged; launcher 11 passed",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "scripts/record_verification_run.py",
+      "sha256": "80e7651e8bea722086f0fdb0b9fd25494f96955b4b96defa9bd6258c20d36558",
+      "tracked": true,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "scripts/rm31_owned_services.py",
+      "sha256": "3b467b75d200bd0f9b429d91cba34a087c7b1efb3d3103880b188ac02daf5b62",
+      "tracked": false,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "tests/quarantine.txt",
+      "sha256": "5e2105accc31f0173a4c6465b424ec384654d8329c6f6a9021d5e727be3d42d4",
+      "tracked": true,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "tests/unit/test_benchmark_engine_read_ingest_config.py",
+      "sha256": "14f238748ed595f14d0f00f0254751b16eef5f3c75b24809990c99fd25c19e48",
+      "tracked": false,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "tests/unit/test_benchmark_engine_read_ingest_protocol.py",
+      "sha256": "fb183d0614f8178401cb62778cdd43fd90157f9f69412e3263677dfc70bd94dc",
+      "tracked": false,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "tests/unit/test_local_services_launcher.py",
+      "sha256": "3917f46622bf76248d93e050cad8b6178cc5be801e6bc626305fbcbcad74f869",
+      "tracked": false,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "tests/unit/test_remote_provider_resource_soak.py",
+      "sha256": "7a3ca78d30da9b937347221b37f578854aeaa38c28f243ac2fc6e29f84718de8",
+      "tracked": false,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "tests/unit/test_verification_ledger.py",
+      "sha256": "3a6dacc819dee7947571c13fc3b295dbabd22125a5086725272189076044b122",
+      "tracked": true,
+      "method": "Tracked diff and full untracked code/tests read; benchmark/soak lifecycle, ownership, deadlines, redaction, budgets, config and provenance audited; dataset JSON structured schema/claim audit",
+      "reviewed": true,
+      "outcome": "No independent blocking finding"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/FEATURES.md",
+      "sha256": "c9f79972ec4a6d1f64d0cce91e458e411b31404e3cd81a331a12966c25734397",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/LOCAL_SERVICES.md",
+      "sha256": "de4408f0b1d545ac3911306f0b8e69bfa592605a8833050f6e9d2c2849093ee2",
+      "tracked": false,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/PROVIDER_TODO.md",
+      "sha256": "23f9b0befb95464ee113f34b39d9de74f83688bff100d168db6378a307bcd384",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/RECORDS_STORE_CONTRACT.md",
+      "sha256": "d6397f649919834be72a8b662fff23264952281ccf916dc4ac07522a6caa1e16",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/USAGE.md",
+      "sha256": "e038e64bb751f74a668510ef9946adb157207f13bce694fe1f84a43c4a39af1f",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/adr/ADR-088-semantic-envelope-canonical-claim.md",
+      "sha256": "d2ec3a1635ab6c25189bbbd89ebed12b973d9c3ea955c165b860d17b3a411993",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/adr/ADR-090-ingestion-boundary-and-durability.md",
+      "sha256": "5e4f0143448964b61825e0b184d9a8ca0692e3489f64bb25f5db992c9559212f",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/adr/ADR-093-default-reranker-and-model-fetch.md",
+      "sha256": "ab70a63222b24d296db49ce185da11cc9c098fc4b049e010b91377efbc2be95e",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/adr/ADR-095-erasure-gate-all-copy-classes.md",
+      "sha256": "4ebcc932fe70b8ba46d74192987f56b24e6bf953f986b17f3583ea49ecf2842d",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/provider_verification/LEDGER_USAGE.md",
+      "sha256": "073142b1ea71930d6ebc39a87bee78a3584affe1401019e28f8ab8d9cf494b59",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/provider_verification/dependency-audit.json",
+      "sha256": "823b4340efefa71b6743479333e6cbfec8fb6e8f455327559f037dea604d6fd7",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/provider_verification/dependency-refresh-plan-2026-11-15.json",
+      "sha256": "ab5c87ef7f4450e4e55a38def17740ff7d7dbcb16a421f60e1af613642e2959d",
+      "tracked": false,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/provider_verification/reviewed-wave-inventory-2026-11-15.json",
+      "sha256": "cd1f8bf631ec9114f223237bafd80527c70daa8f658164964b896aee7f317991",
+      "tracked": false,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated; final 211-path self-exclusion inventory recapture/provenance and external self hash verified",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck",
+      "prior_hashes": [
+        "a57e0acca96a5ecc33ad3c30ce5b0290ca9021414a89a5a2537792149398809d"
+      ]
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/provider_verification/rm31-native-pool-soak-20261115T091450Z.json",
+      "sha256": "7577f9adfe31249e3a1df7bfeb4468b655ad10cf3c2e10234754483c30be0bca",
+      "tracked": false,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/provider_verification/rm31-native-pool-soak-20261115T092431Z.json",
+      "sha256": "301588db008f2ecf9d1a221ba3a215b4b95b49879dcd4322d3ffd22ac4fdd439",
+      "tracked": false,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/provider_verification/rm31-native-pool-soak-20261115T100034Z.json",
+      "sha256": "c007d8c48567adae08991a0abb3613beaf9b70173b522970ae75a8fc68ad53e5",
+      "tracked": false,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/provider_verification/rm31-native-pool-soak-20261115T100608Z.json",
+      "sha256": "b122ec95ad25b9dcf15a6fe9b7b58a1b4d2d446a6f10c997cdb2a10190ba9a15",
+      "tracked": false,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/provider_verification/rm31-native-pool-soak-20261115T101113Z.json",
+      "sha256": "2983751ba145925fe3dea11b156578e09742fd58255619e0644dd7ebba42ed92",
+      "tracked": false,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/provider_verification/rm31-native-pool-soak-review1-diagnostic-20261115T101609Z.json",
+      "sha256": "eda53cbe2b33b58310facd6acafbc1bc1aea08a35cd394353d01daf0ff7e22e4",
+      "tracked": false,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/provider_verification/rm31-native-pool-soak-review2-20261115T092845Z.json",
+      "sha256": "f63251d6690fd6446143913dfa31e659560670a0fdc173db4b54ca5a42304238",
+      "tracked": false,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/v2/STAGE_PARAMS.md",
+      "sha256": "f7d46d69d8d7a1dca30d564d05f2f4cfe2517bb128428d556c58e25c054fe49f",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/v2/pipelines/insert.md",
+      "sha256": "2e96d447d45c53d58df129c22a140ddc4fe167cc24da0b554aeb27c09d988948",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/v2/task_decision_dashboard.html",
+      "sha256": "5d5f14ba80940ac3b6bdaae580c7c3915e5fd9f2cc191db4dbabf032c584074e",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/v2/tracker.html",
+      "sha256": "f5d11d81e19f7d238bca49ccf15f7b01060a47e9244c0728ec9adf9f4298ebda",
+      "tracked": true,
+      "method": "Changed prose/ADR diff read; tracker 342-row status/dependency and generated-view check; dependency audit/plan cross-hash+23-target validation; seven soak artifacts structured 35-cycle/telemetry/credential/provenance audit; inventory 201-path lineage, flags and historical labels validated",
+      "reviewed": true,
+      "outcome": "One low-severity stale tracker next-action wording reported; final refreshed bytes require recheck"
+    },
+    {
+      "partition": "D_ingestion_durability",
+      "path": "tests/unit/workers/test_workers.py",
+      "sha256": "f074b3ffbc73216264726b4421e53c4e0aa3a54348538ae60e8ac7fce1ee53fc",
+      "tracked": true,
+      "method": "Full changed diff read; focused regression independently passed; generated JSON cross-checked with stage generator",
+      "reviewed": true,
+      "outcome": "No independent finding"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/test_engine_integrity.py",
+      "sha256": "9b3703bfdd1d278cbbdee2cf6b44431ed9785f30d7eaf85c8656c04f1d9e02e6",
+      "tracked": true,
+      "method": "Full changed diff read; focused regression independently passed; generated JSON cross-checked with stage generator",
+      "reviewed": true,
+      "outcome": "No independent finding"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/unit/test_wave3_read_off_golden.py",
+      "sha256": "951290e16fcd67918d57e28bc739e6f5dbcd7aa8a0dc87228c560b6d009ed1b4",
+      "tracked": true,
+      "method": "Full changed diff read; focused regression independently passed; generated JSON cross-checked with stage generator",
+      "reviewed": true,
+      "outcome": "No independent finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/test_engine_projection_batch.py",
+      "sha256": "1a8e6c520d41b12f5e38b327de40435604669867c86072b360b65fe1478c68ea",
+      "tracked": true,
+      "method": "Full changed diff read; focused regression independently passed; generated JSON cross-checked with stage generator",
+      "reviewed": true,
+      "outcome": "No independent finding"
+    },
+    {
+      "partition": "B_storage_projection_erasure",
+      "path": "tests/unit/test_engine_projection_batch_vectors.py",
+      "sha256": "7dbd5b58e2df704d358cf4e835fa3801f4caf5f5029e39790a58c85d8454f31f",
+      "tracked": true,
+      "method": "Full changed diff read; focused regression independently passed; generated JSON cross-checked with stage generator",
+      "reviewed": true,
+      "outcome": "No independent finding"
+    },
+    {
+      "partition": "G_docs_evidence",
+      "path": "docs/v2/data/stage_params.json",
+      "sha256": "029bc3745c3e878f660254645c651b5c84b049858b4bf938f79eef171793446c",
+      "tracked": true,
+      "method": "Generated JSON changed keys/values and stage inventory cross-checked with source and generated Markdown",
+      "reviewed": true,
+      "outcome": "No independent finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "evals/feature_audit.py",
+      "sha256": "8d3c587653278d98002256b147ff14cb0452f4119407a496e18ff3cad3fd5c95",
+      "tracked": true,
+      "reviewed": true,
+      "method": "Exact changed diff reviewed; explicit hash-embedder rerank isolation and overriding model kwargs checked; full affected eval tests independently 7 passed",
+      "outcome": "No independent finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "evals/tests/test_adapter_parity.py",
+      "sha256": "4742d868d896031a9cbc62aa0bb05238797d064d2736003f4e2d1f6a06d06f0a",
+      "tracked": true,
+      "reviewed": true,
+      "method": "Exact changed diff reviewed; explicit hash-embedder rerank isolation and overriding model kwargs checked; full affected eval tests independently 7 passed",
+      "outcome": "No independent finding"
+    },
+    {
+      "partition": "F_tooling_operations",
+      "path": "evals/tests/test_batch_turns.py",
+      "sha256": "806855c4353bbc4fa4f3b38ce40775c5218081fb53bf2b7f0dff92f8cf568518",
+      "tracked": true,
+      "reviewed": true,
+      "method": "Exact changed diff reviewed; explicit hash-embedder rerank isolation and overriding model kwargs checked; full affected eval tests independently 7 passed",
+      "outcome": "No independent finding"
+    },
+    {
+      "partition": "E_public_read_integration",
+      "path": "tests/combinations/test_template_boots.py",
+      "sha256": "6d48d732bd2893e94744916b116d5c22af960a8034d022b69af68a0e58dadc8c",
+      "tracked": true,
+      "method": "Full changed file and exact diff inspected; real pure Temporal config fingerprint retained, fake activity registration/lifecycle isolated; independent whole template module 13 passed",
+      "reviewed": true,
+      "outcome": "No independent finding"
+    }
+  ],
+  "manifest_history": [
+    {
+      "sha256": "a2b1638cf2955afd665a549d0894657ce8b0e1e553573fc9d1153110e6c5f3dd",
+      "note": "initial frozen capture; one fixture amended and current inventory labels reconciled"
+    },
+    {
+      "sha256": "9a4f5c487d8a27b4755d1afd0f3ebbc38af16ed2e9d3596911bad670860a6b70",
+      "note": "Final frozen 210-path capture; every status, path, partition, byte size and SHA rechecked independently; inventory self hash supplied externally."
+    },
+    {
+      "sha256": "65be292af2b787d5a4b4006ee889a126e766c3501c80975d8ef63c91892164aa",
+      "note": "Final frozen 211-path capture; one template fixture added, local-services quote-only amendment rechecked; every Git status/path/partition/byte size/SHA reconciled; inventory self hash externally verified."
+    }
+  ],
+  "checks": [
+    {
+      "name": "wiring_contract_compose_preflight_before_repair",
+      "result": "1449 passed, 12 skipped, 1 failed; failure repaired and focused rechecked"
+    },
+    {
+      "name": "top_level_unit_preflight_before_repair",
+      "result": "2071 passed, 2 skipped, 8 failed; defects/fixtures repaired and affected checks rechecked"
+    },
+    {
+      "name": "evals_preflight_before_repair",
+      "result": "1969 passed, 16 skipped, 4 failed; hash/offline fixtures repaired, independent 7 passed"
+    },
+    {
+      "name": "erasure_reply_f03_witness_root_gate",
+      "result": "46 passed; root-run dirty-tree diagnostic"
+    },
+    {
+      "name": "erasure_r1_independent",
+      "result": "3 reply tests passed; 2 intake binding controls passed, 1 optional native skipped"
+    },
+    {
+      "name": "batch_r1_independent",
+      "result": "3 affected tests passed"
+    },
+    {
+      "name": "trust_r1_independent",
+      "result": "1 final-hash target passed; 3 earlier combined targets passed"
+    },
+    {
+      "name": "eval_r1_independent",
+      "result": "7 passed"
+    },
+    {
+      "name": "worker_fixture_r1_independent",
+      "result": "4 passed"
+    },
+    {
+      "name": "stage_params_generator",
+      "result": "--check passed"
+    },
+    {
+      "name": "tracker_generator",
+      "result": "--check passed 342 tasks; final metadata recheck pending"
+    },
+    {
+      "name": "source_quality_root",
+      "result": "Ruff/format and strict mypy clean for 696 source files; dirty-tree diagnostic"
+    },
+    {
+      "name": "eval_mypy_author_baseline_comparison",
+      "result": "57 diagnostics in current and HEAD shadow changed files, identical normalized sets; typing gate not clean"
+    },
+    {
+      "name": "final_template_and_launcher_r1_independent",
+      "result": "24 passed, including 13 template and 11 launcher tests; exact amended hashes checked"
+    },
+    {
+      "name": "final_211_manifest_inventory_reconciliation",
+      "result": "211 of 211 Git status paths exactly once; partition, status, byte size and SHA match current files; inventory self-hash and pre/post nonself captures match; HEAD/tree stable"
+    }
+  ],
+  "coverage_counts": {
+    "A_connector_lifetime": 26,
+    "B_storage_projection_erasure": 44,
+    "C_canonical_claim_identity": 33,
+    "D_ingestion_durability": 36,
+    "E_public_read_integration": 31,
+    "F_tooling_operations": 16,
+    "G_docs_evidence": 25
+  },
+  "current_status_paths": 211,
+  "reviewed_paths": 211,
+  "last_updated_at_utc": "2026-11-15T15:27:47.803566+00:00",
+  "inventory_sha256": "cd1f8bf631ec9114f223237bafd80527c70daa8f658164964b896aee7f317991",
+  "open_material_findings": 0,
+  "limitations": [
+    "Dirty-tree review and tests; this is R1 approval of the 210-path diff only, not a clean-revision phase C or whole-program completion claim.",
+    "Independent R2 remains required before the checkpoint.",
+    "Eval mypy has 57 pre-existing normalized diagnostics on both current and HEAD shadow files, so it is not a passing typing gate.",
+    "Native PostgreSQL/Mongo/Temporal and controlled performance/release gates remain separate."
+  ]
+}

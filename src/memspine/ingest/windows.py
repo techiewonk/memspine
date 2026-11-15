@@ -8,8 +8,10 @@ from collections.abc import (
     Callable,
     Sequence,
 )
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, cast
+
+from pydantic import ValidationError
 
 from memspine.config import constants
 from memspine.config.schema import MemspineConfig
@@ -19,6 +21,7 @@ from memspine.derive.failure_ledger import FailureLedger
 from memspine.derive.grounding_stage import build_grounding_stage
 from memspine.derive.items import ItemValidator, RepairAsk
 from memspine.derive.known_sources import prepass_known, resolver_known
+from memspine.derive.non_generative_facts import UnresolvedAnnotation
 from memspine.derive.online_extractor import OnlineExtractor
 from memspine.derive.pipeline.stages.close import session_close
 from memspine.derive.pipeline.stages.context import SessionClosed
@@ -39,13 +42,14 @@ from memspine.prompts.structured import STRUCTURED_PROMPT_ID, STRUCTURED_VERSION
 from memspine.read.pending_barrier import BarrierResult, PendingBarrier
 from memspine.schemas.durable.common import OwnerScope
 from memspine.services.storage.records_port import RecordsStore
-from memspine.store.events import EventKind, MemoryEvent
+from memspine.store.events import EventKind, MemoryEvent, fingerprint_payload
 from memspine.store.records import (
     MemoryRecord,
     RecordStatus,
     SourceInfo,
 )
 from memspine.store.scope import validate_namespace
+from memspine.trust.visibility import visible_to
 from memspine.workers.windows import (
     SECTION_MODES,
     EnvelopeWrite,
@@ -281,20 +285,143 @@ def _remove_window_derived(eng: Any) -> Any:
     fence refused after the commit leaves nothing behind. Returns how many were removed."""
 
     async def remove(namespace: str, window_id: str) -> int:
+        from memspine.trust.pipeline.erasure_state import (
+            _finish_forget,
+            _forget_under_lock,
+            prepare_window_correction_compensation,
+            resume_window_correction_compensation,
+        )
+
         storage = eng._require_started()
         tag = f"window:{window_id}"
-        ids = [
-            r.record_id
-            for r in await storage.list_records(namespace, "semantic")
-            if tag in r.tags and r.status is not RecordStatus.DELETED
-        ]
-        for record_id in ids:
-            await eng.forget(
-                record_id, namespace=namespace, hard=True, actor="system", reason="window_fenced"
-            )
-        return len(ids)
+        records = [r for r in await storage.list_records(namespace, "semantic") if tag in r.tags]
+        removed = 0
+        for candidate in records:
+            record_id = candidate.record_id
+            completion: tuple[str, list[str], list[str], list[str]] | None = None
+            try:
+                async with eng._write_locks.setdefault(namespace, asyncio.Lock()):
+                    record = await storage.get_record(record_id)
+                    if record is None or record.namespace != namespace or tag not in record.tags:
+                        continue
+                    if await _has_independent_committed_support(eng, storage, namespace, record):
+                        continue
+                    await prepare_window_correction_compensation(eng, storage, namespace, record_id)
+                    completion = await _forget_under_lock(
+                        eng,
+                        storage,
+                        namespace,
+                        record_id,
+                        None,
+                        actor="system",
+                        reason="window_fenced",
+                    )
+                    await resume_window_correction_compensation(eng, storage, namespace, record_id)
+            finally:
+                if completion is not None:
+                    await _finish_forget(
+                        eng, namespace, completion, actor="system", reason="window_fenced"
+                    )
+            removed += 1
+        return removed
 
     return remove
+
+
+async def _has_independent_committed_support(
+    eng: Any, storage: Any, namespace: str, record: MemoryRecord
+) -> bool:
+    """A later proven restatement may survive the refused window's compensation."""
+    from memspine.trust.pipeline.erasure_state import visible_id
+    from memspine.trust.restatement import valid_proof
+
+    proof_sources = valid_proof(record)
+    windows = getattr(eng, "_windows", None)
+    if not proof_sources or windows is None:
+        return False
+    original_parents: set[str] = set()
+    after = 0
+    while True:
+        batch = await storage.read_events(after_seq=after, limit=1000)
+        if not batch:
+            break
+        for event in batch:
+            snapshot = event.payload.get("record")
+            if (
+                event.namespace == namespace
+                and event.kind is EventKind.WRITE
+                and isinstance(snapshot, dict)
+                and snapshot.get("record_id") == record.record_id
+            ):
+                source = snapshot.get("source")
+                if isinstance(source, dict) and isinstance(source.get("parents"), list):
+                    original_parents = set(source["parents"])
+                break
+        if original_parents:
+            break
+        assert batch[-1].seq is not None
+        after = batch[-1].seq
+    if not original_parents:
+        return False
+    envelope = record.fingerprint.envelope or {}
+    evidence: list[object] = list(envelope.get("evidence", []))
+    roles = envelope.get("role_bindings")
+    if isinstance(roles, list):
+        evidence.extend(
+            item for role in roles if isinstance(role, dict) for item in role.get("evidence", [])
+        )
+    for source_id in original_parents:
+        source = await storage.get_record(source_id)
+        if (
+            source is not None
+            and source.namespace == namespace
+            and source.status is RecordStatus.ACTIVATED
+            and not source.quarantined
+            and visible_id(eng, source_id)
+        ):
+            continue
+        if any(
+            isinstance(item, dict)
+            and isinstance(item.get("turn"), dict)
+            and item["turn"].get("source_id") == source_id
+            and isinstance(item.get("span"), dict)
+            and item["span"].get("quote")
+            for item in evidence
+        ):
+            return False
+    effects = windows.derivation_effect_status(namespace)
+    for source_id in proof_sources:
+        if source_id in original_parents:
+            continue
+        source = await storage.get_record(source_id)
+        if (
+            source is None
+            or source.namespace != namespace
+            or source.status is not RecordStatus.ACTIVATED
+            or source.quarantined
+            or not visible_id(eng, source_id)
+        ):
+            continue
+        content_hash = fingerprint_payload({"content": source.content})
+        for effect in effects:
+            identity = effect.get("identity")
+            snapshots = identity.get("sources") if isinstance(identity, dict) else None
+            if (
+                effect.get("stage") == "window"
+                and effect.get("layer") == "facts"
+                and effect.get("state") == "complete"
+                and isinstance(snapshots, list)
+                and any(
+                    isinstance(snapshot, dict)
+                    and snapshot.get("record_id") == source_id
+                    and snapshot.get("namespace") == namespace
+                    and snapshot.get("source_version") == source.version
+                    and snapshot.get("content_hash") == content_hash
+                    for snapshot in snapshots
+                )
+            ):
+                return True
+    return False
 
 
 def _mark_disputed(eng: Any) -> Any:
@@ -343,10 +470,10 @@ def _known_from_store(eng: Any, cap: int) -> KnownSource:
         limit=max(cap, 1),
     )
 
-    async def source(ns: str, text: str) -> Sequence[KnownEntity]:
+    async def source(ns: str, text: str, known_seq: int | None = None) -> Sequence[KnownEntity]:
         if getattr(eng, "_associative", None) is None:
             return []
-        return await cursor(ns, text)
+        return await cursor(ns, text, known_seq)
 
     return source
 
@@ -484,6 +611,8 @@ async def forget_learned_aliases(eng: Any, namespace: str) -> None:
 
 def _resolve_stage(eng: Any, config: MemspineConfig) -> Any:
     """W2-09 (``write.resolver``): the resolve stage; event log and embedder bound lazily."""
+    from memspine.trust.pipeline.erasure_state import visible_id
+
     w = config.write
     stage = build_resolve_stage(
         ResolveSettings(
@@ -493,6 +622,8 @@ def _resolve_stage(eng: Any, config: MemspineConfig) -> Any:
         ),
         embed=eng._embedder.embed if eng._embedder is not None else None,
         storage=lambda: eng._storage,
+        namespace_lock=lambda ns: eng._write_locks.setdefault(ns, asyncio.Lock()),
+        source_visible=lambda rid: visible_id(eng, rid),
     )
     eng.__dict__["_entity_resolve_stage"] = stage
     return stage.as_stage()
@@ -547,14 +678,141 @@ def unresolved_annotations(eng: Any, namespace: str = "default") -> list[dict[st
     return pipeline.unresolved_annotations(validate_namespace(namespace))  # type: ignore[no-any-return]
 
 
-async def reresolve_unresolved(eng: Any, namespace: str = "default") -> int:
-    """RM-42: re-run the rules over the sources with unresolved annotations (call it after a
-    derivation policy or semantic registry activation). Returns the number of sources queued."""
-    eng._require_started()
+async def inspect_unresolved_annotations(
+    eng: Any, namespace: str = "default", *, viewer: str | None = None
+) -> list[UnresolvedAnnotation]:
+    """Return validated current annotations whose pinned source is still visible and live."""
+    from memspine.trust.pipeline.erasure_state import visible_id
+
+    storage = eng._require_started()
+    ns = validate_namespace(namespace)
+    rows = unresolved_annotations(eng, ns)
+    current: dict[str, MemoryRecord | None] = {}
+    out: list[UnresolvedAnnotation] = []
+    for row in rows:
+        try:
+            annotation = UnresolvedAnnotation.model_validate(row)
+        except ValidationError:
+            continue
+        source = annotation.source
+        if source.namespace != ns or source.source_id != source.record_id:
+            continue
+        if source.record_id not in current:
+            current[source.record_id] = await storage.get_record(source.record_id)
+        record = current[source.record_id]
+        message = record.source.message if record is not None else None
+        sender = message.get("sender") if isinstance(message, dict) else None
+        sender_id = sender.get("id") if isinstance(sender, dict) else None
+        if (
+            record is None
+            or record.namespace != ns
+            or (
+                eng._windows is not None
+                and eng._windows.source_exclusion_reason(record) is not None
+            )
+            or not visible_id(eng, source.record_id)
+            or record.version != source.source_version
+            or fingerprint_payload({"content": record.content}) != source.content_hash
+            or source.sender != sender_id
+            or source.role != record.source.role
+            or source.source_at != record.source_at
+            or (viewer is not None and not visible_to(record, viewer))
+        ):
+            continue
+        out.append(annotation)
+    return out
+
+
+async def activate_derivation_policy(
+    eng: Any,
+    namespace: str,
+    *,
+    policy_revision: str,
+    registry_digest: str | None,
+    runner_quiesced: bool,
+) -> int:
+    """Explicit admin activation: commit the policy and current replay obligations together."""
+    from memspine.ingest.discovery import activate_derivation_policy as activate_ledger
+    from memspine.services.storage.intake_port import UnresolvedReplay, intake_ledger_of
+
+    storage = eng._require_started()
+    ns = validate_namespace(namespace)
+    if not policy_revision:
+        raise ValueError("policy_revision is required for activation")
+    from memspine.ingest.intake import scope_key
+    from memspine.schemas.steps.shared import Scope
+
+    tenant, _, owner = ns.partition("/")
+    skey = scope_key(Scope(tenant=tenant, user=owner or "~"))
+    ledger = intake_ledger_of(storage)
+    if ledger is None:
+        raise ValueError("policy activation requires the intake ledger capability")
+    candidates: list[UnresolvedReplay] = []
     pipeline = eng._windows
-    if pipeline is None:
-        return 0
-    return await pipeline.reresolve_unresolved(validate_namespace(namespace))  # type: ignore[no-any-return]
+    if pipeline is not None:
+        current = await inspect_unresolved_annotations(eng, ns)
+        latest: dict[str, tuple[int, dict[str, Any] | None]] = {}
+        effects = pipeline.derivation_effect_status(ns)
+        contexts: dict[int, dict[str, Any]] = {}
+        for effect in effects:
+            artifact = effect.get("artifact")
+            offset = effect.get("offset")
+            context = artifact.get("window_context") if isinstance(artifact, dict) else None
+            if isinstance(offset, int) and isinstance(context, dict):
+                contexts[offset] = context
+        for effect in effects:
+            if effect.get("layer") != "unresolved" or effect.get("state") != "complete":
+                continue
+            offset, identity = effect.get("offset"), effect.get("identity")
+            if not isinstance(offset, int) or not isinstance(identity, dict):
+                continue
+            sources = identity.get("sources")
+            if not isinstance(sources, list):
+                continue
+            context = contexts.get(offset)
+            for source in sources:
+                if not isinstance(source, dict) or not isinstance(source.get("record_id"), str):
+                    continue
+                rid = source["record_id"]
+                if rid not in latest or offset > latest[rid][0]:
+                    latest[rid] = (offset, context if isinstance(context, dict) else None)
+        seen: set[str] = set()
+        for annotation in current:
+            source = annotation.source
+            if source.record_id in seen:
+                continue
+            seen.add(source.record_id)
+            found = latest.get(source.record_id)
+            if found is None or found[1] is None:
+                continue
+            offset, context = found
+            assert context is not None
+            candidates.append(
+                UnresolvedReplay(
+                    namespace=ns,
+                    record_id=source.record_id,
+                    source_version=source.source_version,
+                    content_hash=source.content_hash,
+                    effect_offset=offset,
+                    window_key=context.get("window_key"),
+                    session=context.get("session"),
+                    conversation_id=context.get("conversation_id"),
+                )
+            )
+    count = await activate_ledger(
+        ledger,
+        scope_key=skey,
+        stage="window.discovery",
+        policy_revision=policy_revision,
+        registry_digest=registry_digest,
+        activated_at=datetime.now(UTC),
+        runner_quiesced=runner_quiesced,
+        unresolved_namespace=ns,
+        unresolved_replays=candidates,
+    )
+    if count and pipeline is not None:
+        await pipeline.drain_activation(ns)
+    return count
 
 
 async def wait_for_pending(

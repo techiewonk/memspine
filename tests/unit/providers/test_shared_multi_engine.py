@@ -306,6 +306,38 @@ async def test_memory_stores_are_never_shared() -> None:
         await b.stop()
 
 
+async def test_failed_tantivy_close_blocks_next_engine_until_registry_retry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from memspine.clients.tantivy import connector as tantivy_connector
+    from memspine.exceptions import ConfigError
+
+    db = tmp_path / "m.db"
+    first = await _engine(db).start()
+    await first.write("heron by the lake", namespace="n")
+    join = tantivy_connector.wait_merging_threads
+
+    def busy(writer: object) -> None:
+        raise RuntimeError("Already borrowed")
+
+    monkeypatch.setattr(tantivy_connector, "wait_merging_threads", busy)
+    with pytest.raises(RuntimeError, match="cleanup"):
+        await first.stop()
+    [entry] = [s for s in shared_registry().stats() if s.key.category == "lexical.tantivy"]
+    assert entry.refs == 0
+    with pytest.raises(ConfigError, match="ResourceCleanupPendingError"):
+        await _engine(db).start()
+    monkeypatch.setattr(tantivy_connector, "wait_merging_threads", join)
+    await shared_registry().retry_failed_close(entry.key)
+    assert not [s for s in shared_registry().stats() if s.key.category == "lexical.tantivy"]
+    second = await _engine(db).start()
+    try:
+        assert second._lexical is not None
+        assert len(await second._lexical.search("n", "heron")) == 1
+    finally:
+        await second.stop()
+
+
 # --------------------------------------------------------------------------- no result sharing
 async def test_results_and_caches_never_cross_engines_namespaces_or_tenants(
     tmp_path: Path,

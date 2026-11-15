@@ -41,6 +41,12 @@ Several gaps were confirmed in the 2026-11-01 triage:
    - gets a non-generative GLiNER fact extractor behind the configured hook (DS-18).
    The default profile stays non-generative.
 
+The public `Engine.unresolved_annotations(namespace, viewer=...)` read exposes only
+validated annotations backed by a current, live, visible source snapshot in that
+namespace. It reads the durable effect artifact, including after restart, and does not
+invoke extraction or depend on the observability inspector. A completed empty effect
+replaces the prior unresolved set for its sources.
+
 ## Consequences
 
 Callers that relied on silent extras or naive times get explicit errors or civil text.
@@ -73,3 +79,51 @@ Recovery has one story for all writes.
 - The restart draft has one row per open turn, keyed by namespace, stage, window key and
   record id. A write upserts only its own turn and stores no vector. Vectors are
   recomputed from the record on restore. Membership is still published last.
+
+## Amendment 2026-11-07 (RM-153 known-time horizon)
+
+- The record projection stores `fingerprint.source_seq`, derived from the canonical WRITE
+  event's assigned `seq`. Projector replay derives it again; an incoming record value is
+  ignored. A metadata-only WRITE preserves the earlier sequence when content, version and
+  canonical source binding are unchanged. A changed source snapshot takes the new WRITE
+  sequence. If no sequence is provable, the value stays unknown; valid time, draft order,
+  derivation `covers_seq` and the current log head are not substitutes.
+- Historical window KNOWN reads use the maximum `source_seq` of the live source snapshots
+  actually used by that window, inclusive. Entity and alias index rows are filtered at that
+  sequence before ranking or capping. The cursor only advances through a projection
+  watermark it has proven; an unproven/capped set stays deferred.
+- A batched prompt uses the minimum of each member window's maximum source sequence. If any
+  source sequence is unknown, the shared cutoff is zero. A shared older cutoff is reported
+  as deferred. Live resolver entries have no canonical known-time provenance and are omitted
+  from historical KNOWN; pre-pass hints remain bound to the window's NEW text.
+
+## Amendment 2026-11-08 (RM-151 backpressure handoff)
+
+A cut window leaves the open segmenter before its outbox admission. Its ordered payload,
+including window key, conversation, session, source versions and content hashes, is first
+written to a separate `window.staged` outbox stream. A session-close marker uses the same
+handoff. Only then may the open draft rows be deleted and source membership published. A
+hard-cap rejection leaves the staged item durable; ordinary retries use normal admission in
+stream order as the runnable backlog clears. Explicit flush and session close retain their
+existing force semantics.
+
+Each cut has a stable staging ID. Promotion atomically appends the canonical `window` item
+and marks its staged row with the canonical offset. A lost promotion acknowledgment is
+reconciled from the canonical item by the runner, without appending another item. Promotion
+uses the retained item, progress, and job high-water marks when allocating an offset. Draft
+restore skips a source snapshot already held by a staged cut, so interruption between the
+handoff and draft deletion cannot replay the cut. Forget scrubs staged source IDs and
+snapshots under the erasure fence, including a cut staged before membership existed; a
+missing membership gets an inactive tombstone to fence later promotion. Promoted staging
+markers are pruned after the canonical contiguous watermark passes them and affected draft
+rows have been removed.
+
+Staging, promotion and erasure serialize from their first database read. SQLite takes the
+write lock with `BEGIN IMMEDIATE`; PostgreSQL takes transaction advisory locks for the scope
+and ordered source IDs, plus row locks on present membership. A delayed stage insertion
+checks inactive tombstones, and promotion re-reads its staged row after acquiring the locks.
+Either interleaving removes the erased source ID and hash while retaining live members.
+Window membership publication takes the same locks before its first read, including when
+the membership row is absent. Erasure's tombstone insert and a simultaneous acceptance
+therefore have one serial order; acceptance after erasure is refused without a primary-key
+race or a missed staged-copy scrub.

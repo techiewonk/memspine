@@ -72,6 +72,10 @@ class EventKind(StrEnum):
     #: session even when a session yields nothing (it survives rebuild because it
     #: is in the log); ``recall_skipped`` traces a message the H21 filter dropped.
     MARKER = "memory.marker"
+    #: Durable ID-only barrier committed after erasure authorization and before
+    #: deletion/scrub. Retained in rolling logs while source rows may survive
+    #: an interrupted erase; registry appends must reject cited source IDs.
+    REGISTRY_ERASURE_FENCE = "memory.registry_erasure_fence"
     #: #49 durable read audit (``audit.reads``, audit-only, no projector reads it).
     #: Payload: ``{"verb", "principal", "purpose", "record_ids", "at", "chain"}``.
     READ_AUDIT = "memory.read_audit"

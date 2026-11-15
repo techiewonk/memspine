@@ -189,6 +189,129 @@ async def test_temporal_engine_cycle_persists_across_engine_reopen(
         await resumed.stop()
 
 
+async def test_temporal_engine_outbox_activity_drains_reopened_namespace(
+    make_file_engine: Any, tmp_path: Path
+) -> None:
+    """A fresh Engine registers the Activity and dispatches unseen durable window work."""
+    address = os.environ.get("MEMSPINE_TEST_TEMPORAL_ADDRESS")
+    if not address:
+        pytest.skip("set MEMSPINE_TEST_TEMPORAL_ADDRESS for the live outbox gate")
+    pytest.importorskip("temporalio", reason="Temporal SDK extra is not installed")
+
+    common = {
+        "memories": {"episodic": {"enabled": True}, "semantic": {"enabled": True}},
+        "write": {
+            "online_extractor": True,
+            "window_extract": "facts",
+            "window_async": False,
+            "window_max_turns": 1,
+            "window_idle_s": 0.0,
+        },
+    }
+    first = make_file_engine(**common, workers={"outbox": True})
+    try:
+        await first.start()
+        await first.ingest_messages(
+            [
+                {
+                    "message_id": "temporal-outbox-1",
+                    "role": "user",
+                    "sender": {"id": "Mira"},
+                    "content": "I work for Acme.",
+                    "created_at": "2026-10-24T10:00:00+00:00",
+                }
+            ],
+            namespace="unseen",
+            session_id="s1",
+            conversation_id="s1",
+        )
+        assert first._windows is not None and first._windows._outbox is not None
+
+        async def leave_queued(scope: Any = None) -> Any:
+            from memspine.runtime.runner import DrainReport
+
+            return DrainReport()
+
+        first._windows._outbox.drain = leave_queued
+        await first.flush_windows("unseen")
+        assert first._windows._outbox.depth() > 0
+    finally:
+        await first.stop()
+
+    deployment = f"outbox-integration-{uuid.uuid4().hex}"
+    workers = {
+        "outbox": True,
+        "runner": "temporal",
+        "temporal": {
+            "address": address,
+            "namespace": os.environ.get("MEMSPINE_TEST_TEMPORAL_NAMESPACE", "default"),
+            "task_queue": f"memspine-outbox-test-{uuid.uuid4().hex}",
+            "deployment_id": deployment,
+            "workflow_timeout_s": 240,
+            "activity_timeout_s": 60,
+            "retry_max_attempts": 2,
+        },
+        "resonate": {
+            "journal_path": str(tmp_path / "outbox-temporal-journal.sqlite"),
+            "task_timeout_s": 20,
+            "step_timeout_s": 15,
+            "step_lease_s": 90,
+        },
+    }
+    second = make_file_engine(**common, workers=workers)
+    worker_closed = False
+    outbox_closed = False
+    fail_close = True
+    try:
+        await second.start()
+        assert second._windows is not None and second._windows._outbox is not None
+        from memspine.runtime.temporal_outbox import (
+            OUTBOX_DRAIN_ACTIVITY,
+            TemporalOutboxRunner,
+            outbox_workflow_id,
+        )
+
+        outbox = second._windows._outbox
+        assert isinstance(outbox, TemporalOutboxRunner)
+        assert second._runner is not None
+        assert OUTBOX_DRAIN_ACTIVITY in second._runner._activities
+        original_worker_close = second._runner.close
+        original_outbox_close = outbox.close
+
+        async def checked_worker_close() -> None:
+            nonlocal worker_closed
+            if fail_close:
+                raise RuntimeError("simulated worker shutdown failure")
+            await original_worker_close()
+            worker_closed = True
+
+        def checked_outbox_close() -> None:
+            nonlocal outbox_closed
+            assert worker_closed, "Engine closed the outbox before its Temporal worker"
+            original_outbox_close()
+            outbox_closed = True
+
+        second._runner.close = checked_worker_close
+        outbox.close = checked_outbox_close
+        await second.flush_windows("unseen")
+        facts = await second._storage.list_records("unseen", "semantic")
+        assert any(f.content == "Mira employed_by Acme" for f in facts)
+        scope = second._windows._scope("unseen")
+        client = second._runner.client
+        assert client is not None
+        totals = await client.get_workflow_handle(
+            outbox_workflow_id(deployment, scope, "window", outbox.config_fingerprint)
+        ).result()
+        assert totals["items"] >= 1
+        with pytest.raises(RuntimeError, match="Temporal worker shutdown failed"):
+            await second.stop()
+        assert not worker_closed and not outbox_closed
+        fail_close = False
+    finally:
+        await second.stop()
+    assert worker_closed and outbox_closed
+
+
 async def test_activity_environment_reuses_committed_micro_steps(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

@@ -6,7 +6,6 @@ Model-free: the hash embedder and stub describers. All text is invented (Ilse, B
 from __future__ import annotations
 
 import asyncio
-import time
 from pathlib import Path
 from typing import Any
 
@@ -160,9 +159,7 @@ async def test_timeout_does_not_block_the_read(tmp_path: Path, png: Path) -> Non
     try:
         asset = await eng.ingest_asset(png, NS)
         assert asset is not None
-        t0 = time.perf_counter()
-        hits = await eng.search("asset hive.png", namespace=NS)
-        assert time.perf_counter() - t0 < 2.0
+        hits = await asyncio.wait_for(eng.search("asset hive.png", namespace=NS), 2.0)
         assert asset.record_id in [r.record_id for r, _ in hits]
         assert descriptions([r for r, _ in hits]) == []  # returned without a description
         await eng.search("asset hive.png", namespace=NS)  # queued once, not twice

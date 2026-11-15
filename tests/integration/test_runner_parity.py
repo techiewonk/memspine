@@ -56,7 +56,6 @@ async def _build_ctx(path: str) -> tuple[PipelineContext, SQLiteStorage, SQLiteC
         appended = await storage.append_event(event)
         assert appended.seq is not None
         await projector.apply(appended)
-        await storage.set_offset(projector.name, appended.seq)
 
     # Runtime lifecycle/service timeouts are required in raw configuration;
     # load an explicit shipped config rather than relying on implicit defaults.

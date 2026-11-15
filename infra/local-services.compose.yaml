@@ -1,0 +1,91 @@
+name: memspine-rm136
+
+# Every published port is selected by scripts/local_services.py and bound to loopback.
+# The project name is overridden with a fresh, owned name for each local run.
+services:
+  postgres:
+    image: pgvector/pgvector@sha256:7b822b0aac60967beb1ea5e576b8602c94c300a157d187f385ae3e0da199b90a
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+    environment:
+      POSTGRES_USER: memspine_local
+      POSTGRES_PASSWORD: "${RM136_PASSWORD:?}"
+      POSTGRES_DB: memspine_local
+    ports: ["127.0.0.1:${RM136_POSTGRES_PORT:?}:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U memspine_local -d memspine_local"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+  redis:
+    image: redis@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+    ports: ["127.0.0.1:${RM136_REDIS_PORT:?}:6379"]
+    volumes: ["redis_data:/data"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+  valkey:
+    image: valkey/valkey@sha256:640c5e62cea04b6d6f2084232651d0cc70362d31f4f805e7be94dbed6855e8f2
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+    ports: ["127.0.0.1:${RM136_VALKEY_PORT:?}:6379"]
+    volumes: ["valkey_data:/data"]
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+  mongo:
+    image: mongo@sha256:52ba5332636758f2375228827d5cf7460e25c02063ba19c243e5d262cf4e7924
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+    command: ["mongod", "--replSet", "rs0", "--bind_ip_all"]
+    ports: ["127.0.0.1:${RM136_MONGO_PORT:?}:27017"]
+    volumes: ["mongo_data:/data/db"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand({ping:1}).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+
+  neo4j:
+    image: neo4j@sha256:f1e52d4dc6da122468c4a3c1050a4f5e117f6d3268625237c34d49166f0d6082
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+    environment:
+      NEO4J_AUTH: "neo4j/${RM136_PASSWORD:?}"
+      NEO4J_server_memory_heap_initial__size: 256m
+      NEO4J_server_memory_heap_max__size: 512m
+      NEO4J_server_memory_pagecache_size: 256m
+    ports: ["127.0.0.1:${RM136_NEO4J_PORT:?}:7687"]
+    volumes: ["neo4j_data:/data"]
+
+  temporal:
+    image: temporalio/temporal@sha256:b228dadf9cdb6c7c02a1394b89dd76f827aac9760e458fce42f0899a10141225
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+    command: ["server", "start-dev", "--ip", "0.0.0.0", "--db-filename", "/home/temporal/temporal.db"]
+    ports:
+      - "127.0.0.1:${RM136_TEMPORAL_PORT:?}:7233"
+      - "127.0.0.1:${RM136_TEMPORAL_UI_PORT:?}:8233"
+    volumes: ["temporal_data:/home/temporal"]
+
+volumes:
+  postgres_data:
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+  redis_data:
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+  valkey_data:
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+  mongo_data:
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+  neo4j_data:
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+  temporal_data:
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
+
+networks:
+  default:
+    labels: {memspine.rm136.owner: "${RM136_OWNER:?}"}
