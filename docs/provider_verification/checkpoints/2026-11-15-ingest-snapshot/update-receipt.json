@@ -1,0 +1,21 @@
+{
+  "head": "173cd60fdc176a380e659144141a9a1bc93a713a",
+  "interpreter": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-aed6cbf3-oldlock\\Scripts\\python.exe",
+  "runtime_source": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\src\\memspine\\__init__.py",
+  "fixture": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\tests\\integration\\fixtures\\ingest_equivalence.json",
+  "old_sha256": "b1af1832ebb82b8dce3846d4802dff5d88dbcb184aac6d280d6df39569b6784c",
+  "new_sha256": "cd00107e96922ac11646aec9a21bbb3e76a0e80ccbc96b6444f177dac0939f0b",
+  "field_changes": 960,
+  "search_changes": 146,
+  "unexpected_changes": 0,
+  "model": "Xenova/ms-marco-MiniLM-L-6-v2",
+  "revision": "a09144355adeed5f58c8ed011d209bf8ee5a1fec",
+  "model_sha256": "c623d0bcb99f4622beb413eaef00cfbe5db20df9f1dd982da4b4f26022881870",
+  "cached_files_verified": true,
+  "per_variant": {
+    "base:file": 313,
+    "base:memory": 313,
+    "core:file": 240,
+    "core:memory": 240
+  }
+}

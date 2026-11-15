@@ -1,0 +1,128 @@
+{
+  "kind": "ingest_snapshot_correction_independent_round_2",
+  "reviewer": "Sol R2",
+  "reviewed_at_utc": "2026-11-15T16:46:37.504232+00:00",
+  "base_commit": "173cd60fdc176a380e659144141a9a1bc93a713a",
+  "base_tree": "44196d5481cb97296d607499a1624fccc00d9f5d",
+  "verdict": "APPROVE",
+  "subject_count": 10,
+  "subjects": [
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "status": "modified",
+      "sha256": "769d16967e1cb863ab445cbac31c0542a60f230ec05f417f7aa48280935d5b88",
+      "bytes": 394285,
+      "git_clean_blob_oid": "6a97d2a5f3181797ee0f0db9c71df54be7afe155",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/delta-audit.json",
+      "status": "untracked",
+      "sha256": "daa10789e0791a6e0e816481e4554e20689de48e58d2b30883d29fdf695ae1f8",
+      "bytes": 2611,
+      "git_clean_blob_oid": "3ee5d53446edd29b57d259f7e3232fe1276606eb",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/manifest.json",
+      "status": "untracked",
+      "sha256": "bce73b7e43bfc737a1d74472e62afb7583f024b9d3f910ceaa28658cdb74a43e",
+      "bytes": 2193,
+      "git_clean_blob_oid": "0ace619dd58236ccf91d15f28fb15012d7fe15da",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/repro.json",
+      "status": "untracked",
+      "sha256": "76caec344cfd75e961fa127123e7fdbcd46a19c99023aad4cbae3ceede21b61c",
+      "bytes": 690,
+      "git_clean_blob_oid": "4aed0318657bd06a407f685c58a07e0dc47f410a",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/update-receipt.json",
+      "status": "untracked",
+      "sha256": "879348f2b179d53703ab87d8db81231b876005c0f94cb8b863bcd1f345f7d111",
+      "bytes": 983,
+      "git_clean_blob_oid": "779695ea5f877ae79f48a630a67990affa7d9881",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/verify-receipt.json",
+      "status": "untracked",
+      "sha256": "3095e25b42116e49ecc15174842ef2c053452dbad48ab246f77d0c88748a75a5",
+      "bytes": 1325,
+      "git_clean_blob_oid": "a46e5d135b234d8521d47fb58360c3aa5f10d833",
+      "lf_only": true
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/verify.log",
+      "status": "untracked",
+      "sha256": "3169c1369a495c80991754f6c3116e8b79af50b618128a9a3f38e3e20ec32d71",
+      "bytes": 748,
+      "git_clean_blob_oid": "91e882c3f47b069fa507b420ba5792e67290350f",
+      "lf_only": true
+    },
+    {
+      "path": "docs/v2/task_decision_dashboard.html",
+      "status": "modified",
+      "sha256": "19278e0515809c9c7e3a3105b3120656cd1b5dc3faaf06251228f97b51a70c67",
+      "bytes": 431984,
+      "git_clean_blob_oid": "0a2c6a69c1d670ca05c8d951bcc4f6928b575a9c",
+      "lf_only": true
+    },
+    {
+      "path": "docs/v2/tracker.html",
+      "status": "modified",
+      "sha256": "a87c5e87e74986c82ad027d684ae49ad83e82aa29dfd2a18c56eab7417743490",
+      "bytes": 358123,
+      "git_clean_blob_oid": "b1e4e8dca599b166fa534b1cbb2eb4ab8d84e700",
+      "lf_only": true
+    },
+    {
+      "path": "tests/integration/fixtures/ingest_equivalence.json",
+      "status": "modified",
+      "sha256": "cd00107e96922ac11646aec9a21bbb3e76a0e80ccbc96b6444f177dac0939f0b",
+      "bytes": 1749485,
+      "git_clean_blob_oid": "cf9e5c72a718205800f97453ca7238621666e26a",
+      "lf_only": true
+    }
+  ],
+  "checks": {
+    "fixture_semantic_diff": {
+      "added_source_seq": 480,
+      "added_restatement_support": 480,
+      "base_only_search_cells": 146,
+      "positive_projected_source_seq": 240,
+      "null_event_source_seq": 240,
+      "unexpected_changes": 0
+    },
+    "focused_old_lock_interpreter": {
+      "command": [
+        "C:/Users/hembad/.codex/pa113-envs/baseline-aed6cbf3-oldlock/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "-q",
+        "-rs",
+        "--tb=short",
+        "-o",
+        "addopts=",
+        "-p",
+        "no:cacheprovider",
+        "-p",
+        "no:deepeval",
+        "tests/integration/test_ingest_equivalence.py"
+      ],
+      "exit_code": 0,
+      "summary": "4 passed in 10.15s"
+    },
+    "model_default": "Accepted 88ae38ed9 base ONNX MiniLM reranker; pinned Xenova model revision a0914435 and 90,992,115-byte model hash independently verified in offline cache; core has no rerank.",
+    "proof_mapping": "Five identical LF artifacts match manifest original/current hashes; update receipt old/new fixture hashes and 960/146 counts match; author verify log SHA matches exit-0 receipt and contains four dots, with summary suppressed.",
+    "tracker": "PA-113 IN_PROGRESS, PA-039 OPEN, full gate and optional/matched dependency lanes pending; generator --check passed 342 tasks.",
+    "scope": "Only ten metadata/fixture files; assertions, clock, config, runtime and test source unchanged; diff --check clean."
+  },
+  "findings": [],
+  "limitations": [
+    "Bounded snapshot correction only; no broad dependency-refresh, whole-suite, model-quality or formal Phase C approval."
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "kind": "ingest_snapshot_current_schema_and_default",
+  "base_commit": "173cd60fdc176a380e659144141a9a1bc93a713a",
+  "fixture": "tests/integration/fixtures/ingest_equivalence.json",
+  "fixture_sha256": "cd00107e96922ac11646aec9a21bbb3e76a0e80ccbc96b6444f177dac0939f0b",
+  "scope": "Four base/core memory/file snapshots only. 960 added source_seq/restatement_support fingerprint fields and146 base search cells attributable to current schema and accepted pinned MiniLM default. Test assertions, clock, configuration and runtime unchanged. Both original old/new lock comparison runs independently showed same4failures before this amendment. Author corrected4cases pass; final reviewer verdicts separate.",
+  "artifacts": [
+    {
+      "path": "update-receipt.json",
+      "original_sha256": "879348f2b179d53703ab87d8db81231b876005c0f94cb8b863bcd1f345f7d111",
+      "sha256": "879348f2b179d53703ab87d8db81231b876005c0f94cb8b863bcd1f345f7d111",
+      "transform": "identical"
+    },
+    {
+      "path": "verify-receipt.json",
+      "original_sha256": "3095e25b42116e49ecc15174842ef2c053452dbad48ab246f77d0c88748a75a5",
+      "sha256": "3095e25b42116e49ecc15174842ef2c053452dbad48ab246f77d0c88748a75a5",
+      "transform": "identical"
+    },
+    {
+      "path": "verify.log",
+      "original_sha256": "3169c1369a495c80991754f6c3116e8b79af50b618128a9a3f38e3e20ec32d71",
+      "sha256": "3169c1369a495c80991754f6c3116e8b79af50b618128a9a3f38e3e20ec32d71",
+      "transform": "identical"
+    },
+    {
+      "path": "delta-audit.json",
+      "original_sha256": "daa10789e0791a6e0e816481e4554e20689de48e58d2b30883d29fdf695ae1f8",
+      "sha256": "daa10789e0791a6e0e816481e4554e20689de48e58d2b30883d29fdf695ae1f8",
+      "transform": "identical"
+    },
+    {
+      "path": "repro.json",
+      "original_sha256": "76caec344cfd75e961fa127123e7fdbcd46a19c99023aad4cbae3ceede21b61c",
+      "sha256": "76caec344cfd75e961fa127123e7fdbcd46a19c99023aad4cbae3ceede21b61c",
+      "transform": "identical"
+    }
+  ],
+  "provenance": "Execution-time receipt paths retained. Durable files above map their original hashes and reversible newline normalization; historical auxiliary files are not claimed durable."
+}

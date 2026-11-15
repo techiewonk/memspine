@@ -1,0 +1,121 @@
+{
+  "kind": "ingest_snapshot_correction_independent_round_1",
+  "reviewer": "Sol R1",
+  "reviewed_at_utc": "2026-11-15T16:43:06.056504+00:00",
+  "base_commit": "173cd60fdc176a380e659144141a9a1bc93a713a",
+  "base_tree": "44196d5481cb97296d607499a1624fccc00d9f5d",
+  "verdict": "APPROVE",
+  "subject_count": 10,
+  "subjects": [
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "status": "modified",
+      "sha256": "769d16967e1cb863ab445cbac31c0542a60f230ec05f417f7aa48280935d5b88",
+      "git_clean_blob_oid": "6a97d2a5f3181797ee0f0db9c71df54be7afe155",
+      "bytes": 394285
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/delta-audit.json",
+      "status": "untracked",
+      "sha256": "daa10789e0791a6e0e816481e4554e20689de48e58d2b30883d29fdf695ae1f8",
+      "git_clean_blob_oid": "3ee5d53446edd29b57d259f7e3232fe1276606eb",
+      "bytes": 2611
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/manifest.json",
+      "status": "untracked",
+      "sha256": "bce73b7e43bfc737a1d74472e62afb7583f024b9d3f910ceaa28658cdb74a43e",
+      "git_clean_blob_oid": "0ace619dd58236ccf91d15f28fb15012d7fe15da",
+      "bytes": 2193
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/repro.json",
+      "status": "untracked",
+      "sha256": "76caec344cfd75e961fa127123e7fdbcd46a19c99023aad4cbae3ceede21b61c",
+      "git_clean_blob_oid": "4aed0318657bd06a407f685c58a07e0dc47f410a",
+      "bytes": 690
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/update-receipt.json",
+      "status": "untracked",
+      "sha256": "879348f2b179d53703ab87d8db81231b876005c0f94cb8b863bcd1f345f7d111",
+      "git_clean_blob_oid": "779695ea5f877ae79f48a630a67990affa7d9881",
+      "bytes": 983
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/verify-receipt.json",
+      "status": "untracked",
+      "sha256": "3095e25b42116e49ecc15174842ef2c053452dbad48ab246f77d0c88748a75a5",
+      "git_clean_blob_oid": "a46e5d135b234d8521d47fb58360c3aa5f10d833",
+      "bytes": 1325
+    },
+    {
+      "path": "docs/provider_verification/checkpoints/2026-11-15-ingest-snapshot/verify.log",
+      "status": "untracked",
+      "sha256": "3169c1369a495c80991754f6c3116e8b79af50b618128a9a3f38e3e20ec32d71",
+      "git_clean_blob_oid": "91e882c3f47b069fa507b420ba5792e67290350f",
+      "bytes": 748
+    },
+    {
+      "path": "docs/v2/task_decision_dashboard.html",
+      "status": "modified",
+      "sha256": "19278e0515809c9c7e3a3105b3120656cd1b5dc3faaf06251228f97b51a70c67",
+      "git_clean_blob_oid": "0a2c6a69c1d670ca05c8d951bcc4f6928b575a9c",
+      "bytes": 431984
+    },
+    {
+      "path": "docs/v2/tracker.html",
+      "status": "modified",
+      "sha256": "a87c5e87e74986c82ad027d684ae49ad83e82aa29dfd2a18c56eab7417743490",
+      "git_clean_blob_oid": "b1e4e8dca599b166fa534b1cbb2eb4ab8d84e700",
+      "bytes": 358123
+    },
+    {
+      "path": "tests/integration/fixtures/ingest_equivalence.json",
+      "status": "modified",
+      "sha256": "cd00107e96922ac11646aec9a21bbb3e76a0e80ccbc96b6444f177dac0939f0b",
+      "git_clean_blob_oid": "cf9e5c72a718205800f97453ca7238621666e26a",
+      "bytes": 1749485
+    }
+  ],
+  "checks": {
+    "fixture_semantic_diff": {
+      "restatement_support": 480,
+      "source_seq": 480,
+      "base_search_cells": 146
+    },
+    "no_other_fixture_changes": true,
+    "new_field_values": "All 240 projected record fingerprints have positive source_seq; all 240 event-payload fingerprints have null source_seq; all 480 restatement_support values null.",
+    "snapshot_test_comparators": "Unchanged exact event/record/identity checks and bounded search-rank/score comparator; clock/config/runtime unchanged.",
+    "model_default": "Base template uses pinned ONNX MiniLM; core has no rerank; old-lock cache contains revision a0914435 onnx/model.onnx SHA256 c623d0bc... (90,992,115 bytes), independently verified offline.",
+    "independent_execution": {
+      "command": [
+        "C:/Users/hembad/.codex/pa113-envs/baseline-aed6cbf3-oldlock/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "-q",
+        "-rs",
+        "--tb=short",
+        "-o",
+        "addopts=",
+        "-p",
+        "no:cacheprovider",
+        "-p",
+        "no:deepeval",
+        "tests/integration/test_ingest_equivalence.py"
+      ],
+      "exit_code": 0,
+      "summary": "4 passed in 9.68s",
+      "log_sha256": "4a0568bad2a3d496f641a0dd51a8a7f24e239f98f6e9e7623d40182db962a113",
+      "execution_receipt_sha256": "e9b956edb020756689c8679d93ce3bb61583a7b8ed735b37128e8fd8d0c890d4"
+    },
+    "durable_proof": "Five copied artifacts plus self-excluding manifest, all LF and original/durable SHA equal; audit counts and verify receipt/log reconcile.",
+    "tracker": "refresh_tracker.py --check 342 tasks; PA-113 IN_PROGRESS and PA-039 OPEN; broader matched comparisons, optional lanes and two reviews remain pending.",
+    "diff_check": "clean"
+  },
+  "findings": [],
+  "limitations": [
+    "Bounded fixture correction only; no dependency-refresh, full-suite, model-quality or Phase C approval.",
+    "Pre-amendment baseline/candidate failure logs are not among five durable copied artifacts; independent structural and corrected-run checks were performed."
+  ]
+}

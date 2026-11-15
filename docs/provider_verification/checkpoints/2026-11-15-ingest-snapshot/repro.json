@@ -1,0 +1,33 @@
+{
+  "model": "Xenova/ms-marco-MiniLM-L-6-v2",
+  "revision": "a09144355adeed5f58c8ed011d209bf8ee5a1fec",
+  "model_file": "onnx/model.onnx",
+  "model_file_sha256": "c623d0bcb99f4622beb413eaef00cfbe5db20df9f1dd982da4b4f26022881870",
+  "cached_files_verified": true,
+  "checks": {
+    "base:memory": {
+      "rounds": 2,
+      "searches_match_with_test_tolerance": true,
+      "query_count": 5,
+      "hit_counts": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ]
+    },
+    "base:file": {
+      "rounds": 2,
+      "searches_match_with_test_tolerance": true,
+      "query_count": 5,
+      "hit_counts": [
+        8,
+        8,
+        8,
+        8,
+        8
+      ]
+    }
+  }
+}
