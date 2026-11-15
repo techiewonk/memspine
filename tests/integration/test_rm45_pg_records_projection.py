@@ -6,13 +6,15 @@ import asyncio
 import importlib.util
 import json
 import uuid
-from collections.abc import Iterator, Sequence
+from collections.abc import AsyncIterator, Iterator, Sequence
+from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 import pytest
-from sqlalchemy.ext.asyncio import AsyncConnection
+from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine
 
 import memspine.services.storage.sql_base as sql_base
 from memspine.clients.postgres import PostgresClient, PostgresSpec
@@ -24,6 +26,7 @@ from memspine.services.storage.records_port import OutboxItem, RecordsProjection
 from memspine.store.claim_cardinality import ClaimGroup, group_key
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.records import MemoryRecord
+from memspine.store.registry_evidence import scrub_registry_marker
 
 psycopg = pytest.importorskip("psycopg")
 
@@ -724,3 +727,183 @@ async def _marker_scrub_case(target: _Target) -> None:
 
 def test_native_postgres_marker_scrub_excludes_write(scratch_postgres: _Target) -> None:
     asyncio.Runner(loop_factory=asyncio.SelectorEventLoop).run(_marker_scrub_case(scratch_postgres))
+
+
+async def _registry_fence_race_case(
+    target: _Target, monkeypatch: pytest.MonkeyPatch, winner: str
+) -> None:
+    clients = [PostgresClient(PostgresSpec(target.url, connect_timeout_s=3)) for _ in range(3)]
+    stores = [PostgresStorage(client) for client in clients]
+    try:
+        for client in clients:
+            await client.open()
+        await stores[0].start()
+        await stores[0].upsert_record(
+            MemoryRecord(
+                record_id="source",
+                namespace="registry/native",
+                memory_type="episodic",
+                content="raw",
+            )
+        )
+        marker = MemoryEvent(
+            kind=EventKind.MARKER,
+            namespace="registry/native",
+            actor="resolver",
+            payload={
+                "marker": "entity.create",
+                "scope": ["registry", "native"],
+                "entity": "opaque",
+                "name": "Private Native Name",
+                "source_ids": ["source"],
+                "source_versions": [1],
+            },
+        )
+        held = stores[0]
+        contender = stores[1]
+        entered, attempted, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        original_begin = AsyncEngine.begin
+        original_execute = AsyncConnection.execute
+        held_once = False
+
+        @asynccontextmanager
+        async def hold_before_commit(engine: AsyncEngine) -> AsyncIterator[AsyncConnection]:
+            nonlocal held_once
+            async with original_begin(engine) as conn:
+                yield conn
+                if engine is held._client.engine and not held_once:
+                    held_once = True
+                    entered.set()  # the source check or fence INSERT has completed
+                    await asyncio.wait_for(release.wait(), 8)
+
+        monkeypatch.setattr(AsyncEngine, "begin", hold_before_commit)
+
+        async def signal_native_lock_attempt(
+            conn: AsyncConnection, *args: Any, **kwargs: Any
+        ) -> Any:
+            statement = args[0] if args else kwargs.get("statement")
+            parameters = args[1] if len(args) > 1 else kwargs.get("parameters")
+            if (
+                conn.engine is contender._client.engine
+                and "pg_advisory_xact_lock" in str(statement)
+                and isinstance(parameters, dict)
+                and "key" in parameters
+            ):
+                attempted.set()  # inside contender transaction, immediately before native lock await
+            return await original_execute(conn, *args, **kwargs)
+
+        monkeypatch.setattr(AsyncConnection, "execute", signal_native_lock_attempt)
+        first = asyncio.create_task(
+            held.append_registry_marker(marker)
+            if winner == "marker"
+            else held.begin_registry_erasure("registry/native", ["source"])
+        )
+        second: asyncio.Task[Any] | None = None
+        try:
+            await asyncio.wait_for(entered.wait(), 8)
+            second = asyncio.create_task(
+                contender.begin_registry_erasure("registry/native", ["source"])
+                if winner == "marker"
+                else contender.append_registry_marker(marker)
+            )
+            await asyncio.wait_for(attempted.wait(), 8)
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(asyncio.shield(second), 0.5)
+        finally:
+            release.set()
+            await asyncio.wait_for(first, 8)
+            if second is not None:
+                if winner == "marker":
+                    await asyncio.wait_for(second, 8)
+                else:
+                    with pytest.raises(StorageError, match="being erased"):
+                        await asyncio.wait_for(second, 8)
+        monkeypatch.setattr(AsyncEngine, "begin", original_begin)
+        monkeypatch.setattr(AsyncConnection, "execute", original_execute)
+        if winner == "marker":
+            assert await contender.scrub_marker_payloads(
+                "entity.create",
+                lambda payload: scrub_registry_marker(payload, {"source"}),
+                namespace="registry/native",
+            )
+        events = await contender.read_events()
+        assert not any(event.payload.get("name") == "Private Native Name" for event in events)
+        assert any(event.kind is EventKind.REGISTRY_ERASURE_FENCE for event in events)
+        await clients[2].close()
+        await clients[2].open()
+        reopened = stores[2]
+        with pytest.raises(StorageError, match="being erased"):
+            await reopened.append_registry_marker(
+                MemoryEvent(
+                    kind=marker.kind,
+                    namespace=marker.namespace,
+                    actor=marker.actor,
+                    payload=marker.payload,
+                )
+            )
+    finally:
+        for store in stores:
+            await store.stop()
+        for client in clients:
+            await client.close()
+
+
+@pytest.mark.parametrize("winner", ["marker", "fence"])
+def test_native_postgres_registry_source_fence_race(
+    scratch_postgres: _Target, monkeypatch: pytest.MonkeyPatch, winner: str
+) -> None:
+    asyncio.Runner(loop_factory=asyncio.SelectorEventLoop).run(
+        _registry_fence_race_case(scratch_postgres, monkeypatch, winner)
+    )
+
+
+async def _registry_invalid_pin_case(target: _Target, change: str) -> None:
+    client = PostgresClient(PostgresSpec(target.url, connect_timeout_s=3))
+    store = PostgresStorage(client)
+    try:
+        await client.open()
+        await store.start()
+        if change != "missing":
+            await store.upsert_record(
+                MemoryRecord(
+                    record_id="source",
+                    namespace="other/ns" if change == "foreign" else "registry/native",
+                    memory_type="episodic",
+                    content="raw",
+                    version=2 if change == "stale" else 1,
+                )
+            )
+        if change == "fenced":
+            await store.begin_registry_erasure("registry/native", ["source"])
+        with pytest.raises(StorageError, match="source changed|being erased"):
+            await store.append_registry_marker(
+                MemoryEvent(
+                    kind=EventKind.MARKER,
+                    namespace="registry/native",
+                    actor="resolver",
+                    payload={
+                        "marker": "entity.create",
+                        "scope": ["registry", "native"],
+                        "entity": "opaque",
+                        "name": "Private Native Name",
+                        "source_ids": ["source"],
+                        "source_versions": [1],
+                    },
+                )
+            )
+        assert not any(
+            event.payload.get("name") == "Private Native Name"
+            for event in await store.read_events()
+        )
+    finally:
+        await store.stop()
+        await client.close()
+
+
+@pytest.mark.parametrize("change", ["missing", "foreign", "stale", "fenced"])
+def test_native_postgres_registry_rejects_invalid_source_pin(
+    scratch_postgres: _Target, change: str
+) -> None:
+    asyncio.Runner(loop_factory=asyncio.SelectorEventLoop).run(
+        _registry_invalid_pin_case(scratch_postgres, change)
+    )

@@ -27,6 +27,7 @@ from memspine.services.storage.records_port import OutboxItem, RecordsProjection
 from memspine.store.claim_cardinality import group_key, record_group_of
 from memspine.store.events import EventKind, EventLogMode, MemoryEvent
 from memspine.store.records import MemoryRecord, RecordFingerprint
+from memspine.store.registry_evidence import scrub_registry_marker
 
 pytest.importorskip("pymongo")
 
@@ -1019,4 +1020,172 @@ async def _case_marker_scrub_excludes_write(scratch: _Scratch) -> None:
 def test_mongo_marker_scrub_excludes_write(scratch_mongo: _Scratch) -> None:
     asyncio.run(
         _case_marker_scrub_excludes_write(scratch_mongo), loop_factory=asyncio.SelectorEventLoop
+    )
+
+
+async def _case_registry_source_fence_race(
+    scratch: _Scratch, monkeypatch: pytest.MonkeyPatch, winner: str
+) -> None:
+    first, first_connector = await _open(scratch)
+    second, second_connector = await _open(scratch)
+    try:
+        await first.upsert_record(
+            MemoryRecord(
+                record_id="source",
+                namespace="registry/native",
+                memory_type="episodic",
+                content="raw",
+            )
+        )
+        marker = MemoryEvent(
+            kind=EventKind.MARKER,
+            namespace="registry/native",
+            actor="resolver",
+            payload={
+                "marker": "entity.create",
+                "scope": ["registry", "native"],
+                "entity": "opaque",
+                "name": "Private Native Name",
+                "source_ids": ["source"],
+                "source_versions": [1],
+            },
+        )
+        entered, attempted, release = asyncio.Event(), asyncio.Event(), asyncio.Event()
+        original_transaction = first._transaction
+        original_next = second._next
+        held_once = False
+
+        async def hold_before_commit(body: Any) -> Any:
+            async def wrapped(session: Any) -> Any:
+                nonlocal held_once
+                result = await body(session)
+                if not held_once:
+                    held_once = True
+                    entered.set()  # source guard and marker INSERT, or fence INSERT completed
+                    await asyncio.wait_for(release.wait(), 8)
+                return result
+
+            return await original_transaction(wrapped)
+
+        monkeypatch.setattr(first, "_transaction", hold_before_commit)
+
+        async def signal_native_counter_attempt(
+            counter: Any, session: Any = None, by: int = 1
+        ) -> int:
+            if counter == "events" and session is not None:
+                attempted.set()  # inside contender transaction, before counter document write
+            return await original_next(counter, session, by)
+
+        monkeypatch.setattr(second, "_next", signal_native_counter_attempt)
+        leading = asyncio.create_task(
+            first.append_registry_marker(marker)
+            if winner == "marker"
+            else first.begin_registry_erasure("registry/native", ["source"])
+        )
+        trailing: asyncio.Task[Any] | None = None
+        try:
+            await asyncio.wait_for(entered.wait(), 8)
+            trailing = asyncio.create_task(
+                second.begin_registry_erasure("registry/native", ["source"])
+                if winner == "marker"
+                else second.append_registry_marker(marker)
+            )
+            await asyncio.wait_for(attempted.wait(), 8)
+            with pytest.raises(TimeoutError):
+                await asyncio.wait_for(asyncio.shield(trailing), 0.5)
+        finally:
+            release.set()
+            await asyncio.wait_for(leading, 8)
+            if trailing is not None:
+                if winner == "marker":
+                    await asyncio.wait_for(trailing, 8)
+                else:
+                    with pytest.raises(StorageError, match="being erased"):
+                        await asyncio.wait_for(trailing, 8)
+        monkeypatch.setattr(first, "_transaction", original_transaction)
+        monkeypatch.setattr(second, "_next", original_next)
+        if winner == "marker":
+            assert await second.scrub_marker_payloads(
+                "entity.create",
+                lambda payload: scrub_registry_marker(payload, {"source"}),
+                namespace="registry/native",
+            )
+        events = await second.read_events()
+        assert not any(event.payload.get("name") == "Private Native Name" for event in events)
+        assert any(event.kind is EventKind.REGISTRY_ERASURE_FENCE for event in events)
+        third, third_connector = await _open(scratch)
+        try:
+            with pytest.raises(StorageError, match="being erased"):
+                await third.append_registry_marker(
+                    MemoryEvent(
+                        kind=marker.kind,
+                        namespace=marker.namespace,
+                        actor=marker.actor,
+                        payload=marker.payload,
+                    )
+                )
+        finally:
+            await third.stop()
+            await third_connector.close()
+    finally:
+        await first.stop()
+        await second.stop()
+        await first_connector.close()
+        await second_connector.close()
+
+
+@pytest.mark.parametrize("winner", ["marker", "fence"])
+def test_mongo_registry_source_fence_race(
+    scratch_mongo: _Scratch, monkeypatch: pytest.MonkeyPatch, winner: str
+) -> None:
+    asyncio.run(
+        _case_registry_source_fence_race(scratch_mongo, monkeypatch, winner),
+        loop_factory=asyncio.SelectorEventLoop,
+    )
+
+
+async def _case_registry_invalid_pin(scratch: _Scratch, change: str) -> None:
+    store, connector = await _open(scratch)
+    try:
+        if change != "missing":
+            await store.upsert_record(
+                MemoryRecord(
+                    record_id="source",
+                    namespace="other/ns" if change == "foreign" else "registry/native",
+                    memory_type="episodic",
+                    content="raw",
+                    version=2 if change == "stale" else 1,
+                )
+            )
+        if change == "fenced":
+            await store.begin_registry_erasure("registry/native", ["source"])
+        with pytest.raises(StorageError, match="source changed|being erased"):
+            await store.append_registry_marker(
+                MemoryEvent(
+                    kind=EventKind.MARKER,
+                    namespace="registry/native",
+                    actor="resolver",
+                    payload={
+                        "marker": "entity.create",
+                        "scope": ["registry", "native"],
+                        "entity": "opaque",
+                        "name": "Private Native Name",
+                        "source_ids": ["source"],
+                        "source_versions": [1],
+                    },
+                )
+            )
+        assert not any(
+            event.payload.get("name") == "Private Native Name"
+            for event in await store.read_events()
+        )
+    finally:
+        await store.stop()
+        await connector.close()
+
+
+@pytest.mark.parametrize("change", ["missing", "foreign", "stale", "fenced"])
+def test_mongo_registry_rejects_invalid_source_pin(scratch_mongo: _Scratch, change: str) -> None:
+    asyncio.run(
+        _case_registry_invalid_pin(scratch_mongo, change), loop_factory=asyncio.SelectorEventLoop
     )

@@ -1,0 +1,100 @@
+{
+  "kind": "rm158_native_tests_independent_round_1",
+  "reviewer": "Sol independent R1",
+  "reviewed_at_utc": "2026-11-15T16:26:36.695463+00:00",
+  "base_commit": "aed6cbf36d5f1def238d9efeb01141717c786d2e",
+  "base_tree": "2749b4e3cf2615c9dd4bc99563bf2b3e80b78932",
+  "verdict": "APPROVE",
+  "subject_count": 2,
+  "subjects": [
+    {
+      "path": "tests/integration/test_rm45_pg_records_projection.py",
+      "sha256": "13bf934b886dd572f056fd9146f5546d8fd2ab01f46450a31eff864dc43bb061",
+      "git_clean_blob_oid": "da9757318ee515788d7e72d5b045846326224d1a",
+      "bytes": 37412
+    },
+    {
+      "path": "tests/integration/test_rm45_mongo_records_projection.py",
+      "sha256": "a2d73f0095fd5a04fdbcaac0e8ceb6f138407b411b3e10d18b514a6a698015bc",
+      "git_clean_blob_oid": "65eece9160e4c5eacecdb6f6a665424d1c782313",
+      "bytes": 48374
+    }
+  ],
+  "review_scope": "Only the two modified native integration test files and their approved RM-158 registry source-fence contract; no runtime delta reviewed or changed.",
+  "findings_rechecked": [
+    {
+      "issue": "Initial race tests inferred native contention from a timeout without proving the contender reached the database operation.",
+      "resolution": "PostgreSQL now signals at contender AsyncConnection.execute for the advisory lock; MongoDB signals within contender transaction immediately before the event-counter write. Each ordering waits for this signal before asserting blockage; independently rechecked on owned services.",
+      "status": "RESOLVED"
+    }
+  ],
+  "checks": {
+    "native_execution": {
+      "command": [
+        ".venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "-p",
+        "no:deepeval",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "--tb=short",
+        "tests/integration/test_rm45_pg_records_projection.py",
+        "tests/integration/test_rm45_mongo_records_projection.py",
+        "-k",
+        "registry_source_fence_race or registry_rejects_invalid_source_pin"
+      ],
+      "exit_code": 0,
+      "summary": "12 passed, 32 deselected in 39.51s",
+      "log_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\rm158-native-review-r1\\focused-native-final.log",
+      "log_sha256": "586deb21aaa75a74ac995ef0e6d8df493823c5d026f170abb5bc439ad5330b62",
+      "execution_receipt_sha256": "3ab57b631e5aee6e52cfe20745b931ab5c2f075e620dfa71f0bb0ca8bf8bc756"
+    },
+    "static_quality": {
+      "ruff": {
+        "command": [
+          ".venv/Scripts/python.exe",
+          "-m",
+          "ruff",
+          "check",
+          "tests/integration/test_rm45_pg_records_projection.py",
+          "tests/integration/test_rm45_mongo_records_projection.py"
+        ],
+        "exit_code": 0,
+        "summary": "All checks passed!"
+      },
+      "format": {
+        "command": [
+          ".venv/Scripts/python.exe",
+          "-m",
+          "ruff",
+          "format",
+          "--check",
+          "tests/integration/test_rm45_pg_records_projection.py",
+          "tests/integration/test_rm45_mongo_records_projection.py"
+        ],
+        "exit_code": 0,
+        "summary": "2 files already formatted"
+      },
+      "diff_check": {
+        "command": [
+          "git",
+          "diff",
+          "--check",
+          "HEAD",
+          "--",
+          "tests/integration/test_rm45_pg_records_projection.py",
+          "tests/integration/test_rm45_mongo_records_projection.py"
+        ],
+        "exit_code": 0,
+        "summary": ""
+      }
+    },
+    "contract": "Both marker-first and fence-first real separate-client transactions overlap; missing, foreign, stale and fenced source pins reject; marker-first erasure scrubs name; committed fence denies fresh append after reopen.",
+    "owned_fixture": "Existing scratch fixtures verify owned project/container labels, loopback port and database identity; no services or runtime files modified.",
+    "scope_limit": "Focused native marker/fence proof only; not a complete erasure copy-class, production, or Phase C gate."
+  },
+  "open_findings": []
+}
