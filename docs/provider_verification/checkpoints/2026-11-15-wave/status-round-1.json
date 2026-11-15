@@ -1,0 +1,49 @@
+{
+  "kind": "status_document_round_1_review",
+  "reviewed_at_utc": "2026-11-15T15:51:14.245575+00:00",
+  "verdict": "APPROVE",
+  "scope": "Only the three status-document edits after actual reviewed C1. This is not source re-review, C2 completion, formal Phase C, clean-revision suite, deployment acceptance or overall program completion.",
+  "base_commit": "91e587f86a7fede77e1c94e1a957666e4e6186e2",
+  "base_tree": "aede74d696424aedce3ed04106f1a2284b38c457",
+  "subjects": [
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "sha256": "a0f97aaf0e26e49bf006460fea875edfb124a75dd18d008faf869fc6c4fb6d41",
+      "bytes": 389473,
+      "git_clean_byte_identical": true
+    },
+    {
+      "path": "docs/v2/task_decision_dashboard.html",
+      "sha256": "6905d48ef68bded276978d7dfbaba084043e3c776b2b24b3da56277aa3054dde",
+      "bytes": 427513,
+      "git_clean_byte_identical": true
+    },
+    {
+      "path": "docs/v2/tracker.html",
+      "sha256": "20ab2e350aba9c6ed1b5bd17cce0c9aed954c14e04065c20fbd3e296032b6bfb",
+      "bytes": 353633,
+      "git_clean_byte_identical": true
+    }
+  ],
+  "checks": {
+    "exact_modified_paths": [
+      "docs/PROVIDER_TODO.md",
+      "docs/v2/task_decision_dashboard.html",
+      "docs/v2/tracker.html"
+    ],
+    "git_diff_check": "passed",
+    "generated_tracker_check": "passed: 342 tasks; DONE 291, IN_PROGRESS 13, OPEN 10",
+    "changed_register_rows": [
+      "DS-20",
+      "RM-22",
+      "RM-36"
+    ],
+    "c1_commit_paths": 218,
+    "c1_proof_outputs": 7,
+    "all_seven_proof_outputs_committed_and_current_bytes_equal": true,
+    "r1_r2_metadata_receipts_approve": true,
+    "rm15_pa039_pa095_rm16_pending": true,
+    "no_future_c2_sha_claim": true
+  },
+  "findings": []
+}

@@ -1,0 +1,40 @@
+{
+  "kind": "distinct_c2_status_metadata_round_2",
+  "reviewer": "Sol independent R2",
+  "reviewed_at_utc": "2026-11-15T15:54:48.806524+00:00",
+  "verdict": "APPROVE",
+  "scope": "Only three frozen C2 status documents and their relationship to the actual C1 checkpoint; no source rereview or future C2 commit claim.",
+  "base_c1_commit": "91e587f86a7fede77e1c94e1a957666e4e6186e2",
+  "base_c1_tree": "aede74d696424aedce3ed04106f1a2284b38c457",
+  "documents": [
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "sha256": "a0f97aaf0e26e49bf006460fea875edfb124a75dd18d008faf869fc6c4fb6d41",
+      "git_clean_blob_oid": "30dda9628185c211db9a271d65b71b39244bcf33",
+      "lf_only": true
+    },
+    {
+      "path": "docs/v2/tracker.html",
+      "sha256": "20ab2e350aba9c6ed1b5bd17cce0c9aed954c14e04065c20fbd3e296032b6bfb",
+      "git_clean_blob_oid": "512a9237b578c74b6b6c592e69d37e1ef4c9dfc2",
+      "lf_only": true
+    },
+    {
+      "path": "docs/v2/task_decision_dashboard.html",
+      "sha256": "6905d48ef68bded276978d7dfbaba084043e3c776b2b24b3da56277aa3054dde",
+      "git_clean_blob_oid": "ca587c9e5b032f3c2706b5734052c0462c036c01",
+      "lf_only": true
+    }
+  ],
+  "checks": {
+    "working_tree_exactly_three_modified_documents": true,
+    "document_hashes_match_frozen_values": true,
+    "document_bytes_lf_only_and_git_clean_identity": true,
+    "tracker_generator_check": "342 tasks; DONE 291; OPEN 10; IN_PROGRESS 13",
+    "status_changes": "RM-36 and DS-20 IN_PROGRESS to DONE; RM-22 remains DONE with clarified next step; RM-15, PA-039, PA-095, RM-16 remain OPEN",
+    "checkpoint_proof": "C1 includes 218 changed paths = 211 manifested subjects plus 7 excluded proof outputs; all 211 mapped blob OIDs match C1; index object hashes and both whole-wave approvals verified",
+    "diff_check": "clean",
+    "claims_boundary": "C1 actual commit and tree verified; earlier test runs remain precommit diagnostics; clean revision, native acceptance, actual-model quality, Phase C and future C2 commit are not claimed"
+  },
+  "findings": []
+}
