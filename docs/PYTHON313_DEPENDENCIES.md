@@ -1,5 +1,38 @@
 # Python 3.13 dependency compatibility and freshness
 
+## PA-109 native inference follow-up (2026-11-16)
+
+After the PA-113 checkpoint, actual native inference passed on clean commit
+`8a07d714b80443e8f14616c9729732b216625a18` with both Windows/Python 3.13.9
+source-built llama-cpp-python 0.3.36 and 0.3.37. This supersedes the earlier
+native-inference limitation for this bounded CPU smoke scope only.
+
+The existing Ollama `gemma2:2b` GGUF was read without downloading or modifying it.
+Its 1,629,509,152 bytes match manifest/model SHA-256
+`7462734796d67c40ecec2ca98eddf970e171dbb6b370e43fd633ee75b69abe1b`.
+The real MemSpine provider builder used CPU-only inference with two threads,
+512 context tokens, 64-token batches and at most 24 generated tokens per call.
+Each package version returned `4`, `Paris`, and `6` to three fixed synthetic
+prompts. Two roles shared one native Llama handle; closing the first left the
+second usable, the closed holder rejected inference, and final lifecycle
+cleanup released the native handle. Loaded MemSpine source paths were checked.
+
+[Execution, scripts, outputs, model provenance, native DLL hashes and revision record](provider_verification/checkpoints/2026-11-16-pa109/index.json)
+preserve the evidence. The first harness attempt blocked Windows asyncio's
+local socket-pair setup before provider construction; its failed log is retained.
+The corrected harness installs its socket-connect denial after event-loop setup
+and before provider construction. Both subsequent environments passed. After event-loop setup and before provider
+construction, the hook was configured to raise on any Python `socket.connect`
+attempt and remained active through inference; no such attempt occurred. This
+hook does not cover earlier imports or network calls made directly by native code.
+
+This proves one cached model's native CPU inference and lifecycle, not model
+quality, general model compatibility, GPU support, throughput or deployment
+acceptance. Earlier PA-113 records retain their historical scope. The lock hash
+in each inference record identifies the dependency lock. The commit, clean
+before/after state and loaded-source hashes identify the source revision; the
+explicit package version and DLL hashes distinguish the two optional environments.
+
 ## PA-113 refresh candidate (2026-11-16)
 
 The isolated PA-113 candidate refreshes the complete declared dependency graph

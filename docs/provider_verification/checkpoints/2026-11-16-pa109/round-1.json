@@ -1,0 +1,262 @@
+{
+  "kind": "pa109-native-inference-independent-review-round-1",
+  "reviewed_at_utc": "2026-11-16T11:00:21.659513+00:00",
+  "verdict": "APPROVE",
+  "index_path": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\docs\\provider_verification\\checkpoints\\2026-11-16-pa109\\index.json",
+  "index_sha256": "b194f2088785a976977627a178e73e56d663ea7f40ff371b96d5e3721f68a37d",
+  "clean_source_commit": "8a07d714b80443e8f14616c9729732b216625a18",
+  "clean_source_tree": "95ad5333328a17f3f221295dd3733fe707303cac",
+  "subjects": [
+    {
+      "path": "docs/PYTHON313_DEPENDENCIES.md",
+      "sha256": "07fe423866f265fd29dcfcdb5fd7ba2d006de611958c42f18e19f820faa8bc36"
+    },
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "sha256": "2818bd22aaff61fe980cf9128a6e853b8851f0d8eadbe2d13c7d825390f3381d"
+    },
+    {
+      "path": "docs/v2/tracker.html",
+      "sha256": "069fb37328d1f17c7da86e55851a2a1bcc809802e119a4666b10070bf5bcb96d"
+    },
+    {
+      "path": "docs/v2/task_decision_dashboard.html",
+      "sha256": "4e8bd5aa3e008a7777c702053f4ffa1f02166ba45b2bd1de2e51ee8c41277804"
+    }
+  ],
+  "proofs": [
+    {
+      "path": "attempt1-audit-hook-before-eventloop/execution.json",
+      "source_sha256": "6691c838dafa0b39540fb0720e00d217cac5b13e5dfbc17da81e019931973a64",
+      "packaged_sha256": "6691c838dafa0b39540fb0720e00d217cac5b13e5dfbc17da81e019931973a64",
+      "transform": "identical"
+    },
+    {
+      "path": "attempt1-audit-hook-before-eventloop/native_gate.py.txt",
+      "source_sha256": "63abd6846d9aff89622f3ddb63fda6a47bbca3ffa5131a431bf94e5a7f39bdc0",
+      "packaged_sha256": "63abd6846d9aff89622f3ddb63fda6a47bbca3ffa5131a431bf94e5a7f39bdc0",
+      "transform": "identical"
+    },
+    {
+      "path": "attempt1-audit-hook-before-eventloop/old.log",
+      "source_sha256": "074df07407fc74c922d7fc8ddf54d8a1051ea9f93ec8c7c7830a392f709a8232",
+      "packaged_sha256": "074df07407fc74c922d7fc8ddf54d8a1051ea9f93ec8c7c7830a392f709a8232",
+      "transform": "identical"
+    },
+    {
+      "path": "attempt1-audit-hook-before-eventloop/run.py.txt",
+      "source_sha256": "28d03dadce7a26295f0d5cb340224172799b70be74c838ff676ea3c021fb9851",
+      "packaged_sha256": "28d03dadce7a26295f0d5cb340224172799b70be74c838ff676ea3c021fb9851",
+      "transform": "identical"
+    },
+    {
+      "path": "execution.json",
+      "source_sha256": "5576a03085451e7ec49d8202e73eacc36b40547a4e0d6b909fa5985e4d776c36",
+      "packaged_sha256": "5576a03085451e7ec49d8202e73eacc36b40547a4e0d6b909fa5985e4d776c36",
+      "transform": "identical"
+    },
+    {
+      "path": "native-artifacts.json",
+      "source_sha256": "f3c18b02915102ada3f5c654f7ead5bb9f107c5473e346e4f15a9badd8f7caa1",
+      "packaged_sha256": "f3c18b02915102ada3f5c654f7ead5bb9f107c5473e346e4f15a9badd8f7caa1",
+      "transform": "identical"
+    },
+    {
+      "path": "native_gate.py.txt",
+      "source_sha256": "9d54016e622b20a0d8bb26c90f8e3f5fe5a6db780996ffaeb3d5ff09e246c2b4",
+      "packaged_sha256": "9d54016e622b20a0d8bb26c90f8e3f5fe5a6db780996ffaeb3d5ff09e246c2b4",
+      "transform": "identical"
+    },
+    {
+      "path": "new.json",
+      "source_sha256": "cd4f08f7804d9c2168c7360e61a12728d1e661fdfc87ed2849b7b363d43fd2db",
+      "packaged_sha256": "cd4f08f7804d9c2168c7360e61a12728d1e661fdfc87ed2849b7b363d43fd2db",
+      "transform": "identical"
+    },
+    {
+      "path": "new.log",
+      "source_sha256": "89365e5e61f67854ae4ca90f48984604a2f2ba15e7c4d70d946ca902f19a4cc1",
+      "packaged_sha256": "89365e5e61f67854ae4ca90f48984604a2f2ba15e7c4d70d946ca902f19a4cc1",
+      "transform": "identical"
+    },
+    {
+      "path": "old.json",
+      "source_sha256": "7a96bd90ff05c8fc517f34c59479b612e9a165529dcfd532cdf4d341ab9ea38e",
+      "packaged_sha256": "7a96bd90ff05c8fc517f34c59479b612e9a165529dcfd532cdf4d341ab9ea38e",
+      "transform": "identical"
+    },
+    {
+      "path": "old.log",
+      "source_sha256": "568e88db135efeda0469abcd1c94c06636fc23a15f8d1cb35ebd0c078ad1e040",
+      "packaged_sha256": "568e88db135efeda0469abcd1c94c06636fc23a15f8d1cb35ebd0c078ad1e040",
+      "transform": "identical"
+    },
+    {
+      "path": "run.py.txt",
+      "source_sha256": "28d03dadce7a26295f0d5cb340224172799b70be74c838ff676ea3c021fb9851",
+      "packaged_sha256": "28d03dadce7a26295f0d5cb340224172799b70be74c838ff676ea3c021fb9851",
+      "transform": "identical"
+    },
+    {
+      "path": "runs.jsonl",
+      "source_sha256": "d083ecff9e94dd079fcaa759ed3101026d45d0258aeecd3221bcf2333ffb66a5",
+      "packaged_sha256": "d083ecff9e94dd079fcaa759ed3101026d45d0258aeecd3221bcf2333ffb66a5",
+      "transform": "identical"
+    }
+  ],
+  "proof_package_declared_count": 14,
+  "proof_package_actual_count": 14,
+  "clean_execution": {
+    "execution_sha256": "5576a03085451e7ec49d8202e73eacc36b40547a4e0d6b909fa5985e4d776c36",
+    "revision_record_sha256": "d083ecff9e94dd079fcaa759ed3101026d45d0258aeecd3221bcf2333ffb66a5",
+    "recorded_clean_before_after": true,
+    "recorded_run_revision_dirty_false": true,
+    "first_failed_attempt_preserved": true,
+    "failed_cause": "Python socket.connect audit hook blocked Windows asyncio local socketpair during event-loop setup; corrected harness moves hook into running loop before provider construction.",
+    "normal_results": [
+      {
+        "label": "old",
+        "command": [
+          "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-llmlocal-aed6cbf3\\Scripts\\python.exe",
+          "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\native_gate.py",
+          "old"
+        ],
+        "exit_code": 0,
+        "seconds": 5.045,
+        "log_sha256": "568e88db135efeda0469abcd1c94c06636fc23a15f8d1cb35ebd0c078ad1e040"
+      },
+      {
+        "label": "new",
+        "command": [
+          "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-llmlocal-aed6cbf3\\Scripts\\python.exe",
+          "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\native_gate.py",
+          "new"
+        ],
+        "exit_code": 0,
+        "seconds": 4.542,
+        "log_sha256": "89365e5e61f67854ae4ca90f48984604a2f2ba15e7c4d70d946ca902f19a4cc1"
+      }
+    ],
+    "source_hash_modes": {
+      "uniform_git_lf_to_worktree_crlf": 26,
+      "git_blob_exact": 79
+    }
+  },
+  "model": {
+    "local_manifest_sha256": "985918c0857f267b3eea901613a81096c546bd6db5ede6ad04c0cb55ceebd481",
+    "model_sha256": "7462734796d67c40ecec2ca98eddf970e171dbb6b370e43fd633ee75b69abe1b",
+    "bytes": 1629509152,
+    "architecture": "gemma2",
+    "existing_local_model": true
+  },
+  "native": {
+    "old_llama_cpp_python": "0.3.36",
+    "new_llama_cpp_python": "0.3.37",
+    "native_dlls": [
+      {
+        "version": "old",
+        "name": "ggml-base.dll",
+        "sha256": "e8020449a791c9d605e3fa141959bff34bf65fdaaf54ac0c97414981cef01b09",
+        "bytes": 643584
+      },
+      {
+        "version": "old",
+        "name": "ggml-cpu.dll",
+        "sha256": "32ecb42ca8daecddee17f64e7abd6d28f05cc35d5004c28f6e59cd42e31b202c",
+        "bytes": 1085440
+      },
+      {
+        "version": "old",
+        "name": "ggml.dll",
+        "sha256": "d0d514ad2e68f12a9c61456dd15c5a956f5126c491ec2530b381add3db31c084",
+        "bytes": 50688
+      },
+      {
+        "version": "old",
+        "name": "llama.dll",
+        "sha256": "5ca20c822271e670d598107d29f0cde58cf1271d526db0c10ef9663164fc4e73",
+        "bytes": 7491584
+      },
+      {
+        "version": "old",
+        "name": "mtmd.dll",
+        "sha256": "68a575d0768f8420210441afa61ba699921fc353488755761fdab8e615934e78",
+        "bytes": 2420736
+      },
+      {
+        "version": "new",
+        "name": "ggml-base.dll",
+        "sha256": "7717320891dafaf0f1b8316473f3a7568e571fbd6cc3a7a4e28bfffb553a1959",
+        "bytes": 667136
+      },
+      {
+        "version": "new",
+        "name": "ggml-cpu.dll",
+        "sha256": "33c9a876cf43340b1ee79045661ea52bd520988391927ed4d84b0c4403eb18e8",
+        "bytes": 1076736
+      },
+      {
+        "version": "new",
+        "name": "ggml.dll",
+        "sha256": "fb588f15520dbbde40d285948d1b49694423bac0c21570c2bf752152d4659490",
+        "bytes": 50688
+      },
+      {
+        "version": "new",
+        "name": "llama.dll",
+        "sha256": "b6e4a4b76702edcddfbe8ac4c41defff18e3569088f078ec143d02dff7799d5d",
+        "bytes": 8779776
+      },
+      {
+        "version": "new",
+        "name": "mtmd.dll",
+        "sha256": "551494caa25f222495ad3323309973bdabb8e1c7876cba3ed702f7166045585a",
+        "bytes": 2958848
+      }
+    ],
+    "verified_calls_per_version": [
+      "4",
+      "Paris",
+      "6"
+    ],
+    "shared_real_native_handle": true,
+    "closed_holder_rejected": true,
+    "second_holder_inferred_after_first_close": true,
+    "lifecycle_complete_and_native_released": true
+  },
+  "tracker": {
+    "task_count": 343,
+    "status_counts": {
+      "DONE": 294,
+      "OPEN": 8,
+      "IN_PROGRESS": 14,
+      "DEPLOYMENT_CHECK": 19,
+      "DEFERRED": 2,
+      "EXCLUDED": 4,
+      "REVIEW": 1,
+      "PROPOSED": 1
+    },
+    "changed_existing_rows": [
+      "PA-109",
+      "PA-113"
+    ],
+    "refresh_tracker_check_exit_code": 0,
+    "PA109": "DONE for bounded Windows/Python 3.13.9 CPU/Gemma2 model native inference and lifecycle; no broad quality or compatibility claim",
+    "PA113": "DONE with native inference follow-up recorded under PA109",
+    "RM165": "IN_PROGRESS"
+  },
+  "credential_shaped_proof_scan": {
+    "text_proofs_scanned": 13,
+    "hit_files": []
+  },
+  "resolved_findings": [
+    "Narrowed socket guard claim: installed in running event loop before provider construction and active through inference; no Python socket.connect attempt observed; earlier imports and direct native network calls excluded.",
+    "Separated dependency lock SHA from commit/clean state/loaded-source identity in report."
+  ],
+  "limitations": [
+    "One cached GGUF, two source-built optional package versions, CPU-only synthetic prompts and lifecycle smoke; no general model quality, GPU, performance, deployment, or Phase C acceptance.",
+    "The Python socket.connect audit hook does not cover earlier imports or direct native networking.",
+    "This review did not repeat model inference; current working tree may include unrelated RM165 changes, so clean state refers only to recorded C2 execution."
+  ],
+  "errors": []
+}

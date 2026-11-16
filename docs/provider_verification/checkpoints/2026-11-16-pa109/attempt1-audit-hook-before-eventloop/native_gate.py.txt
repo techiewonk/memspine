@@ -1,0 +1,61 @@
+from pathlib import Path
+import asyncio, hashlib, importlib.metadata, json, os, platform, subprocess, sys, time
+ROOT=Path(r"C:/Users/hembad/Documents/GitHub/memspine-restructure")
+OUT=Path(__file__).parent
+MODEL_ROOT=Path(r"C:/Users/hembad/.ollama/models")
+MANIFEST=MODEL_ROOT/"manifests/registry.ollama.ai/library/gemma2/2b"
+manifest=json.loads(MANIFEST.read_bytes())
+layer=next(x for x in manifest["layers"] if x["mediaType"]=="application/vnd.ollama.image.model")
+model=MODEL_ROOT/"blobs"/layer["digest"].replace(":","-")
+with model.open("rb") as f:
+ assert f.read(4)==b"GGUF"
+ f.seek(0);digest=hashlib.file_digest(f,"sha256").hexdigest()
+assert "sha256:"+digest==layer["digest"] and model.stat().st_size==layer["size"]
+assert os.environ["HF_HUB_OFFLINE"]=="1"
+def network_guard(event,args):
+ if event=="socket.connect":raise RuntimeError("Network is forbidden in the cached native inference gate")
+sys.addaudithook(network_guard)
+sys.path.insert(0,str(ROOT/"src"))
+import memspine, llama_cpp
+assert Path(memspine.__file__).resolve().is_relative_to(ROOT/"src")
+from memspine.providers.builtin.models import register
+from memspine.providers.contexts import LLMBuildContext, SharedBuildContext
+from memspine.providers.lifecycle import ProviderLifecycleManager
+from memspine.providers.registry import LLM_PROVIDERS
+from memspine.providers.settings import LlamaCppRoleSettings
+from memspine.exceptions import LLMError
+settings=LlamaCppRoleSettings(model="llamacpp/"+str(model),n_ctx=512,n_batch=64,n_threads=2,n_gpu_layers=0,temperature=0.0,top_p=1.0,max_tokens=24,timeout_seconds=120.0)
+record={"kind":"pa109-cached-real-native-inference","scope":"Native CPU inference and lifecycle smoke only; not model quality, performance or deployment acceptance.","head":subprocess.check_output(["git","rev-parse","HEAD"],cwd=ROOT,text=True).strip(),"dirty_before":bool(subprocess.check_output(["git","status","--porcelain"],cwd=ROOT,text=True).strip()),"python":platform.python_version(),"executable":sys.executable,"llama_cpp_version":importlib.metadata.version("llama-cpp-python"),"llama_cpp_path":str(Path(llama_cpp.__file__).resolve()),"lock_sha256":hashlib.sha256((ROOT/"uv.lock").read_bytes()).hexdigest(),"manifest_sha256":hashlib.sha256(MANIFEST.read_bytes()).hexdigest(),"manifest":manifest,"model_sha256":digest,"model_bytes":model.stat().st_size,"settings":settings.model_dump(),"network":"socket.connect denied by audit hook; existing local GGUF only","calls":[]}
+async def main():
+ register();resources=ProviderLifecycleManager(close_timeout_s=30.0);shared=SharedBuildContext(resources,"pa109-native-local",30.0);services=[];start=time.monotonic()
+ try:
+  builder=LLM_PROVIDERS.get("llamacpp").builder
+  for role in ["chat","extract"]:
+   result=await builder.build(settings,LLMBuildContext(shared=shared,role=role));services.append(result.service)
+  first,second=services
+  native=first._native
+  assert native is not None and native is second._native and isinstance(native.llama,llama_cpp.Llama)
+  record["shared_real_native_handle"]=True
+  record["architecture"]=native.llama.metadata.get("general.architecture")
+  for service,prompt in [(first,"What is 2 + 2? Reply with the number only."),(second,"What is the capital of France? Reply with the city name only.")]:
+   t=time.monotonic();answer=await service.chat([{"role":"user","content":prompt}]);assert answer.strip(),repr(answer)
+   record["calls"].append({"prompt":prompt,"output":answer,"output_sha256":hashlib.sha256(answer.encode()).hexdigest(),"seconds":round(time.monotonic()-t,3)})
+  await first.close();assert native.llama is not None
+  prompt="What is 3 + 3? Reply with the number only."
+  answer=await second.chat([{"role":"user","content":prompt}]);assert answer.strip()
+  record["calls"].append({"prompt":prompt,"output":answer,"output_sha256":hashlib.sha256(answer.encode()).hexdigest(),"scope":"second holder still infers after first holder closes"})
+  try:await first.chat([{"role":"user","content":"hello"}])
+  except LLMError:record["closed_holder_rejected"]=True
+  else:raise AssertionError("closed holder accepted inference")
+ finally:
+  report=await resources.close_all();record["lifecycle_complete"]=report.complete;record["resource_states"]={k:str(v) for k,v in resources.states.items()}
+  assert report.complete
+ record["native_released"]=native.llama is None;assert record["native_released"]
+ record["seconds"]=round(time.monotonic()-start,3)
+ wrong=[n for n,m in list(sys.modules.items()) if (n=="memspine" or n.startswith("memspine.")) and getattr(m,"__file__",None) and not Path(m.__file__).resolve().is_relative_to(ROOT/"src")];assert not wrong,wrong
+ record["source_files"]={str(Path(m.__file__).resolve().relative_to(ROOT)).replace(chr(92),"/"):hashlib.sha256(Path(m.__file__).read_bytes()).hexdigest() for n,m in list(sys.modules.items()) if (n=="memspine" or n.startswith("memspine.")) and getattr(m,"__file__",None)}
+ record["dirty_after"]=bool(subprocess.check_output(["git","status","--porcelain"],cwd=ROOT,text=True).strip())
+ record["status"]="passed"
+ (OUT/(sys.argv[1]+".json")).write_bytes((json.dumps(record,indent=2)+"\n").encode())
+ print(json.dumps({"status":record["status"],"package":record["llama_cpp_version"],"outputs":[x["output"] for x in record["calls"]],"seconds":record["seconds"],"native_released":record["native_released"]}))
+asyncio.run(main())

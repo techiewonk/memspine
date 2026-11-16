@@ -1,0 +1,19 @@
+{
+  "head": "8a07d714b80443e8f14616c9729732b216625a18",
+  "dirty_before": false,
+  "dirty_after": false,
+  "harness_sha256": "63abd6846d9aff89622f3ddb63fda6a47bbca3ffa5131a431bf94e5a7f39bdc0",
+  "results": [
+    {
+      "label": "old",
+      "command": [
+        "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-llmlocal-aed6cbf3\\Scripts\\python.exe",
+        "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\native_gate.py",
+        "old"
+      ],
+      "exit_code": 1,
+      "seconds": 2.286,
+      "log_sha256": "074df07407fc74c922d7fc8ddf54d8a1051ea9f93ec8c7c7830a392f709a8232"
+    }
+  ]
+}

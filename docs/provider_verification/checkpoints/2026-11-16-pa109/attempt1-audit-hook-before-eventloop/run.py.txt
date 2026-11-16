@@ -1,0 +1,18 @@
+from pathlib import Path
+import os,subprocess,json,hashlib,time
+p=Path(__file__).parent
+root=Path(r"C:/Users/hembad/Documents/GitHub/memspine-restructure")
+assert not subprocess.check_output(["git","status","--porcelain"],cwd=root,text=True).strip()
+head=subprocess.check_output(["git","rev-parse","HEAD"],cwd=root,text=True).strip()
+env=os.environ.copy();env.update(HF_HUB_OFFLINE="1",TRANSFORMERS_OFFLINE="1",PYTHONPATH=str(root/"src"))
+results=[]
+for label,folder in [("old","baseline-llmlocal-aed6cbf3"),("new","candidate-llmlocal-aed6cbf3")]:
+ py=Path(r"C:/Users/hembad/.codex/pa113-envs")/folder/"Scripts/python.exe";command=[str(py),str(p/"native_gate.py"),label];start=time.monotonic()
+ with (p/(label+".log")).open("wb") as stream:r=subprocess.run(command,cwd=root,env=env,stdout=stream,stderr=subprocess.STDOUT,timeout=240)
+ b=(p/(label+".log")).read_bytes().replace(b"\r\n",b"\n");(p/(label+".log")).write_bytes(b)
+ results.append(dict(label=label,command=command,exit_code=r.returncode,seconds=round(time.monotonic()-start,3),log_sha256=hashlib.sha256(b).hexdigest()));print(label,r.returncode,b.decode(errors="replace").splitlines()[-1],flush=True)
+ if r.returncode:break
+assert subprocess.check_output(["git","rev-parse","HEAD"],cwd=root,text=True).strip()==head
+assert not subprocess.check_output(["git","status","--porcelain"],cwd=root,text=True).strip()
+(p/"execution.json").write_bytes((json.dumps(dict(head=head,dirty_before=False,dirty_after=False,harness_sha256=hashlib.sha256((p/"native_gate.py").read_bytes()).hexdigest(),results=results),indent=2)+"\n").encode())
+raise SystemExit(any(r["exit_code"] for r in results))

@@ -1,0 +1,116 @@
+{
+  "kind": "pa109-real-native-inference-acceptance",
+  "source_commit": "8a07d714b80443e8f14616c9729732b216625a18",
+  "subjects": [
+    {
+      "path": "docs/PYTHON313_DEPENDENCIES.md",
+      "sha256": "07fe423866f265fd29dcfcdb5fd7ba2d006de611958c42f18e19f820faa8bc36"
+    },
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "sha256": "2818bd22aaff61fe980cf9128a6e853b8851f0d8eadbe2d13c7d825390f3381d"
+    },
+    {
+      "path": "docs/v2/tracker.html",
+      "sha256": "069fb37328d1f17c7da86e55851a2a1bcc809802e119a4666b10070bf5bcb96d"
+    },
+    {
+      "path": "docs/v2/task_decision_dashboard.html",
+      "sha256": "4e8bd5aa3e008a7777c702053f4ffa1f02166ba45b2bd1de2e51ee8c41277804"
+    }
+  ],
+  "proof_artifacts": [
+    {
+      "path": "attempt1-audit-hook-before-eventloop/execution.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\attempt1-audit-hook-before-eventloop\\execution.json",
+      "source_sha256": "6691c838dafa0b39540fb0720e00d217cac5b13e5dfbc17da81e019931973a64",
+      "sha256": "6691c838dafa0b39540fb0720e00d217cac5b13e5dfbc17da81e019931973a64",
+      "transform": "identical"
+    },
+    {
+      "path": "attempt1-audit-hook-before-eventloop/native_gate.py.txt",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\attempt1-audit-hook-before-eventloop\\native_gate.py",
+      "source_sha256": "63abd6846d9aff89622f3ddb63fda6a47bbca3ffa5131a431bf94e5a7f39bdc0",
+      "sha256": "63abd6846d9aff89622f3ddb63fda6a47bbca3ffa5131a431bf94e5a7f39bdc0",
+      "transform": "identical"
+    },
+    {
+      "path": "attempt1-audit-hook-before-eventloop/old.log",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\attempt1-audit-hook-before-eventloop\\old.log",
+      "source_sha256": "074df07407fc74c922d7fc8ddf54d8a1051ea9f93ec8c7c7830a392f709a8232",
+      "sha256": "074df07407fc74c922d7fc8ddf54d8a1051ea9f93ec8c7c7830a392f709a8232",
+      "transform": "identical"
+    },
+    {
+      "path": "attempt1-audit-hook-before-eventloop/run.py.txt",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\attempt1-audit-hook-before-eventloop\\run.py",
+      "source_sha256": "28d03dadce7a26295f0d5cb340224172799b70be74c838ff676ea3c021fb9851",
+      "sha256": "28d03dadce7a26295f0d5cb340224172799b70be74c838ff676ea3c021fb9851",
+      "transform": "identical"
+    },
+    {
+      "path": "execution.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\execution.json",
+      "source_sha256": "5576a03085451e7ec49d8202e73eacc36b40547a4e0d6b909fa5985e4d776c36",
+      "sha256": "5576a03085451e7ec49d8202e73eacc36b40547a4e0d6b909fa5985e4d776c36",
+      "transform": "identical"
+    },
+    {
+      "path": "native-artifacts.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\native-artifacts.json",
+      "source_sha256": "f3c18b02915102ada3f5c654f7ead5bb9f107c5473e346e4f15a9badd8f7caa1",
+      "sha256": "f3c18b02915102ada3f5c654f7ead5bb9f107c5473e346e4f15a9badd8f7caa1",
+      "transform": "identical"
+    },
+    {
+      "path": "native_gate.py.txt",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\native_gate.py",
+      "source_sha256": "9d54016e622b20a0d8bb26c90f8e3f5fe5a6db780996ffaeb3d5ff09e246c2b4",
+      "sha256": "9d54016e622b20a0d8bb26c90f8e3f5fe5a6db780996ffaeb3d5ff09e246c2b4",
+      "transform": "identical"
+    },
+    {
+      "path": "new.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\new.json",
+      "source_sha256": "cd4f08f7804d9c2168c7360e61a12728d1e661fdfc87ed2849b7b363d43fd2db",
+      "sha256": "cd4f08f7804d9c2168c7360e61a12728d1e661fdfc87ed2849b7b363d43fd2db",
+      "transform": "identical"
+    },
+    {
+      "path": "new.log",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\new.log",
+      "source_sha256": "89365e5e61f67854ae4ca90f48984604a2f2ba15e7c4d70d946ca902f19a4cc1",
+      "sha256": "89365e5e61f67854ae4ca90f48984604a2f2ba15e7c4d70d946ca902f19a4cc1",
+      "transform": "identical"
+    },
+    {
+      "path": "old.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\old.json",
+      "source_sha256": "7a96bd90ff05c8fc517f34c59479b612e9a165529dcfd532cdf4d341ab9ea38e",
+      "sha256": "7a96bd90ff05c8fc517f34c59479b612e9a165529dcfd532cdf4d341ab9ea38e",
+      "transform": "identical"
+    },
+    {
+      "path": "old.log",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\old.log",
+      "source_sha256": "568e88db135efeda0469abcd1c94c06636fc23a15f8d1cb35ebd0c078ad1e040",
+      "sha256": "568e88db135efeda0469abcd1c94c06636fc23a15f8d1cb35ebd0c078ad1e040",
+      "transform": "identical"
+    },
+    {
+      "path": "run.py.txt",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\run.py",
+      "source_sha256": "28d03dadce7a26295f0d5cb340224172799b70be74c838ff676ea3c021fb9851",
+      "sha256": "28d03dadce7a26295f0d5cb340224172799b70be74c838ff676ea3c021fb9851",
+      "transform": "identical"
+    },
+    {
+      "path": "runs.jsonl",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa109-native-2026-11-16\\runs.jsonl",
+      "source_sha256": "d083ecff9e94dd079fcaa759ed3101026d45d0258aeecd3221bcf2333ffb66a5",
+      "sha256": "d083ecff9e94dd079fcaa759ed3101026d45d0258aeecd3221bcf2333ffb66a5",
+      "transform": "identical"
+    }
+  ],
+  "scope": "Two source-built optional native package versions, one existing GGUF, CPU inference and lifecycle smoke only. Both exact outputs verified post-run. No quality/performance/general model compatibility/deployment claim. Historical first harness failure preserved. Index excludes itself and forthcoming independent review receipts."
+}

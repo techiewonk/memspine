@@ -1,0 +1,64 @@
+{
+  "old": {
+    "package": "0.3.36",
+    "native_dlls": [
+      {
+        "path": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-llmlocal-aed6cbf3\\Lib\\site-packages\\llama_cpp\\lib\\ggml-base.dll",
+        "bytes": 643584,
+        "sha256": "e8020449a791c9d605e3fa141959bff34bf65fdaaf54ac0c97414981cef01b09"
+      },
+      {
+        "path": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-llmlocal-aed6cbf3\\Lib\\site-packages\\llama_cpp\\lib\\ggml-cpu.dll",
+        "bytes": 1085440,
+        "sha256": "32ecb42ca8daecddee17f64e7abd6d28f05cc35d5004c28f6e59cd42e31b202c"
+      },
+      {
+        "path": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-llmlocal-aed6cbf3\\Lib\\site-packages\\llama_cpp\\lib\\ggml.dll",
+        "bytes": 50688,
+        "sha256": "d0d514ad2e68f12a9c61456dd15c5a956f5126c491ec2530b381add3db31c084"
+      },
+      {
+        "path": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-llmlocal-aed6cbf3\\Lib\\site-packages\\llama_cpp\\lib\\llama.dll",
+        "bytes": 7491584,
+        "sha256": "5ca20c822271e670d598107d29f0cde58cf1271d526db0c10ef9663164fc4e73"
+      },
+      {
+        "path": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-llmlocal-aed6cbf3\\Lib\\site-packages\\llama_cpp\\lib\\mtmd.dll",
+        "bytes": 2420736,
+        "sha256": "68a575d0768f8420210441afa61ba699921fc353488755761fdab8e615934e78"
+      }
+    ],
+    "inference_record_sha256": "7a96bd90ff05c8fc517f34c59479b612e9a165529dcfd532cdf4d341ab9ea38e"
+  },
+  "new": {
+    "package": "0.3.37",
+    "native_dlls": [
+      {
+        "path": "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-llmlocal-aed6cbf3\\Lib\\site-packages\\llama_cpp\\lib\\ggml-base.dll",
+        "bytes": 667136,
+        "sha256": "7717320891dafaf0f1b8316473f3a7568e571fbd6cc3a7a4e28bfffb553a1959"
+      },
+      {
+        "path": "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-llmlocal-aed6cbf3\\Lib\\site-packages\\llama_cpp\\lib\\ggml-cpu.dll",
+        "bytes": 1076736,
+        "sha256": "33c9a876cf43340b1ee79045661ea52bd520988391927ed4d84b0c4403eb18e8"
+      },
+      {
+        "path": "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-llmlocal-aed6cbf3\\Lib\\site-packages\\llama_cpp\\lib\\ggml.dll",
+        "bytes": 50688,
+        "sha256": "fb588f15520dbbde40d285948d1b49694423bac0c21570c2bf752152d4659490"
+      },
+      {
+        "path": "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-llmlocal-aed6cbf3\\Lib\\site-packages\\llama_cpp\\lib\\llama.dll",
+        "bytes": 8779776,
+        "sha256": "b6e4a4b76702edcddfbe8ac4c41defff18e3569088f078ec143d02dff7799d5d"
+      },
+      {
+        "path": "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-llmlocal-aed6cbf3\\Lib\\site-packages\\llama_cpp\\lib\\mtmd.dll",
+        "bytes": 2958848,
+        "sha256": "551494caa25f222495ad3323309973bdabb8e1c7876cba3ed702f7166045585a"
+      }
+    ],
+    "inference_record_sha256": "cd4f08f7804d9c2168c7360e61a12728d1e661fdfc87ed2849b7b363d43fd2db"
+  }
+}
