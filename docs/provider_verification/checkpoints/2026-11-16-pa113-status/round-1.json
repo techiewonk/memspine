@@ -1,0 +1,206 @@
+{
+  "kind": "pa113-status-metadata-independent-review-round-1",
+  "reviewed_at_utc": "2026-11-16T10:45:29.534985+00:00",
+  "verdict": "APPROVE",
+  "index_path": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\docs\\provider_verification\\checkpoints\\2026-11-16-pa113-status\\index.json",
+  "index_sha256": "90585679eee25d3bb3a699182380ef0382b2b83ced2809517253d7b80e1a4dc2",
+  "code_commit": "5fe854a79a8452bccc949b789af708457971b13f",
+  "code_tree": "c8c414c9556f25c3efcdd82b93baeb4b4ad856a8",
+  "subjects": [
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "sha256": "7d9e0544ee0e9737d2c519e82628b5eb43eb77bc8a6107013391595012478909"
+    },
+    {
+      "path": "docs/v2/tracker.html",
+      "sha256": "ec22f78fb316ff8b29169fe36134c1947bb2f4d20ac1a5860600ee2365558637"
+    },
+    {
+      "path": "docs/v2/task_decision_dashboard.html",
+      "sha256": "0064ab3d35f65a5d6e44ab3e56c684f034c0454250859817e620bbd1636a4130"
+    }
+  ],
+  "proofs": [
+    {
+      "path": "clean/receipt.json",
+      "source_sha256": "68202efe65e4a37424c02f691f2d18263881b91e8e944d1be7164a9d61bc43ff",
+      "packaged_sha256": "68202efe65e4a37424c02f691f2d18263881b91e8e944d1be7164a9d61bc43ff",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/runs.jsonl",
+      "source_sha256": "f9d015b274a65b67f06898b0bebf0ed2fee4d11672cd0d7aa45b0c2384efaef0",
+      "packaged_sha256": "f9d015b274a65b67f06898b0bebf0ed2fee4d11672cd0d7aa45b0c2384efaef0",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/ruff.log",
+      "source_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "packaged_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/format.log",
+      "source_sha256": "902e73c76ed4b2da950ab0824537d3b0bf887d414228f0517ef37d909b3eb165",
+      "packaged_sha256": "902e73c76ed4b2da950ab0824537d3b0bf887d414228f0517ef37d909b3eb165",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/mypy.log",
+      "source_sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "packaged_sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/affected.log",
+      "source_sha256": "d12398e3c8f829085b51c068e0ebd1e4778c009241f39f6896d2dfb0df13666b",
+      "packaged_sha256": "d12398e3c8f829085b51c068e0ebd1e4778c009241f39f6896d2dfb0df13666b",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/run.py.txt",
+      "source_sha256": "773dcd86d3ff0e94d23ad5ebaac47289b980fec1270303948391960db7b95c2e",
+      "packaged_sha256": "773dcd86d3ff0e94d23ad5ebaac47289b980fec1270303948391960db7b95c2e",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/pytest_main_source.py.txt",
+      "source_sha256": "7ab355f6bb7ddbdf4308d107b6d9093e7b0d89f03cecbb3bf34bb048055c9994",
+      "packaged_sha256": "7ab355f6bb7ddbdf4308d107b6d9093e7b0d89f03cecbb3bf34bb048055c9994",
+      "transform": "identical"
+    }
+  ],
+  "path_coverage": {
+    "actual_proof_plus_index_count": 9,
+    "declared_proof_plus_index_count": 9,
+    "actual_dirty_count": 12,
+    "declared_dirty_count": 12,
+    "missing_or_surplus": false
+  },
+  "clean_c1": {
+    "receipt_sha256": "68202efe65e4a37424c02f691f2d18263881b91e8e944d1be7164a9d61bc43ff",
+    "runs_sha256": "f9d015b274a65b67f06898b0bebf0ed2fee4d11672cd0d7aa45b0c2384efaef0",
+    "runner_sha256": "773dcd86d3ff0e94d23ad5ebaac47289b980fec1270303948391960db7b95c2e",
+    "wrapper_sha256": "7ab355f6bb7ddbdf4308d107b6d9093e7b0d89f03cecbb3bf34bb048055c9994",
+    "record_count": 4,
+    "all_revision_dirty_false": true,
+    "runner_asserts_clean_before_and_after": true,
+    "cwd_and_pythonpath": "Packaged historical runner sets cwd=main and PYTHONPATH=main/src plus main/evals; wrapper asserts loaded memspine modules resolve under main/src. No rerun in this review.",
+    "gates": [
+      {
+        "gate": "ruff",
+        "command": [
+          "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Scripts\\python.exe",
+          "-m",
+          "ruff",
+          "check",
+          "."
+        ],
+        "exit_code": 0,
+        "log_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "tail": [
+          "All checks passed!"
+        ]
+      },
+      {
+        "gate": "format",
+        "command": [
+          "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Scripts\\python.exe",
+          "-m",
+          "ruff",
+          "format",
+          "--check",
+          "."
+        ],
+        "exit_code": 0,
+        "log_sha256": "902e73c76ed4b2da950ab0824537d3b0bf887d414228f0517ef37d909b3eb165",
+        "tail": [
+          "1883 files already formatted"
+        ]
+      },
+      {
+        "gate": "mypy",
+        "command": [
+          "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Scripts\\python.exe",
+          "-m",
+          "mypy",
+          "--strict",
+          "src/memspine"
+        ],
+        "exit_code": 0,
+        "log_sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+        "tail": [
+          "Success: no issues found in 696 source files"
+        ]
+      },
+      {
+        "gate": "affected",
+        "command": [
+          "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Scripts\\python.exe",
+          "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-clean-c1-2026-11-16\\pytest_main_source.py",
+          "-p",
+          "no:deepeval",
+          "-o",
+          "addopts=",
+          "-q",
+          "-rs",
+          "--tb=short",
+          "--show-capture=no",
+          "-m",
+          "not perf",
+          "tests/unit/workers",
+          "tests/unit/schemas",
+          "tests/unit/core/test_replay.py",
+          "tests/unit/lib/test_lib_47_tiers.py",
+          "tests/unit/observability/test_logging.py",
+          "tests/unit/providers/test_shared_model_weights.py",
+          "tests/unit/wiring/test_rt_01_transport.py",
+          "tests/integration/test_ingest_equivalence.py",
+          "tests/unit/test_benchmark_graph_filter_pa113.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "d12398e3c8f829085b51c068e0ebd1e4778c009241f39f6896d2dfb0df13666b",
+        "tail": [
+          "........................................................................ [ 91%]",
+          "............................                                             [100%]",
+          "316 passed in 35.32s"
+        ]
+      }
+    ]
+  },
+  "tracker": {
+    "total_tasks": 343,
+    "status_counts": {
+      "DONE": 293,
+      "OPEN": 8,
+      "IN_PROGRESS": 15,
+      "DEPLOYMENT_CHECK": 19,
+      "DEFERRED": 2,
+      "EXCLUDED": 4,
+      "REVIEW": 1,
+      "PROPOSED": 1
+    },
+    "changed_existing_rows": [
+      "PA-109",
+      "PA-113"
+    ],
+    "added_rows": [
+      "RM-165"
+    ],
+    "PA017_PA018_unchanged": true,
+    "refresh_tracker_check_exit_code": 0,
+    "refresh_tracker_check_output": "Checked 343 tasks from C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\docs\\PROVIDER_TODO.md\n{'DONE': 293, 'OPEN': 8, 'IN_PROGRESS': 15, 'DEPLOYMENT_CHECK': 19, 'DEFERRED': 2, 'EXCLUDED': 4, 'REVIEW': 1, 'PROPOSED': 1}",
+    "mojibake_markers": false,
+    "scope": "PA113 bounded dependency refresh DONE; PA109 actual native inference pending; RM165 active Neo4j rebuild/recovery including SQL and Mongo IN_PROGRESS; RM15/PA039 OPEN; no complete final 46-chunk or Phase C claim."
+  },
+  "credential_shaped_log_scan": {
+    "logs_scanned": 4,
+    "hit_files": []
+  },
+  "limitations": [
+    "Clean C1 gates are intermediate focused validation, not a complete final 46-chunk rerun, full suite, Phase C, deployment acceptance, or heavy-model inference proof.",
+    "Runtime Neo4jGraphStore.clear heap OOM and public active rebuild recovery remain unresolved under RM165.",
+    "Review did not rerun runtime tests or edit repository files."
+  ],
+  "errors": []
+}

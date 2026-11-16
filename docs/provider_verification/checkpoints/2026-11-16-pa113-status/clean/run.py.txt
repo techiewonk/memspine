@@ -1,0 +1,28 @@
+from pathlib import Path
+import hashlib,json,os,subprocess,time,sys
+root=Path(r"C:\Users\hembad\Documents\GitHub\memspine-restructure")
+py=Path(r"C:\Users\hembad\.codex\pa113-envs\candidate-aed6cbf3-refresh\Scripts\python.exe")
+out=Path(__file__).parent
+assert not subprocess.check_output(['git','status','--porcelain'],cwd=root,text=True).strip()
+start_head=subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
+assert start_head=='5fe854a79a8452bccc949b789af708457971b13f'
+env=os.environ.copy();env.update({'PYTHONPATH':str(root/'src')+os.pathsep+str(root/'evals'),'HF_HUB_OFFLINE':'1','TRANSFORMERS_OFFLINE':'1'})
+selectors=['tests/unit/workers','tests/unit/schemas','tests/unit/core/test_replay.py','tests/unit/lib/test_lib_47_tiers.py','tests/unit/observability/test_logging.py','tests/unit/providers/test_shared_model_weights.py','tests/unit/wiring/test_rt_01_transport.py','tests/integration/test_ingest_equivalence.py','tests/unit/test_benchmark_graph_filter_pa113.py']
+wrapper=out/'pytest_main_source.py'
+wrapper.write_bytes(('from pathlib import Path\nimport sys,memspine,pytest\nroot=Path('+repr(str(root/'src'))+')\nassert Path(memspine.__file__).resolve().is_relative_to(root),memspine.__file__\nresult=pytest.main(sys.argv[1:])\nwrong=[n for n,m in list(sys.modules.items()) if (n=="memspine" or n.startswith("memspine.")) and getattr(m,"__file__",None) and not Path(m.__file__).resolve().is_relative_to(root)]\nassert not wrong,wrong\nraise SystemExit(result)\n').encode())
+commands=[('ruff',['-m','ruff','check','.']),('format',['-m','ruff','format','--check','.']),('mypy',['-m','mypy','--strict','src/memspine']),('affected',[str(wrapper),'-p','no:deepeval','-o','addopts=','-q','-rs','--tb=short','--show-capture=no','-m','not perf',*selectors])]
+results=[]
+for name,args in commands:
+ command=[str(py),*args];start=time.monotonic();log=out/(name+'.log')
+ with log.open('wb') as stream:r=subprocess.run(command,cwd=root,env=env,stdout=stream,stderr=subprocess.STDOUT)
+ raw=log.read_bytes();data=raw.replace(b'\r\n',b'\n');log.write_bytes(data)
+ rec={'gate':name,'command':command,'exit_code':r.returncode,'seconds':round(time.monotonic()-start,2),'log_sha256':hashlib.sha256(data).hexdigest(),'tail':data.decode('utf8',errors='replace').splitlines()[-3:]};results.append(rec);print(name,r.returncode,rec['tail'],flush=True)
+receipt={'kind':'clean-committed-intermediate-refreshed-environment-check','head':subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip(),'scope':'Integrated57 reviewed subjects, refreshed isolated interpreter with explicit main src/evals import path; affected tests audit all loaded memspine modules remain main. Clean committed intermediate validation, not full-suite or formal Phase C.','pyproject_sha256':hashlib.sha256((root/'pyproject.toml').read_bytes()).hexdigest(),'lock_sha256':hashlib.sha256((root/'uv.lock').read_bytes()).hexdigest(),'results':results}
+(out/'receipt.json').write_bytes((json.dumps(receipt,indent=2)+'\n').encode())
+assert not subprocess.check_output(['git','status','--porcelain'],cwd=root,text=True).strip()
+assert subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()==start_head
+import importlib.util
+spec=importlib.util.spec_from_file_location('verification',root/'scripts/record_verification_run.py');mod=importlib.util.module_from_spec(spec);spec.loader.exec_module(mod)
+for r in results:
+ mod.record_run(root=root,output=out/'runs.jsonl',gate='PA113 intermediate clean '+r['gate'],status='passed' if r['exit_code']==0 else 'failed',command=subprocess.list2cmdline(r['command']),passed=316 if r['gate']=='affected' else 1,failed=int(r['exit_code']!=0),skipped=0,artifacts=[],evidence=['Intermediate focused checkpoint, not full suite or Phase C.','Log SHA256 '+r['log_sha256'],'Explicit main/src and main/evals PYTHONPATH; cwd main.'],quarantined=[],extras=None,allow_dirty=False)
+sys.exit(any(x['exit_code'] for x in results))

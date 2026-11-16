@@ -1,0 +1,77 @@
+{
+  "kind": "pa113-status-and-clean-intermediate-checkpoint",
+  "code_commit": "5fe854a79a8452bccc949b789af708457971b13f",
+  "subjects": [
+    {
+      "path": "docs/PROVIDER_TODO.md",
+      "sha256": "7d9e0544ee0e9737d2c519e82628b5eb43eb77bc8a6107013391595012478909"
+    },
+    {
+      "path": "docs/v2/tracker.html",
+      "sha256": "ec22f78fb316ff8b29169fe36134c1947bb2f4d20ac1a5860600ee2365558637"
+    },
+    {
+      "path": "docs/v2/task_decision_dashboard.html",
+      "sha256": "0064ab3d35f65a5d6e44ab3e56c684f034c0454250859817e620bbd1636a4130"
+    }
+  ],
+  "proof_artifacts": [
+    {
+      "path": "clean/receipt.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-clean-c1-2026-11-16\\receipt.json",
+      "source_sha256": "68202efe65e4a37424c02f691f2d18263881b91e8e944d1be7164a9d61bc43ff",
+      "sha256": "68202efe65e4a37424c02f691f2d18263881b91e8e944d1be7164a9d61bc43ff",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/runs.jsonl",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-clean-c1-2026-11-16\\runs.jsonl",
+      "source_sha256": "f9d015b274a65b67f06898b0bebf0ed2fee4d11672cd0d7aa45b0c2384efaef0",
+      "sha256": "f9d015b274a65b67f06898b0bebf0ed2fee4d11672cd0d7aa45b0c2384efaef0",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/ruff.log",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-clean-c1-2026-11-16\\ruff.log",
+      "source_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/format.log",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-clean-c1-2026-11-16\\format.log",
+      "source_sha256": "902e73c76ed4b2da950ab0824537d3b0bf887d414228f0517ef37d909b3eb165",
+      "sha256": "902e73c76ed4b2da950ab0824537d3b0bf887d414228f0517ef37d909b3eb165",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/mypy.log",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-clean-c1-2026-11-16\\mypy.log",
+      "source_sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/affected.log",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-clean-c1-2026-11-16\\affected.log",
+      "source_sha256": "d12398e3c8f829085b51c068e0ebd1e4778c009241f39f6896d2dfb0df13666b",
+      "sha256": "d12398e3c8f829085b51c068e0ebd1e4778c009241f39f6896d2dfb0df13666b",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/run.py.txt",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-clean-c1-2026-11-16\\run.py",
+      "source_sha256": "773dcd86d3ff0e94d23ad5ebaac47289b980fec1270303948391960db7b95c2e",
+      "sha256": "773dcd86d3ff0e94d23ad5ebaac47289b980fec1270303948391960db7b95c2e",
+      "transform": "identical"
+    },
+    {
+      "path": "clean/pytest_main_source.py.txt",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-clean-c1-2026-11-16\\pytest_main_source.py",
+      "source_sha256": "7ab355f6bb7ddbdf4308d107b6d9093e7b0d89f03cecbb3bf34bb048055c9994",
+      "sha256": "7ab355f6bb7ddbdf4308d107b6d9093e7b0d89f03cecbb3bf34bb048055c9994",
+      "transform": "identical"
+    }
+  ],
+  "scope": "C1 clean focused intermediate validation only: quality gates and316affectedtests. PA113 boundedrefresh DONE; PA109actualinference pending; newRM165activeNeo4jrebuild recovery remainsIN_PROGRESS; RM15/PA039OPEN. No fullsuite orPhaseC claim. This index excludes itself and subsequent review receipts."
+}
