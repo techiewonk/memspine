@@ -1,0 +1,421 @@
+{
+  "task": "PA-113",
+  "date": "2026-11-15",
+  "scope": "current qualified graph walks and filtered graph leg; excludes obsolete pre-RM-130 seed-scan and Engine measures",
+  "budget": {
+    "p95_ms": 50.0,
+    "compiled_edges_target": 100000,
+    "namespace_edges_total": 120000
+  },
+  "graph": {
+    "edges": 100000,
+    "mentions_edges": 20000,
+    "namespace_edges_total": 120000,
+    "requested_entity_nodes": 20000,
+    "hubs": 200,
+    "generate_s": 1.282,
+    "seeds": [
+      "ent:bench/rm96:n006574",
+      "ent:bench/rm96:n014256",
+      "ent:bench/rm96:n012391",
+      "ent:bench/rm96:n001869",
+      "ent:bench/rm96:n019020",
+      "ent:bench/rm96:n000000"
+    ]
+  },
+  "filter": {
+    "valid_at": "2026-03-01T00:00:00Z",
+    "known_as_of": "2026-10-22T00:00:00Z",
+    "assertion_modalities": [
+      "asserted"
+    ],
+    "claim_states": [
+      "current"
+    ],
+    "unchecked_sensitivity": "fail"
+  },
+  "results": {
+    "sql_adjacency": {
+      "load_s": 6.909,
+      "loaded_node_count": 39999,
+      "correctness_checked_before_timing": true,
+      "walk_parity_mode": "shared-only",
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 201
+        }
+      },
+      "leg_edges": {
+        "namespace": 120000,
+        "admitted": 42036
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 301,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 7,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 16,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 10,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 11,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 245,
+          "admitted": 103
+        }
+      ],
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 1.238,
+        "p95_ms": 4.845,
+        "max_ms": 6.301
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 7.474,
+        "p95_ms": 27.087,
+        "max_ms": 32.789
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 1.595,
+        "p95_ms": 5.536,
+        "max_ms": 6.147
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 0.58,
+        "p95_ms": 1.628,
+        "max_ms": 2.078
+      },
+      "within_budget": {
+        "leg_frontier_p95_le_50ms": true
+      }
+    },
+    "ladybug": {
+      "load_s": 396.715,
+      "loaded_node_count": 39999,
+      "correctness_checked_before_timing": true,
+      "walk_parity_mode": "pushdown-vs-shared",
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 201
+        }
+      },
+      "leg_edges": {
+        "namespace": 120000,
+        "admitted": 42036
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 301,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 7,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 16,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 10,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 11,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 245,
+          "admitted": 103
+        }
+      ],
+      "walk_d1_shared_before": {
+        "n": 60,
+        "p50_ms": 6.377,
+        "p95_ms": 13.6,
+        "max_ms": 14.312
+      },
+      "walk_d1_pushdown_after": {
+        "n": 60,
+        "p50_ms": 0.537,
+        "p95_ms": 1.334,
+        "max_ms": 1.752
+      },
+      "walk_d1_queries": {
+        "pushdown": "1",
+        "shared": "2"
+      },
+      "walk_d2_shared_before": {
+        "n": 60,
+        "p50_ms": 19.765,
+        "p95_ms": 42.198,
+        "max_ms": 49.947
+      },
+      "walk_d2_pushdown_after": {
+        "n": 60,
+        "p50_ms": 7.217,
+        "p95_ms": 10.94,
+        "max_ms": 11.757
+      },
+      "walk_d2_queries": {
+        "pushdown": "2",
+        "shared": "3..5"
+      },
+      "pushdown_identical_to_shared": true,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 0.487,
+        "p95_ms": 1.454,
+        "max_ms": 1.723
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 7.217,
+        "p95_ms": 11.119,
+        "max_ms": 11.51
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 3.497,
+        "p95_ms": 15.731,
+        "max_ms": 18.103
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 1.42,
+        "p95_ms": 10.53,
+        "max_ms": 12.33
+      },
+      "within_budget": {
+        "leg_frontier_p95_le_50ms": true
+      },
+      "lb_frontier_hub_before": {
+        "n": 20,
+        "p50_ms": 210.029,
+        "p95_ms": 241.048,
+        "max_ms": 242.582
+      },
+      "lb_frontier_hub_after": {
+        "n": 20,
+        "p50_ms": 1.814,
+        "p95_ms": 2.75,
+        "max_ms": 2.87
+      },
+      "lb_frontier_hub_rows": 245,
+      "lb_frontier_read_seeds_before": {
+        "n": 20,
+        "p50_ms": 215.984,
+        "p95_ms": 240.044,
+        "max_ms": 254.886
+      },
+      "lb_frontier_read_seeds_after": {
+        "n": 20,
+        "p50_ms": 9.748,
+        "p95_ms": 11.151,
+        "max_ms": 11.18
+      },
+      "lb_frontier_read_seeds_rows": 301,
+      "lb_frontier_frontier16_before": {
+        "n": 20,
+        "p50_ms": 227.499,
+        "p95_ms": 260.102,
+        "max_ms": 279.661
+      },
+      "lb_frontier_frontier16_after": {
+        "n": 20,
+        "p50_ms": 20.331,
+        "p95_ms": 25.124,
+        "max_ms": 26.042
+      },
+      "lb_frontier_frontier16_rows": 3569,
+      "walk_d1_before_rm116": {
+        "n": 60,
+        "p50_ms": 221.042,
+        "p95_ms": 246.404,
+        "max_ms": 255.539
+      },
+      "walk_d2_before_rm116": {
+        "n": 60,
+        "p50_ms": 435.867,
+        "p95_ms": 473.118,
+        "max_ms": 500.494
+      }
+    },
+    "neo4j": {
+      "load_s": 24.103,
+      "loaded_node_count": 39999,
+      "correctness_checked_before_timing": true,
+      "walk_parity_mode": "pushdown-vs-shared",
+      "reached_nodes": {
+        "walk_d1": {
+          "min": 3,
+          "max": 102
+        },
+        "walk_d2": {
+          "min": 9,
+          "max": 201
+        }
+      },
+      "leg_edges": {
+        "namespace": 120000,
+        "admitted": 42036
+      },
+      "leg_frontier_sizes": [
+        {
+          "seeds": 6,
+          "fetched": 301,
+          "admitted": 122
+        },
+        {
+          "seeds": 1,
+          "fetched": 7,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 14,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 16,
+          "admitted": 6
+        },
+        {
+          "seeds": 1,
+          "fetched": 10,
+          "admitted": 5
+        },
+        {
+          "seeds": 1,
+          "fetched": 11,
+          "admitted": 3
+        },
+        {
+          "seeds": 1,
+          "fetched": 245,
+          "admitted": 103
+        }
+      ],
+      "walk_d1_shared_before": {
+        "n": 60,
+        "p50_ms": 13.175,
+        "p95_ms": 28.609,
+        "max_ms": 35.086
+      },
+      "walk_d1_pushdown_after": {
+        "n": 60,
+        "p50_ms": 3.551,
+        "p95_ms": 5.352,
+        "max_ms": 5.902
+      },
+      "walk_d1_queries": {
+        "pushdown": "1",
+        "shared": "2"
+      },
+      "walk_d2_shared_before": {
+        "n": 60,
+        "p50_ms": 28.514,
+        "p95_ms": 64.98,
+        "max_ms": 80.006
+      },
+      "walk_d2_pushdown_after": {
+        "n": 60,
+        "p50_ms": 4.677,
+        "p95_ms": 8.853,
+        "max_ms": 232.198
+      },
+      "walk_d2_queries": {
+        "pushdown": "1",
+        "shared": "3"
+      },
+      "pushdown_identical_to_shared": true,
+      "walk_d1": {
+        "n": 60,
+        "p50_ms": 2.827,
+        "p95_ms": 4.916,
+        "max_ms": 5.349
+      },
+      "walk_d2": {
+        "n": 60,
+        "p50_ms": 3.842,
+        "p95_ms": 8.695,
+        "max_ms": 9.202
+      },
+      "leg_frontier": {
+        "n": 140,
+        "p50_ms": 4.771,
+        "p95_ms": 18.749,
+        "max_ms": 24.034
+      },
+      "leg_frontier_fetch": {
+        "n": 140,
+        "p50_ms": 3.272,
+        "p95_ms": 11.563,
+        "max_ms": 13.778
+      },
+      "within_budget": {
+        "leg_frontier_p95_le_50ms": true
+      }
+    }
+  },
+  "skipped": {},
+  "environment": {
+    "python": "3.13.9",
+    "platform": "Windows-11-10.0.29708-SP0",
+    "machine": "AMD64",
+    "versions": {
+      "sqlalchemy": "2.1.8",
+      "aiosqlite": "0.22.1",
+      "ladybug": "0.22.3",
+      "neo4j": "6.4.1",
+      "pydantic": "2.14.3"
+    }
+  }
+}

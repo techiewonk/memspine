@@ -1,0 +1,92 @@
+{
+  "scope": "native build/import and mocked lifecycle; no model weights or inference",
+  "env_options": {
+    "CMAKE_ARGS": "-DGGML_NATIVE=OFF -DGGML_CUDA=OFF",
+    "CMAKE_GENERATOR": "Ninja",
+    "HF_HUB_OFFLINE": "1",
+    "TRANSFORMERS_OFFLINE": "1"
+  },
+  "generated_utc": "2026-11-15T17:33:21.6437412Z",
+  "lanes": [
+    {
+      "source_root": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure",
+      "build_log_sha256": "bd5a62990bd20ca8ca46a1a9fa379a14b9d5868d4def5f886f0b8553f6451726",
+      "source_head": "fd3e5e78a25704c3fcd3c3c57a8b3cd048c05e28",
+      "test_count": 4,
+      "import_command": "python -c \"import llama_cpp,memspine; print(...)\"",
+      "name": "baseline",
+      "build_exit_code": 0,
+      "checks": [
+        {
+          "exit_code": 0,
+          "log": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-llmlocal-lane\\baseline-pipcheck.log",
+          "sha256": "5fcaea743f82e28ee8956cc560d8f075d2417038ad33e2ec2b180d2fb7186df1",
+          "gate": "pipcheck"
+        },
+        {
+          "exit_code": 0,
+          "log": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-llmlocal-lane\\baseline-native-import.log",
+          "sha256": "833b7d9b7291d5a5b3e08ddd3dae7cb1b7edad6ba7a6808ad4be4a8be909eb6e",
+          "gate": "native-import"
+        },
+        {
+          "exit_code": 0,
+          "log": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-llmlocal-lane\\baseline-lifecycle.log",
+          "sha256": "b2a95fad7016d4fd08c570c22f49dd9e460ff6b52a9c91374c46a20c9a2b41ac",
+          "gate": "lifecycle"
+        }
+      ],
+      "lock_sha256": "fd2c52e1c2d68616d580ff27c83e233ad259b20eed4607292014827da5833591",
+      "build_command": "call \"C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\Common7\\Tools\\VsDevCmd.bat\" -arch=amd64 >nul && \"C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv-rm150\\Scripts\\uv.exe\" sync --locked --extra dev --extra llmlocal",
+      "build_log": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-llmlocal-lane\\baseline-build.log",
+      "source_test_sha256": "03505d2358cb7028be177fc818fe1447f7d5ddb885c8aab5fe0bc851beada71c",
+      "pipcheck_command": "uv pip check --python C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-llmlocal-aed6cbf3\\Scripts\\python.exe",
+      "test_command": "python -m pytest -q tests/unit/providers/test_provider_llamacpp_lifecycle.py",
+      "python": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-llmlocal-aed6cbf3\\Scripts\\python.exe",
+      "build_seconds": 46.09
+    },
+    {
+      "source_root": "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure",
+      "build_log_sha256": "0943ffe4eeab0998875650adbbef38ab246ab41636d9cc175ae97a8f1fc4a632",
+      "source_head": "aed6cbf36d5f1def238d9efeb01141717c786d2e",
+      "test_count": 4,
+      "import_command": "python -c \"import llama_cpp,memspine; print(...)\"",
+      "name": "candidate",
+      "build_exit_code": 0,
+      "checks": [
+        {
+          "exit_code": 0,
+          "log": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-llmlocal-lane\\candidate-pipcheck.log",
+          "sha256": "9c33f1b14cb31c27fd2fe54d1be16b2908e4c1db85b25296e33c775b0d418fa4",
+          "gate": "pipcheck"
+        },
+        {
+          "exit_code": 0,
+          "log": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-llmlocal-lane\\candidate-native-import.log",
+          "sha256": "3e0cb53f5f250d424146a5e76ecaae2bb62af79d891c436ae9ee075a1a95ef0d",
+          "gate": "native-import"
+        },
+        {
+          "exit_code": 0,
+          "log": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-llmlocal-lane\\candidate-lifecycle.log",
+          "sha256": "7ab8b285e451acb0b41e59bb3e29b6b9e75d342cda26d9cf56d9c995e2152c71",
+          "gate": "lifecycle"
+        }
+      ],
+      "lock_sha256": "79663be36f97707c675bac8f2087b0a6275a6d04355026e2e4cc5b7ec76dce34",
+      "build_command": "call \"C:\\Program Files (x86)\\Microsoft Visual Studio\\2019\\BuildTools\\Common7\\Tools\\VsDevCmd.bat\" -arch=amd64 >nul && \"C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\.venv-rm150\\Scripts\\uv.exe\" sync --locked --extra dev --extra llmlocal",
+      "build_log": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-llmlocal-lane\\candidate-build.log",
+      "source_test_sha256": "03505d2358cb7028be177fc818fe1447f7d5ddb885c8aab5fe0bc851beada71c",
+      "pipcheck_command": "uv pip check --python C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-llmlocal-aed6cbf3\\Scripts\\python.exe",
+      "test_command": "python -m pytest -q tests/unit/providers/test_provider_llamacpp_lifecycle.py",
+      "python": "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-llmlocal-aed6cbf3\\Scripts\\python.exe",
+      "build_seconds": 55.48
+    }
+  ],
+  "toolchain": {
+    "cmake": "3.29.2",
+    "msvc": "19.29.30159",
+    "ninja": "1.12.0"
+  },
+  "frozen_dependency_revision": "aed6cbf36d5f1def238d9efeb01141717c786d2e"
+}

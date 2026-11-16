@@ -1,0 +1,23 @@
+{
+  "frozen_original_comparison_terminal": true,
+  "artifacts": [
+    {
+      "path": "tests/integration/fixtures/ingest_equivalence.json",
+      "reviewed_commit": "fd3e5e78a25704c3fcd3c3c57a8b3cd048c05e28",
+      "old_sha256": "b1af1832ebb82b8dce3846d4802dff5d88dbcb184aac6d280d6df39569b6784c",
+      "new_sha256": "cd00107e96922ac11646aec9a21bbb3e76a0e80ccbc96b6444f177dac0939f0b"
+    },
+    {
+      "path": "tests/integration/test_rm45_pg_records_projection.py",
+      "reviewed_commit": "173cd60fdc176a380e659144141a9a1bc93a713a",
+      "old_sha256": "84544bdc909c95bcf96c2155b779f05fb5897ebea5cdcafe497146bf8862e829",
+      "new_sha256": "13bf934b886dd572f056fd9146f5546d8fd2ab01f46450a31eff864dc43bb061"
+    },
+    {
+      "path": "tests/integration/test_rm45_mongo_records_projection.py",
+      "reviewed_commit": "173cd60fdc176a380e659144141a9a1bc93a713a",
+      "old_sha256": "027d143df991fcb054a0dcca9445197b297347403b33463cdeb9c3204b487868",
+      "new_sha256": "a2d73f0095fd5a04fdbcaac0e8ceb6f138407b411b3e10d18b514a6a698015bc"
+    }
+  ]
+}

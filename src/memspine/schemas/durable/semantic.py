@@ -203,6 +203,7 @@ class SemanticEnvelope(DurableModel):
     """
 
     __kind__: ClassVar[str | None] = "semantic_envelope"
+    schema_version: int = Field(default=2, ge=2, le=2)
 
     # --- identities (system-authored) ---
     write_id: str = Field(min_length=1)

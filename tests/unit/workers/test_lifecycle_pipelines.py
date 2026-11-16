@@ -41,7 +41,10 @@ class Harness:
         appended = await self.storage.append_event(event)
         assert appended.seq is not None
         await self.projector.apply(appended)
-        await self.storage.set_offset(self.projector.name, appended.seq)
+        assert await self.storage.get_offset(self.projector.name) == appended.seq
+        if appended.kind is EventKind.WRITE:
+            record_id = str(appended.payload["record"]["record_id"])
+            assert await self.storage.get_record(record_id) is not None
 
 
 async def make_ctx(**config_overrides: object) -> tuple[PipelineContext, Harness]:
@@ -245,7 +248,8 @@ async def test_decay_then_compress_then_rebuild_round_trips() -> None:
 
     # Rebuild identity (D0.1): replaying the log reproduces the compressed row.
     before = record.model_dump(mode="json")
-    await harness.storage.delete_all_records()
+    await harness.projector.reset()
+    assert await harness.storage.get_offset(harness.projector.name) == 0
     for event in await harness.storage.read_events():
         await harness.projector.apply(event)
     [rebuilt] = await ctx.storage.list_records("agent/a", "episodic")

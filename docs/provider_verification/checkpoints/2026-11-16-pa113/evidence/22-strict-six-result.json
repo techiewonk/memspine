@@ -1,0 +1,18 @@
+{
+  "gate": "strict-six",
+  "command": [
+    "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Scripts\\python.exe",
+    "scripts/run_provider_live_contracts.py",
+    "--docker",
+    "--require-all",
+    "--report",
+    "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-native-candidate\\strict-six-report.json"
+  ],
+  "interpreter": "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Scripts\\python.exe",
+  "candidate_revision": "aed6cbf36d5f1def238d9efeb01141717c786d2e",
+  "exit_code": 0,
+  "seconds": 37.38,
+  "log_sha256": "61b4a418560c02e59a171086e5ba32addf1f421b879b02b48aad6badf7b082b6",
+  "report_sha256": "2931717de0fd9c65194d65f9afdf463ab0e720fe314778908a3624085cb2fa2c",
+  "tail": "tests/integration/providers/test_provider_live_contracts.py::test_remote_cache_contract[valkey-MEMSPINE_TEST_LIVE_VALKEY_URL] |   C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Lib\\site-packages\\cashews\\backends\\redis\\backend.py:417: DeprecationWarning: Call to deprecated close. (Use aclose() instead) -- Deprecated since version 5.0.1. |     await self._client.close() |  | -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html | 8 passed, 2 warnings in 16.88s"
+}

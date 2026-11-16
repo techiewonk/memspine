@@ -40,7 +40,10 @@ class Harness:
         appended = await self.storage.append_event(event)
         assert appended.seq is not None
         await self.projector.apply(appended)
-        await self.storage.set_offset(self.projector.name, appended.seq)
+        assert await self.storage.get_offset(self.projector.name) == appended.seq
+        if appended.kind is EventKind.WRITE:
+            record_id = str(appended.payload["record"]["record_id"])
+            assert await self.storage.get_record(record_id) is not None
 
 
 async def make_ctx() -> tuple[PipelineContext, Harness]:

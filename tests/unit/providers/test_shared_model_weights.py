@@ -11,6 +11,7 @@ from __future__ import annotations
 import sys
 import threading
 import types
+from pathlib import Path
 from typing import Any
 
 import pytest
@@ -219,12 +220,29 @@ async def test_st_weight_key_excludes_prompts_and_includes_device(
 # -- static prefilter ------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("offline", [False, True])
 async def test_static_prefilter_reuses_the_configured_static_embedder_entry(
     monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    offline: bool,
 ) -> None:
     from memspine.read.pipeline.rerank import _static_embedding_prefilter
     from memspine.services.embedding.static import DEFAULT_MODEL as _DEFAULT_MODEL
     from memspine.store.records import MemoryRecord
+
+    snapshot = tmp_path / "static-snapshot"
+    snapshot.mkdir()
+    resolved: list[str] = []
+
+    def local_snapshot(model: str) -> Path:
+        resolved.append(model)
+        return snapshot
+
+    if offline:
+        monkeypatch.setenv("HF_HUB_OFFLINE", "1")
+    else:
+        monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    monkeypatch.setattr("memspine.clients.weights.model2vec.resolve_local_snapshot", local_snapshot)
 
     loads: list[str] = []
 
@@ -256,7 +274,8 @@ async def test_static_prefilter_reuses_the_configured_static_embedder_entry(
     ]
     kept = await _static_embedding_prefilter(eng, "memory", candidates, top_k=2)
     assert len(kept) < len(candidates)
-    assert loads == [_DEFAULT_MODEL]  # the prefilter joined the configured embedder's load
+    assert loads == [str(snapshot) if offline else _DEFAULT_MODEL]
+    assert resolved == ([_DEFAULT_MODEL] if offline else [])
     assert _held("model.embedding.static") == [2]
     assert "embedding.weights:static-prefilter" in resources.states
     assert (await resources.close_all()).complete

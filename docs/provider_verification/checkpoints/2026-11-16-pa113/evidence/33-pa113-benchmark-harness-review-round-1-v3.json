@@ -1,0 +1,85 @@
+{
+  "kind": "pa113_benchmark_harness_independent_review_round_1_v3",
+  "reviewer": "Sol/high independent R1 v3 recheck",
+  "at_utc": "2026-11-15T18:45:00.821585+00:00",
+  "candidate_worktree": "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure",
+  "candidate_head": "aed6cbf36d5f1def238d9efeb01141717c786d2e",
+  "review_scope": "Only the frozen two-path PA-113 harness v3 amendment; inherited baseline repair and other candidate changes not re-reviewed.",
+  "per_path_raw_sha256": {
+    "scripts/benchmark_graph_filter_pa113.py": "9e57bf82fee1b330327c46e1247d617f2e468ef6b35e30b25d156693984ce44f",
+    "tests/unit/test_benchmark_graph_filter_pa113.py": "b88d658b7b0596382df441b1945b914e85024de7bad1c366858a6a7318dcc70f"
+  },
+  "freeze_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-rm96-harness-freeze-v3.json",
+  "freeze_raw_sha256": "6306fbe3be7fd7906667ab91fd0de5a8991f9dff8e59b3171276b115f23f2e92",
+  "smoke6_receipt_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-rm96-benchmark\\smoke6-receipt.json",
+  "smoke6_receipt_raw_sha256": "03c3c4042d40490c904cfebb4f419b1ab422f0630c31de4d37e0126b160ee704",
+  "checks": [
+    {
+      "name": "oldlock_focused_guards",
+      "command": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-aed6cbf3-oldlock\\Scripts\\python.exe -m pytest -p no:deepeval -o addopts= -q -rs --tb=short --show-capture=no tests/unit/test_benchmark_graph_filter_pa113.py",
+      "exit_code": 0,
+      "passed": 9,
+      "skipped": 0
+    },
+    {
+      "name": "candidate_focused_guards",
+      "command": "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Scripts\\python.exe -m pytest -p no:deepeval -o addopts= -q -rs --tb=short --show-capture=no tests/unit/test_benchmark_graph_filter_pa113.py",
+      "exit_code": 0,
+      "passed": 9,
+      "skipped": 0
+    },
+    {
+      "name": "independent_no_progress_fault_probe",
+      "command": "old-lock Python read-only fake driver: initial count 250, first delete transaction returns zero",
+      "exit_code": 0,
+      "summary": "Raised RuntimeError private Neo4j graph changed during cleanup; did not silently pass."
+    },
+    {
+      "name": "ruff_check",
+      "command": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-aed6cbf3-oldlock\\Scripts\\python.exe -m ruff check scripts/benchmark_graph_filter_pa113.py tests/unit/test_benchmark_graph_filter_pa113.py",
+      "exit_code": 0
+    },
+    {
+      "name": "ruff_format_check",
+      "command": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-aed6cbf3-oldlock\\Scripts\\python.exe -m ruff format --check scripts/benchmark_graph_filter_pa113.py tests/unit/test_benchmark_graph_filter_pa113.py",
+      "exit_code": 0
+    },
+    {
+      "name": "paired_all_backend_smoke6",
+      "command": "C:/Users/hembad/.codex/pa113-envs/candidate-aed6cbf3-refresh/Scripts/python.exe C:/Users/hembad/.codex/pa113-envs/pa113-rm96-benchmark-controller.py smoke6",
+      "exit_code": 0,
+      "oldlock_exit_code": 0,
+      "candidate_exit_code": 0,
+      "backends": [
+        "sql_adjacency",
+        "ladybug",
+        "neo4j"
+      ],
+      "skipped": 0,
+      "cross_lock_invariants_equal": true,
+      "requested_entity_nodes": 200,
+      "loaded_node_count_each_backend": 400,
+      "compiled_edges": 1000,
+      "mentions_edges": 200,
+      "namespace_edges": 1200,
+      "timing_interpretation": "discard; smoke only"
+    }
+  ],
+  "review_conclusions": [
+    "No store.clear call remains in the new harness. Its private cleanup checks a Pa113N plus 10 lowercase hex label, uses an explicit matching Neo4j database, and deletes only that label with LIMIT 100 inside separate execute_write transactions.",
+    "The helper counts initial nodes, rejects graphs needing more than its finite max_batches before deletion, requires positive progress and a terminal zero batch, and checks removed total against the initial count.",
+    "Neo4j close still attempts private constraint and index removal and driver.close when batched deletion fails; loader and measurement exceptions retain primary identity with cleanup failure chained.",
+    "The report distinguishes requested entity nodes from actual loaded nodes per backend; smoke6 records 200 requested and 400 loaded across all three backends.",
+    "Depth-1/2 walk and filtered-leg parity precede timing; controller verifies same candidate source across old and refreshed interpreters with distinct lock hashes and owned Neo4j container stability."
+  ],
+  "resolved_findings": [
+    "v2 normal cleanup called Neo4jGraphStore.clear in one large transaction and failed with Java heap OOM after full old-lock measurements; v3 replaces only benchmark-private cleanup with bounded exact-label batches."
+  ],
+  "open_material_findings": [],
+  "remaining_limitations": [
+    "V3 has only completed 1k compiled plus 200 mention edge paired smoke; the full 100k plus 20k paired timing has not been rerun and no performance result is approved.",
+    "Neo4jGraphStore.clear in the runtime remains unchanged and its large-graph single-transaction limitation remains; this review approves only the benchmark-private cleanup.",
+    "The prior full old-lock run produced no final report because its normal Neo4j cleanup failed; those partial timings must not be relabeled as a successful comparison."
+  ],
+  "verdict": "PASS: R1 approves frozen v3 two-file harness for distinct R2 review; full paired timing remains held."
+}

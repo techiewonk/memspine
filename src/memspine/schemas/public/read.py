@@ -62,7 +62,7 @@ class EvidenceBundle(PublicModel):
     """An assertion with its support evidence, binding evidence and time anchors. It enters the context
     whole or not at all (ER-24): the bundle must carry every support and binding item of the assertion."""
 
-    __semver__: ClassVar[str] = "1.0.0"
+    __semver__: ClassVar[str] = "2.0.0"
 
     record_id: str = Field(min_length=1)
     assertion: SemanticEnvelope

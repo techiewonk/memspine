@@ -1,0 +1,671 @@
+{
+  "kind": "pa113-reviewed-main-integration-evidence",
+  "base_main_commit": "fd3e5e78a25704c3fcd3c3c57a8b3cd048c05e28",
+  "candidate_base_commit": "aed6cbf36d5f1def238d9efeb01141717c786d2e",
+  "state": "prepared_before_integration_commit",
+  "subject_count": 57,
+  "subjects": [
+    {
+      "path": "docs/PYTHON313_DEPENDENCIES.md",
+      "sha256": "e3a48ffed81a10a7036b75edb7986a7d977051e4f3feaa41baaed7e42d1306cc",
+      "git_blob_oid": "d8dd5d9b1ee72e1a2a64ab94734259d4ba693360"
+    },
+    {
+      "path": "docs/adr/ADR-070-python313-dependency-refresh.md",
+      "sha256": "ce7868e98924c16e70d0ea7d160bd30c4c7e374ff0f6390e3f6cc1170f74c66e",
+      "git_blob_oid": "62436e5d5a2bca9934caeba731b8021e903747dc"
+    },
+    {
+      "path": "docs/v2/schemas/durable/SemanticEnvelope.json",
+      "sha256": "582e963efca381ed937327b4969c4020c1eb2e2cc39f9fbada0ab74cd93f0755",
+      "git_blob_oid": "e9117854b0c8678096f6a9606080e7d91f218194"
+    },
+    {
+      "path": "docs/v2/schemas/index.json",
+      "sha256": "125b170c93e51072f6aa3e3fc4a0b2ef27e557ed30bb837ea7dd24612999ebff",
+      "git_blob_oid": "ee0497bca0f006c4e4b13c5479c7bc993a4af0dd"
+    },
+    {
+      "path": "docs/v2/schemas/internal/Call2Input.json",
+      "sha256": "1dcde788cb21b1ef5ed3ceb089b00c1de78dcc1946396ee342444c9878e362bb",
+      "git_blob_oid": "23d9e8e8d67777874d281693b0dcaaf41d0ea160"
+    },
+    {
+      "path": "docs/v2/schemas/internal/Candidate.json",
+      "sha256": "536c9df2db5dc84e28b1905c8636f315242a008425f96e9e8cb10805e30e349f",
+      "git_blob_oid": "e07a06176af8780cb326a14db79e90a81393cc83"
+    },
+    {
+      "path": "docs/v2/schemas/internal/DeposableEnvelope.json",
+      "sha256": "28812f74c154ad35815ad62268fca26f40efa54042fe40a8c8f367016717f6ac",
+      "git_blob_oid": "15e76a96e5b3c8ea0b0c3e1c273e2784d3667598"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep06Input.json",
+      "sha256": "6ad82e04db9d5fd70c7489593c69c82002c29bf59264d548ded10d517e0cade4",
+      "git_blob_oid": "bed2f9676a6d0f5f74527e6e17416d2353f25c00"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep06Output.json",
+      "sha256": "5b5555cb8d75d512de22848b0481cffd0159c3bb9f371a041b28b85902c6dab3",
+      "git_blob_oid": "0e71b4e6557dc051f4fe137b4f11767cc70cfd1f"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep08Input.json",
+      "sha256": "6b2b6968f323013fcdbf3ea91692e4d3ed3023e8c6bab32840f282f6f72943a1",
+      "git_blob_oid": "ede90edead84b2ba874847e20f6edf16637363d8"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep10Output.json",
+      "sha256": "f6bc6ede5fc676ead06b37b98722e91ce2ab08e3936dc7a9d8f49b3f911eb703",
+      "git_blob_oid": "55a3fe72b81ae26de61f9f72a3ee9ddacbf86c49"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep16Input.json",
+      "sha256": "ee5ff8a9e67c5a31522581aaa0515badcdb6a6e470dbbccf2438e90989b2fcb7",
+      "git_blob_oid": "567f4541703de23ef7b2fa61c08784a746fcfa97"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep16Output.json",
+      "sha256": "d19612b58c2761c38b15317244ab6720e64a563a2d9f8e706047962a9ef49fbf",
+      "git_blob_oid": "39145e799fa7da48c91dc993ba8f08400c6c0a25"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep17Input.json",
+      "sha256": "590fdc3dee953eda501ba817f8d79492a0e83d38d92006b8ba9433f00ebdb03a",
+      "git_blob_oid": "cfe3d88dfb16be261bd44f1e1ff39205c5057090"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep18Input.json",
+      "sha256": "5e80239a59a318592ad2c82293e0a009b5cef28d7abb42403f6baaea97b630c4",
+      "git_blob_oid": "1894041d5d54a7d9c62add935309a02598485833"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep20Input.json",
+      "sha256": "a8d5ba26d821003d2851b3d90774c9993acba5eaee9c86651ef61b0945ccb5e0",
+      "git_blob_oid": "64b58c9504b4e6988c1bf83b6af0046d278aeaa0"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep21Input.json",
+      "sha256": "c71bc9e80e0a8a9b866a2a3bccc1e5bf0b29db11ab3abe810c95620c5c5bfa1a",
+      "git_blob_oid": "57809317ab3e49fdfb1f813697be4a471c29a6c4"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep22Input.json",
+      "sha256": "f9ad869433f366d4b57f69d445a1161c3311164cc7bf7ad4f63b7735853ab797",
+      "git_blob_oid": "b7904a92bf3f26da4a070ec6eb5dd21f32911553"
+    },
+    {
+      "path": "docs/v2/schemas/internal/InsertStep22Output.json",
+      "sha256": "8043fd89a25ab9d0530f3861f30eac6499a1109a78064fba196be2a02099ea50",
+      "git_blob_oid": "154b86566eaf889cd44c8c394440e5bf8887c890"
+    },
+    {
+      "path": "docs/v2/schemas/internal/OfflineStep03Input.json",
+      "sha256": "843718b4f2e48ef7e0fbbdb0f3fe51ccc6a0b6dae903877ae45b14065f84ff8e",
+      "git_blob_oid": "b5cf24a73b8ec0f4b038cb326178e4529975205e"
+    },
+    {
+      "path": "docs/v2/schemas/internal/OfflineStep03Output.json",
+      "sha256": "3bf8495e8154bc19f7dc901d4e0e92e7415dc7b6e6cf1900bc0c6f65be66a54c",
+      "git_blob_oid": "269d9e2f62c09f96fb9d112858065f51c077df98"
+    },
+    {
+      "path": "docs/v2/schemas/internal/OfflineStep05Output.json",
+      "sha256": "2a4ed8a726942481f99d1818e946d0d8d5405440532581f206d72e038a9f2361",
+      "git_blob_oid": "0a68abcc5ae5de433890ab82338c98ad299cadb7"
+    },
+    {
+      "path": "docs/v2/schemas/internal/OfflineStep10Output.json",
+      "sha256": "4e771dc193ba0e64a5609f23af6218c1a864d9657529121183e2ee89d5df8a06",
+      "git_blob_oid": "7ed6903cec4c76e73855b2d1c04a044fce45f8a1"
+    },
+    {
+      "path": "docs/v2/schemas/internal/OfflineStep11Output.json",
+      "sha256": "5e24bf8901d625a9704d93172e06881535d83f9d14239c9ebccbfb231925787f",
+      "git_blob_oid": "10310afff177b7849c5be83b479f48ea38e79bdf"
+    },
+    {
+      "path": "docs/v2/schemas/internal/OfflineStep12Output.json",
+      "sha256": "f1a78b898d88a97499eff55804dd4d889c3ea237d4a90414d399d0477641ca1c",
+      "git_blob_oid": "3f045c5677c2c3fc036cb383cfc7161734e01e96"
+    },
+    {
+      "path": "docs/v2/schemas/internal/OfflineStep13Output.json",
+      "sha256": "a7e51d7b0362a7eef65d698ed99ac25449d767dc92136c75d8e9bddb2f4418c0",
+      "git_blob_oid": "c0bd25fcd59b3738d75bd28d23b3e1efe382d3a3"
+    },
+    {
+      "path": "docs/v2/schemas/internal/OfflineStep14Output.json",
+      "sha256": "6521274ccc9902f66e9ddc25496e602ef999119f8dc76764e0830bdd2e93f519",
+      "git_blob_oid": "d5fff407294fcc14c20586f4b46e562e1385c1d9"
+    },
+    {
+      "path": "docs/v2/schemas/internal/OfflineStep15Output.json",
+      "sha256": "1151ec681c38274445e3a88637720bb12909939182c6c94c37e0a5d98e9194b6",
+      "git_blob_oid": "93b2e5dac40a81da24007fcf4c112ce1b7a33753"
+    },
+    {
+      "path": "docs/v2/schemas/internal/PackedEvidence.json",
+      "sha256": "4cb14dc9a8b3570ef2e906d8156a3876dacd05d12f6837ed597a1ec5fdc0179b",
+      "git_blob_oid": "d63d5bd16d1891fcb246fbc0d40965bbe22ef221"
+    },
+    {
+      "path": "docs/v2/schemas/internal/Record.json",
+      "sha256": "e5b354e751653909244307c0f872d69050bf3ac22b25e4bf2a3d28e815a83207",
+      "git_blob_oid": "9773f5488559ba75c92c011fc96f43c649288e12"
+    },
+    {
+      "path": "docs/v2/schemas/internal/RetrieveStep08Output.json",
+      "sha256": "32a4b7e846625971c68e59c646ca89f6b41764e6e2605c316de93fb872b54cf4",
+      "git_blob_oid": "3b1cc4ebd6c59fc61ac3ccb17362570048908339"
+    },
+    {
+      "path": "docs/v2/schemas/internal/RetrieveStep09Input.json",
+      "sha256": "13e090c4287eb1ceb1c35785899bb50ec82a93c61ec37512771160cbab7d598c",
+      "git_blob_oid": "7d4617fdc6e1f1426c0a3c2d559e42901edf057c"
+    },
+    {
+      "path": "docs/v2/schemas/internal/RetrieveStep16Output.json",
+      "sha256": "56b2b6809d7bf34a415a879e4ee9a41d326ce999dd877314d396f7261c2cd85d",
+      "git_blob_oid": "5e57b32bfdeecd952d2202db477ccdb40a0f6071"
+    },
+    {
+      "path": "docs/v2/schemas/internal/RetrieveStep17Input.json",
+      "sha256": "70972a322307f2cde473c1958db777fba1ded188f6ebf2987e6e0816f125978b",
+      "git_blob_oid": "f07a9561a99393390ecea10e9a19b6efc728d188"
+    },
+    {
+      "path": "docs/v2/schemas/internal/RoutedRecord.json",
+      "sha256": "0603d92b7cf7caade2a371ed44f53149df1abb3f369cc00c0e89a4a3066794f0",
+      "git_blob_oid": "b2ce9570e5012eeffc9c1fbdda6212de2f005408"
+    },
+    {
+      "path": "docs/v2/schemas/public/EvidenceBundle.json",
+      "sha256": "b6c9bdbafbc9f2300badc1c08693974954354aed6b68e96e49bacddfc8fd71ae",
+      "git_blob_oid": "8245bcdb68b71bd59dc2008e1eef441760ac6606"
+    },
+    {
+      "path": "pyproject.toml",
+      "sha256": "916ed13e6f7c7b711c09f37f9e030b343fb235375dfc93928a556e977051d42e",
+      "git_blob_oid": "0da089d11cb2650b5e1cc988c2674f7a9d2271cb"
+    },
+    {
+      "path": "scripts/benchmark_graph_filter_pa113.py",
+      "sha256": "9e57bf82fee1b330327c46e1247d617f2e468ef6b35e30b25d156693984ce44f",
+      "git_blob_oid": "7281ef3a6421f3fe0764195bae74c9e7a0d7e899"
+    },
+    {
+      "path": "src/memspine/derive/temporal.py",
+      "sha256": "dba6903affb041aea8ccd80a1dd93f6b790807921035e62f8e4c8b3940aaf72a",
+      "git_blob_oid": "86432e96184764e75ae496b78c659b6bc738b6f8"
+    },
+    {
+      "path": "src/memspine/observability/logging.py",
+      "sha256": "a3afea184d6bbc294077fbf0680ad1e92391626d56cfa08862f6a4cd23d155cc",
+      "git_blob_oid": "b246b14c8a6019f80500148e4306dffb6a99b6ce"
+    },
+    {
+      "path": "src/memspine/read/legs/temporal.py",
+      "sha256": "077fdec924baada12d54af46f4e111b1253c42e36cdd4aa230d2561df5502ee5",
+      "git_blob_oid": "822734d7f28cd9736491ec97920bf9089b9ff596"
+    },
+    {
+      "path": "src/memspine/schemas/durable/semantic.py",
+      "sha256": "7253fd9e88492b61886f61675a7b08cd4454813c777cabbd9048a94c0d1c3163",
+      "git_blob_oid": "13a2d81dfe1367d6f9afe59c8d8eff76740c0684"
+    },
+    {
+      "path": "src/memspine/schemas/public/read.py",
+      "sha256": "29bda41977ec089b57a76b48877d854553f1dd15c97d3228cce583758402c4a4",
+      "git_blob_oid": "ce05b14a3d09b86c76b3316d8aa87a857131bf99"
+    },
+    {
+      "path": "tests/unit/core/test_replay.py",
+      "sha256": "8fed55113b2b9992432bf42bd2e4531dc32cdfc5447c11fc56016a8f7df3fbf7",
+      "git_blob_oid": "10054162f4932edaa7b7563043a9c32221763cd0"
+    },
+    {
+      "path": "tests/unit/lib/test_lib_47_tiers.py",
+      "sha256": "5ff9bf61f5b3db6d602ae2111ba9ba383773e5a55e0d845b6461a33027534dc8",
+      "git_blob_oid": "211046c9149e74fe9f418e939533b69f406096bb"
+    },
+    {
+      "path": "tests/unit/observability/test_logging.py",
+      "sha256": "021ce01f2ba462715b73565bbb223917ed14eee640a882db8fae3065a27c1014",
+      "git_blob_oid": "ad036486d4b08350bc67223dbe940164d5b7b84f"
+    },
+    {
+      "path": "tests/unit/providers/test_shared_model_weights.py",
+      "sha256": "d2e7dd3e24dd4c7d21c58f9a1cacb7f5bedf854ec6cd51193f8b51d2f18f58a7",
+      "git_blob_oid": "a801212e618f934a49b023c6b69c81c87601fbc7"
+    },
+    {
+      "path": "tests/unit/schemas/fixtures/durable/semantic_envelope.v2.json",
+      "sha256": "2f572a7410faa500896a7d9cba404c5a072f9ff5c0e17a23d02befaaa3fff53a",
+      "git_blob_oid": "c5debecf63ae90036e182db2179169131e6d00cb"
+    },
+    {
+      "path": "tests/unit/schemas/test_durable_models.py",
+      "sha256": "08fb429519b089f95c274b46281cfc9e6a059900caecebd3786c9930014f17f2",
+      "git_blob_oid": "ddf3c5441c44e0ecd5c2cf8d1b8833352a08a789"
+    },
+    {
+      "path": "tests/unit/schemas/test_public_models.py",
+      "sha256": "e03dc5114016f61f1f7cc35b9abd71fc4cdc4459088ff79520871a2af0c89c28",
+      "git_blob_oid": "bb9269290563e8710994dd4e453a2327d1ed819b"
+    },
+    {
+      "path": "tests/unit/test_benchmark_graph_filter_pa113.py",
+      "sha256": "b88d658b7b0596382df441b1945b914e85024de7bad1c366858a6a7318dcc70f",
+      "git_blob_oid": "1a2d2bb9149c35d18633bbba03808417a749e0b9"
+    },
+    {
+      "path": "tests/unit/wiring/test_rt_01_transport.py",
+      "sha256": "b7299d65cd4fc8ead29b6c690713c33fc000771b7106bb809882cc6dc2377344",
+      "git_blob_oid": "10eb845b3fc6f11989d41a4eeb53030ff5567bac"
+    },
+    {
+      "path": "tests/unit/workers/test_check_watches.py",
+      "sha256": "946ebac92a3a92d4fff56219c492148c7a47467fa5a2f912ad26ca38231e304c",
+      "git_blob_oid": "b091bfc567abe219456fad6902d198a47311c00f"
+    },
+    {
+      "path": "tests/unit/workers/test_extract_graph.py",
+      "sha256": "38ca105079bac8015b81aabbb201a2364aa12518b2751ee0de3b280b5c17d49c",
+      "git_blob_oid": "041d68d15200bdb3a92227a640ac21ec39f175c3"
+    },
+    {
+      "path": "tests/unit/workers/test_lifecycle_pipelines.py",
+      "sha256": "b631472f2977cba5ef3c0914946970c644e9617d0584ce93838f7624be4eb647",
+      "git_blob_oid": "509c9c6736582aff5cce6c7044f7b6b6be010441"
+    },
+    {
+      "path": "tests/unit/workers/test_session_summary_incremental.py",
+      "sha256": "3f7a035f65e3ae42e4c66b6e9cda5827f2304bff6acb6653328c6f18de09f945",
+      "git_blob_oid": "b46e762013b7b376f0db88371df9cc0171d1746d"
+    },
+    {
+      "path": "uv.lock",
+      "sha256": "79663be36f97707c675bac8f2087b0a6275a6d04355026e2e4cc5b7ec76dce34",
+      "git_blob_oid": "dd82816c9b6537afa546a65402f5bb879c59c3ce"
+    }
+  ],
+  "proof_artifacts": [
+    {
+      "path": "candidate-v6.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-final-candidate-manifest-v6.json",
+      "source_sha256": "c53af1b79f06e66e6ef5bbb5ba7a80d0f95c72660a73bc9e6d4cf21e2136ad80",
+      "sha256": "c53af1b79f06e66e6ef5bbb5ba7a80d0f95c72660a73bc9e6d4cf21e2136ad80",
+      "bytes": 26684,
+      "transform": "identical"
+    },
+    {
+      "path": "candidate-v4.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-final-candidate-manifest-v4.json",
+      "source_sha256": "1f8965d1d49e5713b6785b13e12de5a5f81705cd4bc0a97aea133e863def7763",
+      "sha256": "1f8965d1d49e5713b6785b13e12de5a5f81705cd4bc0a97aea133e863def7763",
+      "bytes": 26684,
+      "transform": "identical"
+    },
+    {
+      "path": "round-1.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-dependency-review-round-1.json",
+      "source_sha256": "20284a6477fa496e54d1215677eddb25e0f3b54e0ee8dd0e29348b8c21519fac",
+      "sha256": "20284a6477fa496e54d1215677eddb25e0f3b54e0ee8dd0e29348b8c21519fac",
+      "bytes": 31779,
+      "transform": "identical"
+    },
+    {
+      "path": "round-1-v6.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-dependency-review-round-1-v6.json",
+      "source_sha256": "a415154d169e8d003e9b7cd9725f7338fbeb8c9af19b043e14148cefc07833f5",
+      "sha256": "a415154d169e8d003e9b7cd9725f7338fbeb8c9af19b043e14148cefc07833f5",
+      "bytes": 17819,
+      "transform": "identical"
+    },
+    {
+      "path": "round-2.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-dependency-review-round-2.json",
+      "source_sha256": "9ff9ee4a84acfc67ac66aabe8eb57f327c95042c9617d62576b05ff738074bd8",
+      "sha256": "9ff9ee4a84acfc67ac66aabe8eb57f327c95042c9617d62576b05ff738074bd8",
+      "bytes": 28594,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/01-pa113-lock-diff-final.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-lock-diff-final.json",
+      "source_sha256": "8b98bf253baf13ab28e1248d255d1b08ad464a34e6e8e6d7e63f6d5a28b0e80f",
+      "sha256": "8b98bf253baf13ab28e1248d255d1b08ad464a34e6e8e6d7e63f6d5a28b0e80f",
+      "bytes": 10788,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/02-pa113-release-file-check.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-release-file-check.json",
+      "source_sha256": "6a69e11faa3c02ef2c0c4e204b24e895b76897f18e608218663d316d321550d3",
+      "sha256": "6a69e11faa3c02ef2c0c4e204b24e895b76897f18e608218663d316d321550d3",
+      "bytes": 19975,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/03-pa113-candidate-audit-final-source.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-candidate-audit-final-source.json",
+      "source_sha256": "23df928f33d87e671ebedaa6d5582558ae696012a5057d2487df786af9063b59",
+      "sha256": "447b4299369ed7c90bd0c29b748f076ecae595141675782a8611fa62e37caae8",
+      "bytes": 112587,
+      "transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "evidence/04-pa113-reviewed-artifact-transplant.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-reviewed-artifact-transplant.json",
+      "source_sha256": "e4a0506c986274fa82b038b7d33e2e111db8da063b3b2ec030da6e1ea2a08afc",
+      "sha256": "e4a0506c986274fa82b038b7d33e2e111db8da063b3b2ec030da6e1ea2a08afc",
+      "bytes": 1053,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/05-pa113-reviewed49-transplant.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-reviewed49-transplant.json",
+      "source_sha256": "eafb8cb4ae943c2c0fb75adb374219f224ff8b9c211c99ce96465e0944020ac5",
+      "sha256": "eafb8cb4ae943c2c0fb75adb374219f224ff8b9c211c99ce96465e0944020ac5",
+      "bytes": 13654,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/06-comparison-summary.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-comparison\\comparison-summary.json",
+      "source_sha256": "35852ecf7297ccb2b11930c27aad01ba237ae463f93b559d0cf035f384332595",
+      "sha256": "35852ecf7297ccb2b11930c27aad01ba237ae463f93b559d0cf035f384332595",
+      "bytes": 5302,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/07-baseline-summary.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-baseline-aed6cbf3\\baseline-summary.json",
+      "source_sha256": "a16d5fa6c172dc34ebaaf77bfacef17b1cfe9d5f24e6fa28318a7b20bf0212dd",
+      "sha256": "a16d5fa6c172dc34ebaaf77bfacef17b1cfe9d5f24e6fa28318a7b20bf0212dd",
+      "bytes": 2870,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/08-results.jsonl",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-postrepair-gates\\results.jsonl",
+      "source_sha256": "5f100f85f7efd3c60c8f1e1ba0fb7b186a02e744e54899b35b6b1d9080b43e0c",
+      "sha256": "5f100f85f7efd3c60c8f1e1ba0fb7b186a02e744e54899b35b6b1d9080b43e0c",
+      "bytes": 2833,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/09-ingest-paired-final.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-postrepair-gates\\ingest-paired-final.json",
+      "source_sha256": "5818aa80ceabaa3c08d184ae1950ceab803aa41651537d2e69fdd36d15e03dc1",
+      "sha256": "5818aa80ceabaa3c08d184ae1950ceab803aa41651537d2e69fdd36d15e03dc1",
+      "bytes": 2717,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/10-original55-reconciliation.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-postrepair-gates\\original55-reconciliation.json",
+      "source_sha256": "ea281d749cb3ee90a3e953d2b6497cb710954550a6994e65b752b86fe37f07a4",
+      "sha256": "ea281d749cb3ee90a3e953d2b6497cb710954550a6994e65b752b86fe37f07a4",
+      "bytes": 5736,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/11-final-source-quality-receipt.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-final-quality\\final-source-quality-receipt.json",
+      "source_sha256": "d7e204b00756b4f2347a856c65e409115b5ae6554f2b2e8a830d81f8a88f857e",
+      "sha256": "d7e204b00756b4f2347a856c65e409115b5ae6554f2b2e8a830d81f8a88f857e",
+      "bytes": 3798,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/12-mypy-baseline.log",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-final-quality\\mypy-baseline.log",
+      "source_sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "bytes": 45,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/13-mypy-candidate.log",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-final-quality\\mypy-candidate.log",
+      "source_sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "bytes": 45,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/14-ci-importlinter-candidate.log",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-final-quality\\ci-importlinter-candidate.log",
+      "source_sha256": "7c2176068671a944382d14866f21fe900e99d49c1c7b88c1db6391e5f89b3a18",
+      "sha256": "7c2176068671a944382d14866f21fe900e99d49c1c7b88c1db6391e5f89b3a18",
+      "bytes": 2529,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/15-ruff-check.log",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-final-quality\\ruff-check.log",
+      "source_sha256": "a4443afdcfb6d7363adb285762515ccf7cf50473b1a05c20c1a50f6bed4d26b0",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "bytes": 19,
+      "transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "evidence/16-ruff-format.log",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-final-quality\\ruff-format.log",
+      "source_sha256": "7bf09a4ac69d7da3e9ba7a0a870080e0cb610340b9374cca51e76bdc34fb3b8a",
+      "sha256": "902e73c76ed4b2da950ab0824537d3b0bf887d414228f0517ef37d909b3eb165",
+      "bytes": 29,
+      "transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "evidence/17-postrepair-results-final.jsonl",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-model-lane\\postrepair-results-final.jsonl",
+      "source_sha256": "9d694c9b33b408c9ec9ffe01ffe07b9860974238883a8767efa587e027a1d4d5",
+      "sha256": "9d694c9b33b408c9ec9ffe01ffe07b9860974238883a8767efa587e027a1d4d5",
+      "bytes": 4854,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/18-results.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-llmlocal-lane\\results.json",
+      "source_sha256": "ba07486b9a65faa69ad61bf03526f672edcad1c1318d7acd505747e566f2465b",
+      "sha256": "ba07486b9a65faa69ad61bf03526f672edcad1c1318d7acd505747e566f2465b",
+      "bytes": 4922,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/19-rm34-results.jsonl",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-native-candidate\\rm34-results.jsonl",
+      "source_sha256": "7b185e42c25dbb7132b6225fea3dba0ae2ce78b9a657e5122e7fa8ce40709ba9",
+      "sha256": "7b185e42c25dbb7132b6225fea3dba0ae2ce78b9a657e5122e7fa8ce40709ba9",
+      "bytes": 3708,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/20-rm96-neo4j-result.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-native-candidate\\rm96-neo4j-result.json",
+      "source_sha256": "dadb7a4d049a3e8f4cadae30c94d47006e8433904e881fb61d80605cb6ba9e0e",
+      "sha256": "dadb7a4d049a3e8f4cadae30c94d47006e8433904e881fb61d80605cb6ba9e0e",
+      "bytes": 1642,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/21-temporal-results.jsonl",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-native-candidate\\temporal-results.jsonl",
+      "source_sha256": "cc50c74763d10d9a04ae0292259be7edb98fff3f19790da1fa70423482c925bb",
+      "sha256": "cc50c74763d10d9a04ae0292259be7edb98fff3f19790da1fa70423482c925bb",
+      "bytes": 3227,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/22-strict-six-result.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-native-candidate\\strict-six-result.json",
+      "source_sha256": "4b17715bc23768b7c79f07e6178d249e6a8a9ec4c9608924c987e88efb5c99f4",
+      "sha256": "4b17715bc23768b7c79f07e6178d249e6a8a9ec4c9608924c987e88efb5c99f4",
+      "bytes": 1235,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/23-candidate-seven-backend-report-retry1.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-rm31-lifecycle\\candidate-seven-backend-report-retry1.json",
+      "source_sha256": "afb46257b5a5f9b60ec46a8860fc73d50101c2c78a86c35d4b5beb0cfa1086f8",
+      "sha256": "b540b3bc4a867ed655fb1f2e94cc755750bc496e86abd0c1fdff5579db829d3d",
+      "bytes": 455539,
+      "transform": "uniform_crlf_to_lf_reversible"
+    },
+    {
+      "path": "evidence/24-pa113-rm96-harness-freeze-v3.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-rm96-harness-freeze-v3.json",
+      "source_sha256": "6306fbe3be7fd7906667ab91fd0de5a8991f9dff8e59b3171276b115f23f2e92",
+      "sha256": "6306fbe3be7fd7906667ab91fd0de5a8991f9dff8e59b3171276b115f23f2e92",
+      "bytes": 2759,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/25-ambient-before-full2.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-rm96-benchmark\\ambient-before-full2.json",
+      "source_sha256": "26d4b459a1367d9f27bc38430213ea2bdd69fa60ebdbc695ee62542ae356c0db",
+      "sha256": "26d4b459a1367d9f27bc38430213ea2bdd69fa60ebdbc695ee62542ae356c0db",
+      "bytes": 1677,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/26-full2-baseline.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-rm96-benchmark\\full2-baseline.json",
+      "source_sha256": "37814aae5dab967c1e387983a531cb95319a7ee3d067e5b948085e0ac643d027",
+      "sha256": "37814aae5dab967c1e387983a531cb95319a7ee3d067e5b948085e0ac643d027",
+      "bytes": 9079,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/27-full2-candidate.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-rm96-benchmark\\full2-candidate.json",
+      "source_sha256": "ec2b06ee2ff92e210ff09b5f40ff6880a1928b760995bedf5841a588240371d8",
+      "sha256": "ec2b06ee2ff92e210ff09b5f40ff6880a1928b760995bedf5841a588240371d8",
+      "bytes": 9077,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/28-full2-receipt.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-rm96-benchmark\\full2-receipt.json",
+      "source_sha256": "244a85f23794be2a6f5f32e8c91ba46cddebb3112c9f5bf7957988fc74428573",
+      "sha256": "244a85f23794be2a6f5f32e8c91ba46cddebb3112c9f5bf7957988fc74428573",
+      "bytes": 4529,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/29-full-baseline.log",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-rm96-benchmark\\full-baseline.log",
+      "source_sha256": "195d3863a2c1a5faad02147d8a0988af66b2bc53deed072e2503d4864d3cf7de",
+      "sha256": "195d3863a2c1a5faad02147d8a0988af66b2bc53deed072e2503d4864d3cf7de",
+      "bytes": 6815,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/30-exact-private-neo4j-cleanup.json",
+      "source_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-rm96-benchmark\\exact-private-neo4j-cleanup.json",
+      "source_sha256": "8ee01723801a59f1b1d21a7e231cd839560a979af41c9d20cf1d404d8333296f",
+      "sha256": "8ee01723801a59f1b1d21a7e231cd839560a979af41c9d20cf1d404d8333296f",
+      "bytes": 616,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/31-baseline-repair-review-round-1.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\baseline-repair-review-round-1.json",
+      "source_sha256": "d58abc207d458071472f6ef02bc310f792fdc91481caca42681252f831c7977c",
+      "sha256": "d58abc207d458071472f6ef02bc310f792fdc91481caca42681252f831c7977c",
+      "bytes": 10977,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/32-baseline-repair-review-round-2.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\baseline-repair-review-round-2.json",
+      "source_sha256": "4208d3b06b7462e5eaf47559c0048046fb6636c37c31910fc766fb7624c050f7",
+      "sha256": "4208d3b06b7462e5eaf47559c0048046fb6636c37c31910fc766fb7624c050f7",
+      "bytes": 10022,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/33-pa113-benchmark-harness-review-round-1-v3.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-benchmark-harness-review-round-1-v3.json",
+      "source_sha256": "527ec05800d77807fd0ef629fa9fdf831bcdaebb4fe017a2e5399524675a1be7",
+      "sha256": "527ec05800d77807fd0ef629fa9fdf831bcdaebb4fe017a2e5399524675a1be7",
+      "bytes": 5440,
+      "transform": "identical"
+    },
+    {
+      "path": "evidence/34-pa113-benchmark-harness-review-round-2-v3.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-benchmark-harness-review-round-2-v3.json",
+      "source_sha256": "1faac72ce685ae03e53619865837c6eebd57131dbfbb25755d8b622703443077",
+      "sha256": "1faac72ce685ae03e53619865837c6eebd57131dbfbb25755d8b622703443077",
+      "bytes": 6581,
+      "transform": "identical"
+    },
+    {
+      "path": "integration/receipt.json",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-main-integration-2026-11-16\\receipt.json",
+      "source_sha256": "1e789a1383ec5337efc507e459d604a22aa46529f5c3100db00da065cf662451",
+      "sha256": "1e789a1383ec5337efc507e459d604a22aa46529f5c3100db00da065cf662451",
+      "bytes": 3102,
+      "transform": "identical"
+    },
+    {
+      "path": "integration/ruff.log",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-main-integration-2026-11-16\\ruff.log",
+      "source_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+      "bytes": 19,
+      "transform": "identical"
+    },
+    {
+      "path": "integration/format.log",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-main-integration-2026-11-16\\format.log",
+      "source_sha256": "902e73c76ed4b2da950ab0824537d3b0bf887d414228f0517ef37d909b3eb165",
+      "sha256": "902e73c76ed4b2da950ab0824537d3b0bf887d414228f0517ef37d909b3eb165",
+      "bytes": 29,
+      "transform": "identical"
+    },
+    {
+      "path": "integration/mypy.log",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-main-integration-2026-11-16\\mypy.log",
+      "source_sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "bytes": 45,
+      "transform": "identical"
+    },
+    {
+      "path": "integration/affected.log",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-main-integration-2026-11-16\\affected.log",
+      "source_sha256": "1c78b6aa6ec58513e99ce80913d20bc1111647e17ca54cf88614d4a8efb94739",
+      "sha256": "1c78b6aa6ec58513e99ce80913d20bc1111647e17ca54cf88614d4a8efb94739",
+      "bytes": 1136,
+      "transform": "identical"
+    },
+    {
+      "path": "integration/run.py.txt",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-main-integration-2026-11-16\\run.py",
+      "source_sha256": "cc9ce3a64df9d1dfeb857f9d524c771fab03cbc6f44eca50f5aaab903811e1ba",
+      "sha256": "cc9ce3a64df9d1dfeb857f9d524c771fab03cbc6f44eca50f5aaab903811e1ba",
+      "bytes": 2811,
+      "transform": "identical"
+    },
+    {
+      "path": "integration/pytest_main_source.py.txt",
+      "source_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-main-integration-2026-11-16\\pytest_main_source.py",
+      "source_sha256": "7ab355f6bb7ddbdf4308d107b6d9093e7b0d89f03cecbb3bf34bb048055c9994",
+      "sha256": "7ab355f6bb7ddbdf4308d107b6d9093e7b0d89f03cecbb3bf34bb048055c9994",
+      "bytes": 472,
+      "transform": "identical"
+    }
+  ],
+  "scope": "Exact57 reviewed main changes:49 baseline repairs+8 candidate authored paths. The other3 of60 candidate paths were already reviewed and committed on main. Both full review rounds approve v6. Original46chunk comparison matched55failures; paired303case and4case repaired gates resolve those selected failures, not a newcomplete46chunkrun.",
+  "limitations": [
+    "Formal PhaseC, cleanfullsuite, fullEngine/defaultmodel performance and deployment acceptance remain separate.",
+    "Runtime Neo4jGraphStore.clear heap failure at39999nodes remains unresolved; benchmark-specific cleanup does not fix it.",
+    "Windows llama-cpp source builds, native imports and mock lifecycle passed; actual model inference and quality remain unverified."
+  ],
+  "provenance": "Receipt source paths and original hashes are retained as execution history. Resolve packaged artifacts through this mapping, with reversible CRLF-to-LF normalization. Ancillary external files not listed are not claimed durable. The current audit is evidence/03-pa113-candidate-audit-final-source.json; older repository audit remains historical. This index excludes itself and future metadata reviews; no future commit hash claimed."
+}

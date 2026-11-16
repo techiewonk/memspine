@@ -1,0 +1,86 @@
+{
+  "scope": "names and CPU deltas only; no command lines or environment",
+  "start_utc": "2026-11-15T18:49:31.1695523Z",
+  "end_utc": "2026-11-15T18:49:37.4008659Z",
+  "logical_processors": 32,
+  "processor_load_percent": [
+    1
+  ],
+  "top_process_cpu_delta": [
+    {
+      "name": "Taskmgr",
+      "id": 34812,
+      "cpu_seconds_delta": 0.75
+    },
+    {
+      "name": "PhoneExperienceHost",
+      "id": 28764,
+      "cpu_seconds_delta": 0.516
+    },
+    {
+      "name": "explorer",
+      "id": 18764,
+      "cpu_seconds_delta": 0.312
+    },
+    {
+      "name": "pwsh",
+      "id": 83516,
+      "cpu_seconds_delta": 0.25
+    },
+    {
+      "name": "logioptionsplus_agent",
+      "id": 18032,
+      "cpu_seconds_delta": 0.25
+    },
+    {
+      "name": "EDCClient",
+      "id": 79616,
+      "cpu_seconds_delta": 0.203
+    },
+    {
+      "name": "LogiPluginService",
+      "id": 21808,
+      "cpu_seconds_delta": 0.188
+    },
+    {
+      "name": "claude",
+      "id": 60976,
+      "cpu_seconds_delta": 0.141
+    },
+    {
+      "name": "iCloudHome",
+      "id": 37032,
+      "cpu_seconds_delta": 0.125
+    },
+    {
+      "name": "claude",
+      "id": 16048,
+      "cpu_seconds_delta": 0.125
+    },
+    {
+      "name": "claude",
+      "id": 56732,
+      "cpu_seconds_delta": 0.078
+    },
+    {
+      "name": "msedgewebview2",
+      "id": 31912,
+      "cpu_seconds_delta": 0.062
+    },
+    {
+      "name": "msedgewebview2",
+      "id": 31316,
+      "cpu_seconds_delta": 0.062
+    },
+    {
+      "name": "DDPM.Subagent.User",
+      "id": 40760,
+      "cpu_seconds_delta": 0.062
+    },
+    {
+      "name": "claude",
+      "id": 56956,
+      "cpu_seconds_delta": 0.047
+    }
+  ]
+}

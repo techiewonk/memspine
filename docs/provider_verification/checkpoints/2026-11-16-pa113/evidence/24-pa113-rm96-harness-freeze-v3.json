@@ -1,0 +1,61 @@
+{
+  "kind": "pa113-rm96-harness-two-path-freeze",
+  "at_utc": "2026-11-15T18:42:53.618559+00:00",
+  "candidate_head": "aed6cbf36d5f1def238d9efeb01141717c786d2e",
+  "candidate_lock_sha256": "79663be36f97707c675bac8f2087b0a6275a6d04355026e2e4cc5b7ec76dce34",
+  "candidate_diff_path_count": 60,
+  "new_review_paths_raw_sha256": {
+    "scripts/benchmark_graph_filter_pa113.py": "9e57bf82fee1b330327c46e1247d617f2e468ef6b35e30b25d156693984ce44f",
+    "tests/unit/test_benchmark_graph_filter_pa113.py": "b88d658b7b0596382df441b1945b914e85024de7bad1c366858a6a7318dcc70f"
+  },
+  "historical_reference_script_sha256": "69b8dc400e43733e31839d02c92f6ed9a27054868df4ce7e5c6a2992b66094fb",
+  "inherited_49_reviewed_paths_stable": true,
+  "inherited_49_transplant_receipt_sha256": "eafb8cb4ae943c2c0fb75adb374219f224ff8b9c211c99ce96465e0944020ac5",
+  "smoke_command": "C:/Users/hembad/.codex/pa113-envs/candidate-aed6cbf3-refresh/Scripts/python.exe C:/Users/hembad/.codex/pa113-envs/pa113-rm96-benchmark-controller.py smoke6",
+  "smoke_receipt_sha256": "03c3c4042d40490c904cfebb4f419b1ab422f0630c31de4d37e0126b160ee704",
+  "smoke_invariants_equal": true,
+  "smoke_backend_names": [
+    "ladybug",
+    "neo4j",
+    "sql_adjacency"
+  ],
+  "smoke_loaded_node_counts": {
+    "baseline": {
+      "sql_adjacency": 400,
+      "ladybug": 400,
+      "neo4j": 400
+    },
+    "candidate": {
+      "sql_adjacency": 400,
+      "ladybug": 400,
+      "neo4j": 400
+    }
+  },
+  "focused_unit_command": "<baseline|candidate>/Scripts/python.exe -m pytest -p no:deepeval -o addopts= -q -rs --tb=short tests/unit/test_benchmark_graph_filter_pa113.py",
+  "focused_unit_result": "9 passed under each interpreter; no skips",
+  "focused_unit_log_sha256": {
+    "baseline": "587c804e100d9ff3ff035cf8b0b5307b5b76d791d00b3c8c5957e71ad1a77204",
+    "candidate": "3b49e120b908ff0ca339fe3cdf3297f091fbf0ada6e10f433a0892870dd80aa4"
+  },
+  "focused_unit_guards": [
+    "private-label Neo4j close on successful and partial load",
+    "primary load/parity error survives cleanup failure with cleanup as explicit cause",
+    "driver closes if batched delete, constraint drop or index drop fails",
+    "graph/leg parity failure prevents timing",
+    "private schema cleanup uses the same Neo4j database",
+    "private UUID label validation, finite exact-label batched cleanup, terminal zero"
+  ],
+  "ruff_check": "pass for both new Python paths",
+  "ruff_format_check": "pass for both new Python paths",
+  "git_diff_check": "pass",
+  "unavailable_historical_metrics": [
+    "pre-RM-130 seed-scan/cache",
+    "full Engine.search read lift"
+  ],
+  "historical_report_files_untouched": true,
+  "failed_smoke_logs_preserved": [
+    "smoke-baseline.log",
+    "smoke2-baseline.log",
+    "smoke3-baseline.log"
+  ]
+}

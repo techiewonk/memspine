@@ -9,7 +9,13 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from memspine.schemas import collect_models, kind_id, latest_version, validate_payload
+from memspine.schemas import (
+    UnsupportedSchemaVersionError,
+    collect_models,
+    kind_id,
+    latest_version,
+    validate_payload,
+)
 from memspine.schemas.durable import (
     AssertionKey,
     Assessment,
@@ -74,13 +80,19 @@ def test_every_durable_kind_has_a_frozen_fixture_per_version():
             assert (FIXTURES / f"{kind}.v{version}.json").is_file(), (
                 f"missing fixture {kind} v{version}"
             )
+    assert latest_version("semantic_envelope") == 2
+    assert all(
+        cls.model_fields["schema_version"].default == 1
+        for cls in kinds
+        if cls is not SemanticEnvelope
+    )
 
 
 @pytest.mark.parametrize("cls", _durable_kinds(), ids=lambda c: kind_id(c))
 def test_fixture_round_trips_unchanged(cls):
-    path = FIXTURES / f"{kind_id(cls)}.v1.json"
+    path = FIXTURES / f"{kind_id(cls)}.v{latest_version(kind_id(cls))}.json"
     raw = json.loads(path.read_text(encoding="utf-8"))
-    assert raw["schema_version"] == 1
+    assert raw["schema_version"] == latest_version(kind_id(cls))
     assert (
         validate_payload(kind_id(cls), raw) == raw
     )  # current payload is validated without transformation
@@ -91,11 +103,20 @@ def test_fixture_round_trips_unchanged(cls):
 
 
 def test_unknown_field_fixture_keeps_the_field_verbatim():
-    raw = json.loads((FIXTURES / "semantic_envelope.v1.json").read_text(encoding="utf-8"))
+    raw = json.loads((FIXTURES / "semantic_envelope.v2.json").read_text(encoding="utf-8"))
     assert raw["novel_field"] == {"added_by": "a-future-release", "n": [1, 2]}
     obj = SemanticEnvelope.model_validate(raw)
     assert obj.model_dump(mode="json")["novel_field"] == raw["novel_field"]
     assert validate_payload("semantic_envelope", raw)["novel_field"] == raw["novel_field"]
+
+
+def test_historical_semantic_envelope_v1_is_rejected_without_upcast():
+    raw = json.loads((FIXTURES / "semantic_envelope.v1.json").read_text(encoding="utf-8"))
+    assert raw["schema_version"] == 1
+    with pytest.raises(UnsupportedSchemaVersionError):
+        validate_payload("semantic_envelope", raw)
+    with pytest.raises(ValidationError, match="schema_version"):
+        SemanticEnvelope.model_validate(raw)
 
 
 # --- temporal (S6) -----------------------------------------------------------------------------------------
@@ -217,7 +238,7 @@ def test_integration_outcome_and_tentative():
 
 def test_can_supersede_accepts_envelopes():
     env = SemanticEnvelope.model_validate_json(
-        (FIXTURES / "semantic_envelope.v1.json").read_text(encoding="utf-8")
+        (FIXTURES / "semantic_envelope.v2.json").read_text(encoding="utf-8")
     )
     assert can_supersede(env, env)
     with pytest.raises(TypeError):

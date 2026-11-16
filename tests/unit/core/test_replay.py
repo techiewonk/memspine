@@ -35,7 +35,11 @@ async def make_storage(mode: EventLogMode = EventLogMode.FULL) -> SQLiteStorage:
 
 
 def ev(**payload: object) -> MemoryEvent:
-    return MemoryEvent(kind=EventKind.WRITE, namespace="ns/a", payload=dict(payload))
+    return MemoryEvent(
+        kind=EventKind.MARKER,
+        namespace="ns/a",
+        payload={"marker": "replay_probe", **payload},
+    )
 
 
 async def test_unpruned_rolling_log_can_rebuild() -> None:

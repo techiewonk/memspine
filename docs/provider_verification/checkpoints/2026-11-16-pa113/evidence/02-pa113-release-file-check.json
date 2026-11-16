@@ -1,0 +1,720 @@
+{
+  "candidate_lock_sha256": "79663be36f97707c675bac8f2087b0a6275a6d04355026e2e4cc5b7ec76dce34",
+  "changed_count": 71,
+  "invalid": [],
+  "no_host_wheel": [
+    "llama-cpp-python"
+  ],
+  "changed": [
+    {
+      "name": "annotated-doc",
+      "old": "0.0.5",
+      "new": "0.0.6",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/annotated-doc/0.0.6/json"
+    },
+    {
+      "name": "anthropic",
+      "old": "0.125.0",
+      "new": "2.8.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/anthropic/2.8.0/json"
+    },
+    {
+      "name": "any-llm-sdk",
+      "old": "1.41.0",
+      "new": "1.50.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/any-llm-sdk/1.50.0/json"
+    },
+    {
+      "name": "authlib",
+      "old": "1.9.1",
+      "new": "1.9.6",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/authlib/1.9.6/json"
+    },
+    {
+      "name": "backrefs",
+      "old": "8.1",
+      "new": "8.3",
+      "stable": true,
+      "non_yanked_py313_file_count": 7,
+      "host_compatible_wheel": true,
+      "file_count": 7,
+      "release_url": "https://pypi.org/pypi/backrefs/8.3/json"
+    },
+    {
+      "name": "boto3",
+      "old": "1.43.123",
+      "new": "1.44.3",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/boto3/1.44.3/json"
+    },
+    {
+      "name": "botocore",
+      "old": "1.43.123",
+      "new": "1.44.3",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/botocore/1.44.3/json"
+    },
+    {
+      "name": "click",
+      "old": "8.5.0",
+      "new": "8.5.1",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/click/8.5.1/json"
+    },
+    {
+      "name": "coverage",
+      "old": "7.17.0",
+      "new": "7.17.3",
+      "stable": true,
+      "non_yanked_py313_file_count": 119,
+      "host_compatible_wheel": true,
+      "file_count": 119,
+      "release_url": "https://pypi.org/pypi/coverage/7.17.3/json"
+    },
+    {
+      "name": "cuda-bindings",
+      "old": "13.4.4",
+      "new": "13.5.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 28,
+      "host_compatible_wheel": true,
+      "file_count": 28,
+      "release_url": "https://pypi.org/pypi/cuda-bindings/13.5.0/json"
+    },
+    {
+      "name": "cuda-pathfinder",
+      "old": "1.8.5",
+      "new": "1.9.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 1,
+      "host_compatible_wheel": true,
+      "file_count": 1,
+      "release_url": "https://pypi.org/pypi/cuda-pathfinder/1.9.0/json"
+    },
+    {
+      "name": "dnspython",
+      "old": "2.9.1",
+      "new": "2.9.2",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/dnspython/2.9.2/json"
+    },
+    {
+      "name": "fastapi",
+      "old": "0.162.0",
+      "new": "0.163.1",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/fastapi/0.163.1/json"
+    },
+    {
+      "name": "filelock",
+      "old": "4.2.6",
+      "new": "4.2.10",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/filelock/4.2.10/json"
+    },
+    {
+      "name": "grimp",
+      "old": "3.18",
+      "new": "3.20",
+      "stable": true,
+      "non_yanked_py313_file_count": 92,
+      "host_compatible_wheel": true,
+      "file_count": 92,
+      "release_url": "https://pypi.org/pypi/grimp/3.20/json"
+    },
+    {
+      "name": "grpcio",
+      "old": "1.78.0",
+      "new": "1.78.2",
+      "stable": true,
+      "non_yanked_py313_file_count": 61,
+      "host_compatible_wheel": true,
+      "file_count": 61,
+      "release_url": "https://pypi.org/pypi/grpcio/1.78.2/json"
+    },
+    {
+      "name": "import-linter",
+      "old": "2.15",
+      "new": "2.16",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/import-linter/2.16/json"
+    },
+    {
+      "name": "jiter",
+      "old": "0.18.0",
+      "new": "0.19.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 105,
+      "host_compatible_wheel": true,
+      "file_count": 105,
+      "release_url": "https://pypi.org/pypi/jiter/0.19.0/json"
+    },
+    {
+      "name": "joserfc",
+      "old": "1.7.7",
+      "new": "1.8.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/joserfc/1.8.0/json"
+    },
+    {
+      "name": "json-repair",
+      "old": "0.64.2",
+      "new": "0.64.9",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/json-repair/0.64.9/json"
+    },
+    {
+      "name": "jsonpatch",
+      "old": "1.38",
+      "new": "1.47",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/jsonpatch/1.47/json"
+    },
+    {
+      "name": "jsonpointer",
+      "old": "3.6",
+      "new": "3.12",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/jsonpointer/3.12/json"
+    },
+    {
+      "name": "ladybug",
+      "old": "0.22.1",
+      "new": "0.22.3",
+      "stable": true,
+      "non_yanked_py313_file_count": 41,
+      "host_compatible_wheel": true,
+      "file_count": 41,
+      "release_url": "https://pypi.org/pypi/ladybug/0.22.3/json"
+    },
+    {
+      "name": "langchain",
+      "old": "1.4.7",
+      "new": "1.5.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/langchain/1.5.0/json"
+    },
+    {
+      "name": "langchain-anthropic",
+      "old": "1.7.7",
+      "new": "1.7.10",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/langchain-anthropic/1.7.10/json"
+    },
+    {
+      "name": "langchain-core",
+      "old": "1.7.3",
+      "new": "1.8.1",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/langchain-core/1.8.1/json"
+    },
+    {
+      "name": "langchain-openai",
+      "old": "1.7.3",
+      "new": "1.8.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/langchain-openai/1.8.0/json"
+    },
+    {
+      "name": "langchain-protocol",
+      "old": "0.0.20",
+      "new": "0.0.21",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/langchain-protocol/0.0.21/json"
+    },
+    {
+      "name": "langgraph",
+      "old": "1.2.19",
+      "new": "1.2.22",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/langgraph/1.2.22/json"
+    },
+    {
+      "name": "langgraph-checkpoint",
+      "old": "4.3.1",
+      "new": "4.3.2",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/langgraph-checkpoint/4.3.2/json"
+    },
+    {
+      "name": "langgraph-prebuilt",
+      "old": "1.1.1",
+      "new": "1.1.2",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/langgraph-prebuilt/1.1.2/json"
+    },
+    {
+      "name": "langgraph-sdk",
+      "old": "0.4.11",
+      "new": "0.4.14",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/langgraph-sdk/0.4.14/json"
+    },
+    {
+      "name": "langsmith",
+      "old": "0.14.16",
+      "new": "0.14.17",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/langsmith/0.14.17/json"
+    },
+    {
+      "name": "llama-cpp-python",
+      "old": "0.3.36",
+      "new": "0.3.37",
+      "stable": true,
+      "non_yanked_py313_file_count": 1,
+      "host_compatible_wheel": false,
+      "file_count": 1,
+      "release_url": "https://pypi.org/pypi/llama-cpp-python/0.3.37/json"
+    },
+    {
+      "name": "markdown",
+      "old": "3.11.2",
+      "new": "3.11.3",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/markdown/3.11.3/json"
+    },
+    {
+      "name": "markdown-it-py",
+      "old": "4.2.0",
+      "new": "4.3.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/markdown-it-py/4.3.0/json"
+    },
+    {
+      "name": "mkdocs-material",
+      "old": "9.8.0",
+      "new": "9.8.1",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/mkdocs-material/9.8.1/json"
+    },
+    {
+      "name": "mkdocstrings-python",
+      "old": "2.0.10",
+      "new": "2.0.11",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/mkdocstrings-python/2.0.11/json"
+    },
+    {
+      "name": "mypy-extensions",
+      "old": "1.1.0",
+      "new": "1.2.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/mypy-extensions/1.2.0/json"
+    },
+    {
+      "name": "nexus-rpc",
+      "old": "1.4.0",
+      "new": "1.5.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/nexus-rpc/1.5.0/json"
+    },
+    {
+      "name": "nvidia-cuda-cccl",
+      "old": "13.3.4.3.1",
+      "new": "13.3.5.0.6",
+      "stable": true,
+      "non_yanked_py313_file_count": 4,
+      "host_compatible_wheel": true,
+      "file_count": 4,
+      "release_url": "https://pypi.org/pypi/nvidia-cuda-cccl/13.3.5.0.6/json"
+    },
+    {
+      "name": "nvidia-nvjitlink",
+      "old": "13.4.92",
+      "new": "13.5.37",
+      "stable": true,
+      "non_yanked_py313_file_count": 4,
+      "host_compatible_wheel": true,
+      "file_count": 4,
+      "release_url": "https://pypi.org/pypi/nvidia-nvjitlink/13.5.37/json"
+    },
+    {
+      "name": "onnxruntime",
+      "old": "1.31.1",
+      "new": "1.32.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 24,
+      "host_compatible_wheel": true,
+      "file_count": 24,
+      "release_url": "https://pypi.org/pypi/onnxruntime/1.32.0/json"
+    },
+    {
+      "name": "openai",
+      "old": "3.42.0",
+      "new": "3.51.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/openai/3.51.0/json"
+    },
+    {
+      "name": "ormsgpack",
+      "old": "1.13.0",
+      "new": "1.13.1",
+      "stable": true,
+      "non_yanked_py313_file_count": 49,
+      "host_compatible_wheel": true,
+      "file_count": 49,
+      "release_url": "https://pypi.org/pypi/ormsgpack/1.13.1/json"
+    },
+    {
+      "name": "peft",
+      "old": "0.21.2",
+      "new": "0.21.3",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/peft/0.21.3/json"
+    },
+    {
+      "name": "platformdirs",
+      "old": "4.14.2",
+      "new": "4.14.5",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/platformdirs/4.14.5/json"
+    },
+    {
+      "name": "psycopg",
+      "old": "3.3.6",
+      "new": "3.3.9",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/psycopg/3.3.9/json"
+    },
+    {
+      "name": "psycopg-binary",
+      "old": "3.3.6",
+      "new": "3.3.9",
+      "stable": true,
+      "non_yanked_py313_file_count": 66,
+      "host_compatible_wheel": true,
+      "file_count": 66,
+      "release_url": "https://pypi.org/pypi/psycopg-binary/3.3.9/json"
+    },
+    {
+      "name": "pyarrow",
+      "old": "26.0.0",
+      "new": "26.0.1",
+      "stable": true,
+      "non_yanked_py313_file_count": 50,
+      "host_compatible_wheel": true,
+      "file_count": 50,
+      "release_url": "https://pypi.org/pypi/pyarrow/26.0.1/json"
+    },
+    {
+      "name": "pydantic",
+      "old": "2.14.2",
+      "new": "2.14.3",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/pydantic/2.14.3/json"
+    },
+    {
+      "name": "pydantic-core",
+      "old": "2.50.2",
+      "new": "2.50.4",
+      "stable": true,
+      "non_yanked_py313_file_count": 140,
+      "host_compatible_wheel": true,
+      "file_count": 140,
+      "release_url": "https://pypi.org/pypi/pydantic-core/2.50.4/json"
+    },
+    {
+      "name": "pydantic-settings",
+      "old": "2.16.2",
+      "new": "2.16.3",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/pydantic-settings/2.16.3/json"
+    },
+    {
+      "name": "pymdown-extensions",
+      "old": "12.3",
+      "new": "13.1",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/pymdown-extensions/13.1/json"
+    },
+    {
+      "name": "pymongo",
+      "old": "4.19.0",
+      "new": "4.20.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 71,
+      "host_compatible_wheel": true,
+      "file_count": 71,
+      "release_url": "https://pypi.org/pypi/pymongo/4.20.0/json"
+    },
+    {
+      "name": "pytest-asyncio",
+      "old": "1.4.1",
+      "new": "1.5.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/pytest-asyncio/1.5.0/json"
+    },
+    {
+      "name": "regex",
+      "old": "2026.9.29",
+      "new": "2026.11.9",
+      "stable": true,
+      "non_yanked_py313_file_count": 114,
+      "host_compatible_wheel": true,
+      "file_count": 114,
+      "release_url": "https://pypi.org/pypi/regex/2026.11.9/json"
+    },
+    {
+      "name": "ruff",
+      "old": "0.17.3",
+      "new": "0.17.5",
+      "stable": true,
+      "non_yanked_py313_file_count": 18,
+      "host_compatible_wheel": true,
+      "file_count": 18,
+      "release_url": "https://pypi.org/pypi/ruff/0.17.5/json"
+    },
+    {
+      "name": "sentence-transformers",
+      "old": "6.2.0",
+      "new": "6.3.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/sentence-transformers/6.3.0/json"
+    },
+    {
+      "name": "soupsieve",
+      "old": "3.0.4",
+      "new": "4.1.1",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/soupsieve/4.1.1/json"
+    },
+    {
+      "name": "sqlalchemy",
+      "old": "2.1.6",
+      "new": "2.1.8",
+      "stable": true,
+      "non_yanked_py313_file_count": 72,
+      "host_compatible_wheel": true,
+      "file_count": 72,
+      "release_url": "https://pypi.org/pypi/sqlalchemy/2.1.8/json"
+    },
+    {
+      "name": "sqlcipher3",
+      "old": "0.6.4",
+      "new": "0.6.5",
+      "stable": true,
+      "non_yanked_py313_file_count": 100,
+      "host_compatible_wheel": true,
+      "file_count": 100,
+      "release_url": "https://pypi.org/pypi/sqlcipher3/0.6.5/json"
+    },
+    {
+      "name": "temporalio",
+      "old": "1.35.0",
+      "new": "1.36.1",
+      "stable": true,
+      "non_yanked_py313_file_count": 8,
+      "host_compatible_wheel": true,
+      "file_count": 8,
+      "release_url": "https://pypi.org/pypi/temporalio/1.36.1/json"
+    },
+    {
+      "name": "threadpoolctl",
+      "old": "3.7.0",
+      "new": "3.8.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/threadpoolctl/3.8.0/json"
+    },
+    {
+      "name": "tokie",
+      "old": "0.1.4",
+      "new": "0.3.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 27,
+      "host_compatible_wheel": true,
+      "file_count": 27,
+      "release_url": "https://pypi.org/pypi/tokie/0.3.0/json"
+    },
+    {
+      "name": "transformers",
+      "old": "5.22.1",
+      "new": "5.23.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/transformers/5.23.0/json"
+    },
+    {
+      "name": "typer",
+      "old": "0.27.3",
+      "new": "0.29.1",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/typer/0.29.1/json"
+    },
+    {
+      "name": "types-pyyaml",
+      "old": "6.0.12.20261030",
+      "new": "6.0.12.20261113",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/types-pyyaml/6.0.12.20261113/json"
+    },
+    {
+      "name": "typing-inspection",
+      "old": "0.4.4",
+      "new": "0.4.5",
+      "stable": true,
+      "non_yanked_py313_file_count": 2,
+      "host_compatible_wheel": true,
+      "file_count": 2,
+      "release_url": "https://pypi.org/pypi/typing-inspection/0.4.5/json"
+    },
+    {
+      "name": "watchdog",
+      "old": "7.0.0",
+      "new": "7.1.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 44,
+      "host_compatible_wheel": true,
+      "file_count": 44,
+      "release_url": "https://pypi.org/pypi/watchdog/7.1.0/json"
+    },
+    {
+      "name": "xxhash",
+      "old": "4.0.2",
+      "new": "4.1.0",
+      "stable": true,
+      "non_yanked_py313_file_count": 224,
+      "host_compatible_wheel": true,
+      "file_count": 224,
+      "release_url": "https://pypi.org/pypi/xxhash/4.1.0/json"
+    }
+  ]
+}

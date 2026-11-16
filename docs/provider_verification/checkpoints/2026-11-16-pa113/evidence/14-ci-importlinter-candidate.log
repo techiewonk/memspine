@@ -1,0 +1,43 @@
+ci_importlinter: running 19 contracts: target-layers, schemas-leaf, store-below-pipelines, read-not-derive, foundations-not-above, runtime-not-api, engine-only-from-api, clients-isolated, services-no-transport, services-not-composition, consumers-never-see-clients, ingest-no-sql, providers-composition-only, v1-core-leaf, v1-services-below-memories, v1-memories-below-workers, v1-workers-below-engine, v1-support-packages, v1-engine-not-protocols
+
+╔══╗─────────▶╔╗ ╔╗      ╔╗◀───┐
+╚╣╠╝◀─────┐  ╔╝╚╗║║────▶╔╝╚╗   │
+ ║║   ╔══╦══╦╩╗╔╝║║  ╔╦═╩╗╔╝╔═╦══╗
+ ║║╔══╣╔╗║╔╗║╔╣║ ║║ ╔╬╣╔╗║║ ║│║╔═╝
+╔╣╠╣║║║╚╝║╚╝║║║╚╗║╚═╝║║║║║╚╗║═╣║
+╚══╩╩╩╣╔═╩══╩╝╚═╝╚═══╩╩╝╚╩═╩╩═╩╝
+  └──▶║║                    ▲ 
+      ╚╝────────────────────┘
+
+
+---------
+Contracts
+---------
+
+Analyzed 812 files, 6194 dependencies.
+--------------------------------------
+
+Target layers: api above runtime above the pipelines above the foundations 
+above schemas KEPT
+schemas is a leaf (imports only errors) KEPT
+store never imports read, derive, ingest, compose, api KEPT
+read never imports derive KEPT
+models, trust, prompts, memory never import the pipelines or api KEPT
+runtime never imports api KEPT
+Only memspine.api (and the root package) import the engine facade KEPT
+clients import only stdlib, drivers, memspine.exceptions and memspine.clients KEPT
+services and models (ports, adapters) never import transport or driver packagesKEPT
+services and models never import providers, runtime or api KEPT
+engine, memories, memory, pipelines, store and trust never import clients or 
+provider builders KEPT
+ingest never imports sqlalchemy or the SQL storage modules (intake port only) KEPT
+providers (factories) never import consumers KEPT
+base core imports no service, memory, worker, client, protocol or engine KEPT
+base services never import memories, workers, protocols, engine KEPT
+base memories never import workers, protocols, engine KEPT
+base workers never import protocols, engine KEPT
+base config, prompts, observability import no service, memory, worker, protocol
+or engine KEPT
+base engine never imports protocols or cli KEPT
+
+Contracts: 19 kept, 0 broken.

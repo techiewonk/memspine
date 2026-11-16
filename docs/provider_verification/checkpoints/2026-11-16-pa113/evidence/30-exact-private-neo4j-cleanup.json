@@ -1,0 +1,18 @@
+{
+  "kind": "pa113-exact-private-label-cleanup",
+  "at_utc": "2026-11-15T18:36:43.739403+00:00",
+  "owned_project": "memspine-rm136-af88042ce6ae",
+  "owned_port": 53091,
+  "label": "Pa113N3818ca1a21",
+  "relation_type": "Pa113Re7045a1f7f",
+  "batch_size": 100,
+  "max_batches": 2000,
+  "scope": "only nodes with the exact PA113 random label; no container or shared/default label operation",
+  "nodes_before": 39999,
+  "batches_including_terminal_zero": 401,
+  "nodes_deleted": 39999,
+  "nodes_after": 0,
+  "private_relationships_after": 0,
+  "private_index_names_after": [],
+  "private_constraint_names_after": []
+}

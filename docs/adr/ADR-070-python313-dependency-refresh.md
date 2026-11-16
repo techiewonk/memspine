@@ -20,6 +20,14 @@ All these constraints remain explicit published metadata, not uv-only overrides.
 > [ADR-071](ADR-071-temporal-resonate-orchestration.md), which removed DBOS from active
 > code, dependencies and configuration in favour of Temporal + embedded Resonate.
 
+> **Superseded (Hub item, 2026-10-23):** [ADR-084](ADR-084-own-onnx-embedder-and-reranker.md)
+> and [ADR-085](ADR-085-own-openai-compatible-client-and-anyllm-extra.md) removed
+> the core dependencies that imposed the Hub `<2` cap. The active core/decider
+> range is `huggingface-hub>=2.2,<3`; the PA-113 lock selects 2.4.0. The PA-113
+> lock also retains the unchanged `opentelemetry-semantic-conventions==0.66b2`
+> required exactly by stable OpenTelemetry SDK 1.45.2; no new prerelease was
+> selected during the refresh. See the dated dependency report for its audit.
+
 Remove the unused DeepEval development dependency and the Click override it
 required. The source and evaluation harness do not import DeepEval; the custom
 reader/judge harness remains unchanged. Installing an incompatible package and
@@ -42,3 +50,12 @@ The current package table, verification scope, exceptions and update commands
 are recorded in [the dependency report](../PYTHON313_DEPENDENCIES.md).
 Earlier provider test/performance reports remain historical evidence for their
 original lockfile, not automatic proof for this refreshed environment.
+
+> **PA-113 verification update (2026-11-16):** the isolated full-graph refresh
+> passed paired repaired-case, owned-service and corrected current-graph
+> benchmark gates documented in the dependency report. The benchmark used the
+> same candidate source under both locks and covered current graph walks and
+> filtered graph-leg selection. It did not exercise the historical seed-cache
+> or full Engine search timing path. Its bounded private-label cleanup does not
+> establish that the runtime Neo4j `clear()` can delete a 39,999-node graph in
+> one transaction; the original attempt hit a server heap limit.

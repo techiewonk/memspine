@@ -1,0 +1,67 @@
+{
+  "kind": "pa113_original_oldlock_baseline_comparison",
+  "status": "failed",
+  "chunks": 46,
+  "counts": {
+    "passed": 11631,
+    "failed": 55,
+    "skipped": 249,
+    "deselected": 5,
+    "xfailed": 0,
+    "xpassed": 0
+  },
+  "separate_config_gate": {
+    "passed": 199,
+    "failed": 0,
+    "log_sha256": "fd09b2ada54930d9cdf7f0647a954b03a5646987960b8617eba7c306b23c6a0a"
+  },
+  "nonzero_chunks": [
+    {
+      "chunk": "tests-integration-0",
+      "summary": "4 failed, 39 passed, 2 skipped in 42.46s",
+      "log_sha256": "e90c06baed9267caa4553729ad7a6e5f5acae339b102d857a8e3087a3ff73b58"
+    },
+    {
+      "chunk": "tests-unit-core-1",
+      "summary": "3 failed, 305 passed in 5.78s",
+      "log_sha256": "ea2190949d8d502fcec5a19662cf1fca6fe2eda0c090db0f73ac13e4248a091c"
+    },
+    {
+      "chunk": "tests-unit-observability-0",
+      "summary": "1 failed, 72 passed, 1 deselected in 22.83s",
+      "log_sha256": "2366933483e8ed413144fe80a9aa033dcbd918ceda933c1fa02a413214c04d11"
+    },
+    {
+      "chunk": "tests-unit-providers-1",
+      "summary": "1 failed, 184 passed, 1 skipped in 20.16s",
+      "log_sha256": "0e13d744ecc1c11c12a3b47bbacc307affe4b7108d42c14ed95a6ab29ade281f"
+    },
+    {
+      "chunk": "tests-unit-schemas-0",
+      "summary": "2 failed, 139 passed in 12.19s",
+      "log_sha256": "ce2a02b0a67676221e1e243d29950c60af8b2f312ed698ecf6bcd1ae860c02e1"
+    },
+    {
+      "chunk": "tests-unit-wiring-2",
+      "summary": "1 failed, 401 passed, 1 skipped, 3 deselected in 222.92s (0:03:42)",
+      "log_sha256": "667f44b778f3c749ae671d73f046719229cd5442375868e49aead3cdf295883f"
+    },
+    {
+      "chunk": "tests-unit-workers-0",
+      "summary": "43 failed, 48 passed in 18.38s",
+      "log_sha256": "7529e6d0f829d5097197c7f8adb4f8f54a6be0563b82574be7db79013cea4410"
+    }
+  ],
+  "baseline_source_commit": "aed6cbf36d5f1def238d9efeb01141717c786d2e",
+  "head_at_completion": "fd3e5e78a25704c3fcd3c3c57a8b3cd048c05e28",
+  "status_at_completion": "",
+  "runtime_lock_config_conftest_unchanged_from_baseline": true,
+  "all_selected_test_file_hashes_stable": true,
+  "excluded_native_files": [
+    "tests/integration/test_rm45_mongo_records_projection.py",
+    "tests/integration/test_rm45_pg_records_projection.py"
+  ],
+  "provenance": "Not a clean-revision full-suite gate: reviewed native tests/docs and subsequently reviewed ingestion fixture were committed during execution. Selected test modules and runtime/lock/config/conftest remained unchanged. Original integration golden failures were captured before that separate correction. Comparison scope is unit+combinations+evals and12offline integration files; real service/optional/model lanes separate.",
+  "results_jsonl_sha256": "76ee77daa50bcf16bc793b45f50009a26d88bcc9b6702abe5ff5e5b8ac824bbd",
+  "plan_sha256": "0ee9661300661eb079c030139b4aef134f70b427708aa16f909dcc873de5a03a"
+}

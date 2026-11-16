@@ -1,0 +1,296 @@
+{
+  "kind": "pa113_dependency_refresh_independent_review_round_1_v6_amendment",
+  "reviewer": "Sol/high independent R1 narrow amendment recheck",
+  "at_utc": "2026-11-15T19:33:07.906671+00:00",
+  "prior_full_r1_receipt_path": "C:\\Users\\hembad\\AppData\\Local\\Temp\\pa113-dependency-review-round-1.json",
+  "prior_full_r1_receipt_raw_sha256": "20284a6477fa496e54d1215677eddb25e0f3b54e0ee8dd0e29348b8c21519fac",
+  "prior_full_r1_verdict": "PASS on frozen v4 candidate",
+  "v4_manifest_raw_sha256": "1f8965d1d49e5713b6785b13e12de5a5f81705cd4bc0a97aea133e863def7763",
+  "v6_manifest_path": "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-final-candidate-manifest-v6.json",
+  "v6_manifest_raw_sha256": "c53af1b79f06e66e6ef5bbb5ba7a80d0f95c72660a73bc9e6d4cf21e2136ad80",
+  "candidate_head": "aed6cbf36d5f1def238d9efeb01141717c786d2e",
+  "scope": "Documentation-only v4 to v6 amendment; prior full R1 review applies to the other 59 unchanged paths.",
+  "changed_paths_from_v4": [
+    "docs/PYTHON313_DEPENDENCIES.md"
+  ],
+  "changed_document_raw_sha256": "e3a48ffed81a10a7036b75edb7986a7d977051e4f3feaa41baaed7e42d1306cc",
+  "per_path_actual_sha256": {
+    "docs/PYTHON313_DEPENDENCIES.md": {
+      "raw_sha256": "e3a48ffed81a10a7036b75edb7986a7d977051e4f3feaa41baaed7e42d1306cc",
+      "normalized_lf_sha256": "e3a48ffed81a10a7036b75edb7986a7d977051e4f3feaa41baaed7e42d1306cc"
+    },
+    "docs/adr/ADR-070-python313-dependency-refresh.md": {
+      "raw_sha256": "ce7868e98924c16e70d0ea7d160bd30c4c7e374ff0f6390e3f6cc1170f74c66e",
+      "normalized_lf_sha256": "ce7868e98924c16e70d0ea7d160bd30c4c7e374ff0f6390e3f6cc1170f74c66e"
+    },
+    "docs/v2/schemas/durable/SemanticEnvelope.json": {
+      "raw_sha256": "582e963efca381ed937327b4969c4020c1eb2e2cc39f9fbada0ab74cd93f0755",
+      "normalized_lf_sha256": "582e963efca381ed937327b4969c4020c1eb2e2cc39f9fbada0ab74cd93f0755"
+    },
+    "docs/v2/schemas/index.json": {
+      "raw_sha256": "125b170c93e51072f6aa3e3fc4a0b2ef27e557ed30bb837ea7dd24612999ebff",
+      "normalized_lf_sha256": "125b170c93e51072f6aa3e3fc4a0b2ef27e557ed30bb837ea7dd24612999ebff"
+    },
+    "docs/v2/schemas/internal/Call2Input.json": {
+      "raw_sha256": "1dcde788cb21b1ef5ed3ceb089b00c1de78dcc1946396ee342444c9878e362bb",
+      "normalized_lf_sha256": "1dcde788cb21b1ef5ed3ceb089b00c1de78dcc1946396ee342444c9878e362bb"
+    },
+    "docs/v2/schemas/internal/Candidate.json": {
+      "raw_sha256": "536c9df2db5dc84e28b1905c8636f315242a008425f96e9e8cb10805e30e349f",
+      "normalized_lf_sha256": "536c9df2db5dc84e28b1905c8636f315242a008425f96e9e8cb10805e30e349f"
+    },
+    "docs/v2/schemas/internal/DeposableEnvelope.json": {
+      "raw_sha256": "28812f74c154ad35815ad62268fca26f40efa54042fe40a8c8f367016717f6ac",
+      "normalized_lf_sha256": "28812f74c154ad35815ad62268fca26f40efa54042fe40a8c8f367016717f6ac"
+    },
+    "docs/v2/schemas/internal/InsertStep06Input.json": {
+      "raw_sha256": "6ad82e04db9d5fd70c7489593c69c82002c29bf59264d548ded10d517e0cade4",
+      "normalized_lf_sha256": "6ad82e04db9d5fd70c7489593c69c82002c29bf59264d548ded10d517e0cade4"
+    },
+    "docs/v2/schemas/internal/InsertStep06Output.json": {
+      "raw_sha256": "5b5555cb8d75d512de22848b0481cffd0159c3bb9f371a041b28b85902c6dab3",
+      "normalized_lf_sha256": "5b5555cb8d75d512de22848b0481cffd0159c3bb9f371a041b28b85902c6dab3"
+    },
+    "docs/v2/schemas/internal/InsertStep08Input.json": {
+      "raw_sha256": "6b2b6968f323013fcdbf3ea91692e4d3ed3023e8c6bab32840f282f6f72943a1",
+      "normalized_lf_sha256": "6b2b6968f323013fcdbf3ea91692e4d3ed3023e8c6bab32840f282f6f72943a1"
+    },
+    "docs/v2/schemas/internal/InsertStep10Output.json": {
+      "raw_sha256": "f6bc6ede5fc676ead06b37b98722e91ce2ab08e3936dc7a9d8f49b3f911eb703",
+      "normalized_lf_sha256": "f6bc6ede5fc676ead06b37b98722e91ce2ab08e3936dc7a9d8f49b3f911eb703"
+    },
+    "docs/v2/schemas/internal/InsertStep16Input.json": {
+      "raw_sha256": "ee5ff8a9e67c5a31522581aaa0515badcdb6a6e470dbbccf2438e90989b2fcb7",
+      "normalized_lf_sha256": "ee5ff8a9e67c5a31522581aaa0515badcdb6a6e470dbbccf2438e90989b2fcb7"
+    },
+    "docs/v2/schemas/internal/InsertStep16Output.json": {
+      "raw_sha256": "d19612b58c2761c38b15317244ab6720e64a563a2d9f8e706047962a9ef49fbf",
+      "normalized_lf_sha256": "d19612b58c2761c38b15317244ab6720e64a563a2d9f8e706047962a9ef49fbf"
+    },
+    "docs/v2/schemas/internal/InsertStep17Input.json": {
+      "raw_sha256": "590fdc3dee953eda501ba817f8d79492a0e83d38d92006b8ba9433f00ebdb03a",
+      "normalized_lf_sha256": "590fdc3dee953eda501ba817f8d79492a0e83d38d92006b8ba9433f00ebdb03a"
+    },
+    "docs/v2/schemas/internal/InsertStep18Input.json": {
+      "raw_sha256": "5e80239a59a318592ad2c82293e0a009b5cef28d7abb42403f6baaea97b630c4",
+      "normalized_lf_sha256": "5e80239a59a318592ad2c82293e0a009b5cef28d7abb42403f6baaea97b630c4"
+    },
+    "docs/v2/schemas/internal/InsertStep20Input.json": {
+      "raw_sha256": "a8d5ba26d821003d2851b3d90774c9993acba5eaee9c86651ef61b0945ccb5e0",
+      "normalized_lf_sha256": "a8d5ba26d821003d2851b3d90774c9993acba5eaee9c86651ef61b0945ccb5e0"
+    },
+    "docs/v2/schemas/internal/InsertStep21Input.json": {
+      "raw_sha256": "c71bc9e80e0a8a9b866a2a3bccc1e5bf0b29db11ab3abe810c95620c5c5bfa1a",
+      "normalized_lf_sha256": "c71bc9e80e0a8a9b866a2a3bccc1e5bf0b29db11ab3abe810c95620c5c5bfa1a"
+    },
+    "docs/v2/schemas/internal/InsertStep22Input.json": {
+      "raw_sha256": "f9ad869433f366d4b57f69d445a1161c3311164cc7bf7ad4f63b7735853ab797",
+      "normalized_lf_sha256": "f9ad869433f366d4b57f69d445a1161c3311164cc7bf7ad4f63b7735853ab797"
+    },
+    "docs/v2/schemas/internal/InsertStep22Output.json": {
+      "raw_sha256": "8043fd89a25ab9d0530f3861f30eac6499a1109a78064fba196be2a02099ea50",
+      "normalized_lf_sha256": "8043fd89a25ab9d0530f3861f30eac6499a1109a78064fba196be2a02099ea50"
+    },
+    "docs/v2/schemas/internal/OfflineStep03Input.json": {
+      "raw_sha256": "843718b4f2e48ef7e0fbbdb0f3fe51ccc6a0b6dae903877ae45b14065f84ff8e",
+      "normalized_lf_sha256": "843718b4f2e48ef7e0fbbdb0f3fe51ccc6a0b6dae903877ae45b14065f84ff8e"
+    },
+    "docs/v2/schemas/internal/OfflineStep03Output.json": {
+      "raw_sha256": "3bf8495e8154bc19f7dc901d4e0e92e7415dc7b6e6cf1900bc0c6f65be66a54c",
+      "normalized_lf_sha256": "3bf8495e8154bc19f7dc901d4e0e92e7415dc7b6e6cf1900bc0c6f65be66a54c"
+    },
+    "docs/v2/schemas/internal/OfflineStep05Output.json": {
+      "raw_sha256": "2a4ed8a726942481f99d1818e946d0d8d5405440532581f206d72e038a9f2361",
+      "normalized_lf_sha256": "2a4ed8a726942481f99d1818e946d0d8d5405440532581f206d72e038a9f2361"
+    },
+    "docs/v2/schemas/internal/OfflineStep10Output.json": {
+      "raw_sha256": "4e771dc193ba0e64a5609f23af6218c1a864d9657529121183e2ee89d5df8a06",
+      "normalized_lf_sha256": "4e771dc193ba0e64a5609f23af6218c1a864d9657529121183e2ee89d5df8a06"
+    },
+    "docs/v2/schemas/internal/OfflineStep11Output.json": {
+      "raw_sha256": "5e24bf8901d625a9704d93172e06881535d83f9d14239c9ebccbfb231925787f",
+      "normalized_lf_sha256": "5e24bf8901d625a9704d93172e06881535d83f9d14239c9ebccbfb231925787f"
+    },
+    "docs/v2/schemas/internal/OfflineStep12Output.json": {
+      "raw_sha256": "f1a78b898d88a97499eff55804dd4d889c3ea237d4a90414d399d0477641ca1c",
+      "normalized_lf_sha256": "f1a78b898d88a97499eff55804dd4d889c3ea237d4a90414d399d0477641ca1c"
+    },
+    "docs/v2/schemas/internal/OfflineStep13Output.json": {
+      "raw_sha256": "a7e51d7b0362a7eef65d698ed99ac25449d767dc92136c75d8e9bddb2f4418c0",
+      "normalized_lf_sha256": "a7e51d7b0362a7eef65d698ed99ac25449d767dc92136c75d8e9bddb2f4418c0"
+    },
+    "docs/v2/schemas/internal/OfflineStep14Output.json": {
+      "raw_sha256": "6521274ccc9902f66e9ddc25496e602ef999119f8dc76764e0830bdd2e93f519",
+      "normalized_lf_sha256": "6521274ccc9902f66e9ddc25496e602ef999119f8dc76764e0830bdd2e93f519"
+    },
+    "docs/v2/schemas/internal/OfflineStep15Output.json": {
+      "raw_sha256": "1151ec681c38274445e3a88637720bb12909939182c6c94c37e0a5d98e9194b6",
+      "normalized_lf_sha256": "1151ec681c38274445e3a88637720bb12909939182c6c94c37e0a5d98e9194b6"
+    },
+    "docs/v2/schemas/internal/PackedEvidence.json": {
+      "raw_sha256": "4cb14dc9a8b3570ef2e906d8156a3876dacd05d12f6837ed597a1ec5fdc0179b",
+      "normalized_lf_sha256": "4cb14dc9a8b3570ef2e906d8156a3876dacd05d12f6837ed597a1ec5fdc0179b"
+    },
+    "docs/v2/schemas/internal/Record.json": {
+      "raw_sha256": "e5b354e751653909244307c0f872d69050bf3ac22b25e4bf2a3d28e815a83207",
+      "normalized_lf_sha256": "e5b354e751653909244307c0f872d69050bf3ac22b25e4bf2a3d28e815a83207"
+    },
+    "docs/v2/schemas/internal/RetrieveStep08Output.json": {
+      "raw_sha256": "32a4b7e846625971c68e59c646ca89f6b41764e6e2605c316de93fb872b54cf4",
+      "normalized_lf_sha256": "32a4b7e846625971c68e59c646ca89f6b41764e6e2605c316de93fb872b54cf4"
+    },
+    "docs/v2/schemas/internal/RetrieveStep09Input.json": {
+      "raw_sha256": "13e090c4287eb1ceb1c35785899bb50ec82a93c61ec37512771160cbab7d598c",
+      "normalized_lf_sha256": "13e090c4287eb1ceb1c35785899bb50ec82a93c61ec37512771160cbab7d598c"
+    },
+    "docs/v2/schemas/internal/RetrieveStep16Output.json": {
+      "raw_sha256": "56b2b6809d7bf34a415a879e4ee9a41d326ce999dd877314d396f7261c2cd85d",
+      "normalized_lf_sha256": "56b2b6809d7bf34a415a879e4ee9a41d326ce999dd877314d396f7261c2cd85d"
+    },
+    "docs/v2/schemas/internal/RetrieveStep17Input.json": {
+      "raw_sha256": "70972a322307f2cde473c1958db777fba1ded188f6ebf2987e6e0816f125978b",
+      "normalized_lf_sha256": "70972a322307f2cde473c1958db777fba1ded188f6ebf2987e6e0816f125978b"
+    },
+    "docs/v2/schemas/internal/RoutedRecord.json": {
+      "raw_sha256": "0603d92b7cf7caade2a371ed44f53149df1abb3f369cc00c0e89a4a3066794f0",
+      "normalized_lf_sha256": "0603d92b7cf7caade2a371ed44f53149df1abb3f369cc00c0e89a4a3066794f0"
+    },
+    "docs/v2/schemas/public/EvidenceBundle.json": {
+      "raw_sha256": "b6c9bdbafbc9f2300badc1c08693974954354aed6b68e96e49bacddfc8fd71ae",
+      "normalized_lf_sha256": "b6c9bdbafbc9f2300badc1c08693974954354aed6b68e96e49bacddfc8fd71ae"
+    },
+    "pyproject.toml": {
+      "raw_sha256": "916ed13e6f7c7b711c09f37f9e030b343fb235375dfc93928a556e977051d42e",
+      "normalized_lf_sha256": "916ed13e6f7c7b711c09f37f9e030b343fb235375dfc93928a556e977051d42e"
+    },
+    "scripts/benchmark_graph_filter_pa113.py": {
+      "raw_sha256": "9e57bf82fee1b330327c46e1247d617f2e468ef6b35e30b25d156693984ce44f",
+      "normalized_lf_sha256": "9e57bf82fee1b330327c46e1247d617f2e468ef6b35e30b25d156693984ce44f"
+    },
+    "src/memspine/derive/temporal.py": {
+      "raw_sha256": "dba6903affb041aea8ccd80a1dd93f6b790807921035e62f8e4c8b3940aaf72a",
+      "normalized_lf_sha256": "dba6903affb041aea8ccd80a1dd93f6b790807921035e62f8e4c8b3940aaf72a"
+    },
+    "src/memspine/observability/logging.py": {
+      "raw_sha256": "a3afea184d6bbc294077fbf0680ad1e92391626d56cfa08862f6a4cd23d155cc",
+      "normalized_lf_sha256": "a3afea184d6bbc294077fbf0680ad1e92391626d56cfa08862f6a4cd23d155cc"
+    },
+    "src/memspine/read/legs/temporal.py": {
+      "raw_sha256": "077fdec924baada12d54af46f4e111b1253c42e36cdd4aa230d2561df5502ee5",
+      "normalized_lf_sha256": "077fdec924baada12d54af46f4e111b1253c42e36cdd4aa230d2561df5502ee5"
+    },
+    "src/memspine/schemas/durable/semantic.py": {
+      "raw_sha256": "7253fd9e88492b61886f61675a7b08cd4454813c777cabbd9048a94c0d1c3163",
+      "normalized_lf_sha256": "7253fd9e88492b61886f61675a7b08cd4454813c777cabbd9048a94c0d1c3163"
+    },
+    "src/memspine/schemas/public/read.py": {
+      "raw_sha256": "29bda41977ec089b57a76b48877d854553f1dd15c97d3228cce583758402c4a4",
+      "normalized_lf_sha256": "29bda41977ec089b57a76b48877d854553f1dd15c97d3228cce583758402c4a4"
+    },
+    "tests/integration/fixtures/ingest_equivalence.json": {
+      "raw_sha256": "cd00107e96922ac11646aec9a21bbb3e76a0e80ccbc96b6444f177dac0939f0b",
+      "normalized_lf_sha256": "cd00107e96922ac11646aec9a21bbb3e76a0e80ccbc96b6444f177dac0939f0b"
+    },
+    "tests/integration/test_rm45_mongo_records_projection.py": {
+      "raw_sha256": "a2d73f0095fd5a04fdbcaac0e8ceb6f138407b411b3e10d18b514a6a698015bc",
+      "normalized_lf_sha256": "a2d73f0095fd5a04fdbcaac0e8ceb6f138407b411b3e10d18b514a6a698015bc"
+    },
+    "tests/integration/test_rm45_pg_records_projection.py": {
+      "raw_sha256": "13bf934b886dd572f056fd9146f5546d8fd2ab01f46450a31eff864dc43bb061",
+      "normalized_lf_sha256": "13bf934b886dd572f056fd9146f5546d8fd2ab01f46450a31eff864dc43bb061"
+    },
+    "tests/unit/core/test_replay.py": {
+      "raw_sha256": "8fed55113b2b9992432bf42bd2e4531dc32cdfc5447c11fc56016a8f7df3fbf7",
+      "normalized_lf_sha256": "8fed55113b2b9992432bf42bd2e4531dc32cdfc5447c11fc56016a8f7df3fbf7"
+    },
+    "tests/unit/lib/test_lib_47_tiers.py": {
+      "raw_sha256": "5ff9bf61f5b3db6d602ae2111ba9ba383773e5a55e0d845b6461a33027534dc8",
+      "normalized_lf_sha256": "5ff9bf61f5b3db6d602ae2111ba9ba383773e5a55e0d845b6461a33027534dc8"
+    },
+    "tests/unit/observability/test_logging.py": {
+      "raw_sha256": "021ce01f2ba462715b73565bbb223917ed14eee640a882db8fae3065a27c1014",
+      "normalized_lf_sha256": "021ce01f2ba462715b73565bbb223917ed14eee640a882db8fae3065a27c1014"
+    },
+    "tests/unit/providers/test_shared_model_weights.py": {
+      "raw_sha256": "d2e7dd3e24dd4c7d21c58f9a1cacb7f5bedf854ec6cd51193f8b51d2f18f58a7",
+      "normalized_lf_sha256": "d2e7dd3e24dd4c7d21c58f9a1cacb7f5bedf854ec6cd51193f8b51d2f18f58a7"
+    },
+    "tests/unit/schemas/fixtures/durable/semantic_envelope.v2.json": {
+      "raw_sha256": "2f572a7410faa500896a7d9cba404c5a072f9ff5c0e17a23d02befaaa3fff53a",
+      "normalized_lf_sha256": "2f572a7410faa500896a7d9cba404c5a072f9ff5c0e17a23d02befaaa3fff53a"
+    },
+    "tests/unit/schemas/test_durable_models.py": {
+      "raw_sha256": "08fb429519b089f95c274b46281cfc9e6a059900caecebd3786c9930014f17f2",
+      "normalized_lf_sha256": "08fb429519b089f95c274b46281cfc9e6a059900caecebd3786c9930014f17f2"
+    },
+    "tests/unit/schemas/test_public_models.py": {
+      "raw_sha256": "e03dc5114016f61f1f7cc35b9abd71fc4cdc4459088ff79520871a2af0c89c28",
+      "normalized_lf_sha256": "e03dc5114016f61f1f7cc35b9abd71fc4cdc4459088ff79520871a2af0c89c28"
+    },
+    "tests/unit/test_benchmark_graph_filter_pa113.py": {
+      "raw_sha256": "b88d658b7b0596382df441b1945b914e85024de7bad1c366858a6a7318dcc70f",
+      "normalized_lf_sha256": "b88d658b7b0596382df441b1945b914e85024de7bad1c366858a6a7318dcc70f"
+    },
+    "tests/unit/wiring/test_rt_01_transport.py": {
+      "raw_sha256": "b7299d65cd4fc8ead29b6c690713c33fc000771b7106bb809882cc6dc2377344",
+      "normalized_lf_sha256": "b7299d65cd4fc8ead29b6c690713c33fc000771b7106bb809882cc6dc2377344"
+    },
+    "tests/unit/workers/test_check_watches.py": {
+      "raw_sha256": "946ebac92a3a92d4fff56219c492148c7a47467fa5a2f912ad26ca38231e304c",
+      "normalized_lf_sha256": "946ebac92a3a92d4fff56219c492148c7a47467fa5a2f912ad26ca38231e304c"
+    },
+    "tests/unit/workers/test_extract_graph.py": {
+      "raw_sha256": "38ca105079bac8015b81aabbb201a2364aa12518b2751ee0de3b280b5c17d49c",
+      "normalized_lf_sha256": "38ca105079bac8015b81aabbb201a2364aa12518b2751ee0de3b280b5c17d49c"
+    },
+    "tests/unit/workers/test_lifecycle_pipelines.py": {
+      "raw_sha256": "b631472f2977cba5ef3c0914946970c644e9617d0584ce93838f7624be4eb647",
+      "normalized_lf_sha256": "b631472f2977cba5ef3c0914946970c644e9617d0584ce93838f7624be4eb647"
+    },
+    "tests/unit/workers/test_session_summary_incremental.py": {
+      "raw_sha256": "3f7a035f65e3ae42e4c66b6e9cda5827f2304bff6acb6653328c6f18de09f945",
+      "normalized_lf_sha256": "3f7a035f65e3ae42e4c66b6e9cda5827f2304bff6acb6653328c6f18de09f945"
+    },
+    "uv.lock": {
+      "raw_sha256": "79663be36f97707c675bac8f2087b0a6275a6d04355026e2e4cc5b7ec76dce34",
+      "normalized_lf_sha256": "79663be36f97707c675bac8f2087b0a6275a6d04355026e2e4cc5b7ec76dce34"
+    }
+  },
+  "checks": [
+    {
+      "name": "manifest_and_scope",
+      "command": "independent raw/LF SHA256 of 60 dirty paths against frozen v6 manifest and compare v4/v6 path maps",
+      "exit_code": 0,
+      "dirty_paths": 60,
+      "changed_paths": 1,
+      "mismatches": 0
+    },
+    {
+      "name": "evidence_stability",
+      "command": "compare v4/v6 evidence maps and independently SHA256 all v6 evidence artifacts",
+      "exit_code": 0,
+      "artifacts": 34,
+      "changed_artifacts": 0,
+      "mismatches": 0
+    },
+    {
+      "name": "historical_current_labels",
+      "command": "read current docs policy and dated historical headings/links; compare with pyproject Hub/Ladybug caps and unchanged OTel beta evidence",
+      "exit_code": 0,
+      "summary": "Active policy is explicit. Earlier DBOS/Hub 2.3 and 2026-10-17 measurements are under historical headings; committed dependency-audit.json is described as earlier-lock evidence, and current external audit is named without an invented repository link. Newly selected/upgraded stable rule explicitly exempts unchanged constrained OTel beta."
+    },
+    {
+      "name": "git_diff_check",
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "resolved_findings": [
+    "R2-identified ambiguity between current policy and dated historical dependency measurements corrected by active and historical headings and explicit audit provenance."
+  ],
+  "open_material_findings": [],
+  "remaining_limitations": [
+    "All original R1 limitations remain: original 55 failures and no full 46-chunk final-source rerun; optional heavy-model inference unverified; one summary-only paired graph benchmark; runtime Neo4jGraphStore.clear large-graph limit; no mkdocs.yml for strict docs build."
+  ],
+  "verdict": "PASS: v6 documentation amendment preserves prior R1 approval; frozen 60-path candidate may proceed to independent R2 finalization. No new runtime/performance claim."
+}

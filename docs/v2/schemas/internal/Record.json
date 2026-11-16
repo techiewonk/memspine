@@ -1004,6 +1004,11 @@
           "default": null,
           "title": "Attribute"
         },
+        "cardinality_conflict": {
+          "default": false,
+          "title": "Cardinality Conflict",
+          "type": "boolean"
+        },
         "change_hint": {
           "default": false,
           "title": "Change Hint",
@@ -1216,9 +1221,9 @@
           "type": "array"
         },
         "schema_version": {
-          "default": 1,
-          "maximum": 1,
-          "minimum": 1,
+          "default": 2,
+          "maximum": 2,
+          "minimum": 2,
           "title": "Schema Version",
           "type": "integer"
         },

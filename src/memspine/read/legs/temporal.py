@@ -189,10 +189,9 @@ class TemporalLeg:
             hi = _aware(r.valid_to)
             if window.overlaps(lo, hi):
                 take(window.distance_days(lo, hi))
-        elif not (happened is not None and ctx.precision_aware):
+        elif not (happened is not None and ctx.precision_aware) and window.start <= lo < window.end:
             # the utterance instant (precision-aware: it is the moved start of a happened period)
-            if window.start <= lo < window.end:
-                take(from_middle(lo))
+            take(from_middle(lo))
         if happened is not None and window.overlaps(*happened):
             if ctx.precision_aware:
                 take(window.distance_days(*happened))

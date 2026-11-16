@@ -1174,6 +1174,11 @@
       "default": null,
       "title": "Attribute"
     },
+    "cardinality_conflict": {
+      "default": false,
+      "title": "Cardinality Conflict",
+      "type": "boolean"
+    },
     "change_hint": {
       "default": false,
       "title": "Change Hint",
@@ -1386,9 +1391,9 @@
       "type": "array"
     },
     "schema_version": {
-      "default": 1,
-      "maximum": 1,
-      "minimum": 1,
+      "default": 2,
+      "maximum": 2,
+      "minimum": 2,
       "title": "Schema Version",
       "type": "integer"
     },
@@ -1538,5 +1543,5 @@
   "title": "SemanticEnvelope",
   "type": "object",
   "x-kind": "semantic_envelope",
-  "x-schema-version": 1
+  "x-schema-version": 2
 }

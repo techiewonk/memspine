@@ -1,0 +1,8 @@
+from pathlib import Path
+import sys,memspine,pytest
+root=Path('C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure\\src')
+assert Path(memspine.__file__).resolve().is_relative_to(root),memspine.__file__
+result=pytest.main(sys.argv[1:])
+wrong=[n for n,m in list(sys.modules.items()) if (n=="memspine" or n.startswith("memspine.")) and getattr(m,"__file__",None) and not Path(m.__file__).resolve().is_relative_to(root)]
+assert not wrong,wrong
+raise SystemExit(result)

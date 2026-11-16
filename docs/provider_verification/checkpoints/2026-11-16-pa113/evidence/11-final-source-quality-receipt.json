@@ -1,0 +1,75 @@
+{
+  "kind": "pa113-final-source-readonly-quality-gates",
+  "at_utc": "2026-11-15T19:20:34.707259+00:00",
+  "candidate_head": "aed6cbf36d5f1def238d9efeb01141717c786d2e",
+  "source_aggregate_sha256": "5a2c1bb19747150776fa9f9e29cc8217bc5627afa8a648651a4c1352e298c17e",
+  "rows": [
+    {
+      "gate": "mypy-baseline",
+      "command": [
+        "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-aed6cbf3-oldlock\\Scripts\\python.exe",
+        "-m",
+        "mypy",
+        "--strict",
+        "src/memspine"
+      ],
+      "cwd": "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure",
+      "exit_code": 0,
+      "source_before_sha256": "5a2c1bb19747150776fa9f9e29cc8217bc5627afa8a648651a4c1352e298c17e",
+      "source_after_sha256": "5a2c1bb19747150776fa9f9e29cc8217bc5627afa8a648651a4c1352e298c17e",
+      "log_sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "log_tail": [
+        "Success: no issues found in 696 source files"
+      ],
+      "lock_sha256": "fd2c52e1c2d68616d580ff27c83e233ad259b20eed4607292014827da5833591",
+      "installed_freeze_sha256": "77b2f85da7ed9d2c27d79631f0ee349cbe87386ae015902decba8f229ef6eab0",
+      "imported_memspine_path": "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure\\src\\memspine\\__init__.py"
+    },
+    {
+      "gate": "mypy-candidate",
+      "command": [
+        "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Scripts\\python.exe",
+        "-m",
+        "mypy",
+        "--strict",
+        "src/memspine"
+      ],
+      "cwd": "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure",
+      "exit_code": 0,
+      "source_before_sha256": "5a2c1bb19747150776fa9f9e29cc8217bc5627afa8a648651a4c1352e298c17e",
+      "source_after_sha256": "5a2c1bb19747150776fa9f9e29cc8217bc5627afa8a648651a4c1352e298c17e",
+      "log_sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+      "log_tail": [
+        "Success: no issues found in 696 source files"
+      ],
+      "lock_sha256": "79663be36f97707c675bac8f2087b0a6275a6d04355026e2e4cc5b7ec76dce34",
+      "installed_freeze_sha256": "5001a39895d5aaae24b1c41a1f87fa616d2627f64553d64def6b694eb87335e3",
+      "imported_memspine_path": "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure\\src\\memspine\\__init__.py"
+    },
+    {
+      "gate": "ci-importlinter-candidate",
+      "command": [
+        "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Scripts\\python.exe",
+        "scripts/ci_importlinter.py"
+      ],
+      "cwd": "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure",
+      "exit_code": 0,
+      "source_before_sha256": "5a2c1bb19747150776fa9f9e29cc8217bc5627afa8a648651a4c1352e298c17e",
+      "source_after_sha256": "5a2c1bb19747150776fa9f9e29cc8217bc5627afa8a648651a4c1352e298c17e",
+      "log_sha256": "7c2176068671a944382d14866f21fe900e99d49c1c7b88c1db6391e5f89b3a18",
+      "log_tail": [
+        "base engine never imports protocols or cli KEPT",
+        "",
+        "Contracts: 19 kept, 0 broken."
+      ],
+      "lock_sha256": "79663be36f97707c675bac8f2087b0a6275a6d04355026e2e4cc5b7ec76dce34",
+      "installed_freeze_sha256": "5001a39895d5aaae24b1c41a1f87fa616d2627f64553d64def6b694eb87335e3",
+      "imported_memspine_path": "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure\\src\\memspine\\__init__.py"
+    }
+  ],
+  "older_mypy_logs": {
+    "scope": "pre-49-transplant; retained as historical only",
+    "baseline_sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6",
+    "candidate_sha256": "59425ae0dd4708cfad51185baf747bb470b4c19e5cf89384bea8c89394343cb6"
+  }
+}

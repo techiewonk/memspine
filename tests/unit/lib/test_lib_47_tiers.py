@@ -29,7 +29,7 @@ from memspine.schemas.public.read import EvidenceBundle, ReadRequest
 
 SCOPE = {"tenant": "acme", "owner": "ilse"}
 GROUP = {"tenant": "acme", "owner": "household", "owner_kind": "group"}
-FIX = Path(__file__).parents[1] / "schemas" / "fixtures" / "durable" / "semantic_envelope.v1.json"
+FIX = Path(__file__).parents[1] / "schemas" / "fixtures" / "durable" / "semantic_envelope.v2.json"
 
 WITH_WORKER = LayerState(services=ServiceState(worker_model=True))
 NO_WORKER = LayerState(services=ServiceState(worker_model=False))

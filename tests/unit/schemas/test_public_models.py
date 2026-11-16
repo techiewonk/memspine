@@ -180,12 +180,13 @@ def test_read_request_viewer_rules():
 
 def _env():
     return SemanticEnvelope.model_validate_json(
-        (FIXTURES / "semantic_envelope.v1.json").read_text(encoding="utf-8")
+        (FIXTURES / "semantic_envelope.v2.json").read_text(encoding="utf-8")
     )
 
 
 def test_evidence_bundle_is_whole_or_not_at_all():
     env = _env()
+    assert EvidenceBundle.__semver__ == "2.0.0"
     support = [e for e in env.evidence if e.role == "support"]
     binding = [e for e in env.evidence if e.role == "binding"]
     assert support and binding
@@ -199,6 +200,11 @@ def test_evidence_bundle_is_whole_or_not_at_all():
     ctx = Evidence(role="context", source_family="f")
     with pytest.raises(ValidationError, match="support evidence only"):
         EvidenceBundle(record_id="rec-1", assertion=env, support=[ctx], binding=binding)
+    legacy = json.loads((FIXTURES / "semantic_envelope.v1.json").read_text(encoding="utf-8"))
+    with pytest.raises(ValidationError, match="schema_version"):
+        EvidenceBundle.model_validate(
+            {"record_id": "rec-1", "assertion": legacy, "support": support, "binding": binding}
+        )
 
 
 def test_context_block_accounting_and_cap():

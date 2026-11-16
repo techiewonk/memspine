@@ -245,7 +245,7 @@
       "kind": "semantic_envelope",
       "module": "memspine.schemas.durable.semantic",
       "name": "SemanticEnvelope",
-      "schema_version": 1,
+      "schema_version": 2,
       "tier": "durable"
     },
     {
@@ -1722,7 +1722,7 @@
       "file": "public/EvidenceBundle.json",
       "module": "memspine.schemas.public.read",
       "name": "EvidenceBundle",
-      "semver": "1.0.0",
+      "semver": "2.0.0",
       "tier": "public"
     },
     {

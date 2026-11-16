@@ -188,9 +188,8 @@ class TemporalCandidate(BaseModel):
         elif k == "duration":
             if self.duration_value is None or self.duration_unit is None:
                 raise ValueError("duration needs duration_value and duration_unit")
-        elif k == "relation":
-            if self.relation is None:
-                raise ValueError("relation needs 'relation'")
+        elif k == "relation" and self.relation is None:
+            raise ValueError("relation needs 'relation'")
         return self
 
 

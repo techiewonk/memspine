@@ -1,0 +1,58 @@
+{
+  "kind": "pa113-postrepair-paired-ingest-equivalence",
+  "at_utc": "2026-11-15T19:08:54.905328+00:00",
+  "candidate_head": "aed6cbf36d5f1def238d9efeb01141717c786d2e",
+  "fixture_repair_provenance": "fd3e5e78a25704c3fcd3c3c57a8b3cd048c05e28, two independent reviews",
+  "rows": [
+    {
+      "label": "baseline",
+      "command": [
+        "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-aed6cbf3-oldlock\\Scripts\\python.exe",
+        "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-native-candidate\\pytest_candidate_source.py",
+        "-p",
+        "no:deepeval",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "--tb=short",
+        "--show-capture=no",
+        "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure\\tests\\integration\\test_ingest_equivalence.py"
+      ],
+      "cwd": "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure",
+      "exit_code": 0,
+      "summary": "4 passed in 8.14s",
+      "source_isolation_ok": true,
+      "test_sha256": "3473567556f4bb0eb91562c079db9e7962d8cedfe41214bbd3bc2f384939e0df",
+      "fixture_sha256": "cd00107e96922ac11646aec9a21bbb3e76a0e80ccbc96b6444f177dac0939f0b",
+      "lock_sha256": "fd2c52e1c2d68616d580ff27c83e233ad259b20eed4607292014827da5833591",
+      "installed_freeze_sha256": "77b2f85da7ed9d2c27d79631f0ee349cbe87386ae015902decba8f229ef6eab0",
+      "log_sha256": "f6f1800fbb403aa03ec8d96907449f9995361c58a82dc9d4f83d34f04b3b95c3"
+    },
+    {
+      "label": "candidate",
+      "command": [
+        "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Scripts\\python.exe",
+        "C:\\Users\\hembad\\.codex\\pa113-envs\\pa113-native-candidate\\pytest_candidate_source.py",
+        "-p",
+        "no:deepeval",
+        "-o",
+        "addopts=",
+        "-q",
+        "-rs",
+        "--tb=short",
+        "--show-capture=no",
+        "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure\\tests\\integration\\test_ingest_equivalence.py"
+      ],
+      "cwd": "C:\\Users\\hembad\\.codex\\worktrees\\pa113-dependency-refresh\\memspine-restructure",
+      "exit_code": 0,
+      "summary": "4 passed in 8.25s",
+      "source_isolation_ok": true,
+      "test_sha256": "3473567556f4bb0eb91562c079db9e7962d8cedfe41214bbd3bc2f384939e0df",
+      "fixture_sha256": "cd00107e96922ac11646aec9a21bbb3e76a0e80ccbc96b6444f177dac0939f0b",
+      "lock_sha256": "79663be36f97707c675bac8f2087b0a6275a6d04355026e2e4cc5b7ec76dce34",
+      "installed_freeze_sha256": "5001a39895d5aaae24b1c41a1f87fa616d2627f64553d64def6b694eb87335e3",
+      "log_sha256": "d987b2603b383a723da87294ea1c254264dbf5782dc78dc241864d8241d58252"
+    }
+  ]
+}

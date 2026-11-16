@@ -44,7 +44,13 @@ class Harness:
         assert appended.seq is not None
         for projector in self.projectors:
             await projector.apply(appended)
-            await self.storage.set_offset(projector.name, appended.seq)
+            if projector.name == "records":
+                assert await self.storage.get_offset(projector.name) == appended.seq
+                if appended.kind is EventKind.WRITE:
+                    record_id = str(appended.payload["record"]["record_id"])
+                    assert await self.storage.get_record(record_id) is not None
+            else:
+                await self.storage.set_offset(projector.name, appended.seq)
 
 
 async def _make(

@@ -1,0 +1,127 @@
+{
+  "kind": "baseline_repair_independent_review_round_2",
+  "reviewer": "Sol/high independent R2",
+  "at_utc": "2026-11-15T17:48:44.454890+00:00",
+  "repo": "C:\\Users\\hembad\\Documents\\GitHub\\memspine-restructure",
+  "head": "fd3e5e78a25704c3fcd3c3c57a8b3cd048c05e28",
+  "scope": {
+    "dirty_path_count": 49,
+    "manifest_a_path_count": 45,
+    "manifest_b_path_count": 4,
+    "uncovered_dirty_paths": [],
+    "manifest_paths_not_dirty": [],
+    "sha256_mismatches": [],
+    "generated_schema_json_count": 34
+  },
+  "per_path_raw_sha256": {
+    "docs/v2/schemas/durable/SemanticEnvelope.json": "582e963efca381ed937327b4969c4020c1eb2e2cc39f9fbada0ab74cd93f0755",
+    "docs/v2/schemas/index.json": "125b170c93e51072f6aa3e3fc4a0b2ef27e557ed30bb837ea7dd24612999ebff",
+    "docs/v2/schemas/internal/Call2Input.json": "1dcde788cb21b1ef5ed3ceb089b00c1de78dcc1946396ee342444c9878e362bb",
+    "docs/v2/schemas/internal/Candidate.json": "536c9df2db5dc84e28b1905c8636f315242a008425f96e9e8cb10805e30e349f",
+    "docs/v2/schemas/internal/DeposableEnvelope.json": "28812f74c154ad35815ad62268fca26f40efa54042fe40a8c8f367016717f6ac",
+    "docs/v2/schemas/internal/InsertStep06Input.json": "6ad82e04db9d5fd70c7489593c69c82002c29bf59264d548ded10d517e0cade4",
+    "docs/v2/schemas/internal/InsertStep06Output.json": "5b5555cb8d75d512de22848b0481cffd0159c3bb9f371a041b28b85902c6dab3",
+    "docs/v2/schemas/internal/InsertStep08Input.json": "6b2b6968f323013fcdbf3ea91692e4d3ed3023e8c6bab32840f282f6f72943a1",
+    "docs/v2/schemas/internal/InsertStep10Output.json": "f6bc6ede5fc676ead06b37b98722e91ce2ab08e3936dc7a9d8f49b3f911eb703",
+    "docs/v2/schemas/internal/InsertStep16Input.json": "ee5ff8a9e67c5a31522581aaa0515badcdb6a6e470dbbccf2438e90989b2fcb7",
+    "docs/v2/schemas/internal/InsertStep16Output.json": "d19612b58c2761c38b15317244ab6720e64a563a2d9f8e706047962a9ef49fbf",
+    "docs/v2/schemas/internal/InsertStep17Input.json": "590fdc3dee953eda501ba817f8d79492a0e83d38d92006b8ba9433f00ebdb03a",
+    "docs/v2/schemas/internal/InsertStep18Input.json": "5e80239a59a318592ad2c82293e0a009b5cef28d7abb42403f6baaea97b630c4",
+    "docs/v2/schemas/internal/InsertStep20Input.json": "a8d5ba26d821003d2851b3d90774c9993acba5eaee9c86651ef61b0945ccb5e0",
+    "docs/v2/schemas/internal/InsertStep21Input.json": "c71bc9e80e0a8a9b866a2a3bccc1e5bf0b29db11ab3abe810c95620c5c5bfa1a",
+    "docs/v2/schemas/internal/InsertStep22Input.json": "f9ad869433f366d4b57f69d445a1161c3311164cc7bf7ad4f63b7735853ab797",
+    "docs/v2/schemas/internal/InsertStep22Output.json": "8043fd89a25ab9d0530f3861f30eac6499a1109a78064fba196be2a02099ea50",
+    "docs/v2/schemas/internal/OfflineStep03Input.json": "843718b4f2e48ef7e0fbbdb0f3fe51ccc6a0b6dae903877ae45b14065f84ff8e",
+    "docs/v2/schemas/internal/OfflineStep03Output.json": "3bf8495e8154bc19f7dc901d4e0e92e7415dc7b6e6cf1900bc0c6f65be66a54c",
+    "docs/v2/schemas/internal/OfflineStep05Output.json": "2a4ed8a726942481f99d1818e946d0d8d5405440532581f206d72e038a9f2361",
+    "docs/v2/schemas/internal/OfflineStep10Output.json": "4e771dc193ba0e64a5609f23af6218c1a864d9657529121183e2ee89d5df8a06",
+    "docs/v2/schemas/internal/OfflineStep11Output.json": "5e24bf8901d625a9704d93172e06881535d83f9d14239c9ebccbfb231925787f",
+    "docs/v2/schemas/internal/OfflineStep12Output.json": "f1a78b898d88a97499eff55804dd4d889c3ea237d4a90414d399d0477641ca1c",
+    "docs/v2/schemas/internal/OfflineStep13Output.json": "a7e51d7b0362a7eef65d698ed99ac25449d767dc92136c75d8e9bddb2f4418c0",
+    "docs/v2/schemas/internal/OfflineStep14Output.json": "6521274ccc9902f66e9ddc25496e602ef999119f8dc76764e0830bdd2e93f519",
+    "docs/v2/schemas/internal/OfflineStep15Output.json": "1151ec681c38274445e3a88637720bb12909939182c6c94c37e0a5d98e9194b6",
+    "docs/v2/schemas/internal/PackedEvidence.json": "4cb14dc9a8b3570ef2e906d8156a3876dacd05d12f6837ed597a1ec5fdc0179b",
+    "docs/v2/schemas/internal/Record.json": "e5b354e751653909244307c0f872d69050bf3ac22b25e4bf2a3d28e815a83207",
+    "docs/v2/schemas/internal/RetrieveStep08Output.json": "32a4b7e846625971c68e59c646ca89f6b41764e6e2605c316de93fb872b54cf4",
+    "docs/v2/schemas/internal/RetrieveStep09Input.json": "13e090c4287eb1ceb1c35785899bb50ec82a93c61ec37512771160cbab7d598c",
+    "docs/v2/schemas/internal/RetrieveStep16Output.json": "56b2b6809d7bf34a415a879e4ee9a41d326ce999dd877314d396f7261c2cd85d",
+    "docs/v2/schemas/internal/RetrieveStep17Input.json": "70972a322307f2cde473c1958db777fba1ded188f6ebf2987e6e0816f125978b",
+    "docs/v2/schemas/internal/RoutedRecord.json": "0603d92b7cf7caade2a371ed44f53149df1abb3f369cc00c0e89a4a3066794f0",
+    "docs/v2/schemas/public/EvidenceBundle.json": "b6c9bdbafbc9f2300badc1c08693974954354aed6b68e96e49bacddfc8fd71ae",
+    "src/memspine/observability/logging.py": "a3afea184d6bbc294077fbf0680ad1e92391626d56cfa08862f6a4cd23d155cc",
+    "src/memspine/schemas/durable/semantic.py": "7253fd9e88492b61886f61675a7b08cd4454813c777cabbd9048a94c0d1c3163",
+    "src/memspine/schemas/public/read.py": "29bda41977ec089b57a76b48877d854553f1dd15c97d3228cce583758402c4a4",
+    "tests/unit/core/test_replay.py": "8fed55113b2b9992432bf42bd2e4531dc32cdfc5447c11fc56016a8f7df3fbf7",
+    "tests/unit/lib/test_lib_47_tiers.py": "5ff9bf61f5b3db6d602ae2111ba9ba383773e5a55e0d845b6461a33027534dc8",
+    "tests/unit/observability/test_logging.py": "021ce01f2ba462715b73565bbb223917ed14eee640a882db8fae3065a27c1014",
+    "tests/unit/providers/test_shared_model_weights.py": "d2e7dd3e24dd4c7d21c58f9a1cacb7f5bedf854ec6cd51193f8b51d2f18f58a7",
+    "tests/unit/schemas/fixtures/durable/semantic_envelope.v2.json": "2f572a7410faa500896a7d9cba404c5a072f9ff5c0e17a23d02befaaa3fff53a",
+    "tests/unit/schemas/test_durable_models.py": "08fb429519b089f95c274b46281cfc9e6a059900caecebd3786c9930014f17f2",
+    "tests/unit/schemas/test_public_models.py": "e03dc5114016f61f1f7cc35b9abd71fc4cdc4459088ff79520871a2af0c89c28",
+    "tests/unit/wiring/test_rt_01_transport.py": "b7299d65cd4fc8ead29b6c690713c33fc000771b7106bb809882cc6dc2377344",
+    "tests/unit/workers/test_check_watches.py": "946ebac92a3a92d4fff56219c492148c7a47467fa5a2f912ad26ca38231e304c",
+    "tests/unit/workers/test_extract_graph.py": "38ca105079bac8015b81aabbb201a2364aa12518b2751ee0de3b280b5c17d49c",
+    "tests/unit/workers/test_lifecycle_pipelines.py": "b631472f2977cba5ef3c0914946970c644e9617d0584ce93838f7624be4eb647",
+    "tests/unit/workers/test_session_summary_incremental.py": "3f7a035f65e3ae42e4c66b6e9cda5827f2304bff6acb6653328c6f18de09f945"
+  },
+  "checks": [
+    {
+      "name": "oldlock_focused_pytest",
+      "command": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-aed6cbf3-oldlock\\Scripts\\python.exe -m pytest -p no:deepeval -o addopts= -q -rs --tb=short --show-capture=no -m \"not perf\" tests/unit/workers tests/unit/schemas tests/unit/core/test_replay.py tests/unit/lib/test_lib_47_tiers.py tests/unit/observability/test_logging.py tests/unit/providers/test_shared_model_weights.py tests/unit/wiring/test_rt_01_transport.py",
+      "exit_code": 0,
+      "passed": 303,
+      "skipped": 0,
+      "summary": "303 passed in 35.88s"
+    },
+    {
+      "name": "ruff_check_14_touched_python_files",
+      "command": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-aed6cbf3-oldlock\\Scripts\\python.exe -m ruff check <14 touched Python paths>",
+      "exit_code": 0,
+      "summary": "All checks passed!"
+    },
+    {
+      "name": "ruff_format_check_14_touched_python_files",
+      "command": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-aed6cbf3-oldlock\\Scripts\\python.exe -m ruff format --check <14 touched Python paths>",
+      "exit_code": 0,
+      "summary": "14 files already formatted"
+    },
+    {
+      "name": "git_diff_check",
+      "command": "git diff --check",
+      "exit_code": 0,
+      "summary": "no whitespace errors"
+    },
+    {
+      "name": "fresh_schema_render",
+      "command": "memspine.schemas.export.render() compared byte-for-byte to docs/v2/schemas export paths using oldlock Python",
+      "exit_code": 0,
+      "rendered_files": 286,
+      "exact_matches": 286
+    },
+    {
+      "name": "generated_schema_structural_diff",
+      "command": "recursive JSON leaf comparison of HEAD and working tree for 34 generated paths",
+      "exit_code": 0,
+      "summary": "33 cardinality_conflict property additions; 33 schema_version default/minimum/maximum changes from 1 to 2; SemanticEnvelope x-schema-version 1 to 2; EvidenceBundle x-semver 1.0.0 to 2.0.0; index has exactly those two entry changes"
+    },
+    {
+      "name": "direct_schema_version_and_fixture_probe",
+      "command": "oldlock Python registry/Pydantic/EvidenceBundle validation of SemanticEnvelope v1, v2, v3; fixture and roundtrip checks",
+      "exit_code": 0,
+      "summary": "v1 fixture byte-identical to HEAD; v2 differs only by schema_version; v1 and v3 rejected by all three validation paths; v2 roundtrips with unknown field intact"
+    }
+  ],
+  "reviewed_behaviors": [
+    "current-only SemanticEnvelope v2 and EvidenceBundle major version match S1-4 and ADR-086; other durable kind defaults remain 1 in focused tests",
+    "MARKER replay fixture retains rolling prune, rebuild, and monotonic sequence assertions",
+    "registry erasure fence observability constant matches EventKind; parity test includes it",
+    "static prefilter fake snapshot exercises online/offline shared weight lease, one load, and release without download",
+    "transport fixture supplies deployment identity required by the shared window path",
+    "four worker harnesses call real RecordProjector.apply and assert records cursor and WRITE materialization; graph checkpoint stays distinct; lifecycle rebuild resets before replay"
+  ],
+  "material_findings": [],
+  "remaining_limitations": [
+    "Review covers the frozen 49-file baseline repair and focused old-lock tests; it does not establish completion of the wider PA-113 wave or exercise live external providers, downloads, or paid APIs."
+  ],
+  "verdict": "PASS: no material findings in independent R2 review of the frozen 49-file batch."
+}

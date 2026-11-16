@@ -1,0 +1,112 @@
+{
+  "purpose": "PA-113 old-lock versus refreshed-lock diagnostic comparison on frozen selected tests",
+  "source_revision": "aed6cbf36d5f1def238d9efeb01141717c786d2e",
+  "baseline_interpreter": "C:\\Users\\hembad\\.codex\\pa113-envs\\baseline-aed6cbf3-oldlock\\Scripts\\python.exe",
+  "candidate_interpreter": "C:\\Users\\hembad\\.codex\\pa113-envs\\candidate-aed6cbf3-refresh\\Scripts\\python.exe",
+  "selected_test_file_count": 815,
+  "chunks": 46,
+  "exclusions": [
+    "tests/integration/test_rm45_mongo_records_projection.py",
+    "tests/integration/test_rm45_pg_records_projection.py"
+  ],
+  "baseline_counts": {
+    "passed": 11631,
+    "skipped": 249,
+    "failed": 55,
+    "deselected": 5
+  },
+  "candidate_original_counts": {
+    "passed": 11624,
+    "skipped": 256,
+    "failed": 55,
+    "deselected": 5
+  },
+  "candidate_aligned_counts": {
+    "passed": 11631,
+    "skipped": 249,
+    "failed": 55,
+    "deselected": 5
+  },
+  "config_separate": {
+    "baseline_passed": 199,
+    "candidate_passed": 199
+  },
+  "failure_headers_identical": true,
+  "failure_headers": {
+    "tests-integration-0": [
+      "test_ingest_messages_matches_current_base_snapshot[base:memory]",
+      "test_ingest_messages_matches_current_base_snapshot[base:file]",
+      "test_ingest_messages_matches_current_base_snapshot[core:memory]",
+      "test_ingest_messages_matches_current_base_snapshot[core:file]"
+    ],
+    "tests-unit-core-1": [
+      "test_unpruned_rolling_log_can_rebuild",
+      "test_pruned_rolling_log_refuses_rebuild",
+      "test_seq_never_reused_after_prune"
+    ],
+    "tests-unit-observability-0": [
+      "test_m11_vocabulary_matches_event_kinds"
+    ],
+    "tests-unit-providers-1": [
+      "test_static_prefilter_reuses_the_configured_static_embedder_entry"
+    ],
+    "tests-unit-schemas-0": [
+      "test_committed_internal_export_matches_fresh_export",
+      "test_committed_strict_tiers_match_fresh_export_or_report_missing_bump"
+    ],
+    "tests-unit-wiring-2": [
+      "test_engine_with_the_transport_flag_gives_the_same_facts"
+    ],
+    "tests-unit-workers-0": [
+      "test_check_watches_reports_zero_when_nothing_fires",
+      "test_check_watches_counts_due_and_invalidated",
+      "test_check_watches_is_read_only_and_idempotent",
+      "test_one_call_per_session_with_turn_attribution",
+      "test_second_sweep_makes_no_call",
+      "test_decision_entities_form_the_allowed_list",
+      "test_record_granularity_is_the_default_path",
+      "test_records_outside_a_session_stay_per_record",
+      "test_session_granularity_with_rules_resolution_uses_resolved_names",
+      "test_edge_becomes_a_fact_record_and_asserted_link",
+      "test_rerun_is_idempotent",
+      "test_never_extracts_from_its_own_output",
+      "test_low_confidence_edges_are_filtered",
+      "test_bare_context_screens_facts_with_the_local_firewall",
+      "test_second_sweep_without_new_records_makes_no_llm_calls",
+      "test_failed_extraction_is_not_watermarked",
+      "test_event_edges_keep_dst_and_are_not_keyed_on_the_relation",
+      "test_extractor_sees_reference_time_previous_episodes_and_entities",
+      "test_watermark_marker_is_erasable_and_forget_drops_it",
+      "test_consolidate_summarizes_closed_sessions_idempotently",
+      "test_consolidate_skips_small_and_open_sessions",
+      "test_consolidate_uses_llm_summarizer_and_survives_its_failure",
+      "test_extractive_only_never_calls_an_available_summarizer",
+      "test_consolidate_never_reconsolidates_summaries",
+      "test_decay_sweep_transitions_and_is_idempotent",
+      "test_decay_sweep_skips_deleted_and_quarantined",
+      "test_decay_then_compress_then_rebuild_round_trips",
+      "test_compress_respects_legal_hold",
+      "test_decay_transition_delta_preserves_concurrent_access_stats",
+      "test_orphaned_delta_transition_is_skipped",
+      "test_backfill_reconsolidates_and_supersedes_stale_summary",
+      "test_consolidate_inflates_compressed_members",
+      "test_llm_summarizer_success_path_words_the_summary",
+      "test_write_event_carries_consolidation_provenance",
+      "test_sweeps_cover_semantic_and_resource_types_across_namespaces",
+      "test_off_by_default_open_sessions_are_not_summarised",
+      "test_incremental_updates_then_periodic_full_rebuild",
+      "test_rebuild_every_n_turns_exact_call_budget",
+      "test_trust_is_min_of_all_members_and_flags_are_inherited",
+      "test_closing_an_open_summary_costs_no_call_and_feeds_derived_stages",
+      "test_without_an_llm_the_extractive_summary_is_rebuilt",
+      "test_extractive_only_disables_full_and_incremental_model_calls",
+      "test_an_open_summary_is_closed_after_incremental_is_switched_off"
+    ]
+  },
+  "all_chunk_exit_and_counts_match_after_fixture_alignment": true,
+  "candidate_original_results_sha256": "dd6d98f2d5360cd60d5a2caf842083be219fd0e123f667f31f8d0e5d14cba16e",
+  "candidate_aligned_reruns_sha256": "c186eee520d5a775ff2dc8449757b0206b0963ac09fa84e57e848c0fd94b6155",
+  "baseline_results_sha256": "76ee77daa50bcf16bc793b45f50009a26d88bcc9b6702abe5ff5e5b8ac824bbd",
+  "candidate_fixture_manifest_sha256": "f873eb0f5e58ae58292616ae02454ef5ddd9abb2bfac993cc63e8197c3bc1691",
+  "scope_limit": "Selected test files/source-diagnostic result; not a clean full release gate. Original baseline failures remain recorded."
+}

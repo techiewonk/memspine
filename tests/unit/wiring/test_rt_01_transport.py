@@ -383,6 +383,7 @@ async def test_engine_with_the_transport_flag_gives_the_same_facts(
         eng = Engine(
             template="core",
             dotenv_path=None,
+            deployment={"id": "test-transport"},
             storage={
                 "records": {
                     "provider": "sqlite",

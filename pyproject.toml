@@ -10,19 +10,19 @@ keywords = ["memory", "agents", "llm", "rag", "knowledge-graph", "vector-search"
 
 # Slim core (D-03): a working brain with zero heavy deps.
 dependencies = [
-    "pydantic>=2.14.1",
-    "pydantic-settings>=2.16.0",
-    "sqlalchemy>=2.1.5",         # storage: Core, not ORM (D-36)
+    "pydantic>=2.14.3",
+    "pydantic-settings>=2.16.3",
+    "sqlalchemy>=2.1.8",         # storage: Core, not ORM (D-36)
     "alembic>=1.20.0",           # migrations (D-36)
     "orjson>=3.13.0",            # hot-path serialization (D-38)
-    "xxhash>=4.0.1",             # content fingerprints (D-37)
+    "xxhash>=4.1.0",             # content fingerprints (D-37)
     "fastuuid>=0.14.0",          # fast record ids (D-37)
     "structlog>=26.1.0",         # structured logging (D-04/M11)
-    "typer>=0.27.3",             # CLI (D-04)
-    "onnxruntime>=1.31.0",       # pinned-catalogue CPU inference (ADR-084)
+    "typer>=0.29.1",             # CLI (D-04)
+    "onnxruntime>=1.32.0",       # pinned-catalogue CPU inference (ADR-084)
     "tokenizers>=0.23.3",        # native tokenizer matching catalogue exports
     "huggingface-hub>=2.2.0,<3", # standard model cache; Hub 2.x unlocked by ADR-084/085
-    "json-repair>=0.64.0",       # always-on JSON safety net (D-31)
+    "json-repair>=0.64.9",       # always-on JSON safety net (D-31)
     "datasketch>=2.0.0",         # MinHash-LSH dedup stage-1 (D-27)
     "zstandard>=0.25.0",         # cold-tier compression (D-32)
     "jinja2>=3.1.6",             # prompt templating (D-43)
@@ -36,7 +36,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-anyllm = ["any-llm-sdk>=1.40.1,<2"]  # ADR-085; install provider SDK extras separately
+anyllm = ["any-llm-sdk>=1.50.0,<2"]  # ADR-085; install provider SDK extras separately
 # NOTE(ADR-034): ladybug (the maintained, MIT-licensed Kùzu fork; Kùzu itself was
 # archived on 2025-10-10) is the graph engine for graph features. Pinned to one
 # minor: the embedded storage format and Cypher surface move between minors.
@@ -47,25 +47,25 @@ ingest     = ["markitdown>=0.1.8", "chonkie>=1.7.0"]    # multi-format ingest + 
 ner        = ["gliner2[local]>=2.1.0,<3"]  # local NER; explicit [local] inference stack, transformers<6
 decider    = ["torch>=2.14.1", "transformers>=5.20.1", "safetensors>=0.8.0", "huggingface-hub>=2.2.0,<3"]  # I28: OpenDecider-nano inference (own port, no `opendecider` package); ~0.8 GB weights, CPU ok
 compress   = ["llmlingua>=0.2.2"]                     # assembly-time context compression (E5)
-llmlocal   = ["llama-cpp-python>=0.3.36"]              # in-proc open-weight inference (D-39)
+llmlocal   = ["llama-cpp-python>=0.3.37"]              # in-proc open-weight inference (D-39)
 opensearch = ["opensearch-py[async]>=3.2.0,<4"]       # async server-scale lexical/BM25 leg; embedded default is core tantivy
-temporal   = ["temporalio>=1.34.0,<2", "resonate-sdk>=0.8.1,<0.9"]  # external macro-orchestration + embedded micro-orchestration
+temporal   = ["temporalio>=1.36.1,<2", "resonate-sdk>=0.8.1,<0.9"]  # external macro-orchestration + embedded micro-orchestration
 taskiq     = ["taskiq>=0.13.0", "taskiq-redis>=1.2.4"]  # brokered worker runner (D-16)
-rest       = ["fastapi>=0.143.3", "uvicorn>=0.54.0"]    # REST protocol (D-06)
+rest       = ["fastapi>=0.163.1", "uvicorn>=0.54.0"]    # REST protocol (D-06)
 otel       = ["opentelemetry-api>=1.45.1", "opentelemetry-sdk>=1.45.1"]  # optional span export (G-20, T5-06): ids/counts only, no content
 rerank     = ["flashrank>=0.2.10"]                      # E8 cross-encoder rerank alt (D-51)
-st         = ["transformers>=5.20.1", "torch>=2.14.1", "sentence-transformers>=6.1.0", "bitsandbytes>=0.50.2"]   # local torch rerankers: Qwen3-Reranker (G5a)
+st         = ["transformers>=5.23.0", "torch>=2.14.1", "sentence-transformers>=6.3.0", "bitsandbytes>=0.50.2"]   # local torch rerankers: Qwen3-Reranker (G5a)
 static     = ["model2vec>=0.10.0"]                      # E4 static-embedding prefilter (ADR-020)
-aws        = ["boto3>=1.43.114"]                         # Bedrock LLM/embeddings + Secrets (D-07/D-22)
+aws        = ["boto3>=1.44.3"]                         # Bedrock LLM/embeddings + Secrets (D-07/D-22)
 promptopt  = ["langmem>=0.0.30"]                     # RG-only prompt self-optimization hook (D-43)
-postgres   = ["psycopg[binary]>=3.3.6", "pgvector>=0.5.1"]  # storage backend (D-36, psycopg3: sync Alembic + async runtime)
+postgres   = ["psycopg[binary]>=3.3.9", "pgvector>=0.5.1"]  # storage backend (D-36, psycopg3: sync Alembic + async runtime)
 weaviate   = ["weaviate-client>=4.23.1,<5"]
 neo4j      = ["neo4j>=6.4.1"]
-mongodb    = ["pymongo>=4.13,<5"]                       # RM-112 records store: native asyncio API (Motor is deprecated); needs a replica set
+mongodb    = ["pymongo>=4.20.0,<5"]                     # RM-112 records store: native asyncio API (Motor is deprecated); needs a replica set
 # #52/ADR-035: SQLCipher encryption at rest for the SQLite event log + read model
 # (``storage.encryption.mode: sqlcipher``). A native build on some platforms, so it
 # is NOT in ``all``; ``pysqlcipher3`` is accepted too if already installed.
-encrypt    = ["sqlcipher3>=0.6.4"]
+encrypt    = ["sqlcipher3>=0.6.5"]
 
 # Convenience bundles
 local      = ["memspine[graph,cache,ingest,ner]"]
@@ -74,13 +74,13 @@ all        = ["memspine[graph,cache,ingest,ner,compress,llmlocal,opensearch,temp
 
 dev = [
     "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
+    "pytest-asyncio>=1.5.0",
     "pytest-cov>=7.1.0",
-    "ruff>=0.17.1",
+    "ruff>=0.17.5",
     "mypy>=2.4.0",
-    "import-linter>=2.15",       # X-02: scripts/ci_importlinter.py (layer contracts in .importlinter)
+    "import-linter>=2.16",       # X-02: scripts/ci_importlinter.py (layer contracts in .importlinter)
     "fakeredis>=2.40.0",          # mock cache/broker in tests (D-41)
-    "mkdocs-material>=9.7.7",
+    "mkdocs-material>=9.8.1",
     "mkdocstrings[python]>=1.0.7",
     "tzdata; sys_platform == 'win32'",  # zoneinfo has no system tz database on Windows (tests use Europe/Berlin)
 ]
@@ -94,16 +94,16 @@ Repository = "https://github.com/techiewonk/memspine"
 Documentation = "https://github.com/techiewonk/memspine/tree/main/docs"
 
 [build-system]
-requires = ["hatchling>=1.32.4"]
+requires = ["hatchling>=1.33.0"]
 build-backend = "hatchling.build"
 
 [dependency-groups]
 dev = [
-    "types-pyyaml>=6.0.12.20260906",
+    "types-pyyaml>=6.0.12.20261113",
     "packaging>=26.3",        # dependency metadata audit (development tooling only)
     # api/rest is dev-tested in-process (httpx ASGITransport, no server);
     # taskiq stays OUT of dev — its runner is tested via fakeredis + pure fns (D-41).
-    "fastapi>=0.143.3",
+    "fastapi>=0.163.1",
 ]
 [tool.uv]
 required-version = ">=0.13.1"  # current lockfile format and Python 3.13 tooling
